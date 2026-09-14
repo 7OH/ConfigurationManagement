@@ -34,6 +34,13 @@ public sealed class OneCComConnector : IOneCComConnector
     private static string? _templateCache;
     private static bool _templateLoaded;
 
+    // Максимальная установленная версия платформы 1С, используемая как запасная при развороте
+    // шаблона имени, когда у базы версия не указана (issue #175). Кэшируется: сканирование
+    // каталогов установленных версий на каждую базу при переборе списка было бы лишним дисковым
+    // вводом. Сбрасывается вместе с кэшем доступности COM (после ручной регистрации/установки).
+    private static readonly object InstalledVersionLock = new();
+    private static string? _maxInstalledVersionCache;
+
     /// <summary>
     /// ProgID COM-коннекторов 1С в порядке приоритета (от новых версий к старым).
     /// <para>
@@ -102,25 +109,57 @@ public sealed class OneCComConnector : IOneCComConnector
         => BuildProgIdCandidates(ComConnectorNameTemplate, infobase?.PlatformVersion);
 
     /// <summary>
-    /// Строит список ProgID-кандидатов для перебора. <paramref name="template"/> — шаблон
-    /// имени COM-коннектора, <paramref name="platformVersion"/> — версия платформы базы
-    /// (например «8.3.27.1644»). Если шаблон пуст или версию развернуть нельзя, возвращается
-    /// стандартный <see cref="KnownProgIds"/>.
+    /// Строит список ProgID для подключения к базе (issue #175). Пустой шаблон — стандартный
+    /// <see cref="KnownProgIds"/> без изменений. Непустой шаблон разворачивается по версии
+    /// платформы и даёт ровно одно целевое имя: пользователь просил подключение без перебора
+    /// кандидатов. Если у базы версия не указана, используется максимальная установленная версия
+    /// платформы (как это делает 1С), чтобы шаблон разворачивался и без поля «Версия платформы».
+    /// Если развернуть не удалось даже с запасной версией — страховочный <see cref="KnownProgIds"/>.
     /// </summary>
     internal static IReadOnlyList<string> BuildProgIdCandidates(string? template, string? platformVersion)
     {
-        var expanded = ExpandTemplate(template, platformVersion);
+        if (string.IsNullOrWhiteSpace(template))
+            return KnownProgIds;
+
+        var effective = ResolveEffectivePlatformVersion(platformVersion);
+        var expanded = ExpandTemplate(template, effective);
         if (expanded is null)
             return KnownProgIds;
 
-        var list = new List<string>(KnownProgIds.Length + 1) { expanded };
-        foreach (var progId in KnownProgIds)
+        return new[] { expanded };
+    }
+
+    /// <summary>
+    /// Версия, по которой разворачивается шаблон имени COM-коннектора (issue #175): версия
+    /// платформы базы, а если она не задана — максимальная установленная версия платформы 1С.
+    /// Возвращает null, если ни версии базы, ни установленной платформы нет.
+    /// </summary>
+    internal static string? ResolveEffectivePlatformVersion(string? baseVersion)
+    {
+        if (!string.IsNullOrWhiteSpace(baseVersion))
+            return baseVersion;
+
+        lock (InstalledVersionLock)
         {
-            if (!string.Equals(progId, expanded, StringComparison.OrdinalIgnoreCase))
-                list.Add(progId);
+            if (_maxInstalledVersionCache is not null)
+                return _maxInstalledVersionCache;
         }
 
-        return list;
+        string? best = null;
+        try
+        {
+            // FindInstalledVersionInfos возвращает список, отсортированный по убыванию версии
+            // (VersionComparer), поэтому первый элемент — максимальная установленная версия.
+            best = PlatformVersionService.FindInstalledVersionInfos().FirstOrDefault()?.Display;
+        }
+        catch
+        {
+            // Список установленных версий недоступен — остаёмся без запасной версии.
+        }
+
+        lock (InstalledVersionLock)
+            _maxInstalledVersionCache = best;
+        return best;
     }
 
     /// <summary>
@@ -211,6 +250,11 @@ public sealed class OneCComConnector : IOneCComConnector
         {
             _connectorsAvailable = null;
             _cachedAvailabilityStatus = null;
+        }
+        lock (InstalledVersionLock)
+        {
+            // Установленный набор версий мог измениться — снимаем и запасную версию шаблона.
+            _maxInstalledVersionCache = null;
         }
     }
 
@@ -374,14 +418,22 @@ public sealed class OneCComConnector : IOneCComConnector
         var template = ComConnectorNameTemplate;
         var hasTemplate = !string.IsNullOrWhiteSpace(template);
 
+        // Версия, по которой разворачивается шаблон имени (issue #175): у базы может быть
+        // не задана — тогда берём максимальную установленную версию платформы, как делает 1С.
+        // Фактически использованную версию запоминаем для диагностики в UI и в журнале.
+        // Без шаблона запасная версия не нужна, поэтому ищем её только при hasTemplate.
+        var usedVersion = hasTemplate
+            ? ResolveEffectivePlatformVersion(ib.PlatformVersion)
+            : ib.PlatformVersion;
+
         // Список ProgID с учётом шаблона имени (issue #175). Как и в Connect, кэш доступности
         // обходим при кастомном шаблоне: он проверяет только KnownProgIds, а перечень кандидатов
-        // агент получит явно.
-        var progIds = BuildProgIdCandidates(template, ib.PlatformVersion);
+        // агент получит явно. Непустой шаблон даёт ровно одно целевое имя без перебора.
+        var progIds = BuildProgIdCandidates(template, usedVersion);
 
         // Запоминаем фактически использованный ProgID и версию платформы для диагностики
-        // в UI (issue #174/#175). При кастомном шаблоне первым кандидатом всегда идёт
-        // развёрнутое по версии имя (например, V83.COMConnector_27 для базы 8.3.27): его и
+        // в UI (issue #174/#175). При кастомном шаблоне список состоит ровно из одного
+        // развёрнутого по версии имени (например, V83.COMConnector_27 для базы 8.3.27): его и
         // показываем в предпросмотре и при неуспехе, даже если оно не зарегистрировано —
         // пользователю важно увидеть, что именно дал его шаблон. При пустом шаблоне поведение
         // прежнее: берём первый реально зарегистрированный стандартный коннектор, иначе
@@ -391,7 +443,7 @@ public sealed class OneCComConnector : IOneCComConnector
             : progIds[0];
         // ib гарантированно ненулевой (защита выше + null-forgiving), поэтому ?. здесь
         // избыточен и вдобавок сбивает анализ состояния потока для последующих обращений.
-        LastUsedPlatformVersion = ib.PlatformVersion;
+        LastUsedPlatformVersion = usedVersion;
 
         // Быстрый отказ по кэшу доступности — только без кастомного шаблона (см. комментарий
         // в Connect): при заданном шаблоне даже неудавшееся разворачивание версии не должно
@@ -420,28 +472,34 @@ public sealed class OneCComConnector : IOneCComConnector
         // и предупреждение могло сообщить о переборе, которого не было (issue #175).
         var alreadyDisabled = ComReadHost.ComUnavailable;
 
-        // Шаблон задан, но развернуть его по версии платформы базы не удалось: имя из шаблона
-        // в переборе не участвует, и в журнале это должно быть сказано отдельно (issue #175).
-        // Иначе причина неотличима от «коннектор не зарегистрирован», а именно так выглядел
-        // отказ у пользователя: строка про кандидатов есть, а его имени в ней нет. Запись
-        // идёт по базе, как и сообщение об ошибке ниже, и подавляется в тех же случаях:
-        // COM уже погашен на сессию или приложение закрывается — тогда отказ вызван не
-        // состоянием шаблона, и строка на каждую оставшуюся базу была бы шумом.
-        if (hasTemplate && ReferenceEquals(progIds, KnownProgIds)
-            && !alreadyDisabled && !ComReadHost.IsShuttingDown)
+        // Логируем разворот шаблона имени COM-коннектора (issue #175): какую версию использовали
+        // и какое имя получили. Если версия у базы не задана, берётся максимальная установленная —
+        // так шаблон разворачивается даже без поля «Версия платформы», а если и её нет — причина
+        // отдельной записью, чтобы отказ не был неотличим от «коннектор не зарегистрирован».
+        // Запись идёт по базе и подавляется в тех же случаях, что и сообщение об ошибке ниже:
+        // COM уже погашен на сессию или приложение закрывается — тогда разбор шаблона ни при чём.
+        if (hasTemplate && !alreadyDisabled && !ComReadHost.IsShuttingDown)
         {
-            // Либо версии платформы у базы нет вовсе, либо она есть, но применить её
-            // к шаблону не удалось: имя выходит пустым или версия не разбирается
-            // (в первых двух сегментах нет цифр). Последние два случая в сообщении
-            // не разделяем: устраняются они одинаково.
-            var reason = string.IsNullOrWhiteSpace(ib.PlatformVersion)
-                ? "у базы не указана версия платформы 1С"
-                : $"версию платформы базы «{ib.PlatformVersion}» не удалось применить "
-                  + "к шаблону: имя выходит пустым или версия не разбирается";
-            _logger.Warn(
-                $"Шаблон имени COM-коннектора «{template}» не развёрнут "
-                + $"для базы «{DisplayName(ib)}»: {reason}. "
-                + $"Перебираются стандартные коннекторы: {string.Join(", ", progIds)}.");
+            if (ReferenceEquals(progIds, KnownProgIds))
+            {
+                var reason = string.IsNullOrWhiteSpace(usedVersion)
+                    ? "нет ни версии платформы у базы, ни установленной платформы 1С"
+                    : $"версию «{usedVersion}» не удалось применить к шаблону: "
+                      + "имя выходит пустым или версия не разбирается";
+                _logger.Warn(
+                    $"Шаблон имени COM-коннектора «{template}» не развёрнут "
+                    + $"для базы «{DisplayName(ib)}»: {reason}. "
+                    + $"Перебираются стандартные коннекторы: {string.Join(", ", progIds)}.");
+            }
+            else
+            {
+                var versionSource = string.IsNullOrWhiteSpace(ib.PlatformVersion)
+                    ? $"у базы версия не указана — взята максимальная установленная «{usedVersion}»"
+                    : $"версия базы «{ib.PlatformVersion}»";
+                _logger.Info(
+                    $"Шаблон имени COM-коннектора «{template}» для базы «{DisplayName(ib)}» "
+                    + $"развёрнут ({versionSource}) в коннектор «{progIds[0]}».");
+            }
         }
 
         // Сообщаем этапы в диалог прогресса кнопки «Определить» (issue #174): сначала —
@@ -496,6 +554,9 @@ public sealed class OneCComConnector : IOneCComConnector
             // при сборке строки. Пароль маскируем тем же правилом, что и для ошибок от 1С.
             _logger.Error(
                 $"Не удалось прочитать сведения о конфигурации базы «{DisplayName(ib)}»: {LastError}{trace}."
+                + $" Версия платформы базы: {(string.IsNullOrWhiteSpace(ib.PlatformVersion) ? "(не указана)" : ib.PlatformVersion)}."
+                + $" Версия для разворота шаблона: {(string.IsNullOrWhiteSpace(usedVersion) ? "(не определена)" : usedVersion)}."
+                + $" Шаблон имени: {(string.IsNullOrWhiteSpace(template) ? "(не задан)" : template)}."
                 + $" Использованный COM-коннектор: {LastUsedProgId ?? "(не определён)"}."
                 + $" Строка подключения: {MaskCredentials(connectString)}. Таймаут: {timeoutMs} мс."
                 + $" Кандидаты COM-коннекторов (в порядке перебора): {string.Join(", ", progIds)}.");
