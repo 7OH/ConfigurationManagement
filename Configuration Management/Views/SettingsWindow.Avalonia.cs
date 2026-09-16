@@ -1879,7 +1879,9 @@ namespace Configuration_Management
             ToolTip.SetTip(detectAll, LocalizationManager.T("Settings.Bases.DetectAllConfigsTooltip"));
             detectAll.Click += (_, _) =>
             {
-                var dialog = new DetectConfigurationsWindow(_viewModel.Infobases.ToList());
+                var dialog = new DetectConfigurationsWindow(
+                    _viewModel.Infobases.ToList(),
+                    editBase: ib => _viewModel.EditInfobaseCommand.Execute(ib));
                 dialog.ShowDialogSync(this);
                 if (dialog.DataChanged)
                     _viewModel.PersistInfobasesAfterInlineEdit();

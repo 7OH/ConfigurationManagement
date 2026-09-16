@@ -208,7 +208,9 @@ namespace Configuration_Management
         /// </summary>
         private void OnDetectAllConfigurations_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new DetectConfigurationsWindow(_viewModel.Infobases.ToList())
+            var dialog = new DetectConfigurationsWindow(
+                _viewModel.Infobases.ToList(),
+                editBase: ib => _viewModel.EditInfobaseCommand.Execute(ib))
             {
                 Owner = this
             };

@@ -9,6 +9,25 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.32] — 2026-09-16
+
+### Добавлено
+
+- **Определение конфигураций всех баз — доработки диалога** (issue [#236](https://github.com/sivatorov/ConfigurationManagement/issues/236)):
+  - окно прогресса показывает, какую базу обновляет сейчас, и результат обработки предыдущей, чтобы было время прочитать текст ошибки;
+  - добавлена опция **«Действие при ошибке»**: «Остановить обработку» (по умолчанию) или «Продолжить дальше»; об ошибках пользователь информируется в любом случае (результат с текстом ошибки остаётся видимым в строке состояния);
+  - исправлено снятие/установка галочки с первого клика без предварительного фокуса;
+  - добавлена колонка **«Платформа»**; строки без заданной платформы не отмечаются автоматически;
+  - добавлен **индикатор заполненности логина/пароля** (зелёная/красная точка) и **кнопка вызова свойств базы** под курсором, не закрывающая список; строки без заполненных логина/пароля не отмечаются автоматически;
+  - добавлена кнопка **«Прекратить»** для остановки фоновой последовательной обработки (через `CancellationToken`).
+  - реализовано на обеих платформах: Windows/WPF ([`Views/DetectConfigurationsWindow.xaml`](Configuration%20Management/Views/DetectConfigurationsWindow.xaml) + [`Views/DetectConfigurationsWindow.xaml.cs`](Configuration%20Management/Views/DetectConfigurationsWindow.xaml.cs)) и Linux/Avalonia ([`Views/DetectConfigurationsWindow.Avalonia.cs`](Configuration%20Management/Views/DetectConfigurationsWindow.Avalonia.cs)); состояние строк — в модели ([`ViewModels/DetectConfigRowViewModel.cs`](Configuration%20Management/ViewModels/DetectConfigRowViewModel.cs));
+  - подписи локализованы в [`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json) и [`Localization/Languages/en.json`](Configuration%20Management/Localization/Languages/en.json).
+
+### Версия
+
+- **Версия поднята до `0.3.7.32`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.31] — 2026-09-16
 
 ### Добавлено

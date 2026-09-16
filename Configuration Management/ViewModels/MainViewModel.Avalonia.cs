@@ -567,7 +567,7 @@ public class MainViewModel : ViewModelBase
         LaunchEnterpriseWithParamsCommand = new RelayCommand(_ => LaunchWithParams(LaunchKind.Enterprise), _ => SelectedInfobase is not null);
         LaunchEnterpriseWithAuthCommand = new RelayCommand(_ => LaunchWithAuth(), _ => SelectedInfobase is not null);
         LaunchConfiguratorWithParamsCommand = new RelayCommand(_ => LaunchWithParams(LaunchKind.Configurator), _ => SelectedInfobase is not null);
-        EditInfobaseCommand = new RelayCommand(_ => EditInfobase(), _ => SelectedInfobase is not null);
+        EditInfobaseCommand = new RelayCommand(p => EditInfobase(p as Infobase ?? SelectedInfobase), _ => SelectedInfobase is not null);
         AddInfobaseCommand = new RelayCommand(AddInfobase);
         DeleteInfobaseCommand = new RelayCommand(_ => DeleteInfobase(),
             _ => SelectedInfobase is not null || SelectedGroupNode?.Group is not null);
@@ -2088,9 +2088,9 @@ public class MainViewModel : ViewModelBase
         NotifyAfterLaunch();
     }
 
-    private void EditInfobase()
+    private void EditInfobase(Infobase? target = null)
     {
-        var ib = SelectedInfobase;
+        var ib = target ?? SelectedInfobase;
         if (ib is null)
             return;
 
