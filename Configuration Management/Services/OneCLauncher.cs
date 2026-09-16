@@ -610,9 +610,17 @@ public static partial class OneCLauncher
                 ? new[] { "1cv8c.exe", "1cv8.exe", "1cv8x64.exe" }
                 : new[] { "1cv8c.exe", "1cv8.exe" };
         }
+        else if (clientType is null)
+        {
+            // Автоматический выбор клиента (issue #245): приоритет тонкому клиенту
+            // 1cv8c.exe, если он доступен; толстый — только как запасной.
+            exeNames = architecture == OneCArchitecture.x64
+                ? new[] { "1cv8c.exe", "1cv8.exe", "1cv8x64.exe" }
+                : new[] { "1cv8c.exe", "1cv8.exe" };
+        }
         else
         {
-            // Толстый клиент или авто: 1cv8.exe (современный 64) / 1cv8x64.exe (старый 64).
+            // Толстый клиент: 1cv8.exe (современный 64) / 1cv8x64.exe (старый 64).
             exeNames = architecture == OneCArchitecture.x64
                 ? new[] { "1cv8.exe", "1cv8x64.exe" }
                 : new[] { "1cv8.exe" };

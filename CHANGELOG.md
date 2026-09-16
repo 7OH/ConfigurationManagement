@@ -9,6 +9,17 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.26] — 2026-09-16
+
+### Исправлено
+
+- **При автоматическом выборе клиента больше не стартует толстый клиент** (issue [#245](https://github.com/sivatorov/ConfigurationManagement/issues/245)): при режиме запуска базы «Автоматический» без явного указания типа клиента приоритет теперь отдаётся тонкому клиенту `1cv8c.exe`, если он установлен; толстый `1cv8.exe` используется только как запасной. Раньше в этом случае выбирался толстый клиент по умолчанию, что приводило к странным ошибкам в конфигурациях и долгому запуску. Исправление реализовано на обеих платформах — Windows/WPF ([`Services/OneCLauncher.cs`](Configuration%20Management/Services/OneCLauncher.cs)) и Linux/Avalonia ([`Services/OneCLauncher.Linux.cs`](Configuration%20Management/Services/OneCLauncher.Linux.cs)).
+
+### Версия
+
+- **Версия поднята до `0.3.7.26`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.25] — 2026-09-14
 
 ### Добавлено

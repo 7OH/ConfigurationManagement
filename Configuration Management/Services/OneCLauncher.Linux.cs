@@ -454,8 +454,11 @@ namespace Configuration_Management.Services
         {
             if (mode == OneCLaunchMode.Configurator)
                 return new[] { "1cv8" };
-            if (clientType == OneCClientType.Thin)
+            // Тонкий клиент или автоматический выбор (issue #245): приоритет 1cv8c,
+            // если он доступен; толстый 1cv8 — только как запасной.
+            if (clientType is null || clientType == OneCClientType.Thin)
                 return new[] { "1cv8c", "1cv8" };
+            // Толстый клиент.
             return new[] { "1cv8" };
         }
 
