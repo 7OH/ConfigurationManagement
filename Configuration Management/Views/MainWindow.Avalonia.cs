@@ -5670,7 +5670,6 @@ namespace Configuration_Management
 
             menu.Items.Add(MenuAction("Main.LaunchEnterprise", _vm.LaunchEnterpriseCommand, _vm.HotkeyEnterprise, "IconPlay", "#22C55E"));
             menu.Items.Add(MenuAction("Main.LaunchConfigurator", _vm.LaunchConfiguratorCommand, _vm.HotkeyConfigurator, "IconSettings", "#3B82F6"));
-            menu.Items.Add(MenuAction("Main.EditSettings", _vm.EditInfobaseCommand, _vm.HotkeyEdit, "IconEdit", "#3B82F6"));
             menu.Items.Add(MenuAction("Main.RefreshConfigInfo", _vm.RefreshConfigurationInfoCommand, null, "IconCloudDownload", "#14B8A6"));
             // «Зарегистрировать COM-коннектор» здесь нет намеренно: внешнее соединение
             // это COM, в Linux регистрировать нечего. Windows-сторона решение подтвердила.
@@ -5682,11 +5681,17 @@ namespace Configuration_Management
             menu.Items.Add(MenuAction("Main.OpenCatalog", _vm.OpenInfobaseFolderCommand, null, "IconFolderOpen", "#0EA5E9"));
             menu.Items.Add(MenuAction("Main.DesktopShortcut", _vm.CreateDesktopShortcutCommand, null, "IconDesktopClassic", "#6366F1"));
             menu.Items.Add(MenuAction("Main.AddBase", _vm.AddInfobaseCommand, _vm.HotkeyAdd, "IconAdd", "#22C55E"));
+            // «Удалить» отделён разделителями сверху и снизу и стоит выше раздела
+            // выгрузки, как и договаривались в issue #242 (соответствует WPF).
+            menu.Items.Add(new Separator());
+            menu.Items.Add(MenuAction("Main.Delete", _vm.DeleteInfobaseCommand, _vm.HotkeyDelete, "IconDelete", "#EF4444"));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuAction("Main.DumpToDt", _vm.DumpInfobaseDtCommand, null, "IconDatabaseExport", "#0EA5E9"));
             menu.Items.Add(MenuAction("Main.DumpConfigToCf", _vm.DumpConfigurationCfCommand, null, "IconFileExport", "#3B82F6"));
             menu.Items.Add(new Separator());
-            menu.Items.Add(MenuAction("Main.Delete", _vm.DeleteInfobaseCommand, _vm.HotkeyDelete, "IconDelete", "#EF4444"));
+            // «Изменить настройки» (аналог «Свойств» в ОС) размещён внизу меню,
+            // после разделителя, как в issue #242 (соответствует WPF).
+            menu.Items.Add(MenuAction("Main.EditSettings", _vm.EditInfobaseCommand, _vm.HotkeyEdit, "IconEdit", "#3B82F6"));
             return menu;
         }
 
