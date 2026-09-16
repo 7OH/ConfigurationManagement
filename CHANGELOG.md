@@ -9,6 +9,19 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.27] — 2026-09-16
+
+### Исправлено
+
+- **Название COM-коннектора 1С по шаблону теперь учитывает версию базы и без разрядности** (issue [#175](https://github.com/sivatorov/ConfigurationManagement/issues/175)):
+  - при развороте шаблона имени COM-коннектора версия платформы нормализуется: суффикс разрядности (« (64)»/« (32)») отбрасывается, поэтому версия «8.5.4.1683 (64)» разворачивается в `V85.COMConnector_1683`, а не в ошибочный `V85.COMConnector_168364`. Нормализация сделана в единой точке [`Services/ComConnectorTemplate.cs`](Configuration%20Management/Services/ComConnectorTemplate.cs), чтобы предпросмотр в настройках и реальное подключение давали одинаковый результат;
+  - вызов «Определить» из диалога правки свойств базы ([`ViewModels/ConnectionSettingsViewModel.cs`](Configuration%20Management/ViewModels/ConnectionSettingsViewModel.cs)) теперь передаёт указанную для базы версию платформы (`PlatformVersion`) при чтении свойств конфигурации, как это делает контекстное меню. Раньше версия базы игнорировалась, и шаблон разворачивался по максимальной установленной версии.
+
+### Версия
+
+- **Версия поднята до `0.3.7.27`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.26] — 2026-09-16
 
 ### Исправлено

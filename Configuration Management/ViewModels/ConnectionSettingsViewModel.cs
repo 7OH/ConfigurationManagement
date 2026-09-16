@@ -791,6 +791,13 @@ public class ConnectionSettingsViewModel : ViewModelBase
             : !string.IsNullOrWhiteSpace(DatabaseName) ? DatabaseName
             : SuggestNameFromPath(FilePath);
 
+        // Версия платформы базы (issue #175): она нужна для разворота шаблона имени
+        // COM-коннектора при чтении свойств конфигурации. Без неё бралась бы максимальная
+        // установленная версия (часто с суффиксом разрядности), а указанная для базы версия
+        // (например «8.3.27») игнорировалась бы — как и происходило при вызове «Определить»
+        // из диалога свойств базы.
+        ib.PlatformVersion = PlatformVersion;
+
         return ib;
     }
 
