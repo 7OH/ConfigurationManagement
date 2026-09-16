@@ -3174,6 +3174,19 @@ public class MainViewModel : ViewModelBase
         RebuildTree();
     }
 
+    /// <summary>
+    /// Добавляет найденную на диске базу в список приложения (issue #247, диалог
+    /// «Поиск потерянных и забытых баз 1С»). Только добавляет в коллекцию; сохранение
+    /// и перестроение дерева выполняет вызывающий код через
+    /// <see cref="PersistInfobasesAfterInlineEdit"/> после закрытия диалога, если были
+    /// добавления.
+    /// </summary>
+    public void AddFoundInfobase(Infobase infobase)
+    {
+        _allInfobases.Add(infobase);
+        OnPropertyChanged(nameof(Infobases));
+    }
+
     private bool SaveGroupList(List<Group> groups)
     {
         try { _repository.SaveGroups(groups); return true; }

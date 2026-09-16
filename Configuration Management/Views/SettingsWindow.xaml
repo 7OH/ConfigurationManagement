@@ -1627,6 +1627,16 @@
                                         <TextBlock Text="{loc:Loc Settings.Bases.DetectAllConfigs}" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
+                                <!-- Поиск потерянных и забытых баз 1С на дисках (issue #247). -->
+                                <Button Style="{DynamicResource SecondaryButton}" Margin="0,0,0,8" Padding="10,8"
+                                        HorizontalAlignment="Stretch"
+                                        Click="OnFindLostBases_Click"
+                                        ToolTip="{loc:Loc Settings.Bases.FindLostBasesTooltip}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="FolderSearch" Width="16" Height="16" Foreground="#14B8A6" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{loc:Loc Settings.Bases.FindLostBases}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                                 <!-- Очистка истории запусков выбранных баз (issue #246). -->
                                 <Button Style="{DynamicResource SecondaryButton}" Margin="0,0,0,8" Padding="10,8"
                                         HorizontalAlignment="Stretch"

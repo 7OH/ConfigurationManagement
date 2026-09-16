@@ -220,6 +220,24 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Открывает диалог «Поиск потерянных и забытых баз 1С на дисках» (issue #247):
+        /// сканирование корней в поисках файловых баз 1С и добавление отсутствующих в списке
+        /// приложения. После закрытия сохраняет список, если хотя бы одна база была добавлена.
+        /// </summary>
+        private void OnFindLostBases_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new FindLostBasesWindow(
+                _viewModel.Infobases,
+                ib => _viewModel.Infobases.Add(ib))
+            {
+                Owner = this
+            };
+            dialog.ShowDialog();
+            if (dialog.DataChanged)
+                _viewModel.PersistInfobasesAfterInlineEdit();
+        }
+
+        /// <summary>
         /// Открывает диалог «Очистка истории запусков» (issue #246): таблица баз с флажками,
         /// именем и количеством записей истории. После закрытия сохраняет список, если хотя бы
         /// у одной базы история была очищена (правки вносятся прямо в объекты <see cref="Infobase"/>).

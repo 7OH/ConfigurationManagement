@@ -9,6 +9,24 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.35] — 2026-09-16
+
+### Добавлено
+
+- **Поиск потерянных и забытых баз 1С 8 на дисках** (issue [#247](https://github.com/sivatorov/ConfigurationManagement/issues/247)):
+  - новый сервис сканирования [`Services/InfobaseDiskScanner.cs`](Configuration%20Management/Services/InfobaseDiskScanner.cs): перечисление корней поиска (Windows — готовые логические диски, Linux — реальные точки монтирования из `/proc/mounts` без виртуальных/сетевых ФС), рекурсивный поиск файлов `1Cv8.1CD` с обработкой отказов доступа, отменой через `CancellationToken`, прогрессом и дедупликацией путей;
+  - модель найденной базы [`Models/FoundFileBase.cs`](Configuration%20Management/Models/FoundFileBase.cs) (`DirectoryPath`, `DbFilePath`, `SizeBytes`, `LastWriteTime`) и строка диалога [`ViewModels/FoundBaseRowViewModel.cs`](Configuration%20Management/ViewModels/FoundBaseRowViewModel.cs) (`IsChecked`, `InApp`, `InIbasesV8i`, отображаемые имя/путь/размер/дата);
+  - диалог «Поиск потерянных и забытых баз 1С 8» ([`Views/FindLostBasesWindow.xaml(.cs)`](Configuration%20Management/Views/FindLostBasesWindow.xaml.cs) / [`Views/FindLostBasesWindow.Avalonia.cs`](Configuration%20Management/Views/FindLostBasesWindow.Avalonia.cs)): выбор дисков/корней (флажки + «Отметить все / Снять все»), фоновая кнопка «Найти базы» с кнопкой «Прекратить», таблица найденных баз с колонками «Название / Путь / Размер / Дата изменения / В приложении / В ibases.v8i»;
+  - признаки «В приложении» (путь уже среди файловых баз приложения через `InfobaseMaintenanceService.GetFileBaseDirectory`) и «В ibases.v8i» (записи реестра через `IbasesV8iImporter.FindDefaultPath()` + чтение) по нормализованному пути;
+  - кнопка «Добавить в список баз» добавляет отмеченные отсутствующие в приложении базы в список баз приложения (новая база появляется в дереве; в ibases.v8i экспортируется только при включённом режиме экспорта — существующая логика `MainViewModel`);
+  - точка входа — кнопка «Поиск потерянных и забытых баз 1С на дисках» рядом с «Определить\обновить конфигурации всех баз» в Настройки → Базы → Список информационных баз (обе платформы); после закрытия при изменении данных список персистится (`PersistInfobasesAfterInlineEdit` для Windows, публичный метод добавления + персист для Avalonia);
+  - локализация новых ключей `Settings.Bases.FindLostBases.*` и `FindLostBases.*` в `ru.json` / `en.json`.
+
+### Версия
+
+- **Версия поднята до `0.3.7.35`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.34] — 2026-09-16
 
 ### Добавлено

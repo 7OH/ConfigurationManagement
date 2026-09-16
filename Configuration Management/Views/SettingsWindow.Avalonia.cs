@@ -1887,6 +1887,20 @@ namespace Configuration_Management
                     _viewModel.PersistInfobasesAfterInlineEdit();
             };
 
+            // Поиск потерянных и забытых баз 1С на дисках (issue #247). Новые базы
+            // добавляются в коллекцию приложения, поэтому после закрытия сохраняем список.
+            var findLostBases = new Button { Content = LocalizationManager.T("Settings.Bases.FindLostBases") };
+            ToolTip.SetTip(findLostBases, LocalizationManager.T("Settings.Bases.FindLostBasesTooltip"));
+            findLostBases.Click += (_, _) =>
+            {
+                var dialog = new FindLostBasesWindow(
+                    _viewModel.Infobases,
+                    ib => _viewModel.AddFoundInfobase(ib));
+                dialog.ShowDialogSync(this);
+                if (dialog.DataChanged)
+                    _viewModel.PersistInfobasesAfterInlineEdit();
+            };
+
             // Очистка истории запусков выбранных баз (issue #246). Правки вносятся прямо
             // в объекты Infobase (очищается LaunchHistory), поэтому после закрытия сохраняем.
             var clearHistory = new Button { Content = LocalizationManager.T("Settings.Bases.ClearHistory") };
@@ -1904,6 +1918,7 @@ namespace Configuration_Management
             listButtons.Children.Add(importV8i);
             listButtons.Children.Add(importStartManager);
             listButtons.Children.Add(detectAll);
+            listButtons.Children.Add(findLostBases);
             listButtons.Children.Add(clearHistory);
             bases.Children.Add(listButtons);
 
