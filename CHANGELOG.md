@@ -9,6 +9,28 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.38] — 2026-09-16
+
+### Исправлено
+
+- **Корректное прекращение поиска потерянных баз** — при прерывании уже найденные базы остаются в таблице (инкрементальная отдача строк):
+  - [`Services/InfobaseDiskScanner.cs`](Configuration%20Management/Services/InfobaseDiskScanner.cs) получил обратный вызов `onFound`, который передаёт каждую найденную базу сразу по мере обнаружения, а не только после полного завершения сканирования;
+  - окна [`Views/FindLostBasesWindow.xaml(.cs)`](Configuration%20Management/Views/FindLostBasesWindow.xaml.cs) и [`Views/FindLostBasesWindow.Avalonia.cs`](Configuration%20Management/Views/FindLostBasesWindow.Avalonia.cs) поднимают результат на UI-поток и добавляют строки в таблицу инкрементально; при нажатии «Прекратить» (`CancellationToken`) поиск останавливается, а уже найденные базы остаются видимыми (если прерывание произошло до первого результата — таблица пуста с сообщением «Поиск прекращён»).
+- **Исправлен выбор баз в WPF-диалоге поиска** — переключаемые чекбоксы: снята блокировка `IsReadOnly="True"` у таблицы [`Views/FindLostBasesWindow.xaml`](Configuration%20Management/Views/FindLostBasesWindow.xaml), из-за которой флажки в колонке-шаблоне не переключались и кнопка «Добавить в список баз» не активировалась (`UpdateAddEnabled` зависит от `IsChecked`).
+
+### Добавлено
+
+- **«Отметить все / Снять все»** для найденных баз — кнопки управления выбором строк над таблицей в [`Views/FindLostBasesWindow.xaml(.cs)`](Configuration%20Management/Views/FindLostBasesWindow.xaml.cs) и [`Views/FindLostBasesWindow.Avalonia.cs`](Configuration%20Management/Views/FindLostBasesWindow.Avalonia.cs); отметка применяется только к строкам, отсутствующим в приложении.
+- **Поиск по конкретному каталогу** — в диалоге поиска появилась возможность указать произвольный каталог (поле пути + кнопка «Обзор» через диалог выбора папки + добавление корня поиска) в дополнение к автоматическим корням (`InfobaseDiskScanner.EnumerateSearchRoots()`); перед запуском проверяется существование каталога.
+- **Выбор назначения при добавлении** — в нижней панели диалога можно добавить отмеченные базы «в программу» и/или «в ibases.v8i» вместе или по отдельности (два флажка); запись в ibases.v8i дописывает/обновляет только выбранные базы, не трогая чужие записи; итоговое сообщение «Добавлено в приложение: X, в ibases.v8i: Y, уже в списке: Z».
+- **Разбиение вкладки «Базы» в настройках** на горизонтальные подвкладки по образцу вкладки «Отображение» — содержимое разнесено на подвкладки («Список баз», «Каталоги шаблонов», «Обслуживание», «Синхронизация с ibases.v8i»): WPF в [`Views/SettingsWindow.xaml`](Configuration%20Management/Views/SettingsWindow.xaml), Avalonia в [`Views/SettingsWindow.Avalonia.cs`](Configuration%20Management/Views/SettingsWindow.Avalonia.cs).
+- Локализация новых ключей `FindLostBases.*` и подвкладок `Settings.Bases.Subtab.*` в [`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json) и [`Localization/Languages/en.json`](Configuration%20Management/Localization/Languages/en.json).
+
+### Версия
+
+- **Версия поднята до `0.3.7.38`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.37] — 2026-09-16
 
 ### Исправлено

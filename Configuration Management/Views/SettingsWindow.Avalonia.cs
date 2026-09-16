@@ -1713,6 +1713,13 @@ namespace Configuration_Management
             // ===== Базы =====
             var bases = new StackPanel { Spacing = 6 };
 
+            // Подвкладки раздела «Базы»: список баз, каталоги шаблонов и обслуживание.
+            // Каждая секция собирается в свой StackPanel, затем кладётся во вложенный
+            // TabControl с горизонтальной полосой подвкладок (как в разметке WPF).
+            var basesListPanel = new StackPanel { Spacing = 6 };
+            var basesTemplatesPanel = new StackPanel { Spacing = 6 };
+            var basesMaintenancePanel = new StackPanel { Spacing = 6 };
+
             // Вводное описание вкладки, как в разметке WPF (SettingsWindow.xaml:1326).
             bases.Children.Add(Hint(LocalizationManager.T("Settings.Bases.Description")));
 
@@ -1726,9 +1733,9 @@ namespace Configuration_Management
                 SelectionMode = SelectionMode.Single
             };
 
-            bases.Children.Add(GroupTitle(LocalizationManager.T("Settings.TemplateDirs")));
-            bases.Children.Add(Hint(LocalizationManager.T("Settings.Bases.TemplateDirsHintLinux")));
-            bases.Children.Add(templateList);
+            basesTemplatesPanel.Children.Add(GroupTitle(LocalizationManager.T("Settings.TemplateDirs")));
+            basesTemplatesPanel.Children.Add(Hint(LocalizationManager.T("Settings.Bases.TemplateDirsHintLinux")));
+            basesTemplatesPanel.Children.Add(templateList);
 
             var templateButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 4, 0, 8) };
 
@@ -1778,11 +1785,11 @@ namespace Configuration_Management
             templateButtons.Children.Add(editTemplate);
             templateButtons.Children.Add(removeTemplate);
             templateButtons.Children.Add(loadTemplates);
-            bases.Children.Add(templateButtons);
+            basesTemplatesPanel.Children.Add(templateButtons);
 
             // Операции со списком баз целиком: выгрузка и загрузка JSON,
             // разовый импорт из ibases.v8i.
-            bases.Children.Add(GroupTitle(LocalizationManager.T("Settings.IbaseList")));
+            basesListPanel.Children.Add(GroupTitle(LocalizationManager.T("Settings.IbaseList")));
 
             var timestampCheck = new CheckBox
             {
@@ -1920,7 +1927,7 @@ namespace Configuration_Management
             listButtons.Children.Add(detectAll);
             listButtons.Children.Add(findLostBases);
             listButtons.Children.Add(clearHistory);
-            bases.Children.Add(listButtons);
+            basesListPanel.Children.Add(listButtons);
 
             // Глубина истории запусков одной базы (issue #246).
             var historyDepthRow = new StackPanel
@@ -1942,9 +1949,9 @@ namespace Configuration_Management
             }.Styled(ControlThemes.ModernTextBox);
             ToolTip.SetTip(historyDepthBox, LocalizationManager.T("Settings.Bases.HistoryDepthTooltip"));
             historyDepthRow.Children.Add(historyDepthBox);
-            bases.Children.Add(historyDepthRow);
+            basesListPanel.Children.Add(historyDepthRow);
 
-            bases.Children.Add(timestampCheck);
+            basesListPanel.Children.Add(timestampCheck);
 
             // Как в Windows-разметке (SettingsWindow.xaml:1419): подпись сверху, поле —
             // на всю ширину, предпросмотр снизу. В горизонтальной панели рядом с подписью
@@ -1958,15 +1965,15 @@ namespace Configuration_Management
             });
             timestampRow.Children.Add(timestampBox);
             timestampRow.Children.Add(timestampPreview);
-            bases.Children.Add(timestampRow);
+            basesListPanel.Children.Add(timestampRow);
 
             timestampCheck.IsCheckedChanged += (_, _) => UpdateTimestampPreview();
             timestampBox.GetObservable(AutoCompleteBox.TextProperty)
                 .Subscribe(new SettingsObserver<string?>(_ => UpdateTimestampPreview()));
             UpdateTimestampPreview();
 
-            bases.Children.Add(GroupTitle(LocalizationManager.T("Settings.Maintenance")));
-            bases.Children.Add(Hint(LocalizationManager.T("Settings.Bases.MaintenanceHint")));
+            basesMaintenancePanel.Children.Add(GroupTitle(LocalizationManager.T("Settings.Maintenance")));
+            basesMaintenancePanel.Children.Add(Hint(LocalizationManager.T("Settings.Bases.MaintenanceHint")));
 
             var maintenanceButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 0, 0, 8) };
 
@@ -1980,10 +1987,10 @@ namespace Configuration_Management
 
             maintenanceButtons.Children.Add(removeMissing);
             maintenanceButtons.Children.Add(killProcesses);
-            bases.Children.Add(maintenanceButtons);
+            basesMaintenancePanel.Children.Add(maintenanceButtons);
 
-            bases.Children.Add(GroupTitle(LocalizationManager.T("Settings.DangerousOps")));
-            bases.Children.Add(Hint(LocalizationManager.T("Settings.Bases.DangerousHint")));
+            basesMaintenancePanel.Children.Add(GroupTitle(LocalizationManager.T("Settings.DangerousOps")));
+            basesMaintenancePanel.Children.Add(Hint(LocalizationManager.T("Settings.Bases.DangerousHint")));
 
             var clearAll = new Button
             {
@@ -1993,7 +2000,17 @@ namespace Configuration_Management
             };
             ToolTip.SetTip(clearAll, LocalizationManager.T("Settings.Bases.ClearAllTooltip"));
             clearAll.Click += (_, _) => _viewModel.ClearAllInfobases();
-            bases.Children.Add(clearAll);
+            basesMaintenancePanel.Children.Add(clearAll);
+
+            // Вложенные горизонтальные подвкладки раздела «Базы», как в разметке
+            // WPF (SettingsWindow.xaml): «Список баз», «Каталоги шаблонов» и
+            // «Обслуживание». Секция ibases.v8i остаётся блоком ниже вкладок.
+            var basesTabs = new TabControl { Margin = new Thickness(0, 4, 0, 0) };
+            basesTabs.Styled(ControlThemes.SettingsSubTabControl);
+            basesTabs.Items.Add(SubTab("Settings.Bases.Subtab.List", "Settings.Bases.Subtab.ListTooltip", "IconDatabase", basesListPanel));
+            basesTabs.Items.Add(SubTab("Settings.Bases.Subtab.Templates", "Settings.Bases.Subtab.TemplatesTooltip", "IconFolder", basesTemplatesPanel));
+            basesTabs.Items.Add(SubTab("Settings.Bases.Subtab.Maintenance", "Settings.Bases.Subtab.MaintenanceTooltip", "IconWrench", basesMaintenancePanel));
+            bases.Children.Add(basesTabs);
 
             // Справка ставится к заголовку блока, а не отдельной строкой:
             // в разметке WPF «ibases.v8i» это имя вкладки, а «Настройки

@@ -193,6 +193,81 @@ public static class IbasesV8iExporter
     }
 
     /// <summary>
+    /// Дописывает переданные базы в файл ibases.v8i, добавляя отсутствующие записи и
+    /// обновляя уже существующие (по совпадению имени, без учёта регистра). В отличие от
+    /// полного <see cref="Export"/>, чужие записи (которых нет в переданном списке) из
+    /// файла НЕ удаляются — только дописываются/обновляются выбранные базы.
+    /// </summary>
+    /// <param name="filePath">Путь к файлу ibases.v8i.</param>
+    /// <param name="infobases">Список баз, которые нужно записать в файл.</param>
+    /// <param name="groups">Список групп приложения (для разрешения пути группы базы).</param>
+    /// <returns>Количество записанных в файл баз (добавленных или обновлённых).</returns>
+    public static int AddInfobasesToFile(string filePath, IEnumerable<Infobase> infobases, IEnumerable<Group> groups)
+    {
+        var infobaseList = infobases.ToList();
+        var groupList = groups.ToList();
+
+        // Существующие записи файла. Если файла нет — начинаем с пустого списка,
+        // чтобы добавить только выбранные базы и не затирать потенциально чужие данные.
+        var entries = File.Exists(filePath) ? Parse(filePath) : new List<IbaseEntry>();
+
+        // Существующие базы по имени (для обновления на месте).
+        var existingByName = new Dictionary<string, IbaseEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in entries)
+        {
+            if (!entry.IsGroup && !string.IsNullOrWhiteSpace(entry.Name))
+                existingByName[entry.Name] = entry;
+        }
+
+        var written = 0;
+        foreach (var infobase in infobaseList)
+        {
+            if (string.IsNullOrWhiteSpace(infobase.Name))
+                continue;
+
+            var entry = ToEntry(infobase, groupList);
+
+            if (existingByName.TryGetValue(infobase.Name, out var existing))
+            {
+                // Обновляем существующую запись файла, сохраняя её позицию.
+                existing.Connect = entry.Connect;
+                existing.Group = entry.Group;
+                existing.Id = entry.Id;
+                existing.Version = entry.Version;
+                existing.AdditionalParameters = entry.AdditionalParameters;
+                existing.App = entry.App;
+                existing.DefaultApp = entry.DefaultApp;
+                existing.Enabled = true;
+            }
+            else
+            {
+                existingByName[infobase.Name] = entry;
+                entries.Add(entry);
+            }
+
+            written++;
+        }
+
+        // Устраняем дубликаты секций с одинаковым именем (как в полном Export).
+        entries = Deduplicate(entries);
+
+        var sb = new StringBuilder();
+        foreach (var entry in entries)
+        {
+            WriteEntry(sb, entry);
+        }
+
+        var dir = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        File.WriteAllText(filePath, sb.ToString(), Encoding.Default);
+        return written;
+    }
+
+    /// <summary>
     /// Устраняет дубликаты секций с одинаковым именем. Имя секции в файле 1С уникально.
     /// При конфликте записи-группы (без строки подключения) и записи-базы (с Connect)
     /// приоритет сохраняется за базой; для одинаковых по типу записей — за первой

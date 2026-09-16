@@ -1,6 +1,7 @@
 #if LINUX
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,6 +33,8 @@ namespace Configuration_Management
         private readonly HashSet<string> _v8iFileDirs = new(FoundBaseRowViewModel.DirComparer);
         private readonly List<FoundBaseRowViewModel> _rows = new();
         private readonly List<CheckBox> _driveChecks = new();
+        private readonly IDialogService _dialogs =
+            AppServices.GetRequiredService<IDialogService>();
         private readonly Dictionary<FoundBaseRowViewModel, CheckBox> _checks = new();
         private readonly Dictionary<FoundBaseRowViewModel, TextBlock> _inAppTexts = new();
         private readonly Dictionary<FoundBaseRowViewModel, TextBlock> _inV8iTexts = new();
@@ -42,9 +45,12 @@ namespace Configuration_Management
         private readonly TextBlock _checkedHeaderText = new();
         private readonly TextBlock _progressText = new();
         private readonly TextBlock _summaryText = new();
+        private CheckBox _addToAppCheck = new();
+        private CheckBox _addToV8iCheck = new();
         private Button _searchButton = new();
         private Button _stopButton = new();
         private Button _addButton = new();
+        private TextBox _folderPathBox = new();
 
         private CancellationTokenSource? _cts;
 
@@ -148,6 +154,104 @@ namespace Configuration_Management
             }
         }
 
+        /// <summary>
+        /// Панель ввода произвольного каталога как дополнительного корня поиска:
+        /// поле пути + кнопки «Обзор»/«Добавить». Enter в поле тоже добавляет каталог.
+        /// </summary>
+        private Control BuildFolderBar()
+        {
+            _folderPathBox = new TextBox
+            {
+                Watermark = LocalizationManager.T("FindLostBases.FolderPlaceholder"),
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Height = 30
+            };
+            _folderPathBox.KeyDown += (_, e) =>
+            {
+                if (e.Key == Avalonia.Input.Key.Enter)
+                    OnAddFolder();
+            };
+
+            var browse = new Button
+            {
+                Content = LocalizationManager.T("FindLostBases.Button.Browse"),
+                Height = 30,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            browse.Styled(ControlThemes.SelectAllButton);
+            browse.Click += (_, _) => OnBrowseFolder();
+
+            var add = new Button
+            {
+                Content = LocalizationManager.T("FindLostBases.Button.AddFolder"),
+                Height = 30,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            add.Styled(ControlThemes.SelectAllButton);
+            add.Click += (_, _) => OnAddFolder();
+
+            var bar = new DockPanel { LastChildFill = true, Margin = new Thickness(8, 4) };
+            DockPanel.SetDock(add, Dock.Right);
+            bar.Children.Add(add);
+            DockPanel.SetDock(browse, Dock.Right);
+            bar.Children.Add(browse);
+            bar.Children.Add(_folderPathBox);
+            return bar;
+        }
+
+        /// <summary>Открывает диалог выбора каталога и подставляет путь в поле ввода.</summary>
+        private void OnBrowseFolder()
+        {
+            var current = _folderPathBox.Text?.Trim() ?? string.Empty;
+            var picked = _dialogs.OpenFolderDialog(
+                LocalizationManager.T("FindLostBases.Button.Browse"),
+                current.Length > 0 && Directory.Exists(current) ? current : null);
+            if (!string.IsNullOrWhiteSpace(picked))
+                _folderPathBox.Text = picked.Trim();
+        }
+
+        /// <summary>
+        /// Добавляет введённый каталог как дополнительный корень поиска: проверяет его
+        /// существование и отсутствие дубликата среди уже добавленных корней, затем
+        /// добавляет отмеченный флажок в панель дисков (подхватывается GetSelectedRoots()).
+        /// </summary>
+        private void OnAddFolder()
+        {
+            var path = _folderPathBox.Text?.Trim() ?? string.Empty;
+            if (path.Length == 0)
+                return;
+
+            if (!Directory.Exists(path))
+            {
+                _summaryText.Text = string.Format(
+                    LocalizationManager.T("FindLostBases.FolderNotExists"), path);
+                return;
+            }
+
+            var normalized = FoundBaseRowViewModel.NormalizeDir(path);
+            var comparer = FoundBaseRowViewModel.DirComparer;
+            var isDuplicate = _driveChecks.Any(c =>
+                c.Tag is string s && comparer.Equals(normalized, FoundBaseRowViewModel.NormalizeDir(s)));
+            if (isDuplicate)
+            {
+                _summaryText.Text = LocalizationManager.T("FindLostBases.FolderDuplicate");
+                return;
+            }
+
+            var cb = new CheckBox
+            {
+                Content = path,
+                Tag = path,
+                IsChecked = true,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 4, 6, 4)
+            };
+            _driveChecks.Add(cb);
+            DrivesPanel().Children.Add(cb);
+            _folderPathBox.Clear();
+            _summaryText.Text = string.Empty;
+        }
+
         /// <summary>WrapPanel корней поиска — хранится в поле для заполнения флажками.</summary>
         private readonly WrapPanel _drivesWrap = new() { Margin = new Thickness(8, 6) };
 
@@ -166,7 +270,8 @@ namespace Configuration_Management
 
         private void UpdateAddEnabled()
         {
-            _addButton.IsEnabled = _rows.Any(r => r.IsChecked && !r.InApp);
+            var anyDestination = _addToAppCheck.IsChecked == true || _addToV8iCheck.IsChecked == true;
+            _addButton.IsEnabled = anyDestination && _rows.Any(r => r.IsChecked && !r.InApp);
         }
 
         private void SetDriveChecksEnabled(bool enabled)
@@ -184,6 +289,38 @@ namespace Configuration_Management
                 _progressText.Text = string.Format(
                     LocalizationManager.T("FindLostBases.ProgressFormat"), found, dirs);
             });
+        }
+
+        /// <summary>
+        /// Переносит накопленные в буфере найденные базы в таблицу (на UI-потоке).
+        /// Вызывается таймером пакетного обновления (~100 мс) и по завершении сканирования,
+        /// чтобы строки появлялись инкрементально и не терялись при отмене.
+        /// </summary>
+        private void FlushFoundRows(object gate, List<FoundBaseRowViewModel> pending)
+        {
+            List<FoundBaseRowViewModel>? batch = null;
+            lock (gate)
+            {
+                if (pending.Count > 0)
+                {
+                    batch = new List<FoundBaseRowViewModel>(pending);
+                    pending.Clear();
+                }
+            }
+
+            if (batch is null || batch.Count == 0)
+                return;
+
+            foreach (var row in batch)
+            {
+                _rows.Add(row);
+                AddRow(row);
+            }
+
+            _summaryText.Text = string.Format(
+                LocalizationManager.T("FindLostBases.FoundFormat"), _rows.Count);
+            UpdateCheckedHeader();
+            UpdateAddEnabled();
         }
 
         private async void OnSearchClick()
@@ -211,22 +348,32 @@ namespace Configuration_Management
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
 
+            // Буфер найденных строк + таймер пакетного обновления таблицы (~100 мс):
+            // строки появляются инкрементально по мере сканирования, а не разом в конце.
+            var gate = new object();
+            var pending = new List<FoundBaseRowViewModel>();
+            var flushTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(100)
+            };
+            flushTimer.Tick += (_, _) => FlushFoundRows(gate, pending);
+            flushTimer.Start();
+
             try
             {
-                var results = await Task.Run(
-                    () => InfobaseDiskScanner.Scan(roots, token, OnScanProgress), token);
-
-                foreach (var found in results)
-                {
-                    var row = new FoundBaseRowViewModel(found)
+                await Task.Run(() => InfobaseDiskScanner.Scan(roots, token, OnScanProgress,
+                    found =>
                     {
-                        InApp = _appFileDirs.Contains(FoundBaseRowViewModel.NormalizeDir(found.DirectoryPath)),
-                        InIbasesV8i = _v8iFileDirs.Contains(FoundBaseRowViewModel.NormalizeDir(found.DirectoryPath))
-                    };
-                    _rows.Add(row);
-                    AddRow(row);
-                }
+                        var row = new FoundBaseRowViewModel(found)
+                        {
+                            InApp = _appFileDirs.Contains(FoundBaseRowViewModel.NormalizeDir(found.DirectoryPath)),
+                            InIbasesV8i = _v8iFileDirs.Contains(FoundBaseRowViewModel.NormalizeDir(found.DirectoryPath))
+                        };
+                        lock (gate)
+                            pending.Add(row);
+                    }), token);
 
+                FlushFoundRows(gate, pending);
                 _summaryText.Text = string.Format(
                     LocalizationManager.T("FindLostBases.FoundFormat"), _rows.Count);
                 UpdateCheckedHeader();
@@ -234,15 +381,20 @@ namespace Configuration_Management
             }
             catch (OperationCanceledException)
             {
+                FlushFoundRows(gate, pending);
                 _summaryText.Text = LocalizationManager.T("FindLostBases.Stopped");
+                UpdateCheckedHeader();
+                UpdateAddEnabled();
             }
             catch (Exception ex)
             {
+                FlushFoundRows(gate, pending);
                 _logger.Error("Ошибка сканирования дисков в поисках баз 1С", ex);
                 _summaryText.Text = string.Format(LocalizationManager.T("FindLostBases.ErrorFormat"), ex.Message);
             }
             finally
             {
+                flushTimer.Stop();
                 _cts.Dispose();
                 _cts = null;
                 _searchButton.IsEnabled = true;
@@ -254,11 +406,23 @@ namespace Configuration_Management
 
         private void OnAddClick()
         {
+            var addToApp = _addToAppCheck.IsChecked == true;
+            var addToV8i = _addToV8iCheck.IsChecked == true;
+
+            if (!addToApp && !addToV8i)
+            {
+                _summaryText.Text = T("FindLostBases.NoneDestination");
+                return;
+            }
+
             var checkedRows = _rows.Where(r => r.IsChecked).ToList();
             var toAdd = checkedRows.Where(r => !r.InApp).ToList();
             var alreadyInList = checkedRows.Count(r => r.InApp);
 
-            var added = 0;
+            var addedApp = 0;
+            var forV8i = new List<Infobase>();
+            var rowsForV8i = new List<FoundBaseRowViewModel>();
+
             foreach (var row in toAdd)
             {
                 var ib = new Infobase
@@ -272,19 +436,73 @@ namespace Configuration_Management
                         FilePath = row.Base.DirectoryPath
                     }
                 };
-                _addBase(ib);
 
-                var dirKey = FoundBaseRowViewModel.NormalizeDir(row.Base.DirectoryPath);
-                _appFileDirs.Add(dirKey);
-                row.InApp = true;
-                row.IsChecked = false;
-                DataChanged = true;
-                added++;
-                UpdateRow(row);
+                if (addToApp)
+                {
+                    _addBase(ib);
+                    addedApp++;
+
+                    var dirKey = FoundBaseRowViewModel.NormalizeDir(row.Base.DirectoryPath);
+                    _appFileDirs.Add(dirKey);
+                    row.InApp = true;
+                    DataChanged = true;
+                }
+
+                if (addToV8i)
+                {
+                    forV8i.Add(ib);
+                    rowsForV8i.Add(row);
+                }
             }
 
-            _summaryText.Text = string.Format(
-                LocalizationManager.T("FindLostBases.AddedFormat"), added, alreadyInList);
+            var addedV8i = 0;
+            var v8iMessage = string.Empty;
+            if (addToV8i && forV8i.Count > 0)
+            {
+                var v8iPath = IbasesV8iImporter.FindDefaultPath();
+                if (v8iPath is null)
+                {
+                    v8iMessage = T("FindLostBases.NoV8iPath");
+                }
+                else
+                {
+                    try
+                    {
+                        IbasesV8iExporter.AddInfobasesToFile(v8iPath, forV8i, new List<Group>());
+                        addedV8i = forV8i.Count;
+                        for (var i = 0; i < forV8i.Count; i++)
+                        {
+                            var row = rowsForV8i[i];
+                            row.InIbasesV8i = true;
+                            _v8iFileDirs.Add(FoundBaseRowViewModel.NormalizeDir(row.Base.DirectoryPath));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error("Ошибка записи выбранных баз в ibases.v8i", ex);
+                        v8iMessage = string.Format(T("FindLostBases.ErrorFormat"), ex.Message);
+                    }
+                }
+            }
+
+            // Снимаем отметки со строк, добавленных хотя бы в одно из назначений.
+            foreach (var row in toAdd)
+            {
+                if (row.InApp || rowsForV8i.Contains(row))
+                {
+                    row.IsChecked = false;
+                    if (_checks.TryGetValue(row, out var check))
+                        check.IsChecked = false;
+                }
+            }
+
+            // Обновляем признаки «В приложении» / «В ibases.v8i» на строках.
+            foreach (var row in toAdd)
+                UpdateRow(row);
+
+            _summaryText.Text = string.IsNullOrEmpty(v8iMessage)
+                ? string.Format(T("FindLostBases.AddedFormatSplit"), addedApp, addedV8i, alreadyInList)
+                : v8iMessage;
             UpdateCheckedHeader();
             UpdateAddEnabled();
         }
@@ -370,6 +588,10 @@ namespace Configuration_Management
             DockPanel.SetDock(toolbarBorder, Dock.Top);
             drivesDock.Children.Add(toolbarBorder);
 
+            var folderBar = BuildFolderBar();
+            DockPanel.SetDock(folderBar, Dock.Top);
+            drivesDock.Children.Add(folderBar);
+
             DockPanel.SetDock(_drivesWrap, Dock.Bottom);
             drivesDock.Children.Add(_drivesWrap);
 
@@ -388,6 +610,11 @@ namespace Configuration_Management
             Themes.ThemeBrushes.Bind(listBorder, Border.BorderBrushProperty, "BorderColorBrush");
 
             var dock = new DockPanel { LastChildFill = true };
+
+            var foundToolbar = BuildFoundToolbar();
+            DockPanel.SetDock(foundToolbar, Dock.Top);
+            dock.Children.Add(foundToolbar);
+
             var headerGrid = BuildHeaderGrid();
             DockPanel.SetDock(headerGrid, Dock.Top);
             dock.Children.Add(headerGrid);
@@ -411,6 +638,20 @@ namespace Configuration_Management
             bottom.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
             var leftStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+
+            _addToAppCheck = new CheckBox { Content = LocalizationManager.T("FindLostBases.AddToApp"), IsChecked = true };
+            _addToAppCheck.Styled(ControlThemes.CacheCleanCheckBox);
+            _addToAppCheck.IsCheckedChanged += (_, _) => UpdateAddEnabled();
+
+            _addToV8iCheck = new CheckBox { Content = LocalizationManager.T("FindLostBases.AddToV8i"), IsChecked = true, Margin = new Thickness(16, 0, 0, 0) };
+            _addToV8iCheck.Styled(ControlThemes.CacheCleanCheckBox);
+            _addToV8iCheck.IsCheckedChanged += (_, _) => UpdateAddEnabled();
+
+            var destRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+            destRow.Children.Add(_addToAppCheck);
+            destRow.Children.Add(_addToV8iCheck);
+            leftStack.Children.Add(destRow);
+
             _progressText.FontSize = 12;
             _progressText.FontWeight = FontWeight.SemiBold;
             _progressText.TextWrapping = TextWrapping.Wrap;
@@ -450,6 +691,59 @@ namespace Configuration_Management
             grid.Children.Add(bottom);
 
             return grid;
+        }
+
+        /// <summary>Панель «Отметить все / Снять все» для найденных баз.</summary>
+        private Control BuildFoundToolbar()
+        {
+            var toolbar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(8, 6, 8, 2)
+            };
+
+            var checkAll = new Button { Content = LocalizationManager.T("FindLostBases.FoundAll") };
+            checkAll.Styled(ControlThemes.SelectAllButton);
+            ToolTip.SetTip(checkAll, LocalizationManager.T("FindLostBases.FoundAllTooltip"));
+            checkAll.Click += (_, _) => OnFoundCheckAll();
+
+            var uncheckAll = new Button { Content = LocalizationManager.T("FindLostBases.FoundNone") };
+            uncheckAll.Styled(ControlThemes.SelectAllButton);
+            ToolTip.SetTip(uncheckAll, LocalizationManager.T("FindLostBases.FoundNoneTooltip"));
+            uncheckAll.Click += (_, _) => OnFoundCheckNone();
+
+            toolbar.Children.Add(checkAll);
+            toolbar.Children.Add(uncheckAll);
+            return toolbar;
+        }
+
+        /// <summary>Отмечает все найденные базы, доступные для добавления (не в приложении).</summary>
+        private void OnFoundCheckAll()
+        {
+            foreach (var r in _rows)
+            {
+                if (!r.NotInApp) continue;
+                r.IsChecked = true;
+                if (_checks.TryGetValue(r, out var check))
+                    check.IsChecked = true;
+            }
+            UpdateCheckedHeader();
+            UpdateAddEnabled();
+        }
+
+        /// <summary>Снимает отметки со всех найденных баз, доступных для добавления.</summary>
+        private void OnFoundCheckNone()
+        {
+            foreach (var r in _rows)
+            {
+                if (!r.NotInApp) continue;
+                r.IsChecked = false;
+                if (_checks.TryGetValue(r, out var check))
+                    check.IsChecked = false;
+            }
+            UpdateCheckedHeader();
+            UpdateAddEnabled();
         }
 
         private Grid BuildHeaderGrid()

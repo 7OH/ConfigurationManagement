@@ -141,6 +141,38 @@
                         </Button>
                     </Grid>
                 </Border>
+                <!-- Ввод произвольного каталога как дополнительного корня поиска -->
+                <Border DockPanel.Dock="Top" Padding="8,4" Background="Transparent">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="FolderPathBox" Grid.Column="0" Height="30" Padding="6,0"
+                                 VerticalContentAlignment="Center"
+                                 materialDesign:HintAssist.Hint="{loc:Loc FindLostBases.FolderPlaceholder}"
+                                 KeyDown="OnFolderPath_KeyDown"/>
+                        <Button Grid.Column="1" x:Name="BrowseFolderButton" Height="30" Margin="8,0,0,0"
+                                Padding="14,0" Cursor="Hand" Click="OnBrowseFolder_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="FolderOutline" Width="16" Height="16"
+                                                         VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc FindLostBases.Button.Browse}" Margin="6,0,0,0"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="2" x:Name="AddFolderButton" Height="30" Margin="8,0,0,0"
+                                Padding="14,0" Cursor="Hand" Click="OnAddFolder_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="FolderPlus" Width="16" Height="16"
+                                                         VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc FindLostBases.Button.AddFolder}" Margin="6,0,0,0"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
                 <WrapPanel x:Name="DrivesPanel" Margin="8,6"/>
             </DockPanel>
         </Border>
@@ -149,7 +181,27 @@
         <Border Grid.Row="2" Margin="0,12,0,0"
                 BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"
                 CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}">
-            <DataGrid x:Name="BasesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+            <DockPanel>
+                <!-- «Отметить все / Снять все» для найденных баз -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6,8,2">
+                    <Button Style="{StaticResource SelectAllButtonStyle}"
+                            ToolTip="{loc:Loc FindLostBases.FoundAllTooltip}" Click="OnFoundCheckAll">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="CheckboxMultipleMarked" Width="16" Height="16"
+                                                     Foreground="#16A34A" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Loc FindLostBases.FoundAll}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource SelectAllButtonStyle}"
+                            Margin="16,0,0,0" ToolTip="{loc:Loc FindLostBases.FoundNoneTooltip}" Click="OnFoundCheckNone">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="CheckboxMultipleBlankOutline" Width="16" Height="16"
+                                                     Foreground="#EF4444" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Loc FindLostBases.FoundNone}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <DataGrid x:Name="BasesGrid" AutoGenerateColumns="False"
                       HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
                       CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
                       CellEditEnding="OnCellEditEnding"
@@ -173,13 +225,13 @@
                     </DataGridTemplateColumn>
 
                     <DataGridTextColumn Width="*" Header="{loc:Loc FindLostBases.Column.Name}"
-                                        Binding="{Binding Name}"/>
+                                        Binding="{Binding Name}" IsReadOnly="True"/>
                     <DataGridTextColumn Width="2*" Header="{loc:Loc FindLostBases.Column.Path}"
-                                        Binding="{Binding Path}"/>
+                                        Binding="{Binding Path}" IsReadOnly="True"/>
                     <DataGridTextColumn Width="Auto" Header="{loc:Loc FindLostBases.Column.Size}"
-                                        Binding="{Binding SizeText}"/>
+                                        Binding="{Binding SizeText}" IsReadOnly="True"/>
                     <DataGridTextColumn Width="Auto" Header="{loc:Loc FindLostBases.Column.Modified}"
-                                        Binding="{Binding LastWriteText}"/>
+                                        Binding="{Binding LastWriteText}" IsReadOnly="True"/>
 
                     <!-- В приложении -->
                     <DataGridTemplateColumn Width="90" Header="{loc:Loc FindLostBases.Column.InApp}">
@@ -222,7 +274,8 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
-            </DataGrid>
+                </DataGrid>
+            </DockPanel>
         </Border>
 
         <!-- Нижняя панель: прогресс + Добавить в список баз / Закрыть -->
@@ -233,6 +286,15 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <CheckBox x:Name="AddToAppCheckBox" Content="{loc:Loc FindLostBases.AddToApp}"
+                              IsChecked="True" Cursor="Hand" VerticalAlignment="Center"
+                              Checked="OnDestinationChanged" Unchecked="OnDestinationChanged"/>
+                    <CheckBox x:Name="AddToV8iCheckBox" Content="{loc:Loc FindLostBases.AddToV8i}"
+                              IsChecked="True" Cursor="Hand" VerticalAlignment="Center"
+                              Margin="16,0,0,0"
+                              Checked="OnDestinationChanged" Unchecked="OnDestinationChanged"/>
+                </StackPanel>
                 <TextBlock x:Name="ProgressText" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
                            TextTrimming="CharacterEllipsis"/>
                 <TextBlock x:Name="SummaryText" FontSize="12" Margin="0,2,0,0"

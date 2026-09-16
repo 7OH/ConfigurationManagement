@@ -38,13 +38,16 @@ public static class InfobaseDiskScanner
     /// <param name="roots">Корни поиска (непустые пути к каталогам).</param>
     /// <param name="cancellationToken">Токен отмены («Прекратить»).</param>
     /// <param name="progress">Обратный вызов прогресса: (найдено, просмотрено каталогов).</param>
+    /// <param name="onFound">Обратный вызов для каждой найденной базы; вызывается сразу
+    /// при обнаружении, до завершения всего сканирования.</param>
     /// <returns>Список найденных баз без дубликатов по нормализованному пути.</returns>
     public static List<FoundFileBase> Scan(
         IReadOnlyList<string> roots,
         CancellationToken cancellationToken,
-        Action<int, int>? progress = null)
+        Action<int, int>? progress = null,
+        Action<FoundFileBase>? onFound = null)
     {
-        var ctx = new ScanContext(cancellationToken, progress);
+        var ctx = new ScanContext(cancellationToken, progress, onFound);
 
         foreach (var root in roots)
         {
@@ -221,13 +224,15 @@ public static class InfobaseDiskScanner
                     continue; // Дубликат (симлинк / повторный корень).
 
                 var info = new FileInfo(file);
-                ctx.Results.Add(new FoundFileBase
+                var found = new FoundFileBase
                 {
                     DbFilePath = file,
                     DirectoryPath = Path.GetDirectoryName(file) ?? directory,
                     SizeBytes = info.Length,
                     LastWriteTime = info.LastWriteTime
-                });
+                };
+                ctx.Results.Add(found);
+                ctx.OnFound?.Invoke(found);
                 ctx.FoundCount++;
                 ReportProgress(ctx);
             }
@@ -293,14 +298,16 @@ public static class InfobaseDiskScanner
     /// <summary>Внутреннее состояние одного прохода сканирования.</summary>
     private sealed class ScanContext
     {
-        public ScanContext(CancellationToken token, Action<int, int>? progress)
+        public ScanContext(CancellationToken token, Action<int, int>? progress, Action<FoundFileBase>? onFound)
         {
             Token = token;
             Progress = progress;
+            OnFound = onFound;
         }
 
         public CancellationToken Token { get; }
         public Action<int, int>? Progress { get; }
+        public Action<FoundFileBase>? OnFound { get; }
         public List<FoundFileBase> Results { get; } = new();
         public HashSet<string> Seen { get; } = new(StringComparer.OrdinalIgnoreCase);
         public int FoundCount;
