@@ -1359,6 +1359,7 @@
     "Main.KillProcessesTitle": "Завершение процессов 1С",
     "Main.ProcessesKilled": "Завершено процессов: {0}.",
 
+    "Main.ConfigInfoUpdating": "(обновление информации)",
     "Main.ConfigInfoCheckHint": "Проверьте, что база доступна и установлена платформа 1С (COM-коннектор).",
     "Main.ConfigInfoReason": "Причина: {0}",
     "Main.ErrConfigInfo": "Не удалось получить информацию о конфигурации базы «{0}».\n\n{1}",

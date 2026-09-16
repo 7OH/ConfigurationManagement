@@ -1359,6 +1359,7 @@
     "Main.KillProcessesTitle": "Terminate 1C processes",
     "Main.ProcessesKilled": "Processes terminated: {0}.",
 
+    "Main.ConfigInfoUpdating": "(updating info)",
     "Main.ConfigInfoCheckHint": "Check that the base is accessible and the 1C platform (COM connector) is installed.",
     "Main.ConfigInfoReason": "Reason: {0}",
     "Main.ErrConfigInfo": "Failed to get configuration info for base \"{0}\".\n\n{1}",

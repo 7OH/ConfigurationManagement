@@ -1517,7 +1517,7 @@
                                                     </MultiBinding>
                                                 </Path.Fill>
                                             </Path>
-                                            <TextBlock x:Name="NameText" Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"
+                                            <TextBlock x:Name="NameText" Text="{Binding NameDisplay}" FontWeight="SemiBold" FontSize="13"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
@@ -1529,15 +1529,15 @@
                                                    Cursor="Hand"
                                                    ToolTip="{loc:Loc Main.PlatformVersionTooltip}"/>
 
-                                        <TextBlock Grid.Column="11" Text="{Binding ConfigurationName}" FontSize="12"
+                                        <TextBlock Grid.Column="11" Text="{Binding ConfigurationNameDisplay}" FontSize="12"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding ConfigurationName}"/>
+                                                   ToolTip="{Binding ConfigurationNameDisplay}"/>
 
-                                        <TextBlock Grid.Column="12" Text="{Binding ConfigurationVersion}" FontSize="12"
+                                        <TextBlock Grid.Column="12" Text="{Binding ConfigurationVersionDisplay}" FontSize="12"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding ConfigurationVersion}"/>
+                                                   ToolTip="{Binding ConfigurationVersionDisplay}"/>
 
                                         <TextBlock Grid.Column="6" Text="{Binding ParsedLaunchMode}" FontSize="12"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"

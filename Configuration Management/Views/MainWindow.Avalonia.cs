@@ -1939,7 +1939,7 @@ namespace Configuration_Management
             // имя тоже не подрезается.
             var name = new TextBlock
             {
-                Text = ib.Name,
+                Text = ib.NameDisplay,
                 FontSize = UiMetrics.RowNameFont,
                 FontWeight = FontWeight.SemiBold,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -4201,8 +4201,9 @@ namespace Configuration_Management
             // (MainWindow.xaml:1249): свойство PlatformVersionDisplay автор
             // добавил в модель, а колонка брала голую версию.
             "Version" => ib.PlatformVersionDisplay ?? string.Empty,
-            "Configuration" => ib.ConfigurationName ?? string.Empty,
-            "ConfigurationVersion" => ib.ConfigurationVersion ?? string.Empty,
+            // Display-свойства учитывают временную индикацию обновления (issue #244).
+            "Configuration" => ib.ConfigurationNameDisplay ?? string.Empty,
+            "ConfigurationVersion" => ib.ConfigurationVersionDisplay ?? string.Empty,
             // Режим запуска показывается разобранным, а серверная колонка всегда
             // берёт ServerDatabaseDisplay, в том числе у веб-баз: подстановка WebUrl
             // была расхождением с разметкой (MainWindow.xaml:1261 и 1265).

@@ -9,6 +9,22 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.30] — 2026-09-16
+
+### Добавлено
+
+- **Индикация процесса получения информации о конфигурации** (issue [#244](https://github.com/sivatorov/ConfigurationManagement/issues/244)):
+  - при обновлении информации о конфигурации базы из контекстного меню («Обновить информацию о конфигурации») в строке базы временно показывается надпись «(обновление информации)»;
+  - надпись выводится в колонке **«Конфигурация»**, если она видима; если скрыта — в колонке **«№ релиза»**; если скрыта и она — в колонке **«Название»**;
+  - по окончании обновления (успех или ошибка) временная надпись очищается;
+  - реализовано на обеих платформах: Windows/WPF (привязки в [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml)) и Linux/Avalonia (построение ячеек в [`Views/MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs)); состояние индикации хранится в модели ([`Models/Infobase.cs`](Configuration%20Management/Models/Infobase.cs)) и включается/снимается в фоновом обновлении ([`ViewModels/MainViewModel.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs), [`ViewModels/MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs));
+  - строка локализована в [`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json) и [`Localization/Languages/en.json`](Configuration%20Management/Localization/Languages/en.json).
+
+### Версия
+
+- **Версия поднята до `0.3.7.30`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.29] — 2026-09-16
 
 ### Исправлено

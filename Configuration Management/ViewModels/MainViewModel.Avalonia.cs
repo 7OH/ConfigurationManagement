@@ -4067,6 +4067,16 @@ public class MainViewModel : ViewModelBase
 
         // Сброса вердиктов о недоступности COM здесь нет: он живёт
         // в OneCComConnector.cs, а тот в Linux-сборку не входит.
+        // Временная индикация процесса (issue #244): надпись «(обновление информации)»
+        // в колонке «Конфигурация», если она видима; иначе в «№ релиза»; иначе в «Название».
+        var indicatorColumn = _settings.ShowConfigurationColumn ? "Configuration"
+            : _settings.ShowConfigurationVersionColumn ? "ConfigurationVersion"
+            : "Name";
+        ib.SetConfigInfoIndicator(true, indicatorColumn);
+        // Строки Avalonia не следят за PropertyChanged модели — пересобираем дерево,
+        // чтобы надпись появилась в ячейке выбранной колонки.
+        RebuildTree();
+
         var baseName = ib.Name;
         _ = Task.Run(() =>
         {
@@ -4082,6 +4092,10 @@ public class MainViewModel : ViewModelBase
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
+                // Надпись очищается независимо от результата (успех или ошибка).
+                ib.SetConfigInfoIndicator(false, indicatorColumn);
+                RebuildTree();
+
                 if (info is null)
                 {
                     var comError = ConfigurationInfoService.LastComError;
@@ -4095,7 +4109,6 @@ public class MainViewModel : ViewModelBase
                     return;
                 }
 
-                RebuildTree();
                 SaveSilently();
 
                 var name = info.Value.Name.Trim();

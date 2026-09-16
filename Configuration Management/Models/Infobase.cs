@@ -196,6 +196,61 @@ public class Infobase : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Включена ли временная индикация «(обновление информации)» (issue #244).</summary>
+    private bool _configInfoRefreshing;
+    /// <summary>Колонка, в которой показывается временная надпись (issue #244).</summary>
+    private string _configInfoIndicatorColumn = string.Empty;
+
+    /// <summary>Показывать ли временную надпись «(обновление информации)» в строке базы (issue #244).</summary>
+    public bool IsConfigInfoRefreshing
+    {
+        get => _configInfoRefreshing;
+        private set => SetProperty(ref _configInfoRefreshing, value);
+    }
+
+    /// <summary>Колонка, в которой отображается временная надпись (issue #244).</summary>
+    public string ConfigInfoIndicatorColumn
+    {
+        get => _configInfoIndicatorColumn;
+        private set => SetProperty(ref _configInfoIndicatorColumn, value ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Включает/выключает временную индикацию обновления информации о конфигурации
+    /// (issue #244): при включении конкретная колонка показывает «(обновление информации)».
+    /// </summary>
+    public void SetConfigInfoIndicator(bool refreshing, string column)
+    {
+        var target = column ?? string.Empty;
+        if (_configInfoRefreshing == refreshing && _configInfoIndicatorColumn == target)
+            return;
+        _configInfoRefreshing = refreshing;
+        _configInfoIndicatorColumn = target;
+        OnPropertyChanged(nameof(IsConfigInfoRefreshing));
+        OnPropertyChanged(nameof(ConfigInfoIndicatorColumn));
+        OnPropertyChanged(nameof(NameDisplay));
+        OnPropertyChanged(nameof(ConfigurationNameDisplay));
+        OnPropertyChanged(nameof(ConfigurationVersionDisplay));
+    }
+
+    /// <summary>Отображение колонки «Название» с учётом временной индикации обновления (issue #244).</summary>
+    public string NameDisplay =>
+        IsConfigInfoRefreshing && _configInfoIndicatorColumn == "Name"
+            ? LocalizationManager.T("Main.ConfigInfoUpdating")
+            : Name;
+
+    /// <summary>Отображение колонки «Конфигурация» с учётом временной индикации обновления (issue #244).</summary>
+    public string ConfigurationNameDisplay =>
+        IsConfigInfoRefreshing && _configInfoIndicatorColumn == "Configuration"
+            ? LocalizationManager.T("Main.ConfigInfoUpdating")
+            : ConfigurationName;
+
+    /// <summary>Отображение колонки «№ релиза» с учётом временной индикации обновления (issue #244).</summary>
+    public string ConfigurationVersionDisplay =>
+        IsConfigInfoRefreshing && _configInfoIndicatorColumn == "ConfigurationVersion"
+            ? LocalizationManager.T("Main.ConfigInfoUpdating")
+            : ConfigurationVersion;
+
     /// <summary>Отображение: «Название (версия)» или одно из полей.</summary>
     public string ConfigurationDisplay
     {

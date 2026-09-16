@@ -870,6 +870,13 @@ public partial class MainViewModel : ViewModelBase
         // а иначе до перезапуска приложения команда молча отвечала бы отказом.
         OneCComConnector.ResetComVerdicts();
 
+        // Временная индикация процесса (issue #244): надпись «(обновление информации)»
+        // в колонке «Конфигурация», если она видима; иначе в «№ релиза»; иначе в «Название».
+        var indicatorColumn = _showConfigurationColumn ? "Configuration"
+            : _showConfigurationVersionColumn ? "ConfigurationVersion"
+            : "Name";
+        ib.SetConfigInfoIndicator(true, indicatorColumn);
+
         var baseName = ib.Name;
         _ = Task.Run(() =>
         {
@@ -882,6 +889,9 @@ public partial class MainViewModel : ViewModelBase
 
             Application.Current?.Dispatcher.Invoke(() =>
             {
+                // Надпись очищается независимо от результата (успех или ошибка).
+                ib.SetConfigInfoIndicator(false, indicatorColumn);
+
                 if (info is null)
                 {
                     var comError = ConfigurationInfoService.LastComError;
