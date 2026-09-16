@@ -243,9 +243,15 @@ namespace Configuration_Management
         /// <summary>
         /// Обновляет доступность кнопки «Добавить в список баз»: она активна, если
         /// отмечена хотя бы одна добавляемая база и выбрано хотя бы одно назначение.
+        /// Метод может вызываться из обработчиков <c>Checked</c>/<c>Unchecked</c> флажков
+        /// назначения ещё во время <see cref="InitializeComponent"/>, когда элементы окна
+        /// созданы не полностью, поэтому защищаемся от нулевых ссылок (issue: NRE при старте).
         /// </summary>
         private void UpdateAddEnabled()
         {
+            if (AddButton is null || AddToAppCheckBox is null || AddToV8iCheckBox is null)
+                return;
+
             var anyDestination = AddToAppCheckBox.IsChecked == true || AddToV8iCheckBox.IsChecked == true;
             AddButton.IsEnabled = anyDestination && _rows.Any(r => r.IsChecked && !r.InApp);
         }
