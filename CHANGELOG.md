@@ -9,6 +9,22 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.36] — 2026-09-16
+
+### Исправлено
+
+- **Ручной размер базы теперь сохраняется при редактировании** (issue [#243](https://github.com/sivatorov/ConfigurationManagement/issues/243)):
+  - поле `ManualSizeBytes` переносится из результата окна подключения в целевую базу в обоих методах `EditInfobase` — для Windows ([`ViewModels/MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs)) и Linux ([`ViewModels/MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs)); ранее введённый вручную размер терялся при сохранении;
+  - сеттер `ManualSizeText` в [`ViewModels/ConnectionSettingsViewModel.cs`](Configuration%20Management/ViewModels/ConnectionSettingsViewModel.cs) переведён на `SetProperty` с уведомлением о `ManualSizeText`, чтобы изменение размера помечало наличие изменений и активировало кнопку «Сохранить».
+- **Редактирование служебных узлов «Закреплённые» и «Без группы»** (issue [#249](https://github.com/sivatorov/ConfigurationManagement/issues/249)):
+  - команда `EditGroupCommand` в версии для Windows ([`ViewModels/MainViewModel.cs`](Configuration%20Management/ViewModels/MainViewModel.cs)) теперь распознаёт оба служебных маркера (`PinnedMarker` и `NoGroupMarker`), как в версии для Linux; ранее узел «Без группы» открывал обычное окно редактирования с вкладкой «Основные» (название и выбор родительской группы);
+  - для служебных узлов всегда открывается `GroupEditWindow` в режиме оформления (только цвет и иконка), а не окно с выбором названия и родителя.
+
+### Версия
+
+- **Версия поднята до `0.3.7.36`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.35] — 2026-09-16
 
 ### Добавлено

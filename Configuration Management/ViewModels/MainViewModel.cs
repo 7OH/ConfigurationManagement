@@ -419,17 +419,24 @@ public partial class MainViewModel : ViewModelBase
             p => (ResolveActionTarget(p) != null || SelectedGroupNode?.Group != null || IsNoGroupNodeSelected() || IsPinnedNodeSelected()));
         DeleteInfobaseCommand = new RelayCommand(DeleteSelected,
             p => ResolveActionTarget(p) != null || SelectedGroupNode?.Group != null);
-        // Команды группы: параметр — узел группы или сама группа из строки дерева.
-        // Для служебного узла «Закреплённые» (без модели Group) открываем редактор
-        // оформления узла (цвет и иконка), как для «Без группы».
+        // Команда группы: параметр — узел группы или сама группа из строки дерева.
+        // Служебные узлы «Закреплённые» и «Без группы» (без модели Group) открывают
+        // редактор оформления узла только с цветом и иконкой (noGroupMode), а не обычное
+        // окно с вкладкой «Основные» (название и выбор родительской группы, issue #249).
         EditGroupCommand = new RelayCommand(p =>
         {
-            if (p is GroupNodeViewModel node &&
-                node.Group is null &&
-                string.Equals(node.Marker, GroupNodeViewModel.PinnedMarker, StringComparison.Ordinal))
+            if (p is GroupNodeViewModel node && node.Group is null)
             {
-                EditPinnedNode();
-                return;
+                if (string.Equals(node.Marker, GroupNodeViewModel.PinnedMarker, StringComparison.Ordinal))
+                {
+                    EditPinnedNode();
+                    return;
+                }
+                if (string.Equals(node.Marker, GroupNodeViewModel.NoGroupMarker, StringComparison.Ordinal))
+                {
+                    EditNoGroupNode();
+                    return;
+                }
             }
             var group = ResolveGroup(p);
             if (group is not null)

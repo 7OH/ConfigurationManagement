@@ -260,6 +260,9 @@ public partial class MainViewModel : ViewModelBase
             target.LastLaunchDate = dialog.Result.LastLaunchDate;
             target.Tags = dialog.Result.Tags;
             target.MetadataRoot = dialog.Result.MetadataRoot;
+            // Ручной размер базы переносим явно, иначе введённый вручную размер терялся
+            // при сохранении (поле редактируется в окне подключения, issue #243).
+            target.ManualSizeBytes = dialog.Result.ManualSizeBytes;
             target.Connection = dialog.Result.Connection;
             target.EnterpriseAuth = dialog.Result.EnterpriseAuth;
             target.ConfiguratorAuth = dialog.Result.ConfiguratorAuth;

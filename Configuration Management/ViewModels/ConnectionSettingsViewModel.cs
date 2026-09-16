@@ -548,19 +548,18 @@ public class ConnectionSettingsViewModel : ViewModelBase
             var text = (value ?? string.Empty).Trim();
             if (long.TryParse(text, out var parsed) && parsed >= 0)
             {
-                if (_manualSizeBytes != parsed)
-                {
-                    _manualSizeBytes = parsed;
-                    OnPropertyChanged(nameof(ManualSizeBytes));
+                // Используем SetProperty: он и меняет поле, и оповещает подписчиков,
+                // и помечает наличие изменений (иначе кнопка «Сохранить» не активировалась
+                // и введённый вручную размер не сохранялся, issue #243).
+                if (SetProperty(ref _manualSizeBytes, (long?)parsed))
                     OnPropertyChanged(nameof(IsManualSizeSet));
-                }
             }
             else if (string.IsNullOrEmpty(text) && _manualSizeBytes.HasValue)
             {
-                _manualSizeBytes = null;
-                OnPropertyChanged(nameof(ManualSizeBytes));
+                SetProperty(ref _manualSizeBytes, (long?)null);
                 OnPropertyChanged(nameof(IsManualSizeSet));
             }
+            OnPropertyChanged(nameof(ManualSizeText));
         }
     }
 
