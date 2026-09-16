@@ -219,6 +219,22 @@ namespace Configuration_Management
                 _viewModel.PersistInfobasesAfterInlineEdit();
         }
 
+        /// <summary>
+        /// Открывает диалог «Очистка истории запусков» (issue #246): таблица баз с флажками,
+        /// именем и количеством записей истории. После закрытия сохраняет список, если хотя бы
+        /// у одной базы история была очищена (правки вносятся прямо в объекты <see cref="Infobase"/>).
+        /// </summary>
+        private void OnClearLaunchHistory_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new ClearHistoryWindow(_viewModel.Infobases.ToList())
+            {
+                Owner = this
+            };
+            dialog.ShowDialog();
+            if (dialog.DataChanged)
+                _viewModel.PersistInfobasesAfterInlineEdit();
+        }
+
         private void OnClearAllInfobases_Click(object sender, RoutedEventArgs e)
         {
             _viewModel.ClearAllInfobasesCommand.Execute(null);

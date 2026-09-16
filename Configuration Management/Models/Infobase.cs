@@ -585,7 +585,7 @@ public class Infobase : INotifyPropertyChanged
             ? LastLaunchDate.Value.ToString("dd.MM.yyyy HH:mm")
             : LocalizationManager.T("Infobase.LastLaunch.Never");
 
-    /// <summary>История запусков (до 30 последних записей).</summary>
+    /// <summary>История запусков (глубина — настройка <c>MaxLaunchHistoryPerBase</c>, по умолчанию 30).</summary>
     private List<LaunchHistoryEntry> _launchHistory = new();
 
     public List<LaunchHistoryEntry> LaunchHistory
@@ -608,8 +608,14 @@ public class Infobase : INotifyPropertyChanged
                 _launchHistory.Count,
                 _launchHistory[0].Timestamp.ToString("dd.MM HH:mm"));
 
-    /// <summary>Добавить запись в историю (новые сверху, максимум 30).</summary>
-    public void AddLaunchHistory(string mode, string details = "")
+    /// <summary>
+    /// Добавить запись в историю (новые сверху). Глубина истории (issue #246) берётся
+    /// из глобальной настройки <see cref="AppSettings.MaxLaunchHistoryPerBase"/>; при
+    /// превышении лимита самые старые записи удаляются. Явно переданный
+    /// <paramref name="maxHistory"/> имеет приоритет над настройкой (используется редко,
+    /// например из тестов), но существующие вызовы без него продолжают работать как раньше.
+    /// </summary>
+    public void AddLaunchHistory(string mode, string details = "", int? maxHistory = null)
     {
         _launchHistory.Insert(0, new LaunchHistoryEntry
         {
@@ -617,12 +623,37 @@ public class Infobase : INotifyPropertyChanged
             Mode = mode,
             Details = details ?? ""
         });
-        while (_launchHistory.Count > 30)
+        var max = maxHistory > 0 ? maxHistory.Value : ResolveMaxLaunchHistory();
+        while (_launchHistory.Count > max)
             _launchHistory.RemoveAt(_launchHistory.Count - 1);
         LastLaunchDate = DateTime.Now;
         OnPropertyChanged(nameof(LaunchHistory));
         OnPropertyChanged(nameof(LaunchHistoryDisplay));
         OnPropertyChanged(nameof(LastLaunchDisplay));
+    }
+
+    /// <summary>
+    /// Возвращает глубину истории из глобальной настройки (issue #246). Считывается из
+    /// <c>settings.json</c> так же, как это делает <see cref="Services.ConfigurationInfoService"/>
+    /// для таймаута COM: значения небольшие, чтение файла происходит редко (только при
+    /// фактическом добавлении записи истории). Если настройка недоступна или некорректна —
+    /// используется значение по умолчанию 30.
+    /// </summary>
+    private static int ResolveMaxLaunchHistory()
+    {
+        try
+        {
+            var settings = Configuration_Management.AppServices
+                .GetRequiredService<Configuration_Management.Services.IInfobaseRepository>()
+                .LoadSettings();
+            return settings != null && settings.MaxLaunchHistoryPerBase > 0
+                ? settings.MaxLaunchHistoryPerBase
+                : 30;
+        }
+        catch
+        {
+            return 30;
+        }
     }
 
     private long? _fileSizeBytes;

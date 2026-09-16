@@ -876,6 +876,21 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Глубина истории запусков одной базы (issue #246): максимальное количество записей
+    /// истории запусков, которое запоминается для информационной базы. Минимум 1.
+    /// </summary>
+    public int MaxLaunchHistoryPerBase
+    {
+        get => _maxLaunchHistoryPerBase;
+        set
+        {
+            var v = Math.Max(1, value);
+            if (SetProperty(ref _maxLaunchHistoryPerBase, v))
+                ScheduleSaveSettings();
+        }
+    }
+
+    /// <summary>
     /// Запрос к главному окну выполнить действие после успешного запуска базы/конфигуратора
     /// (свернуть или увести в трей согласно глобальной настройке).
     /// </summary>

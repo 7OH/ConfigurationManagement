@@ -75,6 +75,9 @@ namespace Configuration_Management
             // Таймаут определения свойств конфигурации через COM (issue #174).
             if (ComDetectTimeoutMsBox != null)
                 ComDetectTimeoutMsBox.Text = viewModel.ComDetectTimeoutMs.ToString();
+            // Глубина истории запусков одной базы (issue #246).
+            if (MaxLaunchHistoryDepthBox != null)
+                MaxLaunchHistoryDepthBox.Text = viewModel.MaxLaunchHistoryPerBase.ToString();
             _settings = new SettingsViewModel(viewModel);
             _installedPlatformVersions = new List<string>(viewModel.InstalledPlatformVersions);
             foreach (var path in viewModel.AdditionalPlatformSearchPaths)
@@ -303,6 +306,10 @@ namespace Configuration_Management
             if (ComDetectTimeoutMsBox != null
                 && int.TryParse(ComDetectTimeoutMsBox.Text, out var detectTimeout))
                 _viewModel.ComDetectTimeoutMs = detectTimeout;
+            // Глубина истории запусков одной базы (issue #246).
+            if (MaxLaunchHistoryDepthBox != null
+                && int.TryParse(MaxLaunchHistoryDepthBox.Text, out var historyDepth))
+                _viewModel.MaxLaunchHistoryPerBase = historyDepth;
 
             _viewModel.ApplyAppBehaviorSettings(
                 AllowMultipleInstancesCheck.IsChecked ?? false,

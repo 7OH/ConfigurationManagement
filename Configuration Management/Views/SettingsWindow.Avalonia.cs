@@ -1887,12 +1887,48 @@ namespace Configuration_Management
                     _viewModel.PersistInfobasesAfterInlineEdit();
             };
 
+            // Очистка истории запусков выбранных баз (issue #246). Правки вносятся прямо
+            // в объекты Infobase (очищается LaunchHistory), поэтому после закрытия сохраняем.
+            var clearHistory = new Button { Content = LocalizationManager.T("Settings.Bases.ClearHistory") };
+            ToolTip.SetTip(clearHistory, LocalizationManager.T("Settings.Bases.ClearHistoryTooltip"));
+            clearHistory.Click += (_, _) =>
+            {
+                var dialog = new ClearHistoryWindow(_viewModel.Infobases.ToList());
+                dialog.ShowDialogSync(this);
+                if (dialog.DataChanged)
+                    _viewModel.PersistInfobasesAfterInlineEdit();
+            };
+
             listButtons.Children.Add(exportList);
             listButtons.Children.Add(importList);
             listButtons.Children.Add(importV8i);
             listButtons.Children.Add(importStartManager);
             listButtons.Children.Add(detectAll);
+            listButtons.Children.Add(clearHistory);
             bases.Children.Add(listButtons);
+
+            // Глубина истории запусков одной базы (issue #246).
+            var historyDepthRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 8, 0, 0)
+            };
+            historyDepthRow.Children.Add(new TextBlock
+            {
+                Text = LocalizationManager.T("Settings.Bases.HistoryDepth"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            var historyDepthBox = new TextBox
+            {
+                Text = _viewModel.MaxLaunchHistoryPerBase.ToString(),
+                Width = 120,
+                VerticalContentAlignment = VerticalAlignment.Center
+            }.Styled(ControlThemes.ModernTextBox);
+            ToolTip.SetTip(historyDepthBox, LocalizationManager.T("Settings.Bases.HistoryDepthTooltip"));
+            historyDepthRow.Children.Add(historyDepthBox);
+            bases.Children.Add(historyDepthRow);
+
             bases.Children.Add(timestampCheck);
 
             // Как в Windows-разметке (SettingsWindow.xaml:1419): подпись сверху, поле —
@@ -2563,6 +2599,10 @@ namespace Configuration_Management
                 // Таймаут определения свойств конфигурации через COM (issue #174).
                 if (int.TryParse(detectTimeoutBox.Text, out var detectTimeout))
                     _viewModel.ComDetectTimeoutMs = detectTimeout;
+
+                // Глубина истории запусков одной базы (issue #246).
+                if (int.TryParse(historyDepthBox.Text, out var historyDepth))
+                    _viewModel.MaxLaunchHistoryPerBase = historyDepth;
 
                 _viewModel.ApplyIbasesSyncSettings(
                     syncModeBox.SelectedIndex >= 0 ? syncModes[syncModeBox.SelectedIndex].Mode : IbasesSyncMode.None,

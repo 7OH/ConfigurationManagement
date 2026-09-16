@@ -431,6 +431,7 @@ public partial class MainViewModel : ViewModelBase
             AutoUpdateEnabled = _autoUpdateEnabled,
             ComConnectorNameTemplate = _comConnectorNameTemplate,
             ComDetectTimeoutMs = _comDetectTimeoutMs,
+            MaxLaunchHistoryPerBase = _maxLaunchHistoryPerBase,
             ShowVersionColumn = _showVersionColumn,
             ShowConfigurationColumn = _showConfigurationColumn,
             ShowConfigurationVersionColumn = _showConfigurationVersionColumn,

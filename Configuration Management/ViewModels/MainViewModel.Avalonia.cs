@@ -143,6 +143,23 @@ public class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Глубина истории запусков одной базы (issue #246): максимальное количество записей
+    /// истории запусков, которое запоминается для информационной базы. Минимум 1.
+    /// </summary>
+    public int MaxLaunchHistoryPerBase
+    {
+        get => Math.Max(1, _settings.MaxLaunchHistoryPerBase);
+        set
+        {
+            var v = Math.Max(1, value);
+            if (_settings.MaxLaunchHistoryPerBase == v)
+                return;
+            _settings.MaxLaunchHistoryPerBase = v;
+            SaveSettingsSilently();
+        }
+    }
+
+    /// <summary>
     /// Разрешено ли несколько экземпляров: от этого зависит, вернётся ли
     /// спрятанное окно повторным запуском приложения.
     /// </summary>

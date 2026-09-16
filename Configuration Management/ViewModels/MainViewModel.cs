@@ -62,6 +62,8 @@ public partial class MainViewModel : ViewModelBase
     // Таймаут определения свойств конфигурации через COM (issue #174), мс. Первое
     // COM-подключение часто превышает прежние 8000 мс; по умолчанию — 30000.
     private int _comDetectTimeoutMs = 30000;
+    // Глубина истории запусков одной базы (issue #246), по умолчанию 30.
+    private int _maxLaunchHistoryPerBase = 30;
     private readonly ObservableCollection<string> _activeTagFilters = new();
     private ListViewMode _listViewMode = ListViewMode.All;
 
@@ -263,6 +265,10 @@ public partial class MainViewModel : ViewModelBase
         // профиля, — после неё каталог настроек уже другой, а список баз в окне прежний.
         OneCComConnector.ApplyTemplate(_comConnectorNameTemplate);
         _comDetectTimeoutMs = Math.Max(1000, settings.ComDetectTimeoutMs);
+        // Глубина истории запусков одной базы (issue #246).
+        _maxLaunchHistoryPerBase = settings.MaxLaunchHistoryPerBase > 0
+            ? settings.MaxLaunchHistoryPerBase
+            : 30;
         _showVersionColumn = settings.ShowVersionColumn;
         _showConfigurationColumn = settings.ShowConfigurationColumn;
         _showConfigurationVersionColumn = settings.ShowConfigurationVersionColumn;

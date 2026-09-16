@@ -9,6 +9,24 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.34] — 2026-09-16
+
+### Добавлено
+
+- **Настройка глубины истории запусков** (issue [#246](https://github.com/sivatorov/ConfigurationManagement/issues/246)):
+  - глобальная настройка **«Глубина истории запусков»** ([`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs), свойство `MaxLaunchHistoryPerBase`, по умолчанию 30) задаёт максимальное количество записей истории запусков, которое запоминается для одной информационной базы;
+  - жёсткий предел «до 30 записей» в [`Models/Infobase.cs`](Configuration%20Management/Models/Infobase.cs) (`AddLaunchHistory`) заменён значением из настроек: при превышении лимита самая старая запись удаляется; значение считывается из настроек так же, как таймаут COM (существующие вызовы `AddLaunchHistory(...)` продолжают работать без изменений);
+  - поле настройки добавлено в окно настроек (Настройки → Базы → Список информационных баз) на обеих платформах — Windows/WPF и Linux/Avalonia, с локализацией в `ru.json` / `en.json`.
+- **Очистка истории запусков диалогом** (issue [#246](https://github.com/sivatorov/ConfigurationManagement/issues/246)):
+  - новый диалог «Очистка истории запусков» ([`Views/ClearHistoryWindow.xaml(.cs)`](Configuration%20Management/Views/ClearHistoryWindow.xaml.cs) / [`Views/ClearHistoryWindow.Avalonia.cs`](Configuration%20Management/Views/ClearHistoryWindow.Avalonia.cs)) с таблицей «галочка / имя базы / количество записей», счётчиком отмеченных в заголовке и кнопками «Отметить все / Снять все / Инвертировать»;
+  - кнопка «Очистить историю» обнуляет `LaunchHistory` отмеченных баз; правки вносятся прямо в объекты баз и сохраняются через персист-метод окна настроек;
+  - точка входа — кнопка «Очистить историю запусков» рядом с «Определить\обновить конфигурации всех баз» в Настройки → Базы → Список информационных баз (обе платформы).
+
+### Версия
+
+- **Версия поднята до `0.3.7.34`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.33] — 2026-09-16
 
 ### Исправлено
