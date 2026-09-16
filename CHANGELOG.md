@@ -9,6 +9,19 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.28] — 2026-09-16
+
+### Исправлено
+
+- **Цвет группы «(Без групп)» теперь можно изменить, а вкладка «Основные» для служебных узлов скрыта** (issue [#240](https://github.com/sivatorov/ConfigurationManagement/issues/240)):
+  - при редактировании служебных узлов «Без группы» и «Закреплённые» (через [`EditNoGroupNode`/`EditPinnedNode`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs)) вкладка «Основные» больше не показывается: её поля «Наименование», «Родительская группа» и «Описание» при сохранении всё равно не применяются, поэтому доступ к ним только вводил в заблуждение. Остаются вкладки «Цвет» и «Иконка» — оформление;
+  - исправление реализовано на обеих платформах: Windows/WPF ([`Views/GroupEditWindow.xaml.cs`](Configuration%20Management/Views/GroupEditWindow.xaml.cs)) скрывает вкладку через `Visibility.Collapsed`, Linux/Avalonia ([`Views/GroupEditWindow.Avalonia.cs`](Configuration%20Management/Views/GroupEditWindow.Avalonia.cs)) — не добавляет её в набор вкладок для служебного режима.
+
+### Версия
+
+- **Версия поднята до `0.3.7.28`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.27] — 2026-09-16
 
 ### Исправлено
