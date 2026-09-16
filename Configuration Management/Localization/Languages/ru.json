@@ -631,6 +631,8 @@
     "Connection.GroupLabel": "Группа:",
     "Connection.ChooseGroup": "Выбрать…",
     "Connection.DescriptionLabel": "Описание:",
+    "Connection.ManualSizeLabel": "Размер вручную:",
+    "Connection.ManualSizeTooltip": "Размер базы в байтах, заданный вручную (например, полученный запросом в СУБД для клиент-серверной базы). Если задан — показывается вместо автоматического расчёта.",
     "Connection.Tab.Connection": "Подключение",
     "Connection.GroupConnectionType": "Тип и параметры подключения",
     "Connection.TypeLabel": "Тип:",

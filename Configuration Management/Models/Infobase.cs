@@ -642,11 +642,33 @@ public class Infobase : INotifyPropertyChanged
         }
     }
 
+    private long? _manualSizeBytes;
+
+    /// <summary>
+    /// Размер базы, заданный пользователем вручную в байтах (issue #243).
+    /// Позволяет хранить размеры клиент-серверных баз (например, полученные
+    /// запросом в СУБД), не держа их в комментариях. Если задан — используется
+    /// при отображении вместо автоматического значения; для файловых баз
+    /// автоматический расчёт продолжает работать, пока ручное не задано.
+    /// null — ручной размер не задан.
+    /// </summary>
+    public long? ManualSizeBytes
+    {
+        get => _manualSizeBytes;
+        set
+        {
+            if (SetProperty(ref _manualSizeBytes, value))
+                OnPropertyChanged(nameof(FileSizeDisplay));
+        }
+    }
+
     /// <summary>Размер для колонки списка.</summary>
     public string FileSizeDisplay
     {
         get
         {
+            if (_manualSizeBytes.HasValue)
+                return FormatSize(_manualSizeBytes.Value);
             if (Connection.Type != ConnectionType.File)
                 return "—";
             if (!_fileSizeResolved || !_fileSizeBytes.HasValue)

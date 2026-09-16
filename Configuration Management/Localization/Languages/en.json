@@ -631,6 +631,8 @@
     "Connection.GroupLabel": "Group:",
     "Connection.ChooseGroup": "Choose…",
     "Connection.DescriptionLabel": "Description:",
+    "Connection.ManualSizeLabel": "Size (manual):",
+    "Connection.ManualSizeTooltip": "Database size in bytes, set manually (e.g. obtained by a DB query for a client-server base). If set, it is shown instead of the automatic calculation.",
     "Connection.Tab.Connection": "Connection",
     "Connection.GroupConnectionType": "Connection type and parameters",
     "Connection.TypeLabel": "Type:",

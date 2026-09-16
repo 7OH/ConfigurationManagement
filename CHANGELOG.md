@@ -9,6 +9,21 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.31] — 2026-09-16
+
+### Добавлено
+
+- **Ручное изменение размера базы** (issue [#243](https://github.com/sivatorov/ConfigurationManagement/issues/243)):
+  - в настройках базы добавлена опция **«Размер вручную»**: флаг «размер задан вручную» и поле для ввода размера в байтах (например, полученного запросом в СУБД для клиент-серверной базы);
+  - если ручной размер задан — он отображается в колонке **«Размер»** вместо автоматического расчёта; для файловых баз автоматическое значение продолжает работать, пока ручное не задано;
+  - ручное значение хранится в модели ([`Models/Infobase.cs`](Configuration%20Management/Models/Infobase.cs)), читается/сохраняется в диалоге свойств базы ([`ViewModels/ConnectionSettingsViewModel.cs`](Configuration%20Management/ViewModels/ConnectionSettingsViewModel.cs)) и отображается на обеих платформах: Windows/WPF (вкладка «База» в [`Views/ConnectionSettingsWindow.xaml`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml)) и Linux/Avalonia ([`Views/ConnectionSettingsWindow.Avalonia.cs`](Configuration%20Management/Views/ConnectionSettingsWindow.Avalonia.cs));
+  - подписи локализованы в [`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json) и [`Localization/Languages/en.json`](Configuration%20Management/Localization/Languages/en.json).
+
+### Версия
+
+- **Версия поднята до `0.3.7.31`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.30] — 2026-09-16
 
 ### Добавлено

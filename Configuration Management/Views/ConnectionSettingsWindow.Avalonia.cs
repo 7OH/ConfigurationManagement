@@ -558,7 +558,7 @@ namespace Configuration_Management
 
         private Control BuildBaseTab()
         {
-            var fields = FieldsGrid(3);
+            var fields = FieldsGrid(4);
             Place(fields, 0, "Connection.NameLabel", Tb("Name"));
 
             var groupPath = Tb("GroupDisplayPath", readOnly: true);
@@ -567,6 +567,29 @@ namespace Configuration_Management
                 WithButton(groupPath, SecondaryButton("IconFolderOutline", "Connection.ChooseGroup", OnSelectGroup_Click)));
 
             Place(fields, 2, "Connection.DescriptionLabel", Tb("Description"));
+
+            // Ручной размер базы (issue #243): позволяет хранить размер клиент-серверных
+            // баз, полученный запросом в СУБД, не держа его в комментариях.
+            var manualSizeCheck = new CheckBox
+            {
+                Content = LocalizationManager.T("Connection.ManualSizeLabel"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 3)
+            };
+            manualSizeCheck.Bind(CheckBox.IsCheckedProperty,
+                new Binding(nameof(ConnectionSettingsViewModel.IsManualSizeSet)) { Mode = BindingMode.TwoWay });
+            Grid.SetRow(manualSizeCheck, 3);
+            Grid.SetColumn(manualSizeCheck, 0);
+            fields.Children.Add(manualSizeCheck);
+
+            var manualSizeText = Tb(nameof(ConnectionSettingsViewModel.ManualSizeText));
+            ToolTip.SetTip(manualSizeText, LocalizationManager.T("Connection.ManualSizeTooltip"));
+            manualSizeText.Bind(InputElement.IsEnabledProperty,
+                new Binding(nameof(ConnectionSettingsViewModel.IsManualSizeSet)));
+            Grid.SetRow(manualSizeText, 3);
+            Grid.SetColumn(manualSizeText, 1);
+            fields.Children.Add(manualSizeText);
+
             return Group("IconDatabase", "Connection.GroupBase", fields);
         }
 

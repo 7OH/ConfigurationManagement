@@ -500,6 +500,70 @@ public class ConnectionSettingsViewModel : ViewModelBase
         set => SetProperty(ref _webUrl, value);
     }
 
+    private long? _manualSizeBytes;
+
+    /// <summary>
+    /// Размер базы, заданный пользователем вручную в байтах (issue #243).
+    /// null — не задан (для файловых баз показывается автоматический расчёт).
+    /// </summary>
+    public long? ManualSizeBytes
+    {
+        get => _manualSizeBytes;
+        set
+        {
+            if (SetProperty(ref _manualSizeBytes, value))
+            {
+                OnPropertyChanged(nameof(IsManualSizeSet));
+                OnPropertyChanged(nameof(ManualSizeText));
+            }
+        }
+    }
+
+    /// <summary>Признак «размер задан вручную» (управляет видимостью/доступностью поля).</summary>
+    public bool IsManualSizeSet
+    {
+        get => _manualSizeBytes.HasValue;
+        set
+        {
+            if (value == _manualSizeBytes.HasValue)
+                return;
+            if (value)
+            {
+                if (!_manualSizeBytes.HasValue)
+                    ManualSizeBytes = 0;
+            }
+            else
+            {
+                ManualSizeBytes = null;
+            }
+        }
+    }
+
+    /// <summary>Текстовое представление ручного размера в байтах для ввода (пусто — не задан).</summary>
+    public string ManualSizeText
+    {
+        get => _manualSizeBytes?.ToString() ?? string.Empty;
+        set
+        {
+            var text = (value ?? string.Empty).Trim();
+            if (long.TryParse(text, out var parsed) && parsed >= 0)
+            {
+                if (_manualSizeBytes != parsed)
+                {
+                    _manualSizeBytes = parsed;
+                    OnPropertyChanged(nameof(ManualSizeBytes));
+                    OnPropertyChanged(nameof(IsManualSizeSet));
+                }
+            }
+            else if (string.IsNullOrEmpty(text) && _manualSizeBytes.HasValue)
+            {
+                _manualSizeBytes = null;
+                OnPropertyChanged(nameof(ManualSizeBytes));
+                OnPropertyChanged(nameof(IsManualSizeSet));
+            }
+        }
+    }
+
     /// <summary>Пользователь.</summary>
     public string User
     {
@@ -885,6 +949,9 @@ public class ConnectionSettingsViewModel : ViewModelBase
             LaunchParameters = infobase.LaunchParameters;
             DefaultLaunchMode = infobase.DefaultLaunchMode ?? string.Empty;
 
+            // Ручной размер базы (issue #243).
+            ManualSizeBytes = infobase.ManualSizeBytes;
+
             var conn = infobase.Connection;
             ConnectionType = conn.Type;
             Server = conn.Server;
@@ -1043,6 +1110,9 @@ public class ConnectionSettingsViewModel : ViewModelBase
         infobase.LaunchMode = string.IsNullOrWhiteSpace(LaunchMode) ? "Автоматический" : LaunchMode;
         infobase.LaunchParameters = LaunchParameters ?? string.Empty;
         infobase.DefaultLaunchMode = (DefaultLaunchMode ?? string.Empty).Trim();
+
+        // Ручной размер базы (issue #243).
+        infobase.ManualSizeBytes = ManualSizeBytes;
 
         if (infobase.Connection is null)
             infobase.Connection = new ConnectionSettings();
