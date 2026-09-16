@@ -9,6 +9,19 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.37] — 2026-09-16
+
+### Исправлено
+
+- **Окно редактирования группы/служебного узла теперь открывается на вкладке «Цвет»** (issue [#249](https://github.com/sivatorov/ConfigurationManagement/issues/249)):
+  - при правке оформления группы или служебного узла «Закреплённые»/«Без группы» активной вкладкой по умолчанию становится «Цвет» (а не «Основные»), так как пользователю чаще нужен именно цвет и иконка;
+  - исправлено для обеих платформ: разметка [`Views/GroupEditWindow.xaml`](Configuration%20Management/Views/GroupEditWindow.xaml) (`IsSelected="True"` на вкладке «Цвет») и построение вкладок в [`Views/GroupEditWindow.Avalonia.cs`](Configuration%20Management/Views/GroupEditWindow.Avalonia.cs) (`tabs.SelectedItem = colorTabItem`).
+
+### Версия
+
+- **Версия поднята до `0.3.7.37`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.36] — 2026-09-16
 
 ### Исправлено

@@ -249,7 +249,8 @@ namespace Configuration_Management
             colorTab.Children.Add(_colorControl);
             var colorBox = Controls.GroupBoxPanel.Build("GroupEdit.TitleColor", colorTab,
                 margin: new Thickness(0, 0, 0, 12), padding: new Thickness(10));
-            tabs.Items.Add(SubTab("IconPalette", "GroupEdit.TabColor", colorBox));
+            var colorTabItem = SubTab("IconPalette", "GroupEdit.TabColor", colorBox);
+            tabs.Items.Add(colorTabItem);
 
             // ===== Вкладка «Иконка» =====
             // Значок вкладки: в разметке это Kind="Shape" из пакета MaterialDesign,
@@ -271,6 +272,11 @@ namespace Configuration_Management
             var iconBox = Controls.GroupBoxPanel.Build("GroupEdit.IconAndColor", iconTab,
                 margin: new Thickness(0, 0, 0, 12), padding: new Thickness(10));
             tabs.Items.Add(SubTab("IconApplication", "GroupEdit.TabIcon", iconBox));
+
+            // Открываем активной вкладку «Цвет» (issue #249): при правке оформления
+            // группы/служебного узла цвет нужен чаще, чем имя или родитель. Для
+            // служебных узлов «Основные» скрыта, поэтому здесь всегда указываем «Цвет».
+            tabs.SelectedItem = colorTabItem;
 
             Grid.SetRow(tabs, 0);
             grid.Children.Add(tabs);
