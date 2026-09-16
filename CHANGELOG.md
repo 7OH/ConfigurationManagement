@@ -9,6 +9,21 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.7.33] — 2026-09-16
+
+### Исправлено
+
+- **Определение конфигураций всех баз: учёт раздельной авторизации Конфигуратора/Предприятия** (issue [#236](https://github.com/sivatorov/ConfigurationManagement/issues/236)):
+  - при определении сведений о конфигурации через COM-коннектор (диалог «Определить/обновить конфигурации всех баз» и контекстное меню «Обновить информацию о конфигурации») для баз, у которых заданы раздельные учётные данные `EnterpriseAuth` / `ConfiguratorAuth`, ранее в строку подключения не подставлялись логин/пароль (`Pwd=***` либо строка вовсе без `Usr`/`Pwd`) — чтение завершалось ошибкой подключения;
+  - введён единый резолвинг учётных данных по режиму ([`Services/InfobaseAuthResolver.cs`](Configuration%20Management/Services/InfobaseAuthResolver.cs)): «Конфигуратор» берёт `ConfiguratorAuth`, «1С:Предприятие» — `EnterpriseAuth`, иначе авторизацию информационной базы; учитывается `AuthenticationMode` (Credentials / Windows / Prompt);
+  - резолвинг используется и при построении строки COM-подключения ([`Services/OneCComConnector.cs`](Configuration%20Management/Services/OneCComConnector.cs)), и при запуске 1С ([`Services/OneCLauncher.cs`](Configuration%20Management/Services/OneCLauncher.cs), [`Services/OneCLauncher.Linux.cs`](Configuration%20Management/Services/OneCLauncher.Linux.cs)); режим чтения сведений — «Конфигуратор» — передаётся от вызывающего кода (контекстное меню «Обновить информацию о конфигурации» и диалог «Определить конфигурации», обе платформы);
+  - маскирование секретов при логировании сохранено: пароль не выводится в журнал, но в саму строку подключения попадает фактический пароль.
+
+### Версия
+
+- **Версия поднята до `0.3.7.33`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.32] — 2026-09-16
 
 ### Добавлено

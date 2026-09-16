@@ -179,8 +179,11 @@ namespace Configuration_Management
                 string? errorText = null;
                 try
                 {
+                    // Режим чтения сведений — «Конфигуратор» (issue #236): учитывается раздельная
+                    // авторизация ConfiguratorAuth при её наличии, иначе авторизация базы.
                     info = await Task.Run(() =>
-                        ConfigurationInfoService.ReadAndApply(row.Infobase, overwriteExisting: true), token);
+                        ConfigurationInfoService.ReadAndApply(row.Infobase, overwriteExisting: true,
+                            mode: OneCLaunchMode.Configurator), token);
                 }
                 catch (OperationCanceledException)
                 {

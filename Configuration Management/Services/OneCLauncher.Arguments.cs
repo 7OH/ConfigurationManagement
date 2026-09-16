@@ -71,20 +71,14 @@ public static partial class OneCLauncher
     /// <summary>Аргументы /N /P при режиме Credentials.</summary>
     public static string BuildAuthArgument(Infobase infobase)
     {
-        // Для пакетных операций конфигуратора (выгрузка .dt/.cf) в приоритете
-        // отдельная авторизация конфигуратора, если она задана.
-        if (infobase.ConfiguratorAuth is { } cfgAuth &&
-            cfgAuth.AuthenticationMode == AuthenticationMode.Credentials &&
-            !string.IsNullOrWhiteSpace(cfgAuth.User))
-        {
-            return BuildCredentialsArg(cfgAuth.User, cfgAuth.Password);
-        }
-
-        var conn = infobase.Connection;
-        if (conn.AuthenticationMode != AuthenticationMode.Credentials ||
-            string.IsNullOrWhiteSpace(conn.User))
+        // Пакетные операции конфигуратора (выгрузка .dt/.cf) выполняются в режиме
+        // «Конфигуратор»: единый резолвинг учётных данных (issue #236) сам возьмёт
+        // ConfiguratorAuth, если она задана, иначе авторизацию информационной базы.
+        InfobaseAuthResolver.Resolve(infobase, OneCLaunchMode.Configurator,
+            out var authMode, out var authUser, out var authPassword);
+        if (authMode != AuthenticationMode.Credentials || string.IsNullOrWhiteSpace(authUser))
             return "";
-        return BuildCredentialsArg(conn.User, conn.Password);
+        return BuildCredentialsArg(authUser, authPassword);
     }
 
     /// <summary>

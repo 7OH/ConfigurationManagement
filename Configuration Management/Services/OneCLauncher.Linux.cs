@@ -11,18 +11,9 @@ using Configuration_Management.Models;
 namespace Configuration_Management.Services
 {
     // ========================================================================
-    // Режимы/типы запуска (общие для обеих платформ; в Windows определены в
-    // OneCLauncher.cs, в Linux — здесь, т.к. WPF-файл исключён из сборки).
+    // Типы запуска (общие для обеих платформ; OneCLaunchMode вынесен в общий
+    // файл Services/OneCLaunchMode.cs, остальные типы определены здесь).
     // ========================================================================
-
-    /// <summary>Режим запуска платформы 1С.</summary>
-    public enum OneCLaunchMode
-    {
-        /// <summary>Режим «1С:Предприятие» (клиент).</summary>
-        Enterprise,
-        /// <summary>Режим «Конфигуратор» (разработка).</summary>
-        Configurator
-    }
 
     /// <summary>Тип клиента 1С:Предприятие.</summary>
     public enum OneCClientType
@@ -352,27 +343,9 @@ namespace Configuration_Management.Services
                     : ""
             };
 
-            AuthenticationMode authMode;
-            string authUser;
-            string authPassword;
-            if (mode == OneCLaunchMode.Enterprise && infobase.EnterpriseAuth is { } entAuth)
-            {
-                authMode = entAuth.AuthenticationMode;
-                authUser = entAuth.User;
-                authPassword = entAuth.Password;
-            }
-            else if (mode == OneCLaunchMode.Configurator && infobase.ConfiguratorAuth is { } cfgAuth)
-            {
-                authMode = cfgAuth.AuthenticationMode;
-                authUser = cfgAuth.User;
-                authPassword = cfgAuth.Password;
-            }
-            else
-            {
-                authMode = conn.AuthenticationMode;
-                authUser = conn.User;
-                authPassword = conn.Password;
-            }
+            // Учётные данные выбираются единым резолвингом (issue #236): раздельная авторизация
+            // Конфигуратора/Предприятия (EnterpriseAuth/ConfiguratorAuth), иначе авторизация базы.
+            InfobaseAuthResolver.Resolve(infobase, mode, out var authMode, out var authUser, out var authPassword);
 
             string authArg = authMode switch
             {
@@ -869,18 +842,14 @@ namespace Configuration_Management.Services
 
         public static string BuildAuthArgument(Infobase infobase)
         {
-            if (infobase.ConfiguratorAuth is { } cfgAuth &&
-                cfgAuth.AuthenticationMode == AuthenticationMode.Credentials &&
-                !string.IsNullOrWhiteSpace(cfgAuth.User))
-            {
-                return BuildCredentialsArg(cfgAuth.User, cfgAuth.Password);
-            }
-
-            var conn = infobase.Connection;
-            if (conn.AuthenticationMode != AuthenticationMode.Credentials ||
-                string.IsNullOrWhiteSpace(conn.User))
+            // Пакетные операции конфигуратора выполняются в режиме «Конфигуратор»:
+            // единый резолвинг учётных данных (issue #236) сам возьмёт ConfiguratorAuth,
+            // если она задана, иначе авторизацию информационной базы.
+            InfobaseAuthResolver.Resolve(infobase, OneCLaunchMode.Configurator,
+                out var authMode, out var authUser, out var authPassword);
+            if (authMode != AuthenticationMode.Credentials || string.IsNullOrWhiteSpace(authUser))
                 return "";
-            return BuildCredentialsArg(conn.User, conn.Password);
+            return BuildCredentialsArg(authUser, authPassword);
         }
 
         /// <summary>Аргументы командной строки для ярлыка «как у стартера 1С».</summary>

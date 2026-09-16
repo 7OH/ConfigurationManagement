@@ -11,18 +11,6 @@ using Configuration_Management.Models;
 namespace Configuration_Management.Services;
 
 /// <summary>
-/// Режим запуска платформы 1С.
-/// </summary>
-public enum OneCLaunchMode
-{
-    /// <summary>Режим «1С:Предприятие» (клиент).</summary>
-    Enterprise,
-
-    /// <summary>Режим «Конфигуратор» (разработка).</summary>
-    Configurator
-}
-
-/// <summary>
 /// Тип клиента 1С:Предприятие.
 /// </summary>
 public enum OneCClientType
@@ -446,27 +434,9 @@ public static partial class OneCLauncher
         // «1С:Предприятие» использует отдельную авторизацию (EnterpriseAuth), если она
         // задана; «Конфигуратор» — отдельную авторизацию (ConfiguratorAuth), если она
         // задана; иначе — авторизацию информационной базы (Connection, обратная совместимость).
-        AuthenticationMode authMode;
-        string authUser;
-        string authPassword;
-        if (mode == OneCLaunchMode.Enterprise && infobase.EnterpriseAuth is { } entAuth)
-        {
-            authMode = entAuth.AuthenticationMode;
-            authUser = entAuth.User;
-            authPassword = entAuth.Password;
-        }
-        else if (mode == OneCLaunchMode.Configurator && infobase.ConfiguratorAuth is { } cfgAuth)
-        {
-            authMode = cfgAuth.AuthenticationMode;
-            authUser = cfgAuth.User;
-            authPassword = cfgAuth.Password;
-        }
-        else
-        {
-            authMode = conn.AuthenticationMode;
-            authUser = conn.User;
-            authPassword = conn.Password;
-        }
+        // Учётные данные выбираются единым резолвингом (issue #236): раздельная авторизация
+        // Конфигуратора/Предприятия (EnterpriseAuth/ConfiguratorAuth), иначе авторизация базы.
+        InfobaseAuthResolver.Resolve(infobase, mode, out var authMode, out var authUser, out var authPassword);
 
         string authArg = authMode switch
         {

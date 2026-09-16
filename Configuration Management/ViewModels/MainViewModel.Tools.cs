@@ -883,7 +883,10 @@ public partial class MainViewModel : ViewModelBase
             OneCConfigInfo? info = null;
             try
             {
-                info = ConfigurationInfoService.ReadAndApply(ib, overwriteExisting: true);
+                // Режим чтения сведений — «Конфигуратор» (issue #236): учётные данные берутся
+                // из ConfiguratorAuth при её наличии, иначе из авторизации базы.
+                info = ConfigurationInfoService.ReadAndApply(ib, overwriteExisting: true,
+                    mode: OneCLaunchMode.Configurator);
             }
             catch { }
 
