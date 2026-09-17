@@ -1026,13 +1026,9 @@ namespace Configuration_Management
 
         private void OnPlatformSettings_Click()
         {
-            var current = _viewModel.PlatformVersion ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(_viewModel.Architecture)
-                && _viewModel.Architecture is "32" or "64"
-                && !current.Contains('('))
-            {
-                current = $"{current} ({_viewModel.Architecture})".Trim();
-            }
+            // Композицию варианта «версия (разрядность)» строит общий парсер (ПЗ-5).
+            var current = OneCLaunchArgumentParser.ComposePlatformVersionDisplay(
+                _viewModel.PlatformVersion, _viewModel.Architecture);
 
             var dialog = new PlatformVersionPickerWindow(_viewModel.InstalledPlatformVersions, current);
             if (!dialog.ShowDialogSync(this))

@@ -620,6 +620,7 @@ public partial class MainViewModel : ViewModelBase
         else
         {
             _logger.Warn($"[tray] Не удалось запустить «{ib.Name}»");
+            ShowLaunchFailed();
         }
     }
 
@@ -645,6 +646,7 @@ public partial class MainViewModel : ViewModelBase
         else
         {
             _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+{number}");
+            ShowLaunchFailed();
         }
     }
 

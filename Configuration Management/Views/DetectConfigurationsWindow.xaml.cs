@@ -25,6 +25,7 @@ namespace Configuration_Management
     {
         private readonly List<DetectConfigRowViewModel> _rows = new();
         private readonly IAppLogger _logger = AppServices.GetRequiredService<IAppLogger>();
+        private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
         private readonly Action<Infobase>? _editBase;
 
         private CancellationTokenSource? _cts;
@@ -255,11 +256,9 @@ namespace Configuration_Management
                 return;
             if (_rows.Any(r => r.IsChecked))
             {
-                var answer = MessageBox.Show(
-                    LocalizationManager.T("DetectConfigs.CloseConfirm"),
-                    LocalizationManager.T("DetectConfigs.Title"),
-                    MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-                if (answer != MessageBoxResult.Yes)
+                if (!_dialogs.Confirm(
+                        LocalizationManager.T("DetectConfigs.CloseConfirm"),
+                        LocalizationManager.T("DetectConfigs.Title")))
                 {
                     e.Cancel = true;
                     return;

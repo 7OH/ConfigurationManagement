@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.7.38</Version>
-    <AssemblyVersion>0.3.7.38</AssemblyVersion>
-    <FileVersion>0.3.7.38</FileVersion>
-    <InformationalVersion>0.3.7.38</InformationalVersion>
+    <Version>0.3.8.9</Version>
+    <AssemblyVersion>0.3.8.9</AssemblyVersion>
+    <FileVersion>0.3.8.9</FileVersion>
+    <InformationalVersion>0.3.8.9</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -221,6 +221,19 @@
          WPF-зависимые ViewModel (MainViewModel.cs, GroupNodeViewModel.cs, RelayCommand.cs и др.) исключаются. -->
     <Compile Remove="ViewModels\**\*.cs" />
     <Compile Include="ViewModels\*.Avalonia.cs" />
+    <!-- MainViewModel.Avalonia.cs разбит на partial-файлы по ответственности
+         (имена «MainViewModel.Avalonia.*.cs» не совпадают с глобом *.Avalonia.cs),
+         поэтому каждый добавляется явно. -->
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Commands.cs" />
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Display.cs" />
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Launch.cs" />
+    <Compile Include="ViewModels\MainViewModel.Avalonia.SwitchUser.cs" />
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Sync.cs" />
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Theme.cs" />
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Tools.cs" />
+    <!-- Модель чипа тега панели быстрого отбора (Avalonia/Linux, #if LINUX): вынесена
+         из монолита MainViewModel.Avalonia.cs, поэтому добавляется явно. -->
+    <Compile Include="ViewModels\TagFilterItem.cs" />
     <Compile Include="ViewModels\ConnectionSettingsViewModel.cs" />
     <!-- Общая модель строки диалога «Определение конфигураций всех баз» (issue #236):
          чистый .NET без WPF-зависимостей, используется и Windows, и Linux. -->
@@ -251,12 +264,59 @@
     <Compile Remove="Services\ComReadHost.cs" />
     <Compile Remove="Services\PlatformVersionService.cs" />
     <Compile Remove="Services\InfobaseMaintenanceService.cs" />
+    <Compile Remove="Services\InfobaseMaintenanceService.FileBase.cs" />
+    <Compile Remove="Services\InfobaseMaintenanceService.Processes.cs" />
+    <Compile Remove="Services\InfobaseMaintenanceService.Shortcuts.cs" />
     <!-- OneCTemplateService портирован на Linux (Этап 4): пути tmplts, чтение
          1cestart.cfg вместо реестра; реестр обёрнут в #if WINDOWS. -->
     <!-- Окна (Этап 3): портированные Avalonia-версии (*.Avalonia.cs) в Views/.
          Remove затем Include — чтобы не было конфликта с дефолтным глобом SDK. -->
     <Compile Remove="Views\*Window.Avalonia.cs" />
     <Compile Include="Views\*Window.Avalonia.cs" />
+    <!-- MainWindow.Avalonia.cs разбит на partial-файлы по ответственности
+         (имена «MainWindow.Avalonia.*.cs» не совпадают с глобом *Window.Avalonia.cs),
+         поэтому каждый добавляется явно. -->
+    <Compile Remove="Views\MainWindow.Avalonia.Controls.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Controls.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.Columns.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Columns.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.DragDrop.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.DragDrop.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.Events.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Events.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.Hotkeys.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Hotkeys.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.Language.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Language.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.Scroll.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Scroll.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.Tags.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Tags.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.Tray.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Tray.cs" />
+    <Compile Remove="Views\MainWindow.Avalonia.Tree.cs" />
+    <Compile Include="Views\MainWindow.Avalonia.Tree.cs" />
+    <!-- SettingsWindow.Avalonia.cs разбит на partial-файлы по ответственности
+         (имена «SettingsWindow.Avalonia.*.cs» не совпадают с глобом *Window.Avalonia.cs),
+         поэтому каждый добавляется явно. -->
+    <Compile Remove="Views\SettingsWindow.Avalonia.Accounts.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Accounts.cs" />
+    <Compile Remove="Views\SettingsWindow.Avalonia.Display.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Display.cs" />
+    <Compile Remove="Views\SettingsWindow.Avalonia.Fonts.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Fonts.cs" />
+    <Compile Remove="Views\SettingsWindow.Avalonia.Hotkeys.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Hotkeys.cs" />
+    <Compile Remove="Views\SettingsWindow.Avalonia.Language.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Language.cs" />
+    <Compile Remove="Views\SettingsWindow.Avalonia.Platforms.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Platforms.cs" />
+    <Compile Remove="Views\SettingsWindow.Avalonia.Profile.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Profile.cs" />
+    <Compile Remove="Views\SettingsWindow.Avalonia.Schemes.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Schemes.cs" />
+    <Compile Remove="Views\SettingsWindow.Avalonia.Sync.cs" />
+    <Compile Include="Views\SettingsWindow.Avalonia.Sync.cs" />
     <Compile Remove="Views\ModalWindowBase.cs" />
     <Compile Include="Views\ModalWindowBase.cs" />
     <!-- Этап 5: полноценные Linux-реализации сервисов 1С (*.Linux.cs включаются

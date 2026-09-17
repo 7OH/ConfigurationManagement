@@ -198,7 +198,10 @@ public partial class MainViewModel : ViewModelBase
 
         var link = dialog.Result;
         _logger.Info($"Запуск 1С по ссылке: {link}");
-        OneCLauncher.LaunchByLink(link);
+        if (!OneCLauncher.LaunchByLink(link))
+        {
+            _dialogs.ShowError(string.Format(LocalizationManager.T("Main.ErrOpenLink"), link));
+        }
     }
 
     /// <summary>
@@ -1250,11 +1253,9 @@ public partial class MainViewModel : ViewModelBase
             if (!e.Success)
             {
                 _logger.Error($"Ошибка пакетной операции: {e.ErrorMessage}");
-                System.Windows.MessageBox.Show(
+                _dialogs.ShowError(
                     e.ErrorMessage ?? LocalizationManager.T("Main.OperationFailedDefault"),
-                    LocalizationManager.T("Main.OperationErrorTitle"),
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Error);
+                    LocalizationManager.T("Main.OperationErrorTitle"));
             }
         });
     }
@@ -1280,6 +1281,12 @@ public partial class MainViewModel : ViewModelBase
                 LocalizationManager.T("Main.DumpDtStarted"),
                 LocalizationManager.T("Main.DumpDtTitle"));
         }
+        else
+        {
+            _dialogs.ShowError(
+                LocalizationManager.T("Main.OperationFailedDefault"),
+                LocalizationManager.T("Main.OperationErrorTitle"));
+        }
     }
 
     private void DumpConfigurationCf(object? parameter)
@@ -1303,6 +1310,12 @@ public partial class MainViewModel : ViewModelBase
                 LocalizationManager.T("Main.DumpCfStarted"),
                 LocalizationManager.T("Main.DumpCfTitle"));
         }
+        else
+        {
+            _dialogs.ShowError(
+                LocalizationManager.T("Main.OperationFailedDefault"),
+                LocalizationManager.T("Main.OperationErrorTitle"));
+        }
     }
 
     private void TestInfobase(object? parameter)
@@ -1322,6 +1335,12 @@ public partial class MainViewModel : ViewModelBase
             _dialogs.ShowInfo(
                 LocalizationManager.T("Main.TestInfobaseStarted"),
                 LocalizationManager.T("Main.TestInfobaseTitle"));
+        }
+        else
+        {
+            _dialogs.ShowError(
+                LocalizationManager.T("Main.OperationFailedDefault"),
+                LocalizationManager.T("Main.OperationErrorTitle"));
         }
     }
 

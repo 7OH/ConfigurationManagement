@@ -53,6 +53,13 @@ public enum OneCArchitecture
 /// </summary>
 public static partial class OneCLauncher
 {
+    /// <summary>Логгер из DI (без создания жёсткой зависимости).</summary>
+    private static IAppLogger? GetLogger()
+    {
+        try { return AppServices.GetRequiredService<IAppLogger>(); }
+        catch { return null; }
+    }
+
     /// <summary>
     /// Режим глобальной «Разрядности по умолчанию» («Настройки → Платформы»):
     /// "X64" — всегда 64-бит, "X86" — всегда 32-бит, либо "Priority"
@@ -351,11 +358,8 @@ public static partial class OneCLauncher
             var versionHint = string.IsNullOrWhiteSpace(infobase.PlatformVersion)
                 ? LocalizationManager.T("Launcher.PlatformVersionHint")
                 : string.Format(LocalizationManager.T("Launcher.RequestedVersionFormat"), infobase.PlatformVersion);
-            System.Windows.MessageBox.Show(
-                string.Format(LocalizationManager.T("Launcher.PlatformNotFoundFormat"), archLabel, versionHint),
-                LocalizationManager.T("Launcher.PlatformNotFoundTitle"),
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+            GetLogger()?.Warn(
+                string.Format(LocalizationManager.T("Launcher.PlatformNotFoundFormat"), archLabel, versionHint));
             return false;
         }
 
@@ -379,106 +383,12 @@ public static partial class OneCLauncher
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
-                string.Format(LocalizationManager.T("Launcher.LaunchFailedFormat"), ex.Message),
-                LocalizationManager.T("Launcher.LaunchErrorTitle"),
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
+            GetLogger()?.Error(
+                string.Format(LocalizationManager.T("Launcher.LaunchFailedFormat"), ex.Message), ex);
             return false;
         }
     }
 
-    /// <summary>
-    /// Формирует аргументы командной строки для запуска 1С.
-    /// </summary>
-    private static string BuildArguments(Infobase infobase, OneCLaunchMode mode, OneCClientType? clientType, OneCRunMode? runMode)
-    {
-        var modeArg = mode switch
-        {
-            OneCLaunchMode.Enterprise => "ENTERPRISE",
-            _ => "DESIGNER"
-        };
-
-        // Параметр режима форм применяется только в режиме «Предприятие».
-        // Явно заданный runMode имеет приоритет; иначе режим выводится из типа клиента
-        // (тонкий → управляемые, толстый → обычные). Если задано и runMode, и clientType —
-        // они независимы, что соответствует 1С («толстый клиент в управляемом приложении»).
-        // null (автоматический выбор платформы) — параметр /RunMode не передаётся.
-        var clientArg = mode == OneCLaunchMode.Enterprise && (runMode.HasValue || clientType.HasValue)
-            ? (runMode ?? (clientType == OneCClientType.Thin ? OneCRunMode.Managed : OneCRunMode.Ordinary)) switch
-            {
-                OneCRunMode.Managed => " /RunModeManagedApplication",
-                _ => " /RunModeOrdinaryApplication"
-            }
-            : "";
-
-        var conn = infobase.Connection;
-        string connectionArg = conn.Type switch
-        {
-            // Значение в кавычках по грамматике ключа 1С (/F"…"). Это НЕ строка подключения:
-            // кавычку внутри значения удвоением не экранируют — поэтому небезопасное значение
-            // (с «"») не подставляется, чтобы не допустить инъекцию /ключа (см. IsSafeCliValue).
-            ConnectionType.File => IsSafeCliValue(conn.FilePath) ? $" /F \"{conn.FilePath}\"" : "",
-            ConnectionType.WebServer => IsSafeCliValue(conn.WebUrl) ? $" /WS \"{conn.WebUrl}\"" : "",
-            // /S "server\base" — server может быть host:port при нестандартном порте.
-            _ => IsSafeCliValue(conn.GetServerWithPort()) && IsSafeCliValue(conn.DatabaseName)
-                ? $" /S \"{conn.GetServerWithPort()}\\{conn.DatabaseName}\""
-                : ""
-        };
-
-        // Режим аутентификации — как в стандартном лаунчере 1С:
-        // Prompt — не передаём /N /P (платформа сама запросит);
-        // Credentials — /N и /P с сохранёнными данными;
-        // Windows — /WA+ (аутентификация ОС).
-        //
-        // «1С:Предприятие» использует отдельную авторизацию (EnterpriseAuth), если она
-        // задана; «Конфигуратор» — отдельную авторизацию (ConfiguratorAuth), если она
-        // задана; иначе — авторизацию информационной базы (Connection, обратная совместимость).
-        // Учётные данные выбираются единым резолвингом (issue #236): раздельная авторизация
-        // Конфигуратора/Предприятия (EnterpriseAuth/ConfiguratorAuth), иначе авторизация базы.
-        InfobaseAuthResolver.Resolve(infobase, mode, out var authMode, out var authUser, out var authPassword);
-
-        string authArg = authMode switch
-        {
-            AuthenticationMode.Credentials when !string.IsNullOrWhiteSpace(authUser)
-                => BuildCredentialsArg(authUser, authPassword),
-            AuthenticationMode.Windows
-                => " /WA+",
-            _ => ""
-        };
-
-        // Подключение к хранилищу конфигурации (только в режиме «Конфигуратор»):
-        // /ConfigurationRepositoryF "<путь>" — путь к хранилищу. Для серверного хранилища
-        // путь имеет вид tcp://сервер:порт/имяХранилища (из Repository.Server + RepositoryName);
-        // /ConfigurationRepositoryN — пользователь хранилища; /ConfigurationRepositoryP — пароль.
-        // Аргументы добавляются, только если задан адрес сервера хранилища.
-        string repositoryArg = "";
-        var repo = infobase.Repository;
-        if (mode == OneCLaunchMode.Configurator && repo.HasServer)
-        {
-            var server = repo.Server.Trim().TrimEnd('/');
-            var name = (repo.RepositoryName ?? string.Empty).Trim();
-            var repoPath = string.IsNullOrWhiteSpace(name) ? server : $"{server}/{name}";
-            // Значения /ConfigurationRepository* тоже идут по грамматике ключа (не строки
-            // подключения): небезопасное значение (с «"») не подставляется (см. IsSafeCliValue).
-            if (IsSafeCliValue(repoPath))
-                repositoryArg = $" /ConfigurationRepositoryF \"{repoPath}\"";
-            if (IsSafeCliValue(repo.User))
-            {
-                repositoryArg += $" /ConfigurationRepositoryN \"{repo.User}\"";
-                if (IsSafeCliValue(repo.Password))
-                    repositoryArg += $" /ConfigurationRepositoryP \"{repo.Password}\"";
-            }
-        }
-
-        // Дополнительные параметры запуска, заданные пользователем
-        // (например, /UC, /DisableStartupMessages и др.).
-        var extraArg = string.IsNullOrWhiteSpace(infobase.LaunchParameters)
-            ? ""
-            : " " + infobase.LaunchParameters.Trim();
-
-        return $"{modeArg}{clientArg}{connectionArg}{authArg}{repositoryArg}{extraArg}";
-    }
 
     /// <summary>
     /// Запускает веб-клиент 1С в браузере по умолчанию.
@@ -494,11 +404,7 @@ public static partial class OneCLauncher
         {
             if (string.IsNullOrWhiteSpace(conn.WebUrl))
             {
-                System.Windows.MessageBox.Show(
-                    LocalizationManager.T("Launcher.WebUrlNotSpecified"),
-                    LocalizationManager.T("Launcher.WebClientUnavailableTitle"),
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Warning);
+                GetLogger()?.Warn(LocalizationManager.T("Launcher.WebUrlNotSpecified"));
                 return false;
             }
             url = conn.WebUrl;
@@ -509,11 +415,7 @@ public static partial class OneCLauncher
         }
         else
         {
-            System.Windows.MessageBox.Show(
-                LocalizationManager.T("Launcher.WebClientOnlyClientServer"),
-                LocalizationManager.T("Launcher.WebClientUnavailableTitle"),
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+            GetLogger()?.Warn(LocalizationManager.T("Launcher.WebClientOnlyClientServer"));
             return false;
         }
 
@@ -530,11 +432,8 @@ public static partial class OneCLauncher
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
-                string.Format(LocalizationManager.T("Launcher.WebClientOpenFailedFormat"), ex.Message),
-                LocalizationManager.T("Launcher.LaunchErrorTitle"),
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
+            GetLogger()?.Error(
+                string.Format(LocalizationManager.T("Launcher.WebClientOpenFailedFormat"), ex.Message), ex);
             return false;
         }
     }

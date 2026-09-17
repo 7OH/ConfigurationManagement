@@ -55,8 +55,8 @@ namespace Configuration_Management
 
             if (_additionalPlatformPaths.Any(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase)))
             {
-                MessageBox.Show(LocalizationManager.T("Settings.PathAlreadyAdded"),
-                    LocalizationManager.T("Settings.AdditionalPathsTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogs.ShowInfo(LocalizationManager.T("Settings.PathAlreadyAdded"),
+                    LocalizationManager.T("Settings.AdditionalPathsTitle"));
                 return;
             }
 
@@ -70,8 +70,8 @@ namespace Configuration_Management
             var selected = AdditionalPathsList?.SelectedItem as string;
             if (string.IsNullOrEmpty(selected))
             {
-                MessageBox.Show(LocalizationManager.T("Settings.SelectPathToEdit"),
-                    LocalizationManager.T("Settings.AdditionalPathsTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogs.ShowInfo(LocalizationManager.T("Settings.SelectPathToEdit"),
+                    LocalizationManager.T("Settings.AdditionalPathsTitle"));
                 return;
             }
 
@@ -94,8 +94,8 @@ namespace Configuration_Management
                     !string.Equals(p, selected, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(p, path, StringComparison.OrdinalIgnoreCase)))
             {
-                MessageBox.Show(LocalizationManager.T("Settings.PathAlreadyAdded"),
-                    LocalizationManager.T("Settings.AdditionalPathsTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogs.ShowInfo(LocalizationManager.T("Settings.PathAlreadyAdded"),
+                    LocalizationManager.T("Settings.AdditionalPathsTitle"));
                 return;
             }
 
@@ -113,8 +113,8 @@ namespace Configuration_Management
             var selected = AdditionalPathsList?.SelectedItem as string;
             if (string.IsNullOrEmpty(selected))
             {
-                MessageBox.Show(LocalizationManager.T("Settings.SelectPathToRemove"),
-                    LocalizationManager.T("Settings.AdditionalPathsTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogs.ShowInfo(LocalizationManager.T("Settings.SelectPathToRemove"),
+                    LocalizationManager.T("Settings.AdditionalPathsTitle"));
                 return;
             }
 
@@ -278,38 +278,34 @@ namespace Configuration_Management
 
             if (string.IsNullOrWhiteSpace(filePath))
             {
-                MessageBox.Show(LocalizationManager.T("Settings.Ibases.RestoreNoPath"), LocalizationManager.T("Settings.Ibases.RestoreTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                _dialogs.ShowWarning(LocalizationManager.T("Settings.Ibases.RestoreNoPath"), LocalizationManager.T("Settings.Ibases.RestoreTitle"));
                 return;
             }
 
             var backups = Services.IbasesBackupService.ListBackups(filePath);
             if (backups.Count == 0)
             {
-                MessageBox.Show(string.Format(LocalizationManager.T("Settings.Ibases.RestoreNoBackups"), filePath),
-                    LocalizationManager.T("Settings.Ibases.RestoreTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogs.ShowInfo(string.Format(LocalizationManager.T("Settings.Ibases.RestoreNoBackups"), filePath),
+                    LocalizationManager.T("Settings.Ibases.RestoreTitle"));
                 return;
             }
 
             var latest = backups[0];
-            var result = MessageBox.Show(
-                string.Format(LocalizationManager.T("Settings.Ibases.RestoreConfirm"), System.IO.Path.GetFileName(latest)),
-                LocalizationManager.T("Settings.Ibases.RestoreConfirmTitle"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result != MessageBoxResult.Yes)
+            if (!_dialogs.Confirm(
+                    string.Format(LocalizationManager.T("Settings.Ibases.RestoreConfirm"), System.IO.Path.GetFileName(latest)),
+                    LocalizationManager.T("Settings.Ibases.RestoreConfirmTitle")))
                 return;
 
             try
             {
                 Services.IbasesBackupService.RestoreBackup(latest, filePath);
-                MessageBox.Show(LocalizationManager.T("Settings.Ibases.RestoreOk"),
-                    LocalizationManager.T("Settings.Ibases.RestoreTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogs.ShowInfo(LocalizationManager.T("Settings.Ibases.RestoreOk"),
+                    LocalizationManager.T("Settings.Ibases.RestoreTitle"));
             }
             catch (Exception ex)
             {
-                MessageBox.Show(string.Format(LocalizationManager.T("Settings.Ibases.RestoreFailed"), ex.Message),
-                    LocalizationManager.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogs.ShowError(string.Format(LocalizationManager.T("Settings.Ibases.RestoreFailed"), ex.Message),
+                    LocalizationManager.T("Common.Error"));
             }
         }
 
@@ -456,19 +452,15 @@ namespace Configuration_Management
             try
             {
                 System.Windows.Clipboard.SetText(TechnicalInfoService.Collect());
-                MessageBox.Show(
+                _dialogs.ShowInfo(
                     LocalizationManager.T("Settings.About.TechInfoCopied"),
-                    LocalizationManager.T("Common.Information"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                    LocalizationManager.T("Common.Information"));
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                _dialogs.ShowError(
                     LocalizationManager.T("Settings.About.TechInfoCopyFailed") + "\n" + ex.Message,
-                    LocalizationManager.T("Common.Error"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                    LocalizationManager.T("Common.Error"));
             }
         }
 

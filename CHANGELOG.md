@@ -9,6 +9,166 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.8.9] — 2026-09-17
+
+### Улучшения
+
+- **Отображение текста «Что нового» окна обновления со стилями markdown** — на обеих платформах текст релиза теперь рендерится с поддержкой заголовков, жирного и курсивного начертания, кода, списков и ссылок.
+- Добавлен новый лёгкий рендерер [`Services/MarkdownRenderer.cs`](Configuration%20Management/Services/MarkdownRenderer.cs) с точками входа `ToFlowDocument` (WPF) и `ToStackPanel` (Avalonia).
+- **WPF**: в [`UpdateAvailableWindow.xaml`](Configuration%20Management/Views/UpdateAvailableWindow.xaml) `BodyText` заменён на `FlowDocumentScrollViewer BodyViewer`; `.xaml.cs` рендерит `release.Body` со стилями.
+- **Avalonia**: добавлен вывод «Что нового» с рендером markdown (`MaterialMessageWindowAvalonia`, `AvaloniaDialogService.ConfirmUpdate`, `UpdateService.Avalonia.cs`).
+- **Linux**: ранее описание релиза не выводилось — теперь оно отображается с рендером markdown.
+
+### Версия
+
+- **Версия поднята до `0.3.8.9`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.8] — 2026-09-17
+
+### Улучшения
+
+- **Единый стиль уведомлений на обеих платформах** — все оставшиеся прямые вызовы системного `MessageBox.Show` в WPF-коде заменены на material-окна через `IDialogService` (`ShowInfo`/`ShowWarning`/`ShowError`/`Confirm`).
+
+### Рефакторинг
+
+- **Замена всех системных `MessageBox` на material-окна через `IDialogService`.** Из WPF-кода убраны прямые вызовы `MessageBox.Show`; уведомления теперь показываются через единый `IDialogService` (паттерн `AppServices.GetRequiredService<IDialogService>()`), что обеспечивает одинаковый стиль сообщений на Windows/WPF и Linux/Avalonia.
+- Затронутые окна: `App`, `CreateInfobaseWindow`, `ConnectionSettingsWindow`, `ConnectionStringInputWindow`, `DetectConfigurationsWindow`, `DeleteInfobaseWindow`, `SettingsWindow.*`.
+- Вопросы Yes/No переведены на `Confirm(bool)`. В проекте 0 прямых вызовов `MessageBox.Show`.
+- Публичные сигнатуры сохранены, поведение приложения полностью сохранено — сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.8`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.7] — 2026-09-17
+
+### Рефакторинг
+
+- **Унификация обработки ошибок в сервисах — вынос показов `MessageBox` из сервисов в слой View.** Из `InfobaseMaintenanceService`, `OneCLauncher*` и `OneCLauncher.DesignerBatch` убраны прямые вызовы `MessageBox`:
+  - сервисы логируют ошибки через `IAppLogger` и возвращают признак ошибки;
+  - View показывает сообщения пользователю через `IDialogService`;
+  - сервисы больше не зависят от UI — обязанности по отображению вынесены в слой представления.
+- Публичные сигнатуры сохранены, поведение приложения полностью сохранено — сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.7`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.6] — 2026-09-17
+
+### Рефакторинг
+
+- **`InfobaseMaintenanceService` декомпозирован по ответственности** — сервис разбит на partial-файлы, чтобы разделить обязанности (SRP) и устранить дублирование между WPF и Avalonia:
+  - [`Services/InfobaseMaintenanceService.Shared.cs`](Configuration%20Management/Services/InfobaseMaintenanceService.Shared.cs) — общий платформенно-нейтральный код;
+  - WPF-partial: [`Services/InfobaseMaintenanceService.Shortcuts.cs`](Configuration%20Management/Services/InfobaseMaintenanceService.Shortcuts.cs), [`Services/InfobaseMaintenanceService.Processes.cs`](Configuration%20Management/Services/InfobaseMaintenanceService.Processes.cs), [`Services/InfobaseMaintenanceService.FileBase.cs`](Configuration%20Management/Services/InfobaseMaintenanceService.FileBase.cs);
+  - Linux-partial: [`Services/InfobaseMaintenanceService.Linux.Folders.cs`](Configuration%20Management/Services/InfobaseMaintenanceService.Linux.Folders.cs), [`Services/InfobaseMaintenanceService.Linux.Shortcuts.cs`](Configuration%20Management/Services/InfobaseMaintenanceService.Linux.Shortcuts.cs), [`Services/InfobaseMaintenanceService.Linux.FileBase.cs`](Configuration%20Management/Services/InfobaseMaintenanceService.Linux.FileBase.cs).
+- WPF-partial исключены из Linux-сборки через обновлённый `csproj`.
+- Публичный API не изменён, поведение приложения полностью сохранено — рефакторинг чисто структурный, сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.6`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.5] — 2026-09-17
+
+### Рефакторинг
+
+- **Платформенно-нейтральное построение аргументов запуска 1С вынесено в общий shared-файл [`Services/OneCLauncher.Arguments.Shared.cs`](Configuration%20Management/Services/OneCLauncher.Arguments.Shared.cs)** — общая логика используется и WPF, и Linux-версией `OneCLauncher`, чтобы устранить дублирование между платформами:
+  - единое построение аргументов командной строки в платформенно-нейтральном файле;
+  - из `OneCLauncher.cs` и `OneCLauncher.Arguments.cs` удалены дубликаты.
+- **`OneCLauncher.Linux.cs` разбит на partial-файлы по ответственности**, чтобы упростить навигацию и поддержку:
+  - [`Services/OneCLauncher.Linux.Process.cs`](Configuration%20Management/Services/OneCLauncher.Linux.Process.cs) — запуск процесса;
+  - [`Services/OneCLauncher.Linux.Arguments.cs`](Configuration%20Management/Services/OneCLauncher.Linux.Arguments.cs) — аргументы запуска;
+  - [`Services/OneCLauncher.Linux.DesignerBatch.cs`](Configuration%20Management/Services/OneCLauncher.Linux.DesignerBatch.cs) — пакетный режим конфигуратора;
+  - [`Services/OneCLauncher.Linux.Errors.cs`](Configuration%20Management/Services/OneCLauncher.Linux.Errors.cs) — обработка ошибок.
+- Контракт `IOneCLauncher` не изменён, поведение приложения полностью сохранено — рефакторинг чисто структурный, сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.5`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.4] — 2026-09-17
+
+### Рефакторинг
+
+- **Разбор командной строки запуска 1С и автодополнение параметров вынесены в новый сервис `OneCLaunchArgumentParser`** — логика из `ConnectionSettingsWindow.xaml.cs`, `ConnectionSettingsWindow.Avalonia.cs`, `LaunchParametersWindow.xaml.cs` и `LaunchParametersWindow.Avalonia.cs` выделена в отдельный платформенно-нейтральный парсер, чтобы разделить обязанности (SRP) и устранить дублирование между WPF и Avalonia:
+  - [`Services/OneCLaunchArgumentParser.cs`](Configuration%20Management/Services/OneCLaunchArgumentParser.cs) — платформенно-нейтральный парсер командной строки запуска 1С;
+  - [`Models/OneCLaunchArgument.cs`](Configuration%20Management/Models/OneCLaunchArgument.cs) — модель аргумента запуска;
+  - [`Models/OneCLaunchParameterReference.cs`](Configuration%20Management/Models/OneCLaunchParameterReference.cs) — модель ссылки на параметр (автодополнение);
+  - обновлены окна `ConnectionSettingsWindow` и `LaunchParametersWindow` (WPF и Avalonia), устранён дубль каталога ключей.
+- Поведение приложения не изменилось — рефакторинг чисто структурный, сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.4`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.3] — 2026-09-17
+
+### Рефакторинг
+
+- **Валидация и создание информационной базы вынесены в новый сервис `ICreateInfobaseService`** — логика из `CreateInfobaseWindow.xaml.cs` и `CreateInfobaseWindow.Avalonia.cs` выделена в отдельный сервис, чтобы разделить обязанности (SRP) и устранить дублирование между WPF и Avalonia:
+  - [`Models/CreateInfobaseRequest.cs`](Configuration%20Management/Models/CreateInfobaseRequest.cs) — модель запроса на создание ИБ;
+  - [`Services/ICreateInfobaseService.cs`](Configuration%20Management/Services/ICreateInfobaseService.cs) — интерфейс сервиса, а также результаты `CreateInfobaseResult` и `CreateInfobaseResultKind`;
+  - [`Services/CreateInfobaseService.cs`](Configuration%20Management/Services/CreateInfobaseService.cs) — реализация сервиса;
+  - сервис зарегистрирован в [`AppServices.cs`](Configuration%20Management/AppServices.cs).
+- Поведение приложения не изменилось — рефакторинг чисто структурный, сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.3`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.2] — 2026-09-17
+
+### Рефакторинг
+
+- **Монолитный `SettingsWindow.Avalonia.cs` разбит на partial-файлы по ответственности** — большой файл (~4000 строк) декомпозирован на несколько логических частей, чтобы упростить навигацию и поддержку кода:
+  - базовый файл [`Views/SettingsWindow.Avalonia.cs`](Configuration%20Management/Views/SettingsWindow.Avalonia.cs);
+  - разнесённые по темам partial-файлы: `.Accounts` (учётные записи), `.Display` (отображение), `.Fonts` (шрифты), `.Hotkeys` (горячие клавиши), `.Language` (язык), `.Platforms` (платформы), `.Profile` (профиль), `.Schemes` (цветовые схемы), `.Sync` (синхронизация) в каталоге [`Views/`](Configuration%20Management/Views/).
+- Обновлён `Configuration Management.csproj` (Linux-ItemGroup) для включения новых partial-файлов.
+- Поведение приложения не изменилось — рефакторинг чисто структурный, сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.2`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.1] — 2026-09-17
+
+### Рефакторинг
+
+- **Монолитный `MainWindow.Avalonia.cs` разбит на partial-файлы по ответственности** — большой файл (~6400 строк) декомпозирован на несколько логических частей, чтобы упростить навигацию и поддержку кода:
+  - базовый файл [`Views/MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs);
+  - разнесённые по темам partial-файлы: `.Columns` (колонки), `.Controls` (элементы управления), `.DragDrop`, `.Events` (события), `.Hotkeys` (горячие клавиши), `.Language` (язык), `.Scroll`, `.Tags` (теги), `.Tray` (трей), `.Tree` (дерево) в каталоге [`Views/`](Configuration%20Management/Views/);
+  - вложенные UI-типы вынесены в отдельный файл [`Views/MainWindow.Avalonia.Controls.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Controls.cs).
+- Поведение приложения не изменилось — рефакторинг чисто структурный, сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.1`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.0] — 2026-09-17
+
+### Рефакторинг
+
+- **Монолитный `MainViewModel.Avalonia.cs` разбит на partial-файлы по ответственности** — большой файл (~5257 строк) декомпозирован на несколько логических частей, чтобы упростить навигацию и поддержку кода:
+  - базовый файл [`ViewModels/MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs);
+  - разнесённые по темам partial-файлы: `.Commands` (команды), `.Display` (отображение), `.Launch` (запуск), `.SwitchUser` (смена пользователя), `.Sync` (синхронизация), `.Theme` (темы), `.Tools` (инструменты) в каталоге [`ViewModels/`](Configuration%20Management/ViewModels/);
+  - служебный класс фильтра по тегу вынесен в отдельный файл [`ViewModels/TagFilterItem.cs`](Configuration%20Management/ViewModels/TagFilterItem.cs).
+- Поведение приложения не изменилось — рефакторинг чисто структурный, сборки остаются зелёными.
+
+### Версия
+
+- **Версия поднята до `0.3.8.0`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.7.38] — 2026-09-16
 
 ### Исправлено
