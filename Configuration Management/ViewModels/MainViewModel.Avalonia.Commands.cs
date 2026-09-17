@@ -119,6 +119,8 @@ public partial class MainViewModel : ViewModelBase
         ToggleFavoriteForCommand = new RelayCommand(p => ToggleFavoriteFor(p as Infobase), p => p is Infobase);
         TogglePinForCommand = new RelayCommand(p => TogglePinFor(p as Infobase), p => p is Infobase);
         OpenSettingsCommand = new RelayCommand(OpenSettings);
+        // Копия экрана по хоткею (функция №30, Этап 8).
+        TakeScreenshotCommand = new RelayCommand(TakeScreenshot);
         ExpandAllGroupsCommand = new RelayCommand(ExpandAllGroups);
         CollapseAllGroupsCommand = new RelayCommand(CollapseAllGroups);
         SortGroupsAscendingCommand = new RelayCommand(() => SortGroups(true));

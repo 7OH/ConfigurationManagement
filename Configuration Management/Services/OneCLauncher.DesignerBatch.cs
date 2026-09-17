@@ -20,7 +20,13 @@ public static partial class OneCLauncher
     {
         DumpIB,
         DumpCfg,
-        TestAndRepair
+        TestAndRepair,
+        /// <summary>Восстановление данных ИБ из выгрузки .dt (/RestoreIB"path").</summary>
+        RestoreIB,
+        /// <summary>Установка блокировки сеансов ИБ (/LockIB"строка сеансов").</summary>
+        LockIB,
+        /// <summary>Снятие блокировки сеансов ИБ (/LockIB"").</summary>
+        UnlockIB
     }
 
     /// <summary>
@@ -70,6 +76,9 @@ public static partial class OneCLauncher
             DesignerBatchOperation.DumpIB => LocalizationManager.T("Launcher.OperationDumpIB"),
             DesignerBatchOperation.DumpCfg => LocalizationManager.T("Launcher.OperationDumpCfg"),
             DesignerBatchOperation.TestAndRepair => LocalizationManager.T("Launcher.OperationTestAndRepair"),
+            DesignerBatchOperation.RestoreIB => LocalizationManager.T("Launcher.OperationRestoreIB"),
+            DesignerBatchOperation.LockIB => LocalizationManager.T("Launcher.OperationLockIB"),
+            DesignerBatchOperation.UnlockIB => LocalizationManager.T("Launcher.OperationUnlockIB"),
             _ => LocalizationManager.T("Launcher.OperationGeneric")
         };
     }
@@ -78,7 +87,8 @@ public static partial class OneCLauncher
     /// Запускает конфигуратор в пакетном режиме: выгрузка .dt / .cf или тестирование ИБ.
     /// Формат аргументов как у командной строки 1С (без пробела между ключом и значением в кавычках).
     /// </summary>
-    public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath = null)
+    public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath = null,
+        BackupCredential? credential = null)
     {
         var arch = ResolveArchitecture(infobase.Architecture, infobase.PlatformVersion);
         var exePath = FindExecutable(infobase.PlatformVersion, arch, null, OneCLaunchMode.Configurator);
@@ -129,9 +139,19 @@ public static partial class OneCLauncher
                 }
             }
         }
+        else if (operation == DesignerBatchOperation.RestoreIB)
+        {
+            // Восстановление требует существующий исходный файл выгрузки (.dt).
+            if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath))
+                return false;
+        }
 
         var connectionArg = BuildConnectionArgument(infobase);
         var authArg = BuildAuthArgument(infobase);
+        // Переопределённые учётные данные сценария резервирования: если они заданы явно
+        // (UseInfobaseAuth == false), используем их вместо авторизации базы.
+        if (credential is { UseInfobaseAuth: false })
+            authArg = BuildCredentialsArg(credential.User, credential.Password);
 
         // Важно: у 1С ключи вида /DumpIB"C:\path\file.dt" (значение сразу в кавычках). Это НЕ строка
         // подключения: кавычку внутри пути экранировать удвоением нельзя, поэтому путь с «"»
@@ -141,6 +161,13 @@ public static partial class OneCLauncher
             DesignerBatchOperation.DumpIB when IsSafeCliValue(outputPath) => $"/DumpIB\"{outputPath}\"",
             DesignerBatchOperation.DumpCfg when IsSafeCliValue(outputPath) => $"/DumpCfg\"{outputPath}\"",
             DesignerBatchOperation.TestAndRepair => "/IBCheckAndRepair -TestOnly",
+            DesignerBatchOperation.RestoreIB when IsSafeCliValue(outputPath) => $"/RestoreIB\"{outputPath}\"",
+            // Блокировка сеансов файловой ИБ: /LockIB"строка сеансов". Строка строится
+            // в SessionLockOptions.BuildSessionLockString(); выходной файл не создаётся,
+            // поэтому в outputPath передаётся именно строка сеансов.
+            DesignerBatchOperation.LockIB when IsSafeCliValue(outputPath) => $"/LockIB\"{outputPath}\"",
+            // Снятие блокировки: /LockIB с пустой строкой сеансов.
+            DesignerBatchOperation.UnlockIB => "/LockIB\"\"",
             _ => ""
         };
         if (string.IsNullOrEmpty(opArg))

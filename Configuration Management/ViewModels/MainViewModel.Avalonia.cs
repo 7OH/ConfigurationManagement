@@ -38,8 +38,13 @@ public partial class MainViewModel : ViewModelBase
     private bool _sortAscending = true;
     private readonly HashSet<string> _collapsedGroups = new(StringComparer.OrdinalIgnoreCase);
     private bool _deferCollapsedSave;
+    private Avalonia.Threading.DispatcherTimer? _listStateAutoSaveTimer;
+    private bool _listStateDirty;
 
     private AppSettings _settings = new();
+
+    /// <summary>Глобальное действие по двойному щелчку на базе (функция №28 StartManager).</summary>
+    private string _defaultDoubleClickAction = DoubleClickAction.GlobalDefault;
 
     // ---- Поиск / теги ----
     private string _searchText = string.Empty;
@@ -227,6 +232,34 @@ public partial class MainViewModel : ViewModelBase
         // Значок показывается и прячется сразу, как в версии для Windows,
         // иначе настройка действовала бы только после перезапуска.
         TraySettingsChanged?.Invoke();
+    }
+
+    /// <summary>Текущее глобальное действие по двойному щелчку на базе (функция №28 StartManager).</summary>
+    public string DefaultDoubleClickAction => _defaultDoubleClickAction;
+
+    /// <summary>
+    /// Устанавливает глобальное действие по двойному щелчку на базе и сохраняет настройки.
+    /// </summary>
+    public void SetDefaultDoubleClickAction(string value)
+    {
+        var normalized = DoubleClickAction.Normalize(value);
+        if (string.Equals(_defaultDoubleClickAction, normalized, StringComparison.Ordinal))
+            return;
+        _defaultDoubleClickAction = normalized;
+        _settings.DefaultDoubleClickAction = normalized;
+        SaveSettingsSilently();
+    }
+
+    /// <summary>
+    /// Определяет действие по двойному щелчку для конкретной базы (функция №28 StartManager):
+    /// индивидуальное значение ИБ имеет приоритет; если оно пусто — глобальная настройка.
+    /// </summary>
+    public string ResolveDoubleClickAction(Infobase? infobase)
+    {
+        var perBase = (infobase?.DoubleClickAction ?? string.Empty).Trim();
+        return string.IsNullOrEmpty(perBase)
+            ? _defaultDoubleClickAction
+            : DoubleClickAction.Normalize(perBase);
     }
 
     /// <summary>Создаёт главную ViewModel и подключает сервисы.</summary>
@@ -461,6 +494,9 @@ public partial class MainViewModel : ViewModelBase
             _allInfobases = _repository.Load();
             _groups = _repository.LoadGroups();
 
+            // Режим функциональности и параметры 1CLaunch.cfg (Этап 10 StartManager).
+            LoadFunctionalSettings();
+
             _collapsedGroups.Clear();
             foreach (var key in _settings.CollapsedGroups)
                 _collapsedGroups.Add(key);
@@ -481,6 +517,8 @@ public partial class MainViewModel : ViewModelBase
             _themeName = _settings.Theme;
             _compactMode = _settings.CompactMode;
             _afterLaunchAction = _settings.AfterLaunchAction ?? "None";
+            // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
+            _defaultDoubleClickAction = DoubleClickAction.Normalize(_settings.DefaultDoubleClickAction);
             _sortField = string.IsNullOrWhiteSpace(_settings.SortField) ? "Name" : _settings.SortField;
             _sortAscending = _settings.SortAscending;
             // Вид списка хранится тем же признаком, что и в WPF: «только избранные».
@@ -508,6 +546,10 @@ public partial class MainViewModel : ViewModelBase
             RebuildTree();
             UpdateStatus(string.Format(LocalizationManager.T("Main.LoadedBases"), _allInfobases.Count));
 
+            // Дата изменений файла ИБ для колонки «Дата изменений» (Этап 13) считается
+            // в фоне после показа дерева: дисковые обращения не должны задерживать старт.
+            RefreshFileModifiedTimesInBackground();
+
             // Слоты Alt+1…9 читаются из общего с версией для Windows файла
             // настроек, затем раздаются избранным без слота.
             _favoriteHotkeyIds.Clear();
@@ -521,6 +563,7 @@ public partial class MainViewModel : ViewModelBase
             if (_settings.IbasesSyncMode != IbasesSyncMode.None)
                 SynchronizeSilently();
             RestartAutoSync();
+            StartListStateAutoSave();
 
             // Миграция старой модели схем (активная + раздельные слоты) в единую схему
             // с двумя палитрами; устаревшие поля обнуляем, чтобы сохранялся новый формат.
@@ -541,6 +584,58 @@ public partial class MainViewModel : ViewModelBase
         {
             _logger.Error("Ошибка загрузки данных главного окна", ex);
             _dialog.ShowError(string.Format(LocalizationManager.T("Main.ErrLoadBases"), ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Считает дату последнего изменения файла ИБ для колонки «Дата изменений» (Этап 13)
+    /// в фоне после показа дерева: дисковые обращения не должны задерживать старт.
+    /// Для каждой файловой базы определяется время записи файла базы (1Cv8.1CD) и
+    /// помещается в <see cref="Infobase.FileLastWriteTimeUtc"/>, что обновляет колонку.
+    /// </summary>
+    private async void RefreshFileModifiedTimesInBackground()
+    {
+        var fileBases = _allInfobases.Where(ib => ib.Connection.Type == ConnectionType.File).ToList();
+        if (fileBases.Count == 0)
+            return;
+
+        var results = await System.Threading.Tasks.Task.Run(() =>
+        {
+            var map = new Dictionary<Infobase, DateTime?>(fileBases.Count);
+            foreach (var ib in fileBases)
+                map[ib] = CalculateFileLastWriteTimeUtc(ib);
+            return map;
+        });
+
+        foreach (var kv in results)
+            kv.Key.FileLastWriteTimeUtc = kv.Value;
+    }
+
+    /// <summary>Время последней записи файловой ИБ (UTC) или null, если определить не удалось.</summary>
+    private static DateTime? CalculateFileLastWriteTimeUtc(Infobase ib)
+    {
+        try
+        {
+            var path = ib.Connection.FilePath?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(path))
+                return null;
+            // Маркер актуальности: для каталога берём время записи самого файла базы
+            // 1Cv8.1CD (оно меняется при изменении данных базы), иначе — файла/каталога.
+            string marker;
+            if (System.IO.File.Exists(path))
+                marker = path;
+            else
+            {
+                var dbFile = System.IO.Path.Combine(path, "1Cv8.1CD");
+                marker = System.IO.File.Exists(dbFile) ? dbFile : path;
+            }
+            return System.IO.File.Exists(marker)
+                ? System.IO.File.GetLastWriteTimeUtc(marker)
+                : System.IO.Directory.GetLastWriteTimeUtc(path);
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -976,7 +1071,10 @@ public partial class MainViewModel : ViewModelBase
         // Файл настроек пишется только если набор действительно изменился:
         // «развернуть все» на уже развёрнутом дереве не должно трогать диск.
         if (_collapsedGroups.Count != before || !_collapsedGroups.SetEquals(snapshot))
+        {
+            MarkListStateDirty();
             PersistCollapsedGroups();
+        }
     }
 
     private static void SetExpandedRecursive(GroupNodeViewModel node, bool expanded)
@@ -1037,6 +1135,10 @@ public partial class MainViewModel : ViewModelBase
         ib.LaunchMode = dialog.Result.LaunchMode;
         ib.LaunchParameters = dialog.Result.LaunchParameters;
         ib.DefaultLaunchMode = dialog.Result.DefaultLaunchMode;
+        // Внешняя обработка при запуске и действие по двойному щелчку (Этап 7).
+        ib.DoubleClickAction = dialog.Result.DoubleClickAction;
+        ib.ExternalProcessingPath = dialog.Result.ExternalProcessingPath;
+        ib.ExternalProcessingData = dialog.Result.ExternalProcessingData;
         ib.ClientType = dialog.Result.ClientType;
         ib.IsFavorite = dialog.Result.IsFavorite;
         ib.IsPinned = dialog.Result.IsPinned;
@@ -1276,6 +1378,7 @@ public partial class MainViewModel : ViewModelBase
         if (!changed || _deferCollapsedSave)
             return;
 
+        MarkListStateDirty();
         PersistCollapsedGroups();
     }
 
@@ -1283,6 +1386,51 @@ public partial class MainViewModel : ViewModelBase
     {
         _settings.CollapsedGroups = _collapsedGroups.ToList();
         SaveSettingsSilently();
+    }
+
+    /// <summary>
+    /// Запускает периодическое автосохранение состояния списка (раскрытых и
+    /// свёрнутых групп). Таймер работает, только когда автосохранение включено
+    /// в настройках; по тику сохраняет на диск группы, если они менялись с
+    /// прошлого сохранения. При выключенной настройке таймер останавливается.
+    /// </summary>
+    private void StartListStateAutoSave()
+    {
+        if (_settings.AutoSaveListState)
+        {
+            if (_listStateAutoSaveTimer is not null)
+                return;
+            _listStateAutoSaveTimer = new Avalonia.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(Math.Max(1, _settings.ListStateAutoSaveIntervalSeconds))
+            };
+            _listStateAutoSaveTimer.Tick += OnListStateAutoSaveTick;
+            _listStateAutoSaveTimer.Start();
+        }
+        else if (_listStateAutoSaveTimer is not null)
+        {
+            _listStateAutoSaveTimer.Stop();
+            _listStateAutoSaveTimer.Tick -= OnListStateAutoSaveTick;
+            _listStateAutoSaveTimer = null;
+        }
+    }
+
+    private void OnListStateAutoSaveTick(object? sender, System.EventArgs e)
+        => SaveListStateIfDirty();
+
+    /// <summary>Сохраняет свёрнутые группы, только если они менялись с последнего сохранения.</summary>
+    private void SaveListStateIfDirty()
+    {
+        if (!_listStateDirty)
+            return;
+        _listStateDirty = false;
+        PersistCollapsedGroups();
+    }
+
+    /// <summary>Помечает состояние списка изменившимся: его сохранит следующий тик таймера автосохранения.</summary>
+    private void MarkListStateDirty()
+    {
+        _listStateDirty = true;
     }
 
     /// <summary>Сохраняет группы, возвращая признак успеха: ошибка идёт в журнал.</summary>
@@ -1663,6 +1811,7 @@ public partial class MainViewModel : ViewModelBase
 
                 // В WPF свёрнутость после переноса остаётся только в памяти:
                 // ключи переложены, а настройки не сохраняются.
+                MarkListStateDirty();
                 PersistCollapsedGroups();
             }
         }
@@ -1818,6 +1967,7 @@ public partial class MainViewModel : ViewModelBase
             _collapsedGroups.Clear();
             foreach (var k in updated)
                 _collapsedGroups.Add(k);
+            MarkListStateDirty();
             PersistCollapsedGroups();
         }
     }

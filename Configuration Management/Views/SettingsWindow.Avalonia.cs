@@ -785,6 +785,7 @@ namespace Configuration_Management
                 "ServerBase" => "Column.ServerBase",
                 "LastLaunch" => "Column.LastLaunch",
                 "Size" => "Column.Size",
+                "Modified" => "Column.Modified",
                 "Actions" => "Column.Actions",
                 _ => "Column.Name"
             });
@@ -798,6 +799,7 @@ namespace Configuration_Management
                 "ServerBase" => _viewModel.ShowServerColumn,
                 "LastLaunch" => _viewModel.ShowLastLaunchColumn,
                 "Size" => _viewModel.ShowSizeColumn,
+                "Modified" => _viewModel.ShowModifiedColumn,
                 "Actions" => _viewModel.ShowActionsColumn,
                 _ => true
             };
@@ -1951,6 +1953,48 @@ namespace Configuration_Management
             historyDepthRow.Children.Add(historyDepthBox);
             basesListPanel.Children.Add(historyDepthRow);
 
+            // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
+            var dblClickRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 8, 0, 0)
+            };
+            dblClickRow.Children.Add(new TextBlock
+            {
+                Text = LocalizationManager.T("Settings.DblClickActionLabel"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            var dblClickBox = new ComboBox
+            {
+                Width = 200,
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            ToolTip.SetTip(dblClickBox, LocalizationManager.T("Settings.DblClickActionTooltip"));
+            dblClickBox.ItemsSource = new[]
+            {
+                LocalizationManager.T("Connection.DefaultLaunchEnterprise"),
+                LocalizationManager.T("Connection.DefaultLaunchConfigurator"),
+                LocalizationManager.T("Connection.DblClickNone")
+            };
+            dblClickBox.SelectedIndex = _viewModel.DefaultDoubleClickAction switch
+            {
+                Configuration_Management.Models.DoubleClickAction.Configurator => 1,
+                Configuration_Management.Models.DoubleClickAction.None => 2,
+                _ => 0
+            };
+            dblClickBox.SelectionChanged += (_, _) =>
+            {
+                _viewModel.SetDefaultDoubleClickAction(dblClickBox.SelectedIndex switch
+                {
+                    1 => Configuration_Management.Models.DoubleClickAction.Configurator,
+                    2 => Configuration_Management.Models.DoubleClickAction.None,
+                    _ => Configuration_Management.Models.DoubleClickAction.Enterprise
+                });
+            };
+            dblClickRow.Children.Add(dblClickBox);
+            basesListPanel.Children.Add(dblClickRow);
+
             basesListPanel.Children.Add(timestampCheck);
 
             // Как в Windows-разметке (SettingsWindow.xaml:1419): подпись сверху, поле —
@@ -1988,6 +2032,75 @@ namespace Configuration_Management
             maintenanceButtons.Children.Add(removeMissing);
             maintenanceButtons.Children.Add(killProcesses);
             basesMaintenancePanel.Children.Add(maintenanceButtons);
+
+            // Интеграция с проводником Windows (функция №12): на Linux недоступна,
+            // поэтому показываем заблокированный пункт с пояснением.
+            var explorerIntegrationHint = new TextBlock
+            {
+                Text = LocalizationManager.T("Settings.ExplorerIntegrationHint"),
+                Margin = new Thickness(0, 8, 0, 4),
+                TextWrapping = TextWrapping.Wrap
+            };
+            Themes.ThemeBrushes.Bind(explorerIntegrationHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            basesMaintenancePanel.Children.Add(explorerIntegrationHint);
+
+            var explorerIntegrationCheck = new CheckBox
+            {
+                Content = LocalizationManager.T("Settings.ExplorerIntegrationEnable"),
+                IsEnabled = false,
+                IsChecked = false,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            ToolTip.SetTip(explorerIntegrationCheck,
+                LocalizationManager.T("Settings.ExplorerIntegrationUnavailable"));
+            basesMaintenancePanel.Children.Add(explorerIntegrationCheck);
+
+            // Автозапуск при старте ОС (функция №31, Этап 8) и каталог копий экрана (функция №30).
+            basesMaintenancePanel.Children.Add(GroupTitle(LocalizationManager.T("Settings.AutoStart")));
+            basesMaintenancePanel.Children.Add(Hint(LocalizationManager.T("Settings.AutoStartHint")));
+            var autoStartCheck = new CheckBox
+            {
+                Content = LocalizationManager.T("Settings.AutoStartEnable"),
+                IsChecked = _viewModel.AutoStartEnabled,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            basesMaintenancePanel.Children.Add(autoStartCheck);
+
+            var screenshotDirLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("Settings.Screenshot.DirectoryLabel"),
+                Margin = new Thickness(0, 4, 0, 4)
+            };
+            basesMaintenancePanel.Children.Add(screenshotDirLabel);
+
+            var screenshotDirRow = new Grid();
+            screenshotDirRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            screenshotDirRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            var screenshotDirBox = new TextBox
+            {
+                Text = _viewModel.ScreenshotSaveDirectory,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Height = 34
+            };
+            screenshotDirBox.Styled(ControlThemes.ModernTextBox);
+            screenshotDirRow.Children.Add(screenshotDirBox);
+            var screenshotBrowse = new Button
+            {
+                Content = LocalizationManager.T("Common.Browse"),
+                Margin = new Thickness(6, 0, 0, 0),
+                Padding = new Thickness(12, 6)
+            };
+            screenshotBrowse.Click += (_, _) =>
+            {
+                var picked = _viewModel.PickFolder(
+                    LocalizationManager.T("Settings.Screenshot.ChooseDir"), screenshotDirBox.Text);
+                if (!string.IsNullOrWhiteSpace(picked))
+                    screenshotDirBox.Text = picked;
+            };
+            Grid.SetColumn(screenshotBrowse, 1);
+            screenshotDirRow.Children.Add(screenshotBrowse);
+            basesMaintenancePanel.Children.Add(screenshotDirRow);
 
             basesMaintenancePanel.Children.Add(GroupTitle(LocalizationManager.T("Settings.DangerousOps")));
             basesMaintenancePanel.Children.Add(Hint(LocalizationManager.T("Settings.Bases.DangerousHint")));
@@ -2347,6 +2460,14 @@ namespace Configuration_Management
             var hotkeyClearTags = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ClearTags"), _viewModel.HotkeyClearTags);
             var hotkeyRightPanelDetails = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.RightPanelDetails"), _viewModel.HotkeyRightPanelDetails);
             var hotkeySwitchUser = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.SwitchUser"), _viewModel.HotkeySwitchUser);
+            // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
+            var hotkeySessionLock = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.SessionLock"), _viewModel.HotkeySessionLock);
+            var hotkeyLockApp = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.LockApp"), _viewModel.HotkeyLockApp);
+            // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
+            var hotkeyCheckIntegrity = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.CheckIntegrity"), _viewModel.HotkeyCheckIntegrity);
+            var hotkeyServerConsole = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ServerConsole"), _viewModel.HotkeyServerConsole);
+            // Сохранение копии экрана (функция №30 StartManager).
+            var hotkeyScreenshot = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.Screenshot"), _viewModel.ScreenshotHotkey);
             // У автора последняя строка идёт без нижнего поля, а весь блок строк
             // несёт низ 12 (SettingsWindow.xaml:957 и 1039). У нас строки лежат
             // в общей панели, поэтому поле снимается у последней и добирается
@@ -2582,7 +2703,12 @@ namespace Configuration_Management
                     (LocalizationManager.T("Main.ClearTags"), hotkeyClearTags),
                     // Панель информации (Ctrl+D, issue #172) участвует в проверке
                     // дублей, как и в Windows-версии (SettingsWindow.xaml.cs).
-                    (LocalizationManager.T("Main.CollapseRightPanel"), hotkeyRightPanelDetails)
+                    (LocalizationManager.T("Main.CollapseRightPanel"), hotkeyRightPanelDetails),
+                    (LocalizationManager.T("SessionLock.Title"), hotkeySessionLock),
+                    (LocalizationManager.T("AppLock.LockTitle"), hotkeyLockApp),
+                    (LocalizationManager.T("Admin.CheckIntegrityTitle"), hotkeyCheckIntegrity),
+                    (LocalizationManager.T("Admin.ServerConsoleTitle"), hotkeyServerConsole),
+                    (LocalizationManager.T("Settings.Screenshot.Title"), hotkeyScreenshot)
                 };
 
                 if (!ValidateHotkeys(assignments))
@@ -2667,7 +2793,13 @@ namespace Configuration_Management
                     hotkeyFavorite.Value, hotkeyPin.Value, hotkeyDelete.Value, hotkeyClearCache.Value,
                     hotkeyShowAll.Value, hotkeyShowFavorites.Value, hotkeyShowRecent.Value,
                     hotkeyClearSearch.Value, hotkeyClearTags.Value, hotkeyRightPanelDetails.Value,
-                    hotkeySwitchUser.Value);
+                    hotkeySwitchUser.Value, hotkeySessionLock.Value, hotkeyLockApp.Value,
+                    hotkeyCheckIntegrity.Value, hotkeyServerConsole.Value);
+
+                // Копия экрана (функция №30) и автозапуск при старте ОС (функция №31, Этап 8).
+                _viewModel.ScreenshotHotkey = hotkeyScreenshot.Value ?? "";
+                _viewModel.ScreenshotSaveDirectory = screenshotDirBox.Text?.Trim() ?? "";
+                _viewModel.ApplyAutoStart(autoStartCheck.IsChecked == true);
 
                 // Настройки отображения применяются и сохраняются одним вызовом.
                 // Видимость колонок читается из тех же элементов списка, где
@@ -2686,6 +2818,7 @@ namespace Configuration_Management
                     VisibleOf("ServerBase"),
                     VisibleOf("LastLaunch"),
                     VisibleOf("Size"),
+                    VisibleOf("Modified"),
                     // Видимость колонки «Действия» (issue #158): раньше она не
                     // передавалась и колонку нельзя было ни скрыть, ни показать.
                     VisibleOf("Actions"),

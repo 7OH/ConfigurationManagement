@@ -80,6 +80,19 @@ public class AppSettings
     /// <summary>Имена групп, свёрнутых в списке баз.</summary>
     public List<string> CollapsedGroups { get; set; } = new();
 
+    /// <summary>
+    /// Автосохранять состояние списка баз (раскрытые группы) по таймеру (Этап 13,
+    /// функция №15 StartManager). false — состояние сохраняется только штатно
+    /// (при завершении работы и по событиям изменения раскрытия).
+    /// </summary>
+    public bool AutoSaveListState { get; set; } = true;
+
+    /// <summary>
+    /// Периодичность автосохранения состояния списка (раскрытые группы) в секундах.
+    /// По умолчанию — 10. Применяется, когда включено <see cref="AutoSaveListState"/>.
+    /// </summary>
+    public int ListStateAutoSaveIntervalSeconds { get; set; } = 10;
+
     /// <summary>Список установленных версий платформы 1С.</summary>
     public List<string> InstalledPlatformVersions { get; set; } = new();
 
@@ -140,6 +153,15 @@ public class AppSettings
     /// По умолчанию — 30 (как было зашито жёстко до версии 0.3.7.34).
     /// </summary>
     public int MaxLaunchHistoryPerBase { get; set; } = 30;
+
+    /// <summary>
+    /// Глобальная настройка действия по двойному щелчку на информационной базе
+    /// (функция №28 StartManager). Каноническое строковое значение из
+    /// <see cref="DoubleClickAction"/>: "Enterprise" (по умолчанию), "Configurator"
+    /// или "None". Индивидуальное значение конкретной ИБ (Infobase.DoubleClickAction)
+    /// переопределяет эту настройку.
+    /// </summary>
+    public string DefaultDoubleClickAction { get; set; } = DoubleClickAction.GlobalDefault;
 
     /// <summary>Режим синхронизации с файлом ibases.v8i.</summary>
     public IbasesSyncMode IbasesSyncMode { get; set; } = IbasesSyncMode.None;
@@ -242,6 +264,12 @@ public class AppSettings
 
     /// <summary>Ширина колонки «Размер» (0 — по умолчанию).</summary>
     public double SizeColumnWidth { get; set; }
+
+    /// <summary>Показывать колонку «Дата изменений» файла ИБ в списке баз (Этап 13).</summary>
+    public bool ShowModifiedColumn { get; set; } = true;
+
+    /// <summary>Ширина колонки «Дата изменений» (0 — по умолчанию).</summary>
+    public double ModifiedColumnWidth { get; set; }
 
     /// <summary>
     /// Порядок колонок списка баз слева направо (кроме фиксированных колонок
@@ -500,6 +528,102 @@ public class AppSettings
     public Dictionary<string, FileSizeCacheEntry> FileSizeCache { get; set; } = new();
 
     /// <summary>
+    /// Пользовательские типовые конфигурации 1С для проверки обновлений (функции №21/№22).
+    /// Дополняются предопределённым набором <c>Services.BuiltInConfigTypes</c> при показе.
+    /// </summary>
+    public List<OneCConfigType> CustomConfigTypes { get; set; } = new();
+
+    /// <summary>Горячая клавиша «Проверить обновления» для выбранной ИБ (по умолчанию F9).</summary>
+    public string HotkeyCheckUpdate { get; set; } = "F9";
+
+    /// <summary>Горячая клавиша окна «Актуальные релизы» (по умолчанию Alt+F9).</summary>
+    public string HotkeyActualReleases { get; set; } = "Alt+F9";
+
+    /// <summary>Горячая клавиша «Выполнить сценарий резервирования» для выбранной ИБ (по умолчанию Ctrl+Shift+F5).</summary>
+    public string HotkeyRunBackup { get; set; } = "Ctrl+Shift+F5";
+
+    /// <summary>Горячая клавиша окна «Список выгрузок» (по умолчанию Ctrl+Shift+F7).</summary>
+    public string HotkeyExportsList { get; set; } = "Ctrl+Shift+F7";
+
+    /// <summary>Горячая клавиша «Блокировка сеансов ИБ» (функция №20, по умолчанию Ctrl+Alt+L).</summary>
+    public string HotkeySessionLock { get; set; } = "Ctrl+Alt+L";
+
+    /// <summary>Горячая клавиша «Временная блокировка приложения паролем» (функция №19, по умолчанию не задана).</summary>
+    public string HotkeyLockApp { get; set; } = "";
+
+    /// <summary>
+    /// Горячая клавиша «Проверка целостности файловой ИБ (chdbfl)» (функция №29,
+    /// по умолчанию Ctrl+Alt+Q).
+    /// </summary>
+    public string HotkeyCheckIntegrity { get; set; } = "Ctrl+Alt+Q";
+
+    /// <summary>
+    /// Горячая клавиша «Консоль администрирования серверов 1С» (Этап 6,
+    /// по умолчанию Ctrl+Alt+S).
+    /// </summary>
+    public string HotkeyServerConsole { get; set; } = "Ctrl+Alt+S";
+
+    /// <summary>Пароль временной блокировки приложения (функция №19) в виде PBKDF2-хэша.</summary>
+    public string AppLockPasswordHash { get; set; } = "";
+
+    /// <summary>Путь к исполняемому файлу внешнего архиватора RAR (winrar.exe/rar), если он не найден в PATH.</summary>
+    public string RarExecutablePath { get; set; } = "";
+
+    /// <summary>
+    /// Интеграция с проводником Windows (функция №12 дорожной карты): регистрация
+    /// ассоциации <c>.1CD</c> и команд контекстного меню «Зарегистрировать в списке баз» /
+    /// «Запустить 1С:Предприятие» / «Запустить Конфигуратор». На Linux не применяется
+    /// (функция недоступна — пункт настройки скрыт/заблокирован).
+    /// </summary>
+    public bool ExplorerIntegrationEnabled { get; set; }
+
+    /// <summary>
+    /// Автозапуск при старте ОС (функция №31 StartManager). На Windows — ключ реестра
+    /// <c>HKCU\...\Run</c>; на Linux — файл автозапуска десктоп-окружения
+    /// (<c>~/.config/autostart/*.desktop</c>).
+    /// </summary>
+    public bool AutoStartEnabled { get; set; }
+
+    /// <summary>
+    /// Горячая клавиша сохранения копии экрана (функция №30 StartManager).
+    /// По умолчанию <c>Ctrl+F12</c>. Пусто — не назначена.
+    /// </summary>
+    public string ScreenshotHotkey { get; set; } = "Ctrl+F12";
+
+    /// <summary>
+    /// Каталог сохранения копий экрана (функция №30 StartManager). Пусто — каталог
+    /// «Изображения» по умолчанию.
+    /// </summary>
+    public string ScreenshotSaveDirectory { get; set; } = "";
+
+    /// <summary>Дополнительные каталоги, сканируемые «Списком выгрузок» наряду с каталогами сценариев.</summary>
+    public List<string> BackupTargetDirectories { get; set; } = new();
+
+    /// <summary>
+    /// Режим функциональности приложения (Этап 10 дорожной карты StartManager):
+    /// «Пользователь» / «Специалист» / «Разработчик». Хранится канонической строкой
+    /// <see cref="FunctionalModes"/> (не зависит от локали). В режиме «Пользователь»
+    /// системное меню (редактирование/удаление баз, выгрузки, администрирование) скрыто.
+    /// По умолчанию — «Специалист».
+    /// </summary>
+    public string FunctionalMode { get; set; } = Models.FunctionalModes.Default;
+
+    /// <summary>
+    /// Параметры по умолчанию для запуска 1С из файла <c>1CLaunch.cfg</c> (Этап 10):
+    /// значения ключей <c>configpath</c>/<c>configdir</c>/<c>appmode</c>/<c>selectmodeoff</c>,
+    /// считанные при последнем запуске. Используются как начальные значения в окне
+    /// «Параметры» и лаунчером, если не переопределены командной строкой/параметрами базы.
+    /// Пустой объект — файл не найден или не содержит настроек.
+    /// </summary>
+    public LaunchConfigDefaults LaunchConfigDefaults { get; set; } = new();
+
+    /// <summary>
+    /// Кеш последних результатов проверки обновлений по коду конфигурации (необязательно,
+    /// заполняется сервисом проверки для быстрого отображения предыдущего результата).
+    /// </summary>
+    public Dictionary<string, ConfigUpdateCheckResult> UpdateCheckCache { get; set; } = new();
+
+    /// <summary>
     /// Приводит настройки, загруженные из файла, к безопасному состоянию (issue #64).
     /// В легаси-файлах, созданных более ранними версиями приложения, поля-коллекции
     /// могли отсутствовать либо явно содержать <c>null</c>. Десериализация в таком случае
@@ -520,11 +644,18 @@ public class AppSettings
         TemplateCatalogPaths ??= new List<string>();
         ElementFonts ??= new Dictionary<string, ElementFontSettings>();
         FileSizeCache ??= new Dictionary<string, FileSizeCacheEntry>();
+        CustomConfigTypes ??= new List<OneCConfigType>();
+        UpdateCheckCache ??= new Dictionary<string, ConfigUpdateCheckResult>();
+        BackupTargetDirectories ??= new List<string>();
+        LaunchConfigDefaults ??= new LaunchConfigDefaults();
 
         // Нормализуем строковые поля, чтобы избежать null-значений у потребителей.
         NoGroupIcon ??= string.Empty;
         PinnedIcon ??= string.Empty;
         AfterLaunchAction = string.IsNullOrWhiteSpace(AfterLaunchAction) ? "None" : AfterLaunchAction;
+        FunctionalMode = string.IsNullOrWhiteSpace(FunctionalMode)
+            ? Models.FunctionalModes.Default
+            : FunctionalMode;
     }
 
 }

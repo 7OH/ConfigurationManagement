@@ -1109,6 +1109,11 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Settings.Hotkeys.Enterprise}" VerticalAlignment="Center" Margin="0,0,0,6"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
@@ -1184,6 +1189,33 @@
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <controls:HotkeyBox x:Name="HotkeySwitchUserBox" Grid.Row="14" Grid.Column="1"
                                                 Height="34" FontSize="13"
+                                                Style="{StaticResource ModernTextBox}"/>
+                            <TextBlock Grid.Row="15" Grid.Column="0" Text="{loc:Loc Settings.Hotkeys.SessionLock}" VerticalAlignment="Center" Margin="0,6,0,6"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <controls:HotkeyBox x:Name="HotkeySessionLockBox" Grid.Row="15" Grid.Column="1"
+                                                Height="34" Margin="0,6,0,6" FontSize="13"
+                                                Style="{StaticResource ModernTextBox}"/>
+                            <TextBlock Grid.Row="16" Grid.Column="0" Text="{loc:Loc Settings.Hotkeys.LockApp}" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <controls:HotkeyBox x:Name="HotkeyLockAppBox" Grid.Row="16" Grid.Column="1"
+                                                Height="34" FontSize="13"
+                                                Style="{StaticResource ModernTextBox}"/>
+                            <!-- Администрирование ИБ (Этап 6, функция №29 + консоль серверов). -->
+                            <TextBlock Grid.Row="17" Grid.Column="0" Text="{loc:Loc Settings.Hotkeys.CheckIntegrity}" VerticalAlignment="Center" Margin="0,6,0,6"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <controls:HotkeyBox x:Name="HotkeyCheckIntegrityBox" Grid.Row="17" Grid.Column="1"
+                                                Height="34" Margin="0,6,0,6" FontSize="13"
+                                                Style="{StaticResource ModernTextBox}"/>
+                            <TextBlock Grid.Row="18" Grid.Column="0" Text="{loc:Loc Settings.Hotkeys.ServerConsole}" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <controls:HotkeyBox x:Name="HotkeyServerConsoleBox" Grid.Row="18" Grid.Column="1"
+                                                Height="34" FontSize="13"
+                                                Style="{StaticResource ModernTextBox}"/>
+                            <!-- Сохранение копии экрана (функция №30 StartManager) -->
+                            <TextBlock Grid.Row="19" Grid.Column="0" Text="{loc:Loc Settings.Hotkeys.Screenshot}" VerticalAlignment="Center" Margin="0,6,0,6"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <controls:HotkeyBox x:Name="HotkeyScreenshotBox" Grid.Row="19" Grid.Column="1"
+                                                Height="34" Margin="0,6,0,6" FontSize="13"
                                                 Style="{StaticResource ModernTextBox}"/>
                         </Grid>
 
@@ -1366,6 +1398,29 @@
                                     <TextBlock Text="{loc:Loc Settings.General.ComDetectTimeoutUnit}"
                                                VerticalAlignment="Center" Margin="8,0,0,0"/>
                                 </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Режим функциональности (Этап 10 StartManager): Пользователь/Специалист/Разработчик.
+                             В режиме «Пользователь» ограничивается доступ к системному меню. -->
+                        <GroupBox Header="{loc:Loc FunctionalMode.Label}" Padding="8" Margin="0,14,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{loc:Loc Settings.General.FunctionalModeHint}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
+                                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <ComboBox x:Name="FunctionalModeComboBox" Height="34"
+                                          VerticalContentAlignment="Center"
+                                          Style="{StaticResource ModernComboBox}" Margin="0,0,0,8">
+                                    <ComboBoxItem Content="{loc:Loc FunctionalMode.User}" Tag="User"/>
+                                    <ComboBoxItem Content="{loc:Loc FunctionalMode.Specialist}" Tag="Specialist"/>
+                                    <ComboBoxItem Content="{loc:Loc FunctionalMode.Developer}" Tag="Developer"/>
+                                </ComboBox>
+                                <TextBlock x:Name="FunctionalModeHintText"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock x:Name="LaunchConfigHintText"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
+                                           TextWrapping="Wrap" Margin="0,6,0,0"/>
                             </StackPanel>
                         </GroupBox>
                     </StackPanel>
@@ -1624,6 +1679,15 @@
                                                          VerticalContentAlignment="Center"
                                                          ToolTip="{loc:Loc Settings.Bases.HistoryDepthTooltip}"/>
                                             </StackPanel>
+                                            <!-- Глобальное действие по двойному щелчку на базе (функция №28 StartManager). -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,10">
+                                                <TextBlock Text="{loc:Loc Settings.DblClickActionLabel}"
+                                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <ComboBox x:Name="DoubleClickActionGlobalCombo" Height="30" Width="200"
+                                                          VerticalContentAlignment="Center"
+                                                          ToolTip="{loc:Loc Settings.DblClickActionTooltip}"
+                                                          SelectionChanged="OnDoubleClickActionGlobal_SelectionChanged"/>
+                                            </StackPanel>
                                             <!-- Импорт баз и настроек платформы из программы StartManager (issue #163). -->
                                             <Button Style="{DynamicResource SecondaryButton}" Margin="0,0,0,8" Padding="10,8"
                                                     HorizontalAlignment="Stretch"
@@ -1762,6 +1826,48 @@
                                                     <TextBlock Text="{loc:Loc Settings.Bases.KillProcesses}" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
+                                        </StackPanel>
+                                    </GroupBox>
+
+                                    <!-- Интеграция с проводником Windows (функция №12 StartManager) -->
+                                    <GroupBox Header="{loc:Loc Settings.ExplorerIntegration}" Padding="8" Margin="0,0,0,8">
+                                        <StackPanel>
+                                            <TextBlock Text="{loc:Loc Settings.ExplorerIntegrationHint}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8"
+                                                       TextWrapping="Wrap"/>
+                                            <CheckBox x:Name="ExplorerIntegrationCheck"
+                                                      Content="{loc:Loc Settings.ExplorerIntegrationEnable}"
+                                                      IsChecked="False" Margin="0,0,0,6"
+                                                      Checked="OnExplorerIntegration_Toggled"
+                                                      Unchecked="OnExplorerIntegration_Toggled"
+                                                      ToolTip="{loc:Loc Settings.ExplorerIntegrationEnableTooltip}"/>
+                                        </StackPanel>
+                                    </GroupBox>
+
+                                    <!-- Автозапуск при старте ОС и копия экрана (Этап 8, функции №31/№30 StartManager) -->
+                                    <GroupBox Header="{loc:Loc Settings.AutoStart}" Padding="8" Margin="0,0,0,8">
+                                        <StackPanel>
+                                            <TextBlock Text="{loc:Loc Settings.AutoStartHint}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8"
+                                                       TextWrapping="Wrap"/>
+                                            <CheckBox x:Name="AutoStartCheck"
+                                                      Content="{loc:Loc Settings.AutoStartEnable}"
+                                                      IsChecked="False" Margin="0,0,0,10"
+                                                      Checked="OnAutoStart_Toggled"
+                                                      Unchecked="OnAutoStart_Toggled"/>
+                                            <TextBlock Text="{loc:Loc Settings.Screenshot.DirectoryLabel}"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,4,0,4"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="ScreenshotDirectoryBox" Grid.Column="0" Height="34"
+                                                         Style="{StaticResource ModernTextBox}" VerticalContentAlignment="Center"/>
+                                                <Button Grid.Column="1" Margin="6,0,0,0" Padding="12,6"
+                                                        Click="OnScreenshotBrowse_Click"
+                                                        Content="{loc:Loc Common.Browse}"/>
+                                            </Grid>
                                         </StackPanel>
                                     </GroupBox>
 

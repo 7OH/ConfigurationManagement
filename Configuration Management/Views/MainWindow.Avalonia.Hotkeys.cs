@@ -77,6 +77,24 @@ namespace Configuration_Management
             AddHotkey(_vm.HotkeyRightPanelDetails, _vm.ToggleRightPanelDetailsCommand);
             // Смена пользователя — настраиваемый хоткей (issue #200).
             AddHotkey(_vm.HotkeySwitchUser, _vm.SwitchUserCommand);
+            // Проверка обновлений конфигураций 1С (функции №21/№22): F9 — для выбранной
+            // ИБ, ALT+F9 — окно «Актуальные релизы». Сочетания настраиваются в настройках.
+            AddHotkey(_vm.HotkeyCheckUpdate, _vm.CheckUpdateCommand);
+            AddHotkey(_vm.HotkeyActualReleases, _vm.ShowActualReleasesCommand);
+            // Сценарии резервирования и «Список выгрузок» (функции №16/№18):
+            // Ctrl+Shift+F5 — выполнить сценарий, Ctrl+Shift+F7 — список выгрузок.
+            AddHotkey(_vm.HotkeyRunBackup, _vm.RunBackupScenarioCommand);
+            AddHotkey(_vm.HotkeyExportsList, _vm.ShowExportsListCommand);
+            // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка
+            // приложения паролем (функция №19). Сочетания настраиваются в настройках.
+            AddHotkey(_vm.HotkeySessionLock, _vm.ShowSessionLockCommand);
+            AddHotkey(_vm.HotkeyLockApp, _vm.LockAppCommand);
+            // Администрирование ИБ (Этап 6, функция №29 + консоль серверов):
+            // проверка целостности файловой ИБ (chdbfl) и консоль администрирования серверов 1С.
+            AddHotkey(_vm.HotkeyCheckIntegrity, _vm.CheckIntegrityCommand);
+            AddHotkey(_vm.HotkeyServerConsole, _vm.OpenServerConsoleCommand);
+            // Сохранение копии экрана (функция №30 StartManager): сочетание настраивается в настройках.
+            AddHotkey(_vm.ScreenshotHotkey, _vm.TakeScreenshotCommand);
             // Ctrl+Shift+Plus / Ctrl+Shift+Minus — развернуть/свернуть все узлы дерева.
             // Регистрируются обе раскладки (основная клавиатура Oem* и цифровой блок Add/Subtract).
             KeyBindings.Add(new KeyBinding

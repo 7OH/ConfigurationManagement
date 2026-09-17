@@ -9,6 +9,155 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.8.20] — 2026-09-17
+
+### Новые возможности
+
+- **Колонка «Дата изменений» файла ИБ в списке баз (функция №3 StartManager, Этап 13)** — в список баз добавлена настраиваемая колонка, показывающая дату и время последнего изменения файла информационной базы (`LastWriteTime`, время в UTC → локальное). Значение берётся из файловой базы (`1Cv8.1CD`) и показывается в формате `dd.MM.yyyy HH:mm` ([`Models/Infobase.cs`](Configuration%20Management/Models/Infobase.cs) — `FileLastWriteTimeUtc`/`LastModifiedDisplay`). Колонка участвует в перечне колонок списка: видимость, ширина, порядок настраиваются как у остальных колонок (вкладка «Отображение» → «Колонки»).
+- **Автосохранение состояния списка (раскрытые группы) (функция №15 StartManager, дополнение, Этап 13)** — состояние раскрытия групп списка баз сохраняется и восстанавливается между сеансами. Свёрнутые группы записываются в профиль (`CollapsedGroups`) и применяются при загрузке; при работе состояние помечается изменённым и периодически (по умолчанию раз в 10 секунд) автосохраняется таймером (`AutoSaveListState`, `ListStateAutoSaveIntervalSeconds` в [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs)). Автосохранение срабатывает только при наличии изменений, что не создаёт лишней нагрузки на диск.
+- **Единая логика для обеих платформ** — реализация «Даты изменений» и автосохранения состояния выполнена для **Windows/WPF** (общий `MainViewModel` + [`Views/MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs)) и **Linux/Avalonia** ([`Views/MainWindow.Avalonia.Columns.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Columns.cs), `MainViewModel.Avalonia.cs`).
+- Локализация ru/en заголовка колонки «Дата изменений» (`Column.Modified`) присутствует в [`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json) и `en.json`.
+- Новые регрессионные тесты [`ConfigurationManagement.Tests/Etap13ListStateTests.cs`](ConfigurationManagement.Tests/Etap13ListStateTests.cs) покрывают отображение «Даты изменений» (файловая/нефайловая база, неразрешённое значение, формат даты) и настройки автосохранения состояния списка по умолчанию.
+
+### Версия
+
+- **Версия поднята до `0.3.8.20`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок; регрессионные тесты проходят.
+
+## [0.3.8.19] — 2026-09-17
+
+### Новые возможности
+
+- **Раздельные учётные данные для «Конфигуратора», «1С:Предприятия» и Хранилища конфигурации (функция №7 StartManager, Этап 12)** — для информационной базы задаются три независимых набора логина/пароля: для запуска «1С:Предприятие» (`EnterpriseAuth`), для запуска Конфигуратора (`ConfiguratorAuth`, при включённом признаке «Авторизация как для 1С:Предприятия» копирует учётные данные Предприятия) и для подключения к хранилищу конфигурации (`Repository.User`/`Password`). Каждый набор используется при запуске соответствующего режима и передаётся ключами командной строки.
+- **Единый выбор учётных данных** — платформенно-нейтральный резолвер [`Services/InfobaseAuthResolver.cs`](Configuration%20Management/Services/InfobaseAuthResolver.cs) теперь разрешает все три набора: добавлен метод `ResolveRepository`, возвращающий отдельные логин/пароль Хранилища конфигурации. Резолвинг Хранилища применяется при запуске Конфигуратора для передачи ключей `/ConfigurationRepositoryN` и `/ConfigurationRepositoryP` ([`Services/OneCLauncher.Arguments.Shared.cs`](Configuration%20Management/Services/OneCLauncher.Arguments.Shared.cs)). Для Предприятия/Конфигуратора раздельные авторизации уже выбирались единым резолвингом (`issue #236`).
+- **Обратная совместимость** — если раздельная авторизация Предприятия/Конфигуратора не задана, используется авторизация информационной базы (`Connection`); учётные данные Хранилища остаются в собственных реквизитах [`Models/RepositorySettings.cs`](Configuration%20Management/Models/RepositorySettings.cs) и не затрагивают авторизацию запуска.
+- **Учёт безопасного хранения паролей** — наборы учётных данных сохраняются в профиле (`infobases.json`) и, как и ранее, включаются в резервные копии профиля ([`Services/ProfileBackupService.cs`](Configuration%20Management/Services/ProfileBackupService.cs)); пароли не логируются и не выводятся в интерфейсе без явного показа.
+- Новые регрессионные тесты [`ConfigurationManagement.Tests/Etap12AuthTests.cs`](ConfigurationManagement.Tests/Etap12AuthTests.cs) покрывают раздельное разрешение всех трёх наборов и обратный откат к авторизации базы.
+- Локализация ru/en полей учётных данных уже присутствует (поля Хранилища и Конфигуратора с подсказками в свойствах ИБ). Реализовано для обеих платформ: **Windows/WPF** и **Linux/Avalonia**.
+
+### Версия
+
+- **Версия поднята до `0.3.8.19`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок; регрессионные тесты проходят.
+
+## [0.3.8.18] — 2026-09-17
+
+### Новые возможности
+
+- **Режимы функциональности: Пользователь / Специалист / Разработчик (Этап 10 StartManager)** — новый режим, определяющий доступный набор возможностей. Выбирается в **Настройки → Настройки → «Режим функциональности»** и хранится в [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs) (`FunctionalMode`, канонические строки не зависят от локали). Новая модель [`Models/FunctionalMode.cs`](Configuration%20Management/Models/FunctionalMode.cs).
+- **Ограничение системного меню для режима «Пользователь»** — при открытии контекстного меню информационной базы в режиме «Пользователь» скрываются системные операции (редактирование, удаление, выгрузки .dt/.cf, резервирование, блокировки, администрирование и др.), остаются только запуск Предприятия/Конфигуратора, избранное и закрепление. Логика ограничения — в общем ViewModel-свойстве `IsSystemMenuRestricted` ([`ViewModels/MainViewModel.Functional.cs`](Configuration%20Management/ViewModels/MainViewModel.Functional.cs) + `MainViewModel.Avalonia.Functional.cs`) и обработчике открытия меню [`Views/MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs).
+- **Параметры запуска из `1CLaunch.cfg`** — чтение параметров по умолчанию для запуска 1С: ключи `configpath` (asp/usp/sp), `configdir`, `appmode`, `selectmodeoff`. Новый платформенно-нейтральный сервис [`Services/OneCLaunchConfigReader.cs`](Configuration%20Management/Services/OneCLaunchConfigReader.cs): файл ищется в портативном каталоге, каталоге exe и системном каталоге данных; **приоритет у аргументов командной строки над файлом**. Результат конвертируется в [`Models/OneCLaunchArgument.cs`](Configuration%20Management/Models/OneCLaunchArgument.cs) и подставляется лаунчером как значения по умолчанию, если те же ключи не заданы параметрами базы ([`Services/OneCLauncher.Arguments.Shared.cs`](Configuration%20Management/Services/OneCLauncher.Arguments.Shared.cs)). Значения кэшируются в настройках (`LaunchConfigDefaults`, [`Models/LaunchConfigDefaults.cs`](Configuration%20Management/Models/LaunchConfigDefaults.cs)).
+- **Портативный режим / установка на сменный носитель (функция №1 StartManager, Этап 10)** — детект запуска со сменного носителя: наличие `portable.dat` рядом с исполняемым файлом либо переменная окружения `CONFIG_MANAGEMENT_PORTABLE=1`. Новый сервис [`Services/PortablePaths.cs`](Configuration%20Management/Services/PortablePaths.cs); в портативном режиме [`Services/PlatformPaths.cs`](Configuration%20Management/Services/PlatformPaths.cs) возвращает каталог данных `<каталог exe>/ConfigurationManagement-Data` вместо системного профиля. При первом запуске данные копируются из системного каталога в портативный ([`App.xaml.cs`](Configuration%20Management/App.xaml.cs) + `App.axaml.cs`), поэтому настройки переносятся вместе с носителем.
+- Локализация ru/en для новых пунктов и подсказок режима функциональности ([`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json), `en.json`).
+- Реализовано для обеих платформ: **Windows/WPF** и **Linux/Avalonia**.
+
+### Версия
+
+- **Версия поднята до `0.3.8.18`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок; регрессионные тесты проходят.
+
+## [0.3.8.17] — 2026-09-17
+
+### Новые возможности
+
+- **Автозапуск при старте ОС (функция №31 StartManager, Этап 8)** — переключатель «Запускать приложение при старте ОС» в **Настройки → Базы → Обслуживание**. На Windows путь к приложению записывается в ключ реестра `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (раздел текущего пользователя, права администратора не требуются); на Linux создаётся файл автозапуска десктоп-окружения `~/.config/autostart/configuration-management.desktop`. Чистый сервис [`Services/AutoStartService.cs`](Configuration%20Management/Services/AutoStartService.cs) + `AutoStartService.Avalonia.cs`.
+- **Сохранение копии экрана по хоткею (функция №30 StartManager, Этап 8)** — настраиваемое сочетание (по умолчанию Ctrl+F12, вкладка «Клавиши») сохраняет снимок в PNG. На Windows захватывается весь виртуальный рабочий стол (все мониторы) через `Graphics.CopyFromScreen`; на Linux/Avalonia — снимок главного окна приложения через рендер визуального дерева ([`Services/ScreenshotService.cs`](Configuration%20Management/Services/ScreenshotService.cs) + `ScreenshotService.Avalonia.cs`). Каталог сохранения задаётся в **Настройки → Базы → Обслуживание** (пусто — каталог «Изображения»).
+- Хоткей `ScreenshotHotkey` (по умолчанию Ctrl+F12), каталог `ScreenshotSaveDirectory` и флаг `AutoStartEnabled` хранятся в [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs).
+- Локализация ru/en для новых пунктов настроек и сообщений.
+- Реализовано для обеих платформ: **Windows/WPF** и **Linux/Avalonia**.
+
+### Версия
+
+- **Версия поднята до `0.3.8.17`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок; регрессионные тесты проходят.
+
+## [0.3.8.16] — 2026-09-17
+
+### Новые возможности
+
+- **Внешняя обработка при запуске ИБ (функция №25 StartManager, Этап 7)** — поле «Внешняя обработка» в свойствах информационной базы ([`Views/ConnectionSettingsWindow.xaml`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml) + `*.Avalonia.cs`, модели [`Models/Infobase.cs`](Configuration%20Management/Models/Infobase.cs)). При открытии базы в режиме «1С:Предприятие» выбранная обработка `.epf/.erf` запускается автоматически: путь передаётся ключом `/Execute "путь"`, а необязательные данные обработки — ключом `/C "данные"` в строке запуска. Реализовано в платформенно-нейтральном построении аргументов ([`Services/OneCLauncher.Arguments.Shared.cs`](Configuration%20Management/Services/OneCLauncher.Arguments.Shared.cs)) для обеих платформ.
+- **Действие по двойному щелчку на базе (функция №28 StartManager, Этап 7)** — настраиваемое действие при двойном клике: «Запустить 1С:Предприятие», «Запустить Конфигуратор» или «Ничего». Глобальная настройка задаётся в **Настройки → Базы** (по умолчанию — запуск Предприятия); индивидуальное значение конкретной ИБ задаётся в её свойствах и переопределяет глобальное (значение «По умолчанию» использует глобальную настройку). Действие разбирается единым методом `ResolveDoubleClickAction` в обеих ViewModel и применяется в обработчиках двойного клика дерева баз — [`Views/MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs) (WPF) и [`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs) (Linux/Avalonia).
+- Новая модель [`Models/DoubleClickAction.cs`](Configuration%20Management/Models/DoubleClickAction.cs) — канонические значения `Enterprise`/`Configurator`/`None`; глобальная настройка хранится в [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs) (`DefaultDoubleClickAction`), индивидуальная — в `Infobase.DoubleClickAction`.
+- Локализация ru/en для новых полей свойств ИБ и настроек.
+- Реализовано для обеих платформ: **Windows/WPF** и **Linux/Avalonia**.
+
+### Версия
+
+- **Версия поднята до `0.3.8.16`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок; регрессионные тесты проходят.
+
+## [0.3.8.15] — 2026-09-17
+
+### Новые возможности
+
+- **Проверка целостности файловой ИБ через `chdbfl` (функция №29 StartManager, Этап 6)** — быстрый запуск утилиты проверки целостности файловой информационной базы без открытия «1С:Предприятия». Команда «Проверить целостность (chdbfl)» в контекстном меню базы (и по настраиваемому хоткею Ctrl+Alt+Q) доступна только для файловых баз. Исполняемый файл `chdbfl` (`chdbfl.exe` на Windows) ищется в каталоге установленной платформы 1С рядом с `1cv8`/`1cv8.exe` тем же способом, что и лаунчер; проверка выполняется над файлом базы `<путь>\1Cv8.1CD` ([`Services/InfobaseAdminService.cs`](Configuration%20Management/Services/InfobaseAdminService.cs), команды [`ViewModels/MainViewModel.Admin.cs`](Configuration%20Management/ViewModels/MainViewModel.Admin.cs) + `MainViewModel.Avalonia.Admin.cs`).
+- **Консоль администрирования серверов 1С (Этап 6)** — запуск консоли администрирования серверов для клиент-серверных баз. Команда «Консоль администрирования серверов» в контекстном меню базы (и по настраиваемому хоткею Ctrl+Alt+S) доступна только для клиент-серверных баз. Подходящий инструмент определяется по платформе: на Windows предпочтительно оснастка MMC `1CV8Servers.msc`, иначе кросс-платформенный командный клиент `rac`.
+- Хоткеи `CheckIntegrity` (по умолчанию Ctrl+Alt+Q) и `ServerConsole` (по умолчанию Ctrl+Alt+S) настраиваются в настройках приложения (вкладка «Клавиши») на обеих платформах.
+- Реализовано для обеих платформ: **Windows/WPF** и **Linux/Avalonia** (чистый кроссплатформенный сервис без UI-зависимостей).
+
+### Версия
+
+- **Версия поднята до `0.3.8.15`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок; регрессионные тесты проходят.
+
+## [0.3.8.14] — 2026-09-17
+
+### Новые возможности
+
+- **Интеграция с проводником Windows (функция №12 StartManager)** — регистрация ассоциации `.1CD` и команд контекстного меню «Зарегистрировать в списке баз» / «Запустить 1С:Предприятие» / «Запустить Конфигуратор». Включается через **Настройки → Базы → Обслуживание → Интеграция → «Интегрировать с проводником»** ([`Services/ExplorerIntegrationService.cs`](Configuration%20Management/Services/ExplorerIntegrationService.cs)). Ассоциация и команды пишутся в реестр `HKCU\Software\Classes\`, поэтому работают для текущего пользователя без прав администратора.
+- Команды контекстного меню вызывают исполняемый файл приложения с параметрами `--register "<путь>"` / `--launch "<путь>"` / `--designer "<путь>"`. Обработка аргументов при запуске ([`Services/ExplorerCommandLine.cs`](Configuration%20Management/Services/ExplorerCommandLine.cs), вызывается из `App.OnStartup`): по пути к `.1CD` определяется каталог файловой базы, база находится или добавляется в список, затем регистрируется либо запускается (Предприятие/Конфигуратор).
+- **Linux/Avalonia** — функция недоступна (реестр/Shell — Windows-специфично): используется заглушка `ExplorerIntegrationService.Avalonia.cs` (`IExplorerIntegrationService.IsAvailable == false`), пункт настройки показан заблокированным с пояснением.
+
+### Версия
+
+- **Версия поднята до `0.3.8.14`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок; регрессионные тесты проходят.
+
+## [0.3.8.13] — 2026-09-17
+
+### Новые возможности
+
+- **Блокировка сеансов файловой ИБ без открытия «1С:Предприятия» (функция №20 StartManager, CTRL+ALT+L)** — окно «Блокировка сеансов информационной базы»: время начала (по умолчанию +5 мин), длительность (по умолчанию 30 мин), текст сообщения с параметрами `{ДатаНач}`/`{ДатаКон}`, шаблоны «Технические работы» и «Обновление ИБ». Установка/снятие блокировки выполняется пакетным запуском конфигуратора через `/LockIB` ([`Services/SessionLockService.cs`](Configuration%20Management/Services/SessionLockService.cs)) без интерактивного окна.
+- **Новые пакетные операции конфигуратора `LockIB`/`UnlockIB`** — добавлены в `DesignerBatchOperation` для обеих платформ (Windows/WPF и Linux/Avalonia), переиспользуют существующую инфраструктуру пакетного запуска и ожидания завершения ([`OneCLauncher.DesignerBatch.cs`](Configuration%20Management/Services/OneCLauncher.DesignerBatch.cs), [`OneCLauncher.Linux.DesignerBatch.cs`](Configuration%20Management/Services/OneCLauncher.Linux.DesignerBatch.cs)).
+- **Временная блокировка приложения паролем (функция №19 StartManager)** — блокировка интерфейса на время отсутствия пользователя; пароль хранится в виде PBKDF2-хэша ([`Services/PasswordHasher.cs`](Configuration%20Management/Services/PasswordHasher.cs)), окно установки пароля и разблокировки ([`Views/AppLockWindow.xaml`](Configuration%20Management/Views/AppLockWindow.xaml) + `*.Avalonia.cs`). Команда доступна из главного окна и по настраиваемому сочетанию клавиш.
+- Хоткеи `SessionLock` (по умолчанию Ctrl+Alt+L) и `LockApp` настраиваются в настройках приложения (вкладка «Клавиши») на обеих платформах.
+- Реализовано для обеих платформ: **Windows/WPF** и **Linux/Avalonia** (парные окна [`Views/SessionLockWindow.xaml`](Configuration%20Management/Views/SessionLockWindow.xaml) + `*.Avalonia.cs`, общая чистая .NET-модель [`Models/SessionLockOptions.cs`](Configuration%20Management/Models/SessionLockOptions.cs)).
+
+### Версия
+
+- **Версия поднята до `0.3.8.13`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок; регрессионные тесты проходят.
+
+## [0.3.8.12] — 2026-09-17
+
+### Новые возможности
+
+- **Сценарии резервирования (функция №16 StartManager, SHIFT+CTRL+F5)** — модель «Сценарий резервирования» (наименование, шаблон имени файла `{Base} {Timestamp} {Date} {Time}`, до трёх каталогов назначения, формат DT/CF/ZIP/RAR, префикс базы и учётные данные). Хранение — отдельные JSON-файлы в каталоге данных профиля (`backups/scenarios`, [`Services/BackupScenarioStore.cs`](Configuration%20Management/Services/BackupScenarioStore.cs)), неограниченное количество.
+- **Выполнение сценария для выбранной ИБ** — пакетная выгрузка через существующий `RunDesignerBatch` (`DumpIB`/`DumpCfg`); при формате ZIP/RAR результат пакуется ([`Services/ArchiveService.cs`](Configuration%20Management/Services/ArchiveService.cs): ZIP через `System.IO.Compression`, RAR через внешний архиватор) и копируется во все каталоги назначения. Ожидание завершения выгрузки — через `TaskCompletionSource` + событие `DesignerBatchCompleted` с таймаутом ([`Services/BackupService.cs`](Configuration%20Management/Services/BackupService.cs)).
+- **«Список выгрузок» (функция №18 StartManager, SHIFT+CTRL+F7)** — обзор созданных файлов `.dt/.cf/.zip/.rar` по каталогам сценариев и настраиваемым каталогам, «Открыть папку», «Восстановить».
+- **Восстановление данных (в т.ч. без интерактивного конфигуратора)** — новая операция `RestoreIB` (`/RestoreIB"path"`) в `DesignerBatchOperation` добавлена в [`OneCLauncher.DesignerBatch.cs`](Configuration%20Management/Services/OneCLauncher.DesignerBatch.cs) и `OneCLauncher.Linux.DesignerBatch.cs`. Для `.zip`/`.rar` файл сначала распаковывается во временный каталог.
+- Учётные данные сценария: по умолчанию используется авторизация базы (`ConfiguratorAuth`), при необходимости задаются явные логин/пароль (`BackupCredential`, передаётся в новый overload `RunDesignerBatch`).
+- Реализовано для обеих платформ: **Windows/WPF** и **Linux/Avalonia** (парные окна [`BackupScenariosWindow`](Configuration%20Management/Views/BackupScenariosWindow.xaml), [`BackupScenarioEditWindow`](Configuration%20Management/Views/BackupScenarioEditWindow.xaml), [`ExportsListWindow`](Configuration%20Management/Views/ExportsListWindow.xaml) + `*.Avalonia.cs`, общие чистые .NET модели/сервисы). Хоткеи SHIFT+CTRL+F5/F7 настраиваются в настройках.
+
+### Версия
+
+- **Версия поднята до `0.3.8.12`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
+## [0.3.8.11] — 2026-09-17
+
+### Новые возможности
+
+- **Проверка обновлений конфигураций 1С (функция №21 StartManager)** — для выбранной информационной базы (клавиша **F9**): окно проверки, текущая и последняя версия с web-ресурса обновлений 1С, подсветка нового релиза и загрузка дистрибутива с прогрессом. Адрес формируется по правилу 1С `downloads.1c.ru/ipp/.../Configs/<Конфигурация>/<Ред>/<Подред>/`; допускается ручная корректировка ссылки.
+- **Окно «Актуальные релизы» (функция №22 StartManager, ALT+F9)** — список отслеживаемых типовых конфигураций и пакетная проверка с результатами по строкам и загрузкой.
+- **Список типовых конфигураций** — предопределённый набор + пользовательские (редактирование имён, сегментов URL и редакций), настройка связи ИБ ↔ конфигурация и кнопка «Определить версию» (чтение из структуры конфигурации).
+- Реализовано для обеих платформ: **Windows/WPF** и **Linux/Avalonia** (парные файлы окон, общие чистые .NET модели/сервисы [`Models/OneCConfigType.cs`](Configuration%20Management/Models/OneCConfigType.cs), [`Services/OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs)). Хоткеи F9/ALT+F9 настраиваются в настройках приложения.
+
+### Версия
+
+- **Версия поднята до `0.3.8.11`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.8.10] — 2026-09-17
 
 ### Оптимизация

@@ -1,0 +1,87 @@
+<Window x:Class="Configuration_Management.SessionLockWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        mc:Ignorable="d"
+        Title="{loc:Loc SessionLock.Title}"
+        Icon="{StaticResource AppIcon}"
+        Height="420" Width="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}"/>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}"/>
+        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
+    </Window.Resources>
+
+    <StackPanel Margin="16">
+        <!-- ============ Описание ============ -->
+        <TextBlock x:Name="DescriptionLabel" Text="{loc:Loc SessionLock.Description}"
+                   TextWrapping="Wrap" Margin="0,0,0,12"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+        <!-- ============ Время начала ============ -->
+        <TextBlock Text="{loc:Loc SessionLock.StartTime}" Margin="0,0,0,4"/>
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <DatePicker x:Name="StartDate" Padding="6,4" SelectedDateFormat="Short"/>
+            <TextBox x:Name="StartTimeBox" Grid.Column="1" Width="110" Margin="8,0,0,0" Padding="6,4"/>
+        </Grid>
+
+        <!-- ============ Длительность ============ -->
+        <TextBlock Text="{loc:Loc SessionLock.Duration}" Margin="0,0,0,4"/>
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="DurationBox" Padding="6,4"/>
+            <TextBlock x:Name="DurationUnitLabel" Grid.Column="1" Text="{loc:Loc SessionLock.Minutes}"
+                       VerticalAlignment="Center" Margin="8,0,0,0"
+                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </Grid>
+
+        <!-- ============ Шаблон ============ -->
+        <TextBlock Text="{loc:Loc SessionLock.Template}" Margin="0,0,0,4"/>
+        <ComboBox x:Name="TemplateBox" SelectionChanged="TemplateBox_SelectionChanged" Margin="0,0,0,10" Padding="6,4"/>
+
+        <!-- ============ Сообщение ============ -->
+        <TextBlock Text="{loc:Loc SessionLock.Message}" Margin="0,0,0,4"/>
+        <TextBox x:Name="MessageTextBox" Height="90" AcceptsReturn="True" TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto" Padding="6,4" Margin="0,0,0,4"/>
+        <TextBlock x:Name="PlaceholdersHint" Text="{loc:Loc SessionLock.PlaceholdersHint}"
+                   TextWrapping="Wrap" Margin="0,0,0,8"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+        <!-- ============ Кнопки ============ -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="UnlockButton" Width="150" Margin="0,0,8,0"
+                    Click="OnUnlock_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✔" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="UnlockTextBlock" Text="{loc:Loc SessionLock.Unlock}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="LockButton" Width="150" IsDefault="True"
+                    Click="OnLock_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔒" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="LockTextBlock" Text="{loc:Loc SessionLock.Lock}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </StackPanel>
+</Window>

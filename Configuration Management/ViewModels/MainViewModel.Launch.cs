@@ -421,6 +421,39 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Интеграция с проводником Windows (функция №12): включена ли ассоциация .1CD и контекстное меню.</summary>
+    public bool ExplorerIntegrationEnabled
+    {
+        get => _explorerIntegrationEnabled;
+        set => SetProperty(ref _explorerIntegrationEnabled, value);
+    }
+
+    /// <summary>
+    /// Применяет настройку интеграции с проводником Windows (функция №12): при включении
+    /// регистрирует ассоциацию <c>.1CD</c> и команды контекстного меню, при выключении —
+    /// удаляет их из реестра. Затем сохраняет настройку. Ошибки реестра не роняют приложение.
+    /// </summary>
+    public void ApplyExplorerIntegration(bool enabled)
+    {
+        try
+        {
+            var service = AppServices.GetRequiredService<IExplorerIntegrationService>();
+            if (service.IsAvailable)
+            {
+                if (enabled) service.Register();
+                else service.Unregister();
+            }
+        }
+        catch (Exception ex)
+        {
+            try { _logger.Warn("[explorer] Не удалось изменить интеграцию с проводником: " + ex.Message); }
+            catch { /* ignore */ }
+        }
+
+        ExplorerIntegrationEnabled = enabled;
+        ScheduleSaveSettings();
+    }
+
     public void SaveSettings()
     {
         _repository.SaveSettings(new AppSettings
@@ -480,6 +513,8 @@ public partial class MainViewModel : ViewModelBase
             ShowSizeColumn = _showSizeColumn,
             ShowActionsColumn = _showActionsColumn,
             SizeColumnWidth = _sizeColumnWidth,
+            ShowModifiedColumn = _showModifiedColumn,
+            ModifiedColumnWidth = _modifiedColumnWidth,
             ColumnOrder = _columnOrder.ToList(),
             WindowWidth = _windowWidth,
             WindowHeight = _windowHeight,
@@ -501,6 +536,11 @@ public partial class MainViewModel : ViewModelBase
             ShowTrayIcon = _showTrayIcon,
             EscapeToTray = _escapeToTray,
             CompactMode = _compactMode,
+            ExplorerIntegrationEnabled = _explorerIntegrationEnabled,
+            // Автозапуск при старте ОС (функция №31) и копия экрана (функция №30, Этап 8).
+            AutoStartEnabled = _autoStartEnabled,
+            ScreenshotHotkey = _screenshotHotkey,
+            ScreenshotSaveDirectory = _screenshotSaveDirectory,
             TemplateCatalogPaths = _templateCatalogPaths.ToList(),
             HotkeyEnterprise = _hotkeyEnterprise,
             HotkeyConfigurator = _hotkeyConfigurator,
@@ -517,6 +557,15 @@ public partial class MainViewModel : ViewModelBase
             HotkeyClearTags = _hotkeyClearTags,
             HotkeyRightPanelDetails = _hotkeyRightPanelDetails,
             HotkeySwitchUser = _hotkeySwitchUser,
+            HotkeyCheckUpdate = _hotkeyCheckUpdate,
+            HotkeyActualReleases = _hotkeyActualReleases,
+            // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
+            HotkeySessionLock = _hotkeySessionLock,
+            HotkeyLockApp = _hotkeyLockApp,
+            // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
+            HotkeyCheckIntegrity = _hotkeyCheckIntegrity,
+            HotkeyServerConsole = _hotkeyServerConsole,
+            AppLockPasswordHash = _appLockPasswordHash,
             SortField = _sortField,
             SortAscending = _sortAscending,
             FavoriteHotkeyIds = _favoriteHotkeyIds.ToList(),
@@ -534,9 +583,14 @@ public partial class MainViewModel : ViewModelBase
             LastSelectedInfobaseId = _lastSelectedInfobaseId,
             LastSelectedGroupPath = _lastSelectedGroupPath,
             CustomLaunchParameters = _customLaunchParameters.ToList(),
+            // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
+            DefaultDoubleClickAction = _defaultDoubleClickAction,
             ProfileBackupDirectory = _profileBackupDirectory,
             ProfileRestoreOnStartup = _profileRestoreOnStartup,
-            FileSizeCache = new Dictionary<string, Models.FileSizeCacheEntry>(_fileSizeCache)
+            FileSizeCache = new Dictionary<string, Models.FileSizeCacheEntry>(_fileSizeCache),
+            // Режим функциональности (Этап 10 StartManager): «Пользователь»/«Специалист»/«Разработчик».
+            FunctionalMode = _functionalMode,
+            LaunchConfigDefaults = _launchConfigDefaults
         });
     }
 

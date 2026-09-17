@@ -81,7 +81,29 @@ namespace Configuration_Management
             // Смена пользователя — настраиваемый хоткей (issue #200);
             // значение по умолчанию не задано.
             Add(_viewModel.HotkeySwitchUser, _viewModel.SwitchUserCommand);
- 
+
+            // Проверка обновлений конфигураций 1С (функции №21/№22): F9 — для выбранной
+            // ИБ, ALT+F9 — окно «Актуальные релизы». Сочетания настраиваются в настройках.
+            Add(_viewModel.HotkeyCheckUpdate, _viewModel.CheckUpdateCommand);
+            Add(_viewModel.HotkeyActualReleases, _viewModel.ShowActualReleasesCommand);
+
+            // Сценарии резервирования и «Список выгрузок» (функции №16/№18):
+            // Ctrl+Shift+F5 — выполнить сценарий, Ctrl+Shift+F7 — список выгрузок.
+            Add(_viewModel.HotkeyRunBackup, _viewModel.RunBackupScenarioCommand);
+            Add(_viewModel.HotkeyExportsList, _viewModel.ShowExportsListCommand);
+
+            // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка
+            // приложения паролем (функция №19). Сочетания настраиваются в настройках.
+            Add(_viewModel.HotkeySessionLock, _viewModel.ShowSessionLockCommand);
+            Add(_viewModel.HotkeyLockApp, _viewModel.LockAppCommand);
+
+            // Администрирование ИБ (Этап 6, функция №29 + консоль серверов):
+            // проверка целостности файловой ИБ (chdbfl) и консоль администрирования серверов 1С.
+            Add(_viewModel.HotkeyCheckIntegrity, _viewModel.CheckIntegrityCommand);
+            Add(_viewModel.HotkeyServerConsole, _viewModel.OpenServerConsoleCommand);
+            // Сохранение копии экрана (функция №30 StartManager): сочетание настраивается в настройках.
+            Add(_viewModel.ScreenshotHotkey, _viewModel.TakeScreenshotCommand);
+
             // Ctrl+Shift+Plus / Ctrl+Shift+Minus — развернуть/свернуть все узлы дерева.
             // Регистрируются обе раскладки (основная Oem* и цифровой блок Add/Subtract).
             InputBindings.Add(new KeyBinding(_viewModel.ExpandAllGroupsCommand, Key.OemPlus, ModifierKeys.Control | ModifierKeys.Shift));

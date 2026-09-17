@@ -55,6 +55,16 @@ namespace Configuration_Management
         // issue #199) и компактный режим не возвращается к прежнему виду.
         private bool _suppressCompactEvent;
 
+        // ---- Интеграция с проводником (функция №12) ----
+        // Признак «идёт начальная установка значения переключателя»: пока он стоит,
+        // событие Checked/Unchecked не должно вызывать повторную регистрацию в реестре.
+        private bool _suppressExplorerEvent;
+
+        // ---- Автозапуск при старте ОС (функция №31, Этап 8) ----
+        // Признак «идёт начальная установка значения переключателя»: пока он стоит,
+        // событие Checked/Unchecked не должно вызывать повторную запись в реестр.
+        private bool _suppressAutoStartEvent;
+
         /// <summary>
         /// Создаёт диалог настроек приложения.
         /// </summary>
@@ -66,6 +76,8 @@ namespace Configuration_Management
             // Шаблон имени COM-коннектора 1С (issue #175): показываем текущее значение.
             if (ComConnectorNameTemplateBox != null)
                 ComConnectorNameTemplateBox.Text = viewModel.ComConnectorNameTemplate;
+            // Режим функциональности (Этап 10 StartManager) и подсказки о 1CLaunch.cfg/портативном режиме.
+            InitializeFunctionalModeUi();
             // Интерактивный предпросмотр имени COM-коннектора (issue #175): реагирует
             // на изменение и шаблона, и версии. Поле версии в настройки не сохраняется.
             if (ComConnectorNameTemplateBox != null && ComConnectorPreviewVersionBox != null)
@@ -80,6 +92,19 @@ namespace Configuration_Management
             // Глубина истории запусков одной базы (issue #246).
             if (MaxLaunchHistoryDepthBox != null)
                 MaxLaunchHistoryDepthBox.Text = viewModel.MaxLaunchHistoryPerBase.ToString();
+            // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
+            InitGlobalDoubleClickCombo();
+            // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка
+            // приложения паролем (функция №19): показываем текущие значения сочетаний.
+            if (HotkeySessionLockBox != null)
+                HotkeySessionLockBox.Value = viewModel.HotkeySessionLock;
+            if (HotkeyLockAppBox != null)
+                HotkeyLockAppBox.Value = viewModel.HotkeyLockApp;
+            // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
+            if (HotkeyCheckIntegrityBox != null)
+                HotkeyCheckIntegrityBox.Value = viewModel.HotkeyCheckIntegrity;
+            if (HotkeyServerConsoleBox != null)
+                HotkeyServerConsoleBox.Value = viewModel.HotkeyServerConsole;
             _settings = new SettingsViewModel(viewModel);
             _installedPlatformVersions = new List<string>(viewModel.InstalledPlatformVersions);
             foreach (var path in viewModel.AdditionalPlatformSearchPaths)
@@ -97,6 +122,27 @@ namespace Configuration_Management
             InitializeLanguage();
             InitializeProfileBackupTab();
             InitializeAccountsTab();
+
+            // Интеграция с проводником (функция №12): показываем текущее значение и
+            // блокируем событие на время начальной установки (повторная регистрация не нужна).
+            if (ExplorerIntegrationCheck != null)
+            {
+                _suppressExplorerEvent = true;
+                ExplorerIntegrationCheck.IsChecked = viewModel.ExplorerIntegrationEnabled;
+                _suppressExplorerEvent = false;
+            }
+            // Автозапуск при старте ОС (функция №31) и копия экрана (функция №30, Этап 8):
+            // показываем текущие значения.
+            if (AutoStartCheck != null)
+            {
+                _suppressAutoStartEvent = true;
+                AutoStartCheck.IsChecked = viewModel.AutoStartEnabled;
+                _suppressAutoStartEvent = false;
+            }
+            if (ScreenshotDirectoryBox != null)
+                ScreenshotDirectoryBox.Text = viewModel.ScreenshotSaveDirectory;
+            if (HotkeyScreenshotBox != null)
+                HotkeyScreenshotBox.Value = viewModel.ScreenshotHotkey;
         }
 
         /// <summary>
@@ -126,6 +172,39 @@ namespace Configuration_Management
             if (CompactModeCheck is null)
                 return;
             _viewModel.ApplyCompactMode(CompactModeCheck.IsChecked == true);
+        }
+
+        /// <summary>Переключатель интеграции с проводником: применяет изменение сразу и сохраняет.</summary>
+        private void OnExplorerIntegration_Toggled(object sender, RoutedEventArgs e)
+        {
+            // Начальная установка значения переключателя событием не считается,
+            // чтобы не выполнять лишнюю регистрацию/удаление из реестра при открытии окна.
+            if (_suppressExplorerEvent)
+                return;
+            if (ExplorerIntegrationCheck is null)
+                return;
+            _viewModel.ApplyExplorerIntegration(ExplorerIntegrationCheck.IsChecked == true);
+        }
+
+        /// <summary>Переключатель автозапуска при старте ОС (функция №31): применяет изменение сразу и сохраняет.</summary>
+        private void OnAutoStart_Toggled(object sender, RoutedEventArgs e)
+        {
+            // Начальная установка значения переключателя событием не считается,
+            // чтобы не выполнять лишнюю запись/удаление из реестра при открытии окна.
+            if (_suppressAutoStartEvent)
+                return;
+            if (AutoStartCheck is null)
+                return;
+            _viewModel.ApplyAutoStart(AutoStartCheck.IsChecked == true);
+        }
+
+        /// <summary>Выбор каталога сохранения копий экрана (функция №30).</summary>
+        private void OnScreenshotBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = _dialogs.OpenFolderDialog(
+                LocalizationManager.T("Settings.Screenshot.ChooseDir"), ScreenshotDirectoryBox?.Text);
+            if (!string.IsNullOrWhiteSpace(selected) && ScreenshotDirectoryBox != null)
+                ScreenshotDirectoryBox.Text = selected;
         }
 
         /// <summary>
@@ -163,6 +242,51 @@ namespace Configuration_Management
             catch (FormatException)
             {
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Инициализирует UI вкладки «Настройки» для режима функциональности (Этап 10 StartManager):
+        /// выбирает текущий режим и показывает подсказки о портативном режиме и файле 1CLaunch.cfg.
+        /// </summary>
+        private void InitializeFunctionalModeUi()
+        {
+            try
+            {
+                if (FunctionalModeComboBox != null)
+                {
+                    var mode = _viewModel.FunctionalMode;
+                    for (var i = 0; i < FunctionalModeComboBox.Items.Count; i++)
+                    {
+                        if (FunctionalModeComboBox.Items[i] is ComboBoxItem it &&
+                            string.Equals(it.Tag as string, mode, StringComparison.OrdinalIgnoreCase))
+                        {
+                            FunctionalModeComboBox.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (FunctionalModeHintText != null)
+                {
+                    FunctionalModeHintText.Text = _viewModel.IsSystemMenuRestricted
+                        ? LocalizationManager.T("FunctionalMode.UserHint")
+                        : "";
+                }
+
+                if (LaunchConfigHintText != null)
+                {
+                    var hasConfig = Configuration_Management.Services.OneCLaunchConfigReader.FindConfigFile() != null;
+                    LaunchConfigHintText.Text = hasConfig
+                        ? LocalizationManager.T("FunctionalMode.LaunchConfigPresent")
+                        : LocalizationManager.T("FunctionalMode.LaunchConfigAbsent");
+                    if (Configuration_Management.Services.PortablePaths.IsPortable)
+                        LaunchConfigHintText.Text += " " + LocalizationManager.T("FunctionalMode.Portable");
+                }
+            }
+            catch
+            {
+                // Инициализация подсказок не должна ломать открытие окна настроек.
             }
         }
 
@@ -205,6 +329,14 @@ namespace Configuration_Management
                 _ => "X64"
             });
 
+            // Режим функциональности (Этап 10 StartManager): «Пользователь»/«Специалист»/«Разработчик».
+            if (FunctionalModeComboBox?.SelectedItem is ComboBoxItem fmItem &&
+                fmItem.Tag is string fmCode &&
+                !string.IsNullOrEmpty(fmCode))
+            {
+                _viewModel.FunctionalMode = fmCode;
+            }
+
             // Сохраняем настройки синхронизации с файлом ibases.v8i.
             var s = _settings.Sync;
             var filePath = SyncFilePathTextBox.Text?.Trim() ?? string.Empty;
@@ -233,6 +365,7 @@ namespace Configuration_Management
                 GroupByGroupCheck.IsChecked ?? true,
                 ShowFavoritesOnlyCheck.IsChecked ?? false,
                 VisibleOf("Size"),
+                VisibleOf("Modified"),
                 VisibleOf("Configuration"),
                 VisibleOf("ConfigurationVersion"),
                 ShowEmptyGroupsCheck?.IsChecked ?? false,
@@ -266,7 +399,13 @@ namespace Configuration_Management
             var hkClearTags = ReadHotkeyBox(HotkeyClearTagsBox);
             var hkRightPanelDetails = ReadHotkeyBox(HotkeyRightPanelDetailsBox);
             var hkSwitchUser = ReadHotkeyBox(HotkeySwitchUserBox);
- 
+            var hkSessionLock = ReadHotkeyBox(HotkeySessionLockBox);
+            var hkLockApp = ReadHotkeyBox(HotkeyLockAppBox);
+            var hkCheckIntegrity = ReadHotkeyBox(HotkeyCheckIntegrityBox);
+            var hkServerConsole = ReadHotkeyBox(HotkeyServerConsoleBox);
+            // Копия экрана по хоткею (функция №30, Этап 8).
+            var hkScreenshot = ReadHotkeyBox(HotkeyScreenshotBox);
+
             // Проверка: одна клавиша — одно действие (пустые «Нет» не учитываются).
             var assigned = new (string Name, string Key)[]
             {
@@ -284,7 +423,12 @@ namespace Configuration_Management
                 (LocalizationManager.T("Main.ClearSearch"), hkClearSearch),
                 (LocalizationManager.T("Main.ClearTags"), hkClearTags),
                 (LocalizationManager.T("Main.CollapseRightPanel"), hkRightPanelDetails),
-                (LocalizationManager.T("Main.SwitchUser"), hkSwitchUser)
+                (LocalizationManager.T("Main.SwitchUser"), hkSwitchUser),
+                (LocalizationManager.T("SessionLock.Title"), hkSessionLock),
+                (LocalizationManager.T("AppLock.LockTitle"), hkLockApp),
+                (LocalizationManager.T("Admin.CheckIntegrityTitle"), hkCheckIntegrity),
+                (LocalizationManager.T("Admin.ServerConsoleTitle"), hkServerConsole),
+                (LocalizationManager.T("Settings.Screenshot.Title"), hkScreenshot)
             };
             var duplicates = SettingsViewModel.FindDuplicateHotkeys(assigned).ToList();
             if (duplicates.Count > 0)
@@ -333,7 +477,16 @@ namespace Configuration_Management
                 hotkeyClearSearch: hkClearSearch,
                 hotkeyClearTags: hkClearTags,
                 hotkeyRightPanelDetails: hkRightPanelDetails,
-                hotkeySwitchUser: hkSwitchUser);
+                hotkeySwitchUser: hkSwitchUser,
+                hotkeySessionLock: hkSessionLock,
+                hotkeyLockApp: hkLockApp,
+                hotkeyCheckIntegrity: hkCheckIntegrity,
+                hotkeyServerConsole: hkServerConsole);
+
+            // Копия экрана (функция №30, Этап 8): сочетание и каталог сохранения.
+            _viewModel.ScreenshotHotkey = hkScreenshot;
+            _viewModel.ScreenshotSaveDirectory = ScreenshotDirectoryBox?.Text?.Trim() ?? "";
+            _viewModel.SaveSettings();
 
             var templatePaths = TemplatePathsList?.Items.Cast<string>().Where(s => !string.IsNullOrWhiteSpace(s)).ToList()
                 ?? new System.Collections.Generic.List<string>();
@@ -379,6 +532,37 @@ namespace Configuration_Management
         private void OnCancel_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;
+        }
+
+        /// <summary>Заполняет комбобокс «Действие по двойному щелчку» глобальной настройкой (функция №28 StartManager).</summary>
+        private void InitGlobalDoubleClickCombo()
+        {
+            if (DoubleClickActionGlobalCombo is null || _viewModel is null) return;
+            DoubleClickActionGlobalCombo.ItemsSource = new[]
+            {
+                LocalizationManager.T("Connection.DefaultLaunchEnterprise"),
+                LocalizationManager.T("Connection.DefaultLaunchConfigurator"),
+                LocalizationManager.T("Connection.DblClickNone")
+            };
+            DoubleClickActionGlobalCombo.SelectedIndex = _viewModel.DefaultDoubleClickAction switch
+            {
+                Configuration_Management.Models.DoubleClickAction.Configurator => 1,
+                Configuration_Management.Models.DoubleClickAction.None => 2,
+                _ => 0
+            };
+        }
+
+        /// <summary>Обработчик смены глобального «действия по двойному щелчку» (функция №28).</summary>
+        private void OnDoubleClickActionGlobal_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_viewModel is null || sender is not ComboBox combo)
+                return;
+            _viewModel.SetDefaultDoubleClickAction(combo.SelectedIndex switch
+            {
+                1 => Configuration_Management.Models.DoubleClickAction.Configurator,
+                2 => Configuration_Management.Models.DoubleClickAction.None,
+                _ => Configuration_Management.Models.DoubleClickAction.Enterprise
+            });
         }
 
         /// <summary>Элемент списка тем.</summary>

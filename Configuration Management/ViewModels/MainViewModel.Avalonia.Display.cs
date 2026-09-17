@@ -56,6 +56,7 @@ public partial class MainViewModel : ViewModelBase
         bool showVersionColumn, bool showConfigurationColumn, bool showConfigurationVersionColumn,
         bool showLaunchModeColumn,
         bool showServerColumn, bool showLastLaunchColumn, bool showSizeColumn,
+        bool showModifiedColumn,
         bool showActionsColumn,
         bool showRightPanelDetails, bool showSessionLaunchPanel,
         bool groupByGroup, bool showEmptyGroups,
@@ -71,6 +72,7 @@ public partial class MainViewModel : ViewModelBase
         var previousShowServerColumn = _settings.ShowServerColumn;
         var previousShowLastLaunchColumn = _settings.ShowLastLaunchColumn;
         var previousShowSizeColumn = _settings.ShowSizeColumn;
+        var previousShowModifiedColumn = _settings.ShowModifiedColumn;
         var previousShowActionsColumn = _settings.ShowActionsColumn;
         var previousColumnOrder = _settings.ColumnOrder ?? new List<string>();
         var previousGroupByGroup = _groupByGroup;
@@ -87,6 +89,7 @@ public partial class MainViewModel : ViewModelBase
         _settings.ShowServerColumn = showServerColumn;
         _settings.ShowLastLaunchColumn = showLastLaunchColumn;
         _settings.ShowSizeColumn = showSizeColumn;
+        _settings.ShowModifiedColumn = showModifiedColumn;
         _settings.ShowActionsColumn = showActionsColumn;
         _settings.ColumnOrder = columnOrder ?? new List<string>();
         _settings.ShowRightPanelDetails = showRightPanelDetails;
@@ -113,6 +116,7 @@ public partial class MainViewModel : ViewModelBase
             || showServerColumn != previousShowServerColumn
             || showLastLaunchColumn != previousShowLastLaunchColumn
             || showSizeColumn != previousShowSizeColumn
+            || showModifiedColumn != previousShowModifiedColumn
             || showActionsColumn != previousShowActionsColumn
             || !previousColumnOrder.SequenceEqual(_settings.ColumnOrder);
 
@@ -154,6 +158,7 @@ public partial class MainViewModel : ViewModelBase
             key == "ServerBase" ? visible : _settings.ShowServerColumn,
             key == "LastLaunch" ? visible : _settings.ShowLastLaunchColumn,
             key == "Size" ? visible : _settings.ShowSizeColumn,
+            key == "Modified" ? visible : _settings.ShowModifiedColumn,
             key == "Actions" ? visible : _settings.ShowActionsColumn,
             _showRightPanelDetails,
             _settings.ShowSessionLaunchPanel,
@@ -410,6 +415,11 @@ public partial class MainViewModel : ViewModelBase
     public string HotkeyClearTags => _settings.HotkeyClearTags;
     public string HotkeyRightPanelDetails => _settings.HotkeyRightPanelDetails;
     public string HotkeySwitchUser => _settings.HotkeySwitchUser;
+    public string HotkeyCheckUpdate => _settings.HotkeyCheckUpdate;
+    public string HotkeyActualReleases => _settings.HotkeyActualReleases;
+    // Сценарии резервирования (функции №16/№18): выполнение сценария (Ctrl+Shift+F5) и «Список выгрузок» (Ctrl+Shift+F7).
+    public string HotkeyRunBackup => _settings.HotkeyRunBackup;
+    public string HotkeyExportsList => _settings.HotkeyExportsList;
 
     /// <summary>
     /// Сохраняет назначенные сочетания и сообщает окну, что их надо
@@ -418,7 +428,9 @@ public partial class MainViewModel : ViewModelBase
     public void ApplyHotkeys(string enterprise, string configurator, string edit, string add,
         string favorite, string pin, string delete, string clearCache,
         string showAll, string showFavorites, string showRecent,
-        string clearSearch, string clearTags, string rightPanelDetails, string switchUser)
+        string clearSearch, string clearTags, string rightPanelDetails, string switchUser,
+        string sessionLock = "", string lockApp = "",
+        string checkIntegrity = "", string serverConsole = "")
     {
         _settings.HotkeyEnterprise = enterprise ?? string.Empty;
         _settings.HotkeyConfigurator = configurator ?? string.Empty;
@@ -435,6 +447,12 @@ public partial class MainViewModel : ViewModelBase
         _settings.HotkeyClearTags = clearTags ?? string.Empty;
         _settings.HotkeyRightPanelDetails = rightPanelDetails ?? string.Empty;
         _settings.HotkeySwitchUser = switchUser ?? string.Empty;
+        // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
+        _settings.HotkeySessionLock = sessionLock ?? string.Empty;
+        _settings.HotkeyLockApp = lockApp ?? string.Empty;
+        // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
+        _settings.HotkeyCheckIntegrity = checkIntegrity ?? string.Empty;
+        _settings.HotkeyServerConsole = serverConsole ?? string.Empty;
 
         SaveSettingsSilently();
 
@@ -453,6 +471,10 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HotkeyClearTags));
         OnPropertyChanged(nameof(HotkeyRightPanelDetails));
         OnPropertyChanged(nameof(HotkeySwitchUser));
+        OnPropertyChanged(nameof(HotkeySessionLock));
+        OnPropertyChanged(nameof(HotkeyLockApp));
+        OnPropertyChanged(nameof(HotkeyCheckIntegrity));
+        OnPropertyChanged(nameof(HotkeyServerConsole));
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -467,7 +489,7 @@ public partial class MainViewModel : ViewModelBase
     /// собственный порядок.
     /// </summary>
     private static readonly string[] DefaultColumnOrder =
-        { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Configuration", "ConfigurationVersion" };
+        { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "Configuration", "ConfigurationVersion" };
 
     /// <summary>
     /// Порядок колонок списка баз слева направо (кроме фиксированной колонки
@@ -487,19 +509,24 @@ public partial class MainViewModel : ViewModelBase
             if (order is { Count: 0 })
                 return DefaultColumnOrder;
 
-            // «Действия» и «№ релиза» обязаны присутствовать в списке: старые
-            // сохранённые настройки могли не содержать их вовсе, и тогда эти
-            // колонки нельзя было ни показать, ни отключить в окне настроек.
+            // «Действия», «№ релиза» и «Дата изменений» обязаны присутствовать в
+            // списке: старые сохранённые настройки могли не содержать их вовсе, и
+            // тогда эти колонки нельзя было ни показать, ни отключить в окне настроек.
             var needsActions = !order!.Contains("Actions", StringComparer.Ordinal);
             var needsConfigurationVersion = !order.Contains("ConfigurationVersion", StringComparer.Ordinal);
-            if (!needsActions && !needsConfigurationVersion)
+            var needsModified = !order.Contains("Modified", StringComparer.Ordinal);
+            if (!needsActions && !needsConfigurationVersion && !needsModified)
                 return order;
 
-            var result = new List<string>(order.Count + 2);
+            var result = new List<string>(order.Count + 3);
             foreach (var key in order)
             {
                 if (needsConfigurationVersion && key == "Configuration")
                     result.Add("ConfigurationVersion");
+                // «Дата изменений» встаёт сразу после «Размера», как в порядке по
+                // умолчанию, не меняя сам сохранённый список.
+                if (needsModified && key == "Size")
+                    result.Add("Modified");
                 result.Add(key);
             }
             if (needsActions)
@@ -518,6 +545,7 @@ public partial class MainViewModel : ViewModelBase
     public bool ShowServerColumn => _settings.ShowServerColumn;
     public bool ShowLastLaunchColumn => _settings.ShowLastLaunchColumn;
     public bool ShowSizeColumn => _settings.ShowSizeColumn;
+    public bool ShowModifiedColumn => _settings.ShowModifiedColumn;
 
     /// <summary>Показывать колонку «Действия» (кнопки запуска/конфигуратора/очистки кеша) в списке баз.</summary>
     public bool ShowActionsColumn => _settings.ShowActionsColumn;
@@ -619,6 +647,7 @@ public partial class MainViewModel : ViewModelBase
     public double ServerColumnWidth => _settings.ServerColumnWidth;
     public double LastLaunchColumnWidth => _settings.LastLaunchColumnWidth;
     public double SizeColumnWidth => _settings.SizeColumnWidth;
+    public double ModifiedColumnWidth => _settings.ModifiedColumnWidth;
     public double ActionsColumnWidth => _settings.ActionsColumnWidth;
 
     /// <summary>
@@ -638,6 +667,7 @@ public partial class MainViewModel : ViewModelBase
             case "ServerBase": _settings.ServerColumnWidth = width; break;
             case "LastLaunch": _settings.LastLaunchColumnWidth = width; break;
             case "Size": _settings.SizeColumnWidth = width; break;
+            case "Modified": _settings.ModifiedColumnWidth = width; break;
             // Колонка «Действия» тоже перетаскиваемая и сохраняемая, как в разметке
             // (MainWindow.xaml:528): раньше её ширина была константой.
             case "Actions": _settings.ActionsColumnWidth = width; break;
@@ -745,6 +775,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowServerColumn));
         OnPropertyChanged(nameof(ShowLastLaunchColumn));
         OnPropertyChanged(nameof(ShowSizeColumn));
+        OnPropertyChanged(nameof(ShowModifiedColumn));
         OnPropertyChanged(nameof(ShowTags));
         OnPropertyChanged(nameof(NameColumnWidth));
         OnPropertyChanged(nameof(VersionColumnWidth));
@@ -754,6 +785,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ServerColumnWidth));
         OnPropertyChanged(nameof(LastLaunchColumnWidth));
         OnPropertyChanged(nameof(SizeColumnWidth));
+        OnPropertyChanged(nameof(ModifiedColumnWidth));
         OnPropertyChanged(nameof(ActionsColumnWidth));
         OnPropertyChanged(nameof(ColumnOrderKeys));
     }

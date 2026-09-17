@@ -90,6 +90,7 @@ namespace Configuration_Management
             LocalizationManager.Instance.LanguageChanged += (_, _) => UpdateOsArchitectureHint();
             UpdateOsArchitectureHint();
             InitDefaultLaunchModeCombo();
+            InitDoubleClickActionCombo();
         }
 
         /// <summary>
@@ -124,6 +125,60 @@ namespace Configuration_Management
                 2 => "Configurator",
                 _ => ""
             };
+        }
+
+        /// <summary>
+        /// Заполняет комбобокс «Действие по двойному щелчку» (функция №28 StartManager)
+        /// и выставляет текущее значение базы. Пустая строка — использовать глобальную настройку.
+        /// </summary>
+        private void InitDoubleClickActionCombo()
+        {
+            if (DoubleClickActionCombo is null || _viewModel is null) return;
+            DoubleClickActionCombo.ItemsSource = new[]
+            {
+                LocalizationManager.T("Connection.DblClickGlobal"),
+                LocalizationManager.T("Connection.DefaultLaunchEnterprise"),
+                LocalizationManager.T("Connection.DefaultLaunchConfigurator"),
+                LocalizationManager.T("Connection.DblClickNone")
+            };
+            DoubleClickActionCombo.SelectedIndex = (_viewModel.DoubleClickAction ?? string.Empty).Trim() switch
+            {
+                Models.DoubleClickAction.Enterprise => 1,
+                Models.DoubleClickAction.Configurator => 2,
+                Models.DoubleClickAction.None => 3,
+                _ => 0
+            };
+        }
+
+        /// <summary>Обработчик смены «действия по двойному щелчку»: пишет каноническое значение в ViewModel.</summary>
+        private void OnDoubleClickActionCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (_viewModel is null || sender is not System.Windows.Controls.ComboBox combo)
+                return;
+            _viewModel.DoubleClickAction = combo.SelectedIndex switch
+            {
+                1 => Models.DoubleClickAction.Enterprise,
+                2 => Models.DoubleClickAction.Configurator,
+                3 => Models.DoubleClickAction.None,
+                _ => Models.DoubleClickAction.Default
+            };
+        }
+
+        /// <summary>Открывает диалог выбора внешней обработки (.epf/.erf) (функция №25 StartManager).</summary>
+        private void OnBrowseExternalProcessing_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = LocalizationManager.T("Connection.ExternalProcessingPickTitle"),
+                Filter = LocalizationManager.T("Connection.ExternalProcessingFilter"),
+                CheckFileExists = true,
+                Multiselect = false
+            };
+            if (dialog.ShowDialog(this) == true && ExternalProcessingPathBox is not null)
+            {
+                ExternalProcessingPathBox.Text = dialog.FileName;
+                _viewModel.ExternalProcessingPath = dialog.FileName;
+            }
         }
 
         /// <summary>

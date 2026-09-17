@@ -196,6 +196,30 @@ public class Infobase : INotifyPropertyChanged
         }
     }
 
+    private string _updateConfigCode = string.Empty;
+
+    /// <summary>
+    /// Код типовой конфигурации 1С для проверки обновлений (связь ИБ ↔ конфигурация).
+    /// Совпадает с <see cref="OneCConfigType.Code"/>. Пусто — связь не задана.
+    /// </summary>
+    public string UpdateConfigCode
+    {
+        get => _updateConfigCode;
+        set => SetProperty(ref _updateConfigCode, value ?? string.Empty);
+    }
+
+    private string _updateUrlOverride = string.Empty;
+
+    /// <summary>
+    /// Ручная ссылка на каталог релизов для проверки обновлений. Если пуста — адрес
+    /// формируется автоматически по правилу 1С из кода конфигурации и редакции.
+    /// </summary>
+    public string UpdateUrlOverride
+    {
+        get => _updateUrlOverride;
+        set => SetProperty(ref _updateUrlOverride, value ?? string.Empty);
+    }
+
     /// <summary>Включена ли временная индикация «(обновление информации)» (issue #244).</summary>
     private bool _configInfoRefreshing;
     /// <summary>Колонка, в которой показывается временная надпись (issue #244).</summary>
@@ -288,6 +312,27 @@ public class Infobase : INotifyPropertyChanged
     /// Каноническое строковое значение, не локализуется.
     /// </summary>
     public string DefaultLaunchMode { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Действие по двойному щелчку на базе (функция №28 StartManager).
+    /// Каноническое строковое значение: пусто — использовать глобальную настройку,
+    /// "Enterprise" — запустить «1С:Предприятие», "Configurator" — запустить «Конфигуратор»,
+    /// "None" — ничего не делать. См. <see cref="DoubleClickAction"/>.
+    /// </summary>
+    public string DoubleClickAction { get; set; } = Configuration_Management.Models.DoubleClickAction.Default;
+
+    /// <summary>
+    /// Путь к внешней обработке (.epf/.erf), запускаемой при открытии базы в режиме
+    /// «1С:Предприятие» (функция №25 StartManager). Передаётся ключом /Execute "путь".
+    /// Пустая строка — обработка не запускается.
+    /// </summary>
+    public string ExternalProcessingPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Данные внешней обработки, передаваемые ключом /C "данные" при запуске через
+    /// <see cref="ExternalProcessingPath"/> (функция №25 StartManager). Необязательны.
+    /// </summary>
+    public string ExternalProcessingData { get; set; } = string.Empty;
 
     private string _architecture = "32-priority";
 
@@ -705,6 +750,40 @@ public class Infobase : INotifyPropertyChanged
             if (!_fileSizeResolved || !_fileSizeBytes.HasValue)
                 return "…";
             return FormatSize(_fileSizeBytes.Value);
+        }
+    }
+
+    private DateTime? _lastWriteTimeUtc;
+    private bool _lastWriteResolved;
+
+    /// <summary>
+    /// Время последнего изменения файла информационной базы (UTC), null — не файловая
+    /// или ещё не считано. Заполняется при расчёте метаданных файловой базы
+    /// (<see cref="FileSizeBytes"/>) и используется колонкой «Дата изменений» (Этап 13).
+    /// </summary>
+    public DateTime? FileLastWriteTimeUtc
+    {
+        get => _lastWriteTimeUtc;
+        set
+        {
+            if (SetProperty(ref _lastWriteTimeUtc, value))
+            {
+                _lastWriteResolved = true;
+                OnPropertyChanged(nameof(LastModifiedDisplay));
+            }
+        }
+    }
+
+    /// <summary>Дата последнего изменения файла ИБ для колонки «Дата изменений» списка баз.</summary>
+    public string LastModifiedDisplay
+    {
+        get
+        {
+            if (Connection.Type != ConnectionType.File)
+                return "—";
+            if (!_lastWriteResolved || !_lastWriteTimeUtc.HasValue)
+                return "…";
+            return _lastWriteTimeUtc.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
         }
     }
 

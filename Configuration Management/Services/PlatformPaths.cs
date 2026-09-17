@@ -13,8 +13,19 @@ public static class PlatformPaths
 {
     /// <summary>
     /// Каталог данных приложения (infobases.json, groups.json, settings.json).
+    /// В портативном режиме (<see cref="PortablePaths.IsPortable"/>) возвращается каталог
+    /// рядом с исполняемым файлом (<see cref="PortablePaths.PortableAppDataDirectory"/>),
+    /// что позволяет переносить все настройки вместе со сменным носителем (функция №1
+    /// StartManager, Этап 10). Иначе — системный каталог профиля.
     /// </summary>
-    public static string AppDataDirectory
+    public static string AppDataDirectory =>
+        PortablePaths.TryResolveDataDirectory() ?? DefaultAppDataDirectory;
+
+    /// <summary>
+    /// Системный каталог данных приложения по умолчанию (без учёта портативного режима).
+    /// Windows: %APPDATA%\ConfigurationManagement; Linux: ~/.config/ConfigurationManagement.
+    /// </summary>
+    public static string DefaultAppDataDirectory
     {
         get
         {

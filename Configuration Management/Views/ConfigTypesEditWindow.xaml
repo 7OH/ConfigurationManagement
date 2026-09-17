@@ -1,0 +1,278 @@
+<Window x:Class="Configuration_Management.ConfigTypesEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Title="{loc:Loc Updates.ConfigTypesTitle}"
+        Icon="{StaticResource AppIcon}"
+        Width="720" Height="600"
+        MinHeight="460" MinWidth="600"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <!-- Кнопка-ссылка без рамки с подсветкой при наведении -->
+        <Style x:Key="SelectAllButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="8,5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ItemHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Основная зелёная кнопка -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#16A34A"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#15803D"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#166534"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Серая кнопка-контур -->
+        <Style x:Key="OutlineButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ItemHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" FontSize="15" FontWeight="SemiBold" Text="{loc:Loc Updates.ConfigTypesTitle}"/>
+        <TextBlock Grid.Row="1" FontSize="12" Margin="0,6,0,0"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   TextWrapping="Wrap" Text="{loc:Loc Updates.ManageList}"/>
+
+        <!-- Таблица типовых конфигураций -->
+        <Border Grid.Row="2" Margin="0,12,0,0"
+                BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"
+                CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}">
+            <DataGrid x:Name="ConfigGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                      CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
+                      BorderThickness="0" Background="Transparent" GridLinesVisibility="None"
+                      RowHeight="36" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Name}" Binding="{Binding Name}"/>
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.UrlCode}" Binding="{Binding UrlCode}"/>
+                    <DataGridTextColumn Width="*" Header="{loc:Loc Updates.Editions}" Binding="{Binding EditionsSummary}"/>
+
+                    <!-- Признак предопределённой -->
+                    <DataGridTemplateColumn Width="40">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="★" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           ToolTip="{loc:Loc Updates.Tracked}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Width="44">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource SelectAllButtonStyle}"
+                                        Command="{Binding EditCommand}"
+                                        ToolTip="{loc:Loc Updates.Edit}">
+                                    <materialDesign:PackIcon Kind="PencilOutline" Width="16" Height="16"
+                                                             Foreground="{DynamicResource AccentBrush}"/>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Width="44">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource SelectAllButtonStyle}"
+                                        Command="{Binding DeleteCommand}"
+                                        ToolTip="{loc:Loc Updates.Delete}">
+                                    <materialDesign:PackIcon Kind="TrashCanOutline" Width="16" Height="16"
+                                                             Foreground="#EF4444"/>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Редактор пользовательской конфигурации (скрыт до открытия) -->
+        <Border x:Name="EditorPanel" Grid.Row="2" Margin="0,12,0,0" Visibility="Collapsed"
+                BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"
+                CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}" Padding="16">
+            <StackPanel>
+                <TextBlock x:Name="EditorTitle" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
+
+                <TextBlock Text="{loc:Loc Updates.Name}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="NameBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+
+                <TextBlock Text="{loc:Loc Updates.UrlCode}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <TextBox x:Name="UrlCodeBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+
+                <TextBlock Text="{loc:Loc Updates.Editions}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <ListBox Grid.Row="0" Grid.ColumnSpan="4" x:Name="EditionsList" MaxHeight="120"
+                             Margin="0,0,0,6" SelectionChanged="OnEditionSelectionChanged"
+                             DisplayMemberPath="Name">
+                    </ListBox>
+
+                    <TextBox Grid.Row="1" Grid.Column="0" x:Name="EditionNameBox" Margin="0,0,6,0" Padding="6,5"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="EditionRedBox" Margin="0,0,6,0" Padding="6,5"/>
+                    <TextBox Grid.Row="1" Grid.Column="2" x:Name="EditionSubRedBox" Margin="0,0,6,0" Padding="6,5"/>
+                    <TextBox Grid.Row="1" Grid.Column="3" x:Name="EditionUrlOverrideBox" Padding="6,5"/>
+
+                    <StackPanel Grid.Row="2" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button x:Name="AddEditionButton" Height="30" Style="{StaticResource OutlineButtonStyle}"
+                                Margin="0,0,8,0" Click="OnAddEditionClick">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Plus" Width="16" Height="16"/>
+                                <TextBlock Text="{loc:Loc Updates.Add}" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="RemoveEditionButton" Height="30" Style="{StaticResource OutlineButtonStyle}"
+                                Click="OnRemoveEditionClick">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Minus" Width="16" Height="16" Foreground="#EF4444"/>
+                                <TextBlock Text="{loc:Loc Updates.Delete}" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                    <Button x:Name="EditorSaveButton" Width="140" Height="34" Margin="0,0,10,0"
+                            Style="{StaticResource PrimaryButtonStyle}" Click="OnEditorSaveClick">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Check" Width="16" Height="16" Foreground="White"/>
+                            <TextBlock Text="{loc:Loc Updates.Save}" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="White"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Width="120" Height="34" Style="{StaticResource OutlineButtonStyle}"
+                            Click="OnEditorCancelClick">
+                        <TextBlock Text="{loc:Loc Updates.Cancel}" VerticalAlignment="Center"/>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Нижняя панель: Добавить / Закрыть -->
+        <Grid Grid.Row="3" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" Height="36" HorizontalAlignment="Left" Style="{StaticResource PrimaryButtonStyle}"
+                    Click="OnAddConfigClick">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="Plus" Width="16" Height="16" Foreground="White"/>
+                    <TextBlock Text="{loc:Loc Updates.AddConfig}" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="White"/>
+                </StackPanel>
+            </Button>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Width="120" Height="36" Style="{StaticResource OutlineButtonStyle}" Click="OnClose_Click">
+                    <TextBlock Text="{loc:Loc Updates.Close}" VerticalAlignment="Center"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

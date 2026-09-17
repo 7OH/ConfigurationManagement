@@ -1,0 +1,172 @@
+#if LINUX
+using System;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Configuration_Management.Controls;
+using Configuration_Management.Localization;
+using Configuration_Management.Themes;
+using Configuration_Management.ViewModels;
+
+namespace Configuration_Management;
+
+/// <summary>
+/// Окно временной блокировки приложения паролем (Avalonia/Linux), функция №19 StartManager.
+/// Режимы: «установить пароль» (два поля) и «разблокировать» (одно поле).
+/// Пароль сохраняется в виде PBKDF2-хэша в настройках.
+/// </summary>
+public sealed class AppLockWindow : ModalWindowBase
+{
+    private readonly MainViewModel _vm;
+    private readonly bool _setupMode;
+    private readonly Controls.PasswordBox _pwd1 = new();
+    private readonly Controls.PasswordBox _pwd2 = new();
+    private readonly TextBlock _pwd1Label = new();
+    private readonly TextBlock _pwd2Label = new();
+
+    /// <summary>true, если блокировка снята (введён верный пароль).</summary>
+    public bool Unlocked { get; private set; }
+
+    public AppLockWindow(MainViewModel vm, bool setupMode = false)
+    {
+        _vm = vm;
+        _setupMode = setupMode;
+
+        Width = 420;
+        Height = 300;
+        MinWidth = 400;
+        MinHeight = 280;
+        FontSize = 13;
+        Content = BuildRoot();
+
+        if (setupMode)
+        {
+            Title = T("AppLock.SetupTitle");
+            TitleLabel.Text = T("AppLock.SetupTitle");
+            PromptLabel.Text = T("AppLock.SetupPrompt");
+            OkText.Text = T("Common.Save");
+            CancelText.Text = T("Common.Cancel");
+        }
+        else
+        {
+            Title = T("AppLock.LockTitle");
+            TitleLabel.Text = T("AppLock.LockTitle");
+            PromptLabel.Text = T("AppLock.UnlockPrompt");
+            OkText.Text = T("AppLock.Unlock");
+            _pwd1Label.IsVisible = false;
+            _pwd1.IsVisible = false;
+            _pwd2Label.IsVisible = false;
+            _pwd2.IsVisible = false;
+            // Для разблокировки используем первое видимое поле пароля.
+            UnlockField = _pwd1;
+        }
+    }
+
+    private static string T(string key) => LocalizationManager.T(key);
+
+    private TextBlock TitleLabel { get; } = new()
+    {
+        FontSize = 15,
+        FontWeight = Avalonia.Media.FontWeight.SemiBold,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        Margin = new Thickness(0, 0, 0, 6),
+        TextWrapping = Avalonia.Media.TextWrapping.Wrap
+    };
+
+    private TextBlock PromptLabel { get; } = new()
+    {
+        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+        Margin = new Thickness(0, 0, 0, 12)
+    };
+
+    private TextBlock OkText { get; } = new() { Text = T("Common.Ok") };
+    private TextBlock CancelText { get; } = new() { Text = T("Common.Cancel") };
+
+    private Controls.PasswordBox? UnlockField;
+
+    private Control BuildRoot()
+    {
+        var stack = new StackPanel { Margin = new Thickness(16) };
+        stack.Children.Add(TitleLabel);
+        stack.Children.Add(PromptLabel);
+
+        _pwd1Label.Text = T("AppLock.NewPassword");
+        _pwd1Label.Margin = new Thickness(0, 0, 0, 4);
+        stack.Children.Add(_pwd1Label);
+        _pwd1.Margin = new Thickness(0, 0, 0, 8);
+        _pwd1.KeyDown += OnPassword_KeyDown;
+        stack.Children.Add(_pwd1);
+
+        _pwd2Label.Text = T("AppLock.ConfirmPassword");
+        _pwd2Label.Margin = new Thickness(0, 0, 0, 4);
+        stack.Children.Add(_pwd2Label);
+        _pwd2.Margin = new Thickness(0, 0, 0, 4);
+        _pwd2.KeyDown += OnPassword_KeyDown;
+        stack.Children.Add(_pwd2);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+        var cancel = new Button { Content = CancelText, Width = 110, Margin = new Thickness(0, 0, 8, 0) };
+        cancel.Click += OnCancel_Click;
+        var ok = new Button { Content = OkText, Width = 130 };
+        ok.Click += OnOk_Click;
+        buttons.Children.Add(cancel);
+        buttons.Children.Add(ok);
+        stack.Children.Add(buttons);
+
+        return stack;
+    }
+
+    private void OnOk_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_setupMode)
+        {
+            var pwd = _pwd1.Password ?? string.Empty;
+            var confirm = _pwd2.Password ?? string.Empty;
+            if (string.IsNullOrEmpty(pwd))
+            {
+                _vm.ShowWarning(T("AppLock.PasswordEmpty"));
+                return;
+            }
+            if (!string.Equals(pwd, confirm, StringComparison.Ordinal))
+            {
+                _vm.ShowWarning(T("AppLock.PasswordMismatch"));
+                return;
+            }
+            _vm.SetAppLockPassword(pwd);
+            Close();
+            return;
+        }
+
+        var field = UnlockField ?? _pwd1;
+        var entered = field.Password ?? string.Empty;
+        if (_vm.VerifyAppLockPassword(entered))
+        {
+            Unlocked = true;
+            Close();
+        }
+        else
+        {
+            _vm.ShowWarning(T("AppLock.WrongPassword"));
+            field.Clear();
+            field.Focus();
+        }
+    }
+
+    private void OnCancel_Click(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnPassword_KeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Enter)
+        {
+            OnOk_Click(sender, e);
+            e.Handled = true;
+        }
+    }
+}
+#endif

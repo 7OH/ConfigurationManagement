@@ -289,6 +289,7 @@ public partial class MainViewModel : ViewModelBase
         {
             _collapsedGroups.Remove(groupName);
         }
+        MarkListStateDirty();
         SaveSettings();
     }
 
@@ -318,6 +319,7 @@ public partial class MainViewModel : ViewModelBase
         SetExpandedDeep(_groupNodes, expanded: false);
         _collapsedGroups.Clear();
         CollectGroupPaths(_groupNodes, _collapsedGroups);
+        MarkListStateDirty();
         ScheduleSaveSettings();
 
         // Контейнеры обновляются сами из OneWay-привязки IsExpanded (issue #160).
@@ -333,6 +335,7 @@ public partial class MainViewModel : ViewModelBase
     {
         SetExpandedDeep(_groupNodes, expanded: true);
         _collapsedGroups.Clear();
+        MarkListStateDirty();
         ScheduleSaveSettings();
 
         if (Application.Current?.MainWindow is global::Configuration_Management.MainWindow window)

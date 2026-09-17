@@ -159,6 +159,9 @@ namespace Configuration_Management
                     case "Size":
                         Add(_vm.ShowSizeColumn, "Size", "Column.Size", _vm.SizeColumnWidth, 90);
                         break;
+                    case "Modified":
+                        Add(_vm.ShowModifiedColumn, "Modified", "Column.Modified", _vm.ModifiedColumnWidth, 130);
+                        break;
                 }
             }
             return columns;
@@ -223,6 +226,7 @@ namespace Configuration_Management
             "ServerBase" => ib.ServerDatabaseDisplay ?? string.Empty,
             "LastLaunch" => ib.LastLaunchDisplay ?? string.Empty,
             "Size" => ib.FileSizeDisplay ?? string.Empty,
+            "Modified" => ib.LastModifiedDisplay ?? string.Empty,
             _ => string.Empty
         };
 

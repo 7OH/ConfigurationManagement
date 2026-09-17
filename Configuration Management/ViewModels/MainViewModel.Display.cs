@@ -557,6 +557,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Показывать колонку «Размер» файловой ИБ.</summary>
     public bool ShowSizeColumn => _showSizeColumn;
 
+    /// <summary>Показывать колонку «Дата изменений» файловой ИБ.</summary>
+    public bool ShowModifiedColumn => _showModifiedColumn;
+
     /// <summary>Показывать колонку «Действия» (кнопки запуска/конфигуратора/очистки кеша) в списке баз.</summary>
     public bool ShowActionsColumn => _showActionsColumn;
 
@@ -570,12 +573,22 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    public double ModifiedColumnWidth
+    {
+        get => _modifiedColumnWidth;
+        set
+        {
+            if (SetProperty(ref _modifiedColumnWidth, value))
+                ScheduleSaveSettings();
+        }
+    }
+
     /// <summary>
     /// Порядок колонок списка баз по умолчанию (колонка «Конфигурация» в самом
     /// конце). Используется, пока пользователь не задал собственный порядок.
     /// </summary>
     private static readonly string[] DefaultColumnOrder =
-        { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Configuration", "ConfigurationVersion" };
+        { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "Configuration", "ConfigurationVersion" };
 
     /// <summary>
     /// Порядок колонок списка баз слева направо (кроме фиксированной колонки
@@ -597,15 +610,18 @@ public partial class MainViewModel : ViewModelBase
 
             var needsActions = !order!.Contains("Actions", StringComparer.Ordinal);
             var needsConfigurationVersion = !order.Contains("ConfigurationVersion", StringComparer.Ordinal);
-            if (!needsActions && !needsConfigurationVersion)
+            var needsModified = !order.Contains("Modified", StringComparer.Ordinal);
+            if (!needsActions && !needsConfigurationVersion && !needsModified)
                 return order;
 
-            var result = new List<string>(order.Count + 1);
+            var result = new List<string>(order.Count + 2);
             foreach (var key in order)
             {
                 if (needsConfigurationVersion && key == "Configuration")
                     result.Add("ConfigurationVersion");
                 result.Add(key);
+                if (needsModified && key == "Size")
+                    result.Add("Modified");
             }
             if (needsActions)
                 result.Add("Actions");
@@ -650,7 +666,7 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public void ApplyDisplaySettings(bool showFavoritesButton, bool showPinnedButton, bool showTags,
         bool showVersionColumn, bool showLaunchModeColumn, bool showServerColumn, bool showLastLaunchColumn,
-        bool groupByGroup, bool showFavoritesOnly, bool showSizeColumn = true,
+        bool groupByGroup, bool showFavoritesOnly, bool showSizeColumn = true, bool showModifiedColumn = true,
         bool showConfigurationColumn = true, bool showConfigurationVersionColumn = true, bool showEmptyGroups = false,
         List<string>? columnOrder = null, bool showActionsColumn = true)
     {
@@ -664,6 +680,7 @@ public partial class MainViewModel : ViewModelBase
         _showServerColumn = showServerColumn;
         _showLastLaunchColumn = showLastLaunchColumn;
         _showSizeColumn = showSizeColumn;
+        _showModifiedColumn = showModifiedColumn;
         _showActionsColumn = showActionsColumn;
 
         OnPropertyChanged(nameof(ShowFavoritesButton));
@@ -676,6 +693,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowServerColumn));
         OnPropertyChanged(nameof(ShowLastLaunchColumn));
         OnPropertyChanged(nameof(ShowSizeColumn));
+        OnPropertyChanged(nameof(ShowModifiedColumn));
         OnPropertyChanged(nameof(ShowActionsColumn));
 
         // Применяем поведение списка (уже имеющиеся настройки).
@@ -706,6 +724,7 @@ public partial class MainViewModel : ViewModelBase
             key == "LastLaunch" ? visible : _showLastLaunchColumn,
             _groupByGroup, ShowFavoritesOnly,
             showSizeColumn: key == "Size" ? visible : _showSizeColumn,
+            showModifiedColumn: key == "Modified" ? visible : _showModifiedColumn,
             showConfigurationColumn: key == "Configuration" ? visible : _showConfigurationColumn,
             showConfigurationVersionColumn: key == "ConfigurationVersion" ? visible : _showConfigurationVersionColumn,
             showEmptyGroups: _showEmptyGroups,

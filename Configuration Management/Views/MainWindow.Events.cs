@@ -386,20 +386,20 @@ namespace Configuration_Management
                 return;
             }
 
-            // Двойной клик по базе запускает её в режиме по умолчанию (issue #201):
-            // «1С:Предприятие» или «Конфигуратор» согласно DefaultLaunchMode базы.
-            var defaultKind = string.Equals(
-                _viewModel.SelectedInfobase?.DefaultLaunchMode,
-                "Configurator",
-                StringComparison.Ordinal)
-                ? Configuration_Management.Models.LaunchKind.Configurator
-                : Configuration_Management.Models.LaunchKind.Enterprise;
-            var launchCommand = defaultKind == Configuration_Management.Models.LaunchKind.Configurator
-                ? _viewModel.LaunchConfiguratorCommand
-                : _viewModel.LaunchEnterpriseCommand;
-            if (launchCommand.CanExecute(null))
+            // Двойной клик по базе выполняет настроенное действие (функция №28 StartManager):
+            // «1С:Предприятие», «Конфигуратор» или «Ничего». Индивидуальное значение ИБ
+            // переопределяет глобальную настройку (см. MainViewModel.ResolveDoubleClickAction).
+            var dblAction = _viewModel.ResolveDoubleClickAction(_viewModel.SelectedInfobase);
+            if (dblAction == Configuration_Management.Models.DoubleClickAction.None)
+                return;
+            if (dblAction == Configuration_Management.Models.DoubleClickAction.Configurator
+                && _viewModel.LaunchConfiguratorCommand.CanExecute(null))
             {
-                launchCommand.Execute(null);
+                _viewModel.LaunchConfiguratorCommand.Execute(null);
+            }
+            else if (_viewModel.LaunchEnterpriseCommand.CanExecute(null))
+            {
+                _viewModel.LaunchEnterpriseCommand.Execute(null);
             }
         }
 

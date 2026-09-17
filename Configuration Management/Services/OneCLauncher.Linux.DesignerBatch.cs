@@ -21,7 +21,13 @@ namespace Configuration_Management.Services
         {
             DumpIB,
             DumpCfg,
-            TestAndRepair
+            TestAndRepair,
+            /// <summary>Восстановление данных ИБ из выгрузки .dt (/RestoreIB"path").</summary>
+            RestoreIB,
+            /// <summary>Установка блокировки сеансов ИБ (/LockIB"строка сеансов").</summary>
+            LockIB,
+            /// <summary>Снятие блокировки сеансов ИБ (/LockIB"").</summary>
+            UnlockIB
         }
 
         /// <summary>Информация о запущенной пакетной операции DESIGNER.</summary>
@@ -51,12 +57,16 @@ namespace Configuration_Management.Services
                 DesignerBatchOperation.DumpIB => LocalizationManager.T("Launcher.OperationDumpIB"),
                 DesignerBatchOperation.DumpCfg => LocalizationManager.T("Launcher.OperationDumpCfg"),
                 DesignerBatchOperation.TestAndRepair => LocalizationManager.T("Launcher.OperationTestAndRepair"),
+                DesignerBatchOperation.RestoreIB => LocalizationManager.T("Launcher.OperationRestoreIB"),
+                DesignerBatchOperation.LockIB => LocalizationManager.T("Launcher.OperationLockIB"),
+                DesignerBatchOperation.UnlockIB => LocalizationManager.T("Launcher.OperationUnlockIB"),
                 _ => LocalizationManager.T("Launcher.OperationGeneric")
             };
         }
 
         /// <summary>Запускает конфигуратор в пакетном режиме (выгрузка .dt/.cf или тест).</summary>
-        public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath = null)
+        public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath = null,
+            BackupCredential? credential = null)
         {
             var arch = ResolveArchitecture(infobase.Architecture, infobase.PlatformVersion);
             var exePath = FindExecutable(infobase.PlatformVersion, arch, null, OneCLaunchMode.Configurator);
@@ -82,9 +92,19 @@ namespace Configuration_Management.Services
                     catch { return false; }
                 }
             }
+            else if (operation == DesignerBatchOperation.RestoreIB)
+            {
+                // Восстановление требует существующий исходный файл выгрузки (.dt).
+                if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath))
+                    return false;
+            }
 
             var connectionArg = BuildConnectionArgument(infobase);
             var authArg = BuildAuthArgument(infobase);
+            // Переопределённые учётные данные сценария резервирования: если они заданы явно
+            // (UseInfobaseAuth == false), используем их вместо авторизации базы.
+            if (credential is { UseInfobaseAuth: false })
+                authArg = BuildCredentialsArg(credential.User, credential.Password);
 
             // Ключи вида /DumpIB"path" — по грамматике ключа, НЕ строки подключения: кавычку внутри
             // пути удвоением не экранируют, поэтому путь с «"» недопустим (см. IsSafeCliValue) —
@@ -94,6 +114,13 @@ namespace Configuration_Management.Services
                 DesignerBatchOperation.DumpIB when IsSafeCliValue(outputPath) => $"/DumpIB\"{outputPath}\"",
                 DesignerBatchOperation.DumpCfg when IsSafeCliValue(outputPath) => $"/DumpCfg\"{outputPath}\"",
                 DesignerBatchOperation.TestAndRepair => "/IBCheckAndRepair -TestOnly",
+                DesignerBatchOperation.RestoreIB when IsSafeCliValue(outputPath) => $"/RestoreIB\"{outputPath}\"",
+                // Блокировка сеансов файловой ИБ: /LockIB"строка сеансов". Строка строится
+                // в SessionLockOptions.BuildSessionLockString(); выходной файл не создаётся,
+                // поэтому в outputPath передаётся именно строка сеансов.
+                DesignerBatchOperation.LockIB when IsSafeCliValue(outputPath) => $"/LockIB\"{outputPath}\"",
+                // Снятие блокировки: /LockIB с пустой строкой сеансов.
+                DesignerBatchOperation.UnlockIB => "/LockIB\"\"",
                 _ => ""
             };
             if (string.IsNullOrEmpty(opArg))

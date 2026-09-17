@@ -754,6 +754,31 @@
                     <TextBlock Text="{loc:Loc Connection.DefaultLaunchModeLabel}" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
                     <ComboBox x:Name="DefaultLaunchModeCombo" Width="220" HorizontalAlignment="Left" Margin="0,0,0,8"
                               SelectionChanged="OnDefaultLaunchModeCombo_SelectionChanged"/>
+
+                    <TextBlock Text="{loc:Loc Connection.DblClickActionLabel}" FontWeight="SemiBold" FontSize="12" Margin="0,8,0,4"/>
+                    <ComboBox x:Name="DoubleClickActionCombo" Width="220" HorizontalAlignment="Left" Margin="0,0,0,4"
+                              SelectionChanged="OnDoubleClickActionCombo_SelectionChanged"/>
+
+                    <TextBlock Text="{loc:Loc Connection.ExternalProcessingLabel}" FontWeight="SemiBold" FontSize="12" Margin="0,8,0,4"/>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="ExternalProcessingPathBox" Grid.Column="0"
+                                 Text="{Binding ExternalProcessingPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8,6" VerticalContentAlignment="Center"/>
+                        <Button Grid.Column="1" Margin="6,0,0,0" Padding="8,3" Style="{DynamicResource SecondaryButton}"
+                                Click="OnBrowseExternalProcessing_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="FolderOpen" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc Common.Browse}"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <TextBlock Text="{loc:Loc Connection.ExternalProcessingDataLabel}" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,4"/>
+                    <TextBox Text="{Binding ExternalProcessingData, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="8,6" VerticalContentAlignment="Center" Margin="0,0,0,4"/>
                     <Border Margin="0,0,0,4" Padding="8,6" CornerRadius="6"
                             BorderThickness="1.5" Cursor="Hand"
                             Background="{DynamicResource CardBackgroundBrush}">

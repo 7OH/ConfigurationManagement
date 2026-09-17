@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.8.10</Version>
-    <AssemblyVersion>0.3.8.10</AssemblyVersion>
-    <FileVersion>0.3.8.10</FileVersion>
-    <InformationalVersion>0.3.8.10</InformationalVersion>
+    <Version>0.3.8.20</Version>
+    <AssemblyVersion>0.3.8.20</AssemblyVersion>
+    <FileVersion>0.3.8.20</FileVersion>
+    <InformationalVersion>0.3.8.20</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -213,6 +213,17 @@
     <Compile Remove="Views\LoginWindow.xaml.cs" />
     <Compile Remove="Views\ProfilesPanel.xaml.cs" />
     <Compile Remove="Views\SettingsWindow.Accounts.cs" />
+    <!-- Окна Этапа 1 (проверка обновлений конфигураций): WPF code-behind исключается,
+         Avalonia-версии (*Window.Avalonia.cs) подключаются глобом ниже. -->
+    <Compile Remove="Views\ConfigTypesEditWindow.xaml.cs" />
+    <Compile Remove="Views\UpdateCheckWindow.xaml.cs" />
+    <Compile Remove="Views\ActualReleasesWindow.xaml.cs" />
+    <Compile Remove="Views\ConfigUpdateLinkWindow.xaml.cs" />
+    <!-- Окна Этапа 2 (сценарии резервирования и список выгрузок): WPF code-behind
+         исключается, Avalonia-версии (*Window.Avalonia.cs) подключаются глобом ниже. -->
+    <Compile Remove="Views\BackupScenariosWindow.xaml.cs" />
+    <Compile Remove="Views\BackupScenarioEditWindow.xaml.cs" />
+    <Compile Remove="Views\ExportsListWindow.xaml.cs" />
     <!-- Кастомные контролы (WPF) исключаем, но возвращаем Avalonia-версии (*.Avalonia.cs) -->
     <Compile Remove="Controls\**\*.cs" />
     <Compile Include="Controls\*.Avalonia.cs" />
@@ -246,9 +257,38 @@
     <!-- Общая модель строки диалога «Очистка истории запусков» (issue #246):
          чистый .NET без WPF-зависимостей, используется и Windows, и Linux. -->
     <Compile Include="ViewModels\ClearHistoryRowViewModel.cs" />
+    <!-- Общие модели окна «Проверка обновлений конфигураций» (Этап 1, функции №21/№22):
+         чистый .NET без WPF-зависимостей, используются и Windows, и Linux. -->
+    <Compile Include="ViewModels\ConfigTypeItemViewModel.cs" />
+    <Compile Include="ViewModels\UpdateCheckRowViewModel.cs" />
+    <Compile Include="ViewModels\ActualReleasesViewModel.cs" />
+    <!-- Команды проверки обновлений MainViewModel (Avalonia/Linux): файл не совпадает
+         с глобом *.Avalonia.cs (имя «MainViewModel.Avalonia.*.cs»), добавляется явно. -->
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Updates.cs" />
     <!-- Общая модель строки диалога «Поиск потерянных баз 1С» (issue #247):
          чистый .NET без WPF-зависимостей, используется и Windows, и Linux. -->
     <Compile Include="ViewModels\FoundBaseRowViewModel.cs" />
+    <!-- Модели и ViewModels Этапа 2 (сценарии резервирования, список выгрузок):
+         чистый .NET без WPF-зависимостей, используются и Windows, и Linux. -->
+    <Compile Include="ViewModels\BackupScenarioItemViewModel.cs" />
+    <Compile Include="ViewModels\BackupScenarioEditViewModel.cs" />
+    <Compile Include="ViewModels\ExportsListViewModel.cs" />
+    <!-- Команды сценариев резервирования MainViewModel (Avalonia/Linux): имя
+         «MainViewModel.Avalonia.*.cs» не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Backup.cs" />
+    <!-- Команды блокировки сеансов ИБ и временной блокировки приложения (Этап 3,
+         функции №19/№20): имя не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
+    <Compile Include="ViewModels\MainViewModel.Avalonia.SessionLock.cs" />
+    <!-- Команды администрирования ИБ (Этап 6, функция №29 + консоль серверов): имя
+         не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Admin.cs" />
+    <!-- Автозапуск при старте ОС и копия экрана (Этап 8, функции №31/№30): имя
+         «MainViewModel.Avalonia.*.cs» не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
+    <Compile Remove="ViewModels\MainViewModel.Avalonia.AutoStart.cs" />
+    <Compile Include="ViewModels\MainViewModel.Avalonia.AutoStart.cs" />
+    <!-- Режим функциональности (Этап 10 StartManager): имя «MainViewModel.Avalonia.*.cs»
+         не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Functional.cs" />
     <!-- Windows-only сервисы — Этап 5 -->
     <Compile Remove="Services\WpfDialogService.cs" />
     <!-- Проверка обновлений из GitHub Releases кроссплатформенная: на Linux тоже используется
@@ -267,6 +307,10 @@
     <Compile Remove="Services\OneCComConnector.cs" />
     <Compile Remove="Services\OneCComConnectorRegistrar.cs" />
     <Compile Remove="Services\ComReadHost.cs" />
+    <!-- Интеграция с проводником Windows (функция №12): файлы под #if WINDOWS исключаются
+         из Linux-сборки; заглушка ExplorerIntegrationService.Avalonia.cs включается глобом. -->
+    <Compile Remove="Services\ExplorerCommandLine.cs" />
+    <Compile Remove="Services\ExplorerIntegrationService.cs" />
     <Compile Remove="Services\PlatformVersionService.cs" />
     <Compile Remove="Services\InfobaseMaintenanceService.cs" />
     <Compile Remove="Services\InfobaseMaintenanceService.FileBase.cs" />

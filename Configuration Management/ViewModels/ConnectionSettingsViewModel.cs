@@ -45,6 +45,9 @@ public class ConnectionSettingsViewModel : ViewModelBase
     private string _configuratorPassword = string.Empty;
     private bool _configuratorUseEnterpriseAuth;
     private string _defaultLaunchMode = string.Empty;
+    private string _doubleClickAction = Configuration_Management.Models.DoubleClickAction.Default;
+    private string _externalProcessingPath = string.Empty;
+    private string _externalProcessingData = string.Empty;
 
     /// <summary>
     /// Создаёт ViewModel с указанным списком доступных групп.
@@ -696,6 +699,30 @@ public class ConnectionSettingsViewModel : ViewModelBase
         set => SetProperty(ref _defaultLaunchMode, value ?? string.Empty);
     }
 
+    /// <summary>
+    /// Действие по двойному щелчку на базе (функция №28 StartManager). Пусто — использовать
+    /// глобальную настройку; "Enterprise" / "Configurator" / "None" — индивидуальное значение.
+    /// </summary>
+    public string DoubleClickAction
+    {
+        get => _doubleClickAction;
+        set => SetProperty(ref _doubleClickAction, value ?? string.Empty);
+    }
+
+    /// <summary>Путь к внешней обработке (.epf/.erf), запускаемой при открытии ИБ (функция №25 StartManager).</summary>
+    public string ExternalProcessingPath
+    {
+        get => _externalProcessingPath;
+        set => SetProperty(ref _externalProcessingPath, value ?? string.Empty);
+    }
+
+    /// <summary>Данные внешней обработки (ключ /C) (функция №25 StartManager).</summary>
+    public string ExternalProcessingData
+    {
+        get => _externalProcessingData;
+        set => SetProperty(ref _externalProcessingData, value ?? string.Empty);
+    }
+
     /// <summary>Режим аутентификации.</summary>
     public AuthenticationMode AuthenticationMode
     {
@@ -947,6 +974,10 @@ public class ConnectionSettingsViewModel : ViewModelBase
             LaunchMode = infobase.LaunchMode;
             LaunchParameters = infobase.LaunchParameters;
             DefaultLaunchMode = infobase.DefaultLaunchMode ?? string.Empty;
+            // Действие по двойному щелчку и внешняя обработка при запуске (Этап 7).
+            DoubleClickAction = infobase.DoubleClickAction ?? string.Empty;
+            ExternalProcessingPath = infobase.ExternalProcessingPath ?? string.Empty;
+            ExternalProcessingData = infobase.ExternalProcessingData ?? string.Empty;
 
             // Ручной размер базы (issue #243).
             ManualSizeBytes = infobase.ManualSizeBytes;
@@ -1109,6 +1140,10 @@ public class ConnectionSettingsViewModel : ViewModelBase
         infobase.LaunchMode = string.IsNullOrWhiteSpace(LaunchMode) ? "Автоматический" : LaunchMode;
         infobase.LaunchParameters = LaunchParameters ?? string.Empty;
         infobase.DefaultLaunchMode = (DefaultLaunchMode ?? string.Empty).Trim();
+        // Действие по двойному щелчку и внешняя обработка при запуске (Этап 7).
+        infobase.DoubleClickAction = (DoubleClickAction ?? string.Empty).Trim();
+        infobase.ExternalProcessingPath = (ExternalProcessingPath ?? string.Empty).Trim();
+        infobase.ExternalProcessingData = (ExternalProcessingData ?? string.Empty).Trim();
 
         // Ручной размер базы (issue #243).
         infobase.ManualSizeBytes = ManualSizeBytes;

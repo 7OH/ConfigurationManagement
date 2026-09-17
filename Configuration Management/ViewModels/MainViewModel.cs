@@ -99,7 +99,16 @@ public partial class MainViewModel : ViewModelBase
     private bool _showSizeColumn = true;
     private bool _showActionsColumn = true;
     private double _sizeColumnWidth;
+    private bool _showModifiedColumn = true;
+    private double _modifiedColumnWidth;
     private List<string> _columnOrder = new();
+
+    // Автосохранение состояния списка (раскрытые/свёрнутые группы) с периодичностью.
+    private System.Windows.Threading.DispatcherTimer? _listStateAutoSaveTimer;
+    /// <summary>Флаг «состояние раскрытия групп менялось после последнего сохранения».</summary>
+    private bool _listStateDirty;
+    private bool _autoSaveListState = true;
+    private int _listStateAutoSaveIntervalSeconds = 10;
     private double _windowWidth;
     private double _windowHeight;
     private double _windowLeft;
@@ -139,8 +148,16 @@ public partial class MainViewModel : ViewModelBase
     private bool _escapeToTray = true;
     private string _afterLaunchAction = "None";
     private List<string> _templateCatalogPaths = new();
+    /// <summary>Интеграция с проводником Windows (функция №12): ассоциация .1CD и контекстное меню.</summary>
+    private bool _explorerIntegrationEnabled;
+    // Автозапуск при старте ОС (функция №31) и копия экрана (функция №30).
+    private bool _autoStartEnabled;
+    private string _screenshotHotkey = "Ctrl+F12";
+    private string _screenshotSaveDirectory = "";
     private string _hotkeyEnterprise = "F3";
     private string _hotkeyConfigurator = "F4";
+    private string _hotkeyCheckUpdate = "F9";
+    private string _hotkeyActualReleases = "Alt+F9";
     private string _hotkeyFavorite = "F8";
     private string _hotkeyEdit = "F2";
     private string _hotkeyDelete = "Delete";
@@ -168,6 +185,9 @@ public partial class MainViewModel : ViewModelBase
     private HashSet<string> _activeTagFilterSet = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Пользовательские параметры запуска, добавленные в справочник параметров (issue #141).</summary>
     private List<string> _customLaunchParameters = new();
+
+    /// <summary>Глобальное действие по двойному щелчку на базе (функция №28 StartManager).</summary>
+    private string _defaultDoubleClickAction = Models.DoubleClickAction.GlobalDefault;
 
     /// <summary>Идёт ли в данный момент выгрузка .dt/.cf (показывает индикатор в верхней панели).</summary>
     private bool _isExporting;
@@ -241,6 +261,8 @@ public partial class MainViewModel : ViewModelBase
         PlatformVersionService.SetAdditionalSearchPaths(_additionalPlatformSearchPaths);
         // Пользовательские параметры запуска (issue #141): дополняют справочник ключей.
         _customLaunchParameters = new List<string>(settings.CustomLaunchParameters ?? new List<string>());
+        // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
+        _defaultDoubleClickAction = Models.DoubleClickAction.Normalize(settings.DefaultDoubleClickAction);
         // Актуальный список версий платформы с диска (Program Files + доп. пути) собирается
         // в фоне уже после показа окна: рекурсивное сканирование каталогов установки могло бы
         // заметно задержать появление главного окна. Сразу берём сохранённый список из настроек,
@@ -269,6 +291,8 @@ public partial class MainViewModel : ViewModelBase
         _maxLaunchHistoryPerBase = settings.MaxLaunchHistoryPerBase > 0
             ? settings.MaxLaunchHistoryPerBase
             : 30;
+        // Режим функциональности и параметры 1CLaunch.cfg (Этап 10 StartManager).
+        LoadFunctionalSettings(settings);
         _showVersionColumn = settings.ShowVersionColumn;
         _showConfigurationColumn = settings.ShowConfigurationColumn;
         _showConfigurationVersionColumn = settings.ShowConfigurationVersionColumn;
@@ -303,6 +327,10 @@ public partial class MainViewModel : ViewModelBase
         _showSizeColumn = settings.ShowSizeColumn;
         _showActionsColumn = settings.ShowActionsColumn;
         _sizeColumnWidth = settings.SizeColumnWidth;
+        _showModifiedColumn = settings.ShowModifiedColumn;
+        _modifiedColumnWidth = settings.ModifiedColumnWidth;
+        _autoSaveListState = settings.AutoSaveListState;
+        _listStateAutoSaveIntervalSeconds = Math.Max(1, settings.ListStateAutoSaveIntervalSeconds);
         _columnOrder = settings.ColumnOrder is { Count: > 0 }
             ? new List<string>(settings.ColumnOrder)
             : new List<string>();
@@ -330,11 +358,30 @@ public partial class MainViewModel : ViewModelBase
         _escapeToTray = settings.EscapeToTray;
         _afterLaunchAction = settings.AfterLaunchAction ?? "None";
         _compactMode = settings.CompactMode;
+        _explorerIntegrationEnabled = settings.ExplorerIntegrationEnabled;
+        // Автозапуск при старте ОС (функция №31) и копия экрана (функция №30, Этап 8).
+        _autoStartEnabled = settings.AutoStartEnabled;
+        _screenshotHotkey = string.IsNullOrWhiteSpace(settings.ScreenshotHotkey)
+            ? "Ctrl+F12"
+            : settings.ScreenshotHotkey.Trim();
+        _screenshotSaveDirectory = settings.ScreenshotSaveDirectory ?? "";
         _templateCatalogPaths = settings.TemplateCatalogPaths?.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
             ?? new List<string>();
         OneCTemplateService.SetUserTemplatePaths(_templateCatalogPaths);
         _hotkeyEnterprise = string.IsNullOrWhiteSpace(settings.HotkeyEnterprise) ? "F3" : settings.HotkeyEnterprise.Trim();
         _hotkeyConfigurator = string.IsNullOrWhiteSpace(settings.HotkeyConfigurator) ? "F4" : settings.HotkeyConfigurator.Trim();
+        _hotkeyCheckUpdate = string.IsNullOrWhiteSpace(settings.HotkeyCheckUpdate) ? "F9" : settings.HotkeyCheckUpdate.Trim();
+        _hotkeyActualReleases = string.IsNullOrWhiteSpace(settings.HotkeyActualReleases) ? "Alt+F9" : settings.HotkeyActualReleases.Trim();
+        // Сценарии резервирования (функции №16/№18): выполнение сценария и «Список выгрузок».
+        _hotkeyRunBackup = string.IsNullOrWhiteSpace(settings.HotkeyRunBackup) ? "Ctrl+Shift+F5" : settings.HotkeyRunBackup.Trim();
+        _hotkeyExportsList = string.IsNullOrWhiteSpace(settings.HotkeyExportsList) ? "Ctrl+Shift+F7" : settings.HotkeyExportsList.Trim();
+        // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
+        _hotkeySessionLock = string.IsNullOrWhiteSpace(settings.HotkeySessionLock) ? "Ctrl+Alt+L" : settings.HotkeySessionLock.Trim();
+        _hotkeyLockApp = settings.HotkeyLockApp?.Trim() ?? "";
+        // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
+        _hotkeyCheckIntegrity = string.IsNullOrWhiteSpace(settings.HotkeyCheckIntegrity) ? "Ctrl+Alt+Q" : settings.HotkeyCheckIntegrity.Trim();
+        _hotkeyServerConsole = string.IsNullOrWhiteSpace(settings.HotkeyServerConsole) ? "Ctrl+Alt+S" : settings.HotkeyServerConsole.Trim();
+        _appLockPasswordHash = settings.AppLockPasswordHash ?? "";
         _hotkeyFavorite = settings.HotkeyFavorite?.Trim() ?? "F8";
         _hotkeyEdit = settings.HotkeyEdit?.Trim() ?? "F2";
         _hotkeyDelete = settings.HotkeyDelete?.Trim() ?? "Delete";
@@ -514,6 +561,8 @@ public partial class MainViewModel : ViewModelBase
         RefreshConfigurationInfoCommand = new RelayCommand(RefreshConfigurationInfo, _ => SelectedInfobase != null);
         CheckAvailabilityCommand = new RelayCommand(_ => CheckAvailability());
         RegisterComConnectorCommand = new RelayCommand(RegisterComConnector);
+        // Копия экрана по хоткею (функция №30, Этап 8).
+        TakeScreenshotCommand = new RelayCommand(_ => TakeScreenshot());
 
         // Если список баз пуст — предлагаем загрузить базы из файла ibases.v8i.
         // Диалог нельзя показывать прямо из конструктора: главное окно ещё не показано,
@@ -534,6 +583,52 @@ public partial class MainViewModel : ViewModelBase
                 PromptImportFromIbasesV8i();
             }
         }
+
+        // Периодическое автосохранение состояния раскрытия групп.
+        StartListStateAutoSave();
+    }
+
+    /// <summary>Включено ли автосохранение состояния списка (раскрытые группы).</summary>
+    public bool AutoSaveListState => _autoSaveListState;
+
+    /// <summary>Интервал автосохранения состояния списка в секундах.</summary>
+    public int ListStateAutoSaveIntervalSeconds => _listStateAutoSaveIntervalSeconds;
+
+    /// <summary>
+    /// Запускает периодическое автосохранение состояния списка. Если автосохранение
+    /// выключено — останавливает таймер.
+    /// </summary>
+    private void StartListStateAutoSave()
+    {
+        if (!_autoSaveListState)
+        {
+            _listStateAutoSaveTimer?.Stop();
+            _listStateAutoSaveTimer = null;
+            return;
+        }
+        if (_listStateAutoSaveTimer is not null)
+            return;
+        _listStateAutoSaveTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(Math.Max(1, _listStateAutoSaveIntervalSeconds))
+        };
+        _listStateAutoSaveTimer.Tick += (_, _) => SaveListStateIfDirty();
+        _listStateAutoSaveTimer.Start();
+    }
+
+    /// <summary>Сохраняет состояние списка, если оно менялось после последнего сохранения.</summary>
+    private void SaveListStateIfDirty()
+    {
+        if (!_listStateDirty)
+            return;
+        _listStateDirty = false;
+        ScheduleSaveSettings();
+    }
+
+    /// <summary>Помечает состояние раскрытия групп как изменённое (нуждается в автосохранении).</summary>
+    private void MarkListStateDirty()
+    {
+        _listStateDirty = true;
     }
 
     /// <summary>Список информационных баз.</summary>
@@ -893,6 +988,36 @@ public partial class MainViewModel : ViewModelBase
             .Where(v => !string.IsNullOrWhiteSpace(v))
             .Distinct(StringComparer.OrdinalIgnoreCase));
         SaveSettings();
+    }
+
+    /// <summary>Текущее глобальное действие по двойному щелчку на базе (функция №28 StartManager).</summary>
+    public string DefaultDoubleClickAction => _defaultDoubleClickAction;
+
+    /// <summary>
+    /// Устанавливает глобальное действие по двойному щелчку на базе и сохраняет настройки.
+    /// Значение нормализуется к каноническому (<see cref="Models.DoubleClickAction.Normalize"/>).
+    /// </summary>
+    public void SetDefaultDoubleClickAction(string value)
+    {
+        var normalized = Models.DoubleClickAction.Normalize(value);
+        if (string.Equals(_defaultDoubleClickAction, normalized, StringComparison.Ordinal))
+            return;
+        _defaultDoubleClickAction = normalized;
+        SaveSettings();
+    }
+
+    /// <summary>
+    /// Определяет действие по двойному щелчку для конкретной базы (функция №28 StartManager):
+    /// индивидуальное значение ИБ (Infobase.DoubleClickAction) имеет приоритет; если оно пусто —
+    /// используется глобальная настройка <see cref="DefaultDoubleClickAction"/>.
+    /// Возвращает каноническую строку из <see cref="Models.DoubleClickAction"/>.
+    /// </summary>
+    public string ResolveDoubleClickAction(Infobase? infobase)
+    {
+        var perBase = (infobase?.DoubleClickAction ?? string.Empty).Trim();
+        return string.IsNullOrEmpty(perBase)
+            ? _defaultDoubleClickAction
+            : Models.DoubleClickAction.Normalize(perBase);
     }
 
     /// <summary>

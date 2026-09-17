@@ -1,0 +1,171 @@
+<Window x:Class="Configuration_Management.UpdateCheckWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Title="{loc:Loc Updates.CheckTitle}"
+        Icon="{StaticResource AppIcon}"
+        Width="600" Height="560"
+        MinHeight="460" MinWidth="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,14,0,4"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#16A34A"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#15803D"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#166534"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="OutlineButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ItemHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" FontSize="15" FontWeight="SemiBold" Text="{loc:Loc Updates.CheckTitle}"/>
+        <TextBlock Grid.Row="1" x:Name="BaseNameText" FontSize="13" Margin="0,6,0,0" FontWeight="SemiBold"
+                   Foreground="{DynamicResource AccentBrush}"/>
+
+        <!-- Карточка сведений о конфигурации -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+            <Border BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"
+                    CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}" Padding="16">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{loc:Loc Updates.CurrentVersion}"/>
+                    <TextBlock x:Name="CurrentVersionText" FontSize="15" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"/>
+
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{loc:Loc Updates.LatestVersion}"/>
+                    <TextBlock x:Name="LatestVersionText" FontSize="15" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasNewer}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{loc:Loc Updates.Status}"/>
+                    <TextBlock x:Name="StatusText" FontSize="14" FontWeight="SemiBold"/>
+
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{loc:Loc Updates.Url}"/>
+                    <TextBlock x:Name="UrlText" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                    <TextBlock x:Name="ErrorText" FontSize="12" Margin="0,12,0,0" TextWrapping="Wrap"
+                               Foreground="#EF4444"/>
+
+                    <!-- Прогресс загрузки -->
+                    <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Margin="0,14,0,0">
+                        <ProgressBar x:Name="DownloadProgressBar" Height="6" Maximum="1" Minimum="0"
+                                     Value="{Binding Progress}"
+                                     Foreground="{DynamicResource AccentBrush}"/>
+                        <TextBlock x:Name="ProgressText" FontSize="12" Margin="0,6,0,0"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </ScrollViewer>
+
+        <!-- Нижняя панель: Проверить / Скачать / Закрыть -->
+        <Grid Grid.Row="3" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="CheckButton" Width="150" Height="36" Margin="0,0,10,0"
+                        Style="{StaticResource OutlineButtonStyle}" Click="OnCheckClick">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16"/>
+                        <TextBlock Text="{loc:Loc Updates.StartCheck}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="DownloadButton" Width="150" Height="36" Margin="0,0,10,0"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Command="{Binding DownloadCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="DownloadOutline" Width="16" Height="16" Foreground="White"/>
+                        <TextBlock Text="{loc:Loc Updates.Download}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                   Foreground="White"/>
+                    </StackPanel>
+                </Button>
+                <Button Width="120" Height="36" Style="{StaticResource OutlineButtonStyle}" Click="OnClose_Click">
+                    <TextBlock Text="{loc:Loc Updates.Close}" VerticalAlignment="Center"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

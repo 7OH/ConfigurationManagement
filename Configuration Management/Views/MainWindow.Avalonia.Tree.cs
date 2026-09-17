@@ -395,7 +395,13 @@ namespace Configuration_Management
                 if (_vm is not { } vm)
                     return;
                 vm.SelectedInfobase = ib;
-                if (string.Equals(ib.DefaultLaunchMode, "Configurator", StringComparison.Ordinal))
+                // Действие по двойному щелчку (функция №28 StartManager): «1С:Предприятие»,
+                // «Конфигуратор» или «Ничего». Индивидуальное значение ИБ переопределяет
+                // глобальную настройку (см. MainViewModel.ResolveDoubleClickAction).
+                var dblAction = vm.ResolveDoubleClickAction(ib);
+                if (dblAction == Configuration_Management.Models.DoubleClickAction.None)
+                    return;
+                if (dblAction == Configuration_Management.Models.DoubleClickAction.Configurator)
                     vm.LaunchConfiguratorCommand.Execute(null);
                 else
                     vm.LaunchEnterpriseCommand.Execute(null);
@@ -1552,6 +1558,22 @@ namespace Configuration_Management
             menu.Items.Add(MenuAction("Main.LaunchEnterprise", _vm.LaunchEnterpriseCommand, _vm.HotkeyEnterprise, "IconPlay", "#22C55E"));
             menu.Items.Add(MenuAction("Main.LaunchConfigurator", _vm.LaunchConfiguratorCommand, _vm.HotkeyConfigurator, "IconSettings", "#3B82F6"));
             menu.Items.Add(MenuAction("Main.RefreshConfigInfo", _vm.RefreshConfigurationInfoCommand, null, "IconCloudDownload", "#14B8A6"));
+            // Проверка обновлений конфигураций 1С (функции №21/№22): F9 — для выбранной
+            // ИБ, ALT+F9 — окно «Актуальные релизы». Сочетания показываются из настроек.
+            menu.Items.Add(MenuAction("Updates.CheckTitle", _vm.CheckUpdateCommand, _vm.HotkeyCheckUpdate, "IconCloudDownload", "#14B8A6"));
+            menu.Items.Add(MenuAction("Updates.ActualReleasesTitle", _vm.ShowActualReleasesCommand, _vm.HotkeyActualReleases, null, null));
+            var linkItem = new MenuItem { Header = LocalizationManager.T("Updates.ConfigLink") };
+            linkItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            linkItem.Click += (_, _) =>
+            {
+                if (_vm.SelectedInfobase is not null)
+                    _vm.OpenConfigUpdateLink(_vm.SelectedInfobase);
+            };
+            menu.Items.Add(linkItem);
+            var manageItem = new MenuItem { Header = LocalizationManager.T("Updates.ManageList") };
+            manageItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            manageItem.Click += (_, _) => _vm.OpenConfigTypesEdit();
+            menu.Items.Add(manageItem);
             // «Зарегистрировать COM-коннектор» здесь нет намеренно: внешнее соединение
             // это COM, в Linux регистрировать нечего. Windows-сторона решение подтвердила.
             menu.Items.Add(new Separator());
@@ -1569,6 +1591,18 @@ namespace Configuration_Management
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuAction("Main.DumpToDt", _vm.DumpInfobaseDtCommand, null, "IconDatabaseExport", "#0EA5E9"));
             menu.Items.Add(MenuAction("Main.DumpConfigToCf", _vm.DumpConfigurationCfCommand, null, "IconFileExport", "#3B82F6"));
+            // Сценарии резервирования и «Список выгрузок» (функции №16/№18):
+            // Ctrl+Shift+F5 — выполнить сценарий, Ctrl+Shift+F7 — список выгрузок.
+            menu.Items.Add(MenuAction("Backup.ScenariosTitle", _vm.ShowBackupScenariosCommand, null, "IconSettings", "#F59E0B"));
+            menu.Items.Add(MenuAction("Backup.RunTitle", _vm.RunBackupScenarioCommand, _vm.HotkeyRunBackup, "IconDatabaseExport", "#22C55E"));
+            menu.Items.Add(MenuAction("Restore.Title", _vm.ShowExportsListCommand, _vm.HotkeyExportsList, null, null));
+            // Блокировка сеансов файловой ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
+            menu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
+            menu.Items.Add(MenuAction("AppLock.LockTitle", _vm.LockAppCommand, _vm.HotkeyLockApp, "IconExitToApp", "#8B5CF6"));
+            // Администрирование ИБ (Этап 6, функция №29 + консоль серверов): проверка
+            // целостности файловой ИБ (chdbfl) и консоль администрирования серверов 1С.
+            menu.Items.Add(MenuAction("Admin.CheckIntegrity", _vm.CheckIntegrityCommand, _vm.HotkeyCheckIntegrity, "IconDatabase", "#10B981"));
+            menu.Items.Add(MenuAction("Admin.ServerConsole", _vm.OpenServerConsoleCommand, _vm.HotkeyServerConsole, "IconServer", "#14B8A6"));
             menu.Items.Add(new Separator());
             // «Изменить настройки» (аналог «Свойств» в ОС) размещён внизу меню,
             // после разделителя, как в issue #242 (соответствует WPF).

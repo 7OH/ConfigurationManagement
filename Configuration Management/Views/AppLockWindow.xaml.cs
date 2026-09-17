@@ -1,0 +1,118 @@
+#if WINDOWS
+using System;
+using System.Windows;
+using System.Windows.Input;
+using Configuration_Management.Localization;
+using Configuration_Management.Services;
+using Configuration_Management.ViewModels;
+
+namespace Configuration_Management
+{
+    /// <summary>
+    /// Окно временной блокировки приложения паролем (функция №19 StartManager).
+    /// Работает в двух режимах:
+    ///  — «установить пароль» (когда пароль ещё не задан): два поля ввода пароля;
+    ///  — «разблокировать» (когда пароль уже задан): одно поле для снятия блокировки.
+    /// Пароль сохраняется в виде PBKDF2-хэша в настройках.
+    /// </summary>
+    public partial class AppLockWindow : Window
+    {
+        private readonly MainViewModel _vm;
+        private readonly bool _setupMode;
+
+        /// <summary>true, если блокировка снята (введён верный пароль).</summary>
+        public bool Unlocked { get; private set; }
+
+        public AppLockWindow(MainViewModel vm, bool setupMode = false)
+        {
+            InitializeComponent();
+            _vm = vm;
+            _setupMode = setupMode;
+
+            if (setupMode)
+            {
+                Title = LocalizationManager.T("AppLock.SetupTitle");
+                TitleLabel.Text = LocalizationManager.T("AppLock.SetupTitle");
+                PromptLabel.Text = LocalizationManager.T("AppLock.SetupPrompt");
+                OkTextBlock.Text = LocalizationManager.T("Common.Save");
+                CancelTextBlock.Text = LocalizationManager.T("Common.Cancel");
+                PasswordBox2.Visibility = Visibility.Visible;
+                ConfirmLabel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                Title = LocalizationManager.T("AppLock.LockTitle");
+                TitleLabel.Text = LocalizationManager.T("AppLock.LockTitle");
+                PromptLabel.Text = LocalizationManager.T("AppLock.UnlockPrompt");
+                OkTextBlock.Text = LocalizationManager.T("AppLock.Unlock");
+                NewPasswordLabel.Visibility = Visibility.Collapsed;
+                PasswordBox1.Visibility = Visibility.Collapsed;
+                ConfirmLabel.Visibility = Visibility.Collapsed;
+                PasswordBox2.Visibility = Visibility.Collapsed;
+            }
+
+            Loaded += (_, _) =>
+            {
+                if (!_setupMode)
+                {
+                    // В режиме разблокировки поле пароля — первое (видимое переиспользуем).
+                    PasswordBox2.Focus();
+                }
+                else
+                {
+                    PasswordBox1.Focus();
+                }
+            };
+        }
+
+        private void OnOk_Click(object sender, RoutedEventArgs e)
+        {
+            if (_setupMode)
+            {
+                var pwd = PasswordBox1.Password ?? string.Empty;
+                var confirm = PasswordBox2.Password ?? string.Empty;
+                if (string.IsNullOrEmpty(pwd))
+                {
+                    MessageBox.Show(LocalizationManager.T("AppLock.PasswordEmpty"),
+                        Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (!string.Equals(pwd, confirm, StringComparison.Ordinal))
+                {
+                    MessageBox.Show(LocalizationManager.T("AppLock.PasswordMismatch"),
+                        Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                _vm.SetAppLockPassword(pwd);
+                DialogResult = true;
+                return;
+            }
+
+            var entered = PasswordBox2.Password ?? string.Empty;
+            if (_vm.VerifyAppLockPassword(entered))
+            {
+                Unlocked = true;
+                DialogResult = true;
+            }
+            else
+            {
+                MessageBox.Show(LocalizationManager.T("AppLock.WrongPassword"),
+                    Title, MessageBoxButton.OK, MessageBoxImage.Error);
+                PasswordBox2.Clear();
+                PasswordBox2.Focus();
+            }
+        }
+
+        private void OnCancel_Click(object sender, RoutedEventArgs e) => Close();
+
+        private void OnPassword_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                OnOk_Click(sender, e);
+                e.Handled = true;
+            }
+        }
+    }
+}
+#endif

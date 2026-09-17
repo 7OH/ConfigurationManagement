@@ -66,6 +66,40 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Ограничение «системного меню» для режима «Пользователь» (Этап 10 StartManager).
+        /// При открытии контекстного меню базы скрывает все системные пункты, кроме
+        /// помеченных <c>Tag="User"</c> (запуск Предприятия/Конфигуратора, избранное, закрепление).
+        /// В остальных режимах («Специалист»/«Разработчик») меню показывается полностью.
+        /// </summary>
+        private void OnBaseContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            if (sender is not ContextMenu menu || _viewModel == null)
+                return;
+
+            var restricted = _viewModel.IsSystemMenuRestricted;
+            var items = menu.Items.Cast<object>().ToList();
+            foreach (var item in items.OfType<MenuItem>())
+            {
+                var allowed = string.Equals(item.Tag as string, "User", StringComparison.Ordinal);
+                item.Visibility = restricted && !allowed ? Visibility.Collapsed : Visibility.Visible;
+            }
+            // Скрываем разделители, оставшиеся рядом со скрытыми пунктами.
+            if (restricted)
+            {
+                for (var i = items.Count - 1; i >= 0; i--)
+                {
+                    if (items[i] is not Separator sep)
+                        continue;
+                    var prevVisible = items.Take(i).OfType<MenuItem>()
+                        .Any(m => m.Visibility == Visibility.Visible);
+                    var nextVisible = items.Skip(i + 1).OfType<MenuItem>()
+                        .Any(m => m.Visibility == Visibility.Visible);
+                    sep.Visibility = prevVisible && nextVisible ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+        }
+
+        /// <summary>
         /// Строит целевую последовательность колонок (логические ключи) по выбранному
         /// пользователем порядку. Первая итерация идёт по пользовательскому порядку
         /// (<see cref="_viewModel.ColumnOrderKeys"/>), отбрасывая незнакомые ключи, — поэтому
@@ -75,7 +109,7 @@ namespace Configuration_Management
         /// </summary>
         private List<string> BuildColumnLayout()
         {
-            var known = new[] { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Configuration", "ConfigurationVersion" };
+            var known = new[] { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "Configuration", "ConfigurationVersion" };
             var keys = new List<string>();
             // Идём по ПОЛЬЗОВАТЕЛЬСКОМУ порядку, отбрасывая незнакомые ключи,
             // чтобы фактически применять выбранный порядок (в т.ч. перенос «Действий»).
@@ -633,6 +667,8 @@ namespace Configuration_Management
                 return LastLaunchColumn;
             if (ReferenceEquals(sender, SizeSplitter))
                 return SizeColumn;
+            if (ReferenceEquals(sender, ModifiedSplitter))
+                return ModifiedColumn;
             return null;
         }
 
@@ -679,6 +715,12 @@ namespace Configuration_Management
             {
                 // SizeColumnWidth имеет публичный сеттер и авто-сохраняется при изменении.
                 _viewModel.SizeColumnWidth = newWidth;
+                return;
+            }
+            if (ReferenceEquals(_resizeColumn, ModifiedColumn))
+            {
+                // ModifiedColumnWidth имеет публичный сеттер и авто-сохраняется при изменении.
+                _viewModel.ModifiedColumnWidth = newWidth;
                 return;
             }
 

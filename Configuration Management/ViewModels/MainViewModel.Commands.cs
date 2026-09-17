@@ -254,6 +254,10 @@ public partial class MainViewModel : ViewModelBase
             target.LaunchMode = dialog.Result.LaunchMode;
             target.LaunchParameters = dialog.Result.LaunchParameters;
             target.DefaultLaunchMode = dialog.Result.DefaultLaunchMode;
+            // Внешняя обработка при запуске и действие по двойному щелчку (Этап 7).
+            target.DoubleClickAction = dialog.Result.DoubleClickAction;
+            target.ExternalProcessingPath = dialog.Result.ExternalProcessingPath;
+            target.ExternalProcessingData = dialog.Result.ExternalProcessingData;
             target.ClientType = dialog.Result.ClientType;
             target.IsFavorite = dialog.Result.IsFavorite;
             target.IsPinned = dialog.Result.IsPinned;

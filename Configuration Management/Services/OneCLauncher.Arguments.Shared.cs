@@ -105,15 +105,40 @@ public static partial class OneCLauncher
             var server = repo.Server.Trim().TrimEnd('/');
             var name = (repo.RepositoryName ?? string.Empty).Trim();
             var repoPath = string.IsNullOrWhiteSpace(name) ? server : $"{server}/{name}";
+            // Учётные данные Хранилища конфигурации выбираются единым резолвингом (Этап 12,
+            // функция №7 StartManager): отдельные логин/пароль хранилища (RepositorySettings),
+            // передаваемые ключами /ConfigurationRepositoryN и /ConfigurationRepositoryP.
+            InfobaseAuthResolver.ResolveRepository(infobase, out var repoUser, out var repoPassword);
             // Значения /ConfigurationRepository* тоже идут по грамматике ключа (не строки
             // подключения): небезопасное значение (с «"») не подставляется (см. IsSafeCliValue).
             if (IsSafeCliValue(repoPath))
                 repositoryArg = $" /ConfigurationRepositoryF \"{repoPath}\"";
-            if (IsSafeCliValue(repo.User))
+            if (IsSafeCliValue(repoUser))
             {
-                repositoryArg += $" /ConfigurationRepositoryN \"{repo.User}\"";
-                if (IsSafeCliValue(repo.Password))
-                    repositoryArg += $" /ConfigurationRepositoryP \"{repo.Password}\"";
+                repositoryArg += $" /ConfigurationRepositoryN \"{repoUser}\"";
+                if (IsSafeCliValue(repoPassword))
+                    repositoryArg += $" /ConfigurationRepositoryP \"{repoPassword}\"";
+            }
+        }
+
+        // Внешняя обработка, запускаемая при открытии ИБ в режиме «1С:Предприятие»
+        // (функция №25 StartManager). Передаётся ключом /Execute "<путь>" и при необходимости
+        // /C "<данные>" (данные обработки). Работает только в режиме «Предприятие» — в
+        // «Конфигураторе» эти ключи неприменимы. Значение идёт по грамматике ключа командной
+        // строки: небезопасное значение (с «"») опускается (см. IsSafeCliValue).
+        string externalArg = "";
+        if (mode == OneCLaunchMode.Enterprise &&
+            !string.IsNullOrWhiteSpace(infobase.ExternalProcessingPath))
+        {
+            var path = infobase.ExternalProcessingPath.Trim();
+            if (IsSafeCliValue(path))
+            {
+                externalArg = $" /Execute \"{path}\"";
+                if (!string.IsNullOrWhiteSpace(infobase.ExternalProcessingData) &&
+                    IsSafeCliValue(infobase.ExternalProcessingData))
+                {
+                    externalArg += $" /C \"{infobase.ExternalProcessingData.Trim()}\"";
+                }
             }
         }
 
@@ -121,7 +146,29 @@ public static partial class OneCLauncher
             ? ""
             : " " + infobase.LaunchParameters.Trim();
 
-        return $"{modeArg}{clientArg}{connectionArg}{authArg}{repositoryArg}{extraArg}";
+        var arguments = $"{modeArg}{clientArg}{connectionArg}{authArg}{repositoryArg}{externalArg}{extraArg}";
+
+        // Параметры по умолчанию из 1CLaunch.cfg (Этап 10 StartManager) подставляются
+        // лаунчером, если соответствующие ключи уже не заданы параметрами самой базы
+        // / командной строкой (приоритет командной строки над файлом). Для этого разбираем
+        // уже собранную строку и добавляем только те ключи, которых в ней ещё нет.
+        var defaults = OneCLaunchConfigReader.ToLaunchArguments(
+            OneCLaunchConfigReader.ReadDefaults());
+        if (defaults.Count > 0)
+        {
+            var existingKeys = new System.Collections.Generic.HashSet<string>(
+                OneCLaunchArgumentParser.ParseLaunchParameters(arguments)
+                    .Select(a => a.Key),
+                System.StringComparer.OrdinalIgnoreCase);
+            foreach (var d in defaults)
+            {
+                if (existingKeys.Contains(d.Key))
+                    continue;
+                arguments += d.HasValue ? $" {d.Key} \"{d.Value}\"" : $" {d.Key}";
+            }
+        }
+
+        return arguments;
     }
 
     /// <summary>Аргументы /N /P при режиме Credentials.</summary>

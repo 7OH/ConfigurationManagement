@@ -1,0 +1,55 @@
+<Window x:Class="Configuration_Management.AppLockWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        mc:Ignorable="d"
+        Title="{loc:Loc AppLock.LockTitle}"
+        Icon="{StaticResource AppIcon}"
+        Height="300" Width="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style TargetType="PasswordBox">
+            <Setter Property="Padding" Value="8,6"/>
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
+    </Window.Resources>
+
+    <StackPanel Margin="16">
+        <TextBlock x:Name="TitleLabel" TextWrapping="Wrap" FontSize="15" FontWeight="SemiBold"
+                   Margin="0,0,0,6" HorizontalAlignment="Center"/>
+        <TextBlock x:Name="PromptLabel" TextWrapping="Wrap" Margin="0,0,0,12"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+        <TextBlock x:Name="NewPasswordLabel" Text="{loc:Loc AppLock.NewPassword}" Margin="0,0,0,4"/>
+        <PasswordBox x:Name="PasswordBox1" Margin="0,0,0,8" KeyDown="OnPassword_KeyDown"/>
+        <TextBlock x:Name="ConfirmLabel" Text="{loc:Loc AppLock.ConfirmPassword}" Margin="0,0,0,4"/>
+        <PasswordBox x:Name="PasswordBox2" Margin="0,0,0,4" KeyDown="OnPassword_KeyDown"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Width="110" Margin="0,0,8,0" IsCancel="True"
+                    Click="OnCancel_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="CancelTextBlock" Text="{loc:Loc Common.Cancel}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="OkButton" Width="130" IsDefault="True" Click="OnOk_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✔" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="OkTextBlock" Text="{loc:Loc Common.Ok}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </StackPanel>
+</Window>

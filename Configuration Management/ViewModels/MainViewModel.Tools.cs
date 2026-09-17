@@ -1154,22 +1154,24 @@ public partial class MainViewModel : ViewModelBase
         if (fileBases.Count == 0)
             return;
 
-        var sizes = await System.Threading.Tasks.Task.Run(() =>
+        var results = await System.Threading.Tasks.Task.Run(() =>
         {
-            var map = new Dictionary<Infobase, long?>();
+            var map = new Dictionary<Infobase, (long?, DateTime)>();
             foreach (var ib in fileBases)
-                map[ib] = CalculateFileBaseSizeCached(ib);
+                map[ib] = CalculateFileBaseMetadataCached(ib);
             return map;
         });
 
         var changed = false;
-        foreach (var kv in sizes)
+        foreach (var kv in results)
         {
-            if (kv.Key.FileSizeBytes != kv.Value)
+            if (kv.Key.FileSizeBytes != kv.Value.Item1)
             {
-                kv.Key.FileSizeBytes = kv.Value;
+                kv.Key.FileSizeBytes = kv.Value.Item1;
                 changed = true;
             }
+            // Дата изменений файла ИБ для колонки «Дата изменений» (Этап 13).
+            kv.Key.FileLastWriteTimeUtc = kv.Value.Item2 == default ? (DateTime?)null : kv.Value.Item2;
         }
         if (changed)
             SaveSettings();
@@ -1177,15 +1179,16 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Возвращает размер файловой ИБ с учётом кеша: при совпадении времени последней записи
-    /// пути с сохранённым размер берётся без сканирования диска, иначе выполняется расчёт
-    /// и результат помещается в кеш.
+    /// Возвращает размер и дату последнего изменения файловой ИБ с учётом кеша: при совпадении
+    /// времени последней записи пути с сохранённым размер берётся без сканирования диска,
+    /// иначе выполняется расчёт и результат помещается в кеш. Дата изменений возвращается
+    /// для колонки «Дата изменений» (Этап 13) и вычисляется из того же маркера актуальности.
     /// </summary>
-    private long? CalculateFileBaseSizeCached(Infobase ib)
+    private (long?, DateTime) CalculateFileBaseMetadataCached(Infobase ib)
     {
         var path = ib.Connection.FilePath?.Trim() ?? "";
         if (string.IsNullOrEmpty(path))
-            return null;
+            return (null, default);
         var key = NormalizeCachePath(path);
         try
         {
@@ -1203,7 +1206,7 @@ public partial class MainViewModel : ViewModelBase
                 ? File.GetLastWriteTimeUtc(marker)
                 : Directory.GetLastWriteTimeUtc(path);
             if (_fileSizeCache.TryGetValue(key, out var cached) && cached.LastWriteUtc == lastWrite)
-                return cached.SizeBytes;
+                return (cached.SizeBytes, lastWrite);
 
             var size = InfobaseMaintenanceService.CalculateFileBaseSize(ib);
             if (size is not null)
@@ -1214,11 +1217,11 @@ public partial class MainViewModel : ViewModelBase
                     LastWriteUtc = lastWrite
                 };
             }
-            return size;
+            return (size, lastWrite);
         }
         catch
         {
-            return null;
+            return (null, default);
         }
     }
 
@@ -1851,7 +1854,11 @@ public partial class MainViewModel : ViewModelBase
         string? hotkeyClearSearch = null,
         string? hotkeyClearTags = null,
         string? hotkeyRightPanelDetails = null,
-        string? hotkeySwitchUser = null)
+        string? hotkeySwitchUser = null,
+        string? hotkeySessionLock = null,
+        string? hotkeyLockApp = null,
+        string? hotkeyCheckIntegrity = null,
+        string? hotkeyServerConsole = null)
     {
         _allowMultipleInstances = allowMultipleInstances;
         _checkForUpdatesOnStartup = checkForUpdatesOnStartup;
@@ -1877,6 +1884,10 @@ public partial class MainViewModel : ViewModelBase
         if (hotkeyClearTags != null) _hotkeyClearTags = hotkeyClearTags.Trim();
         if (hotkeyRightPanelDetails != null) _hotkeyRightPanelDetails = hotkeyRightPanelDetails.Trim();
         if (hotkeySwitchUser != null) _hotkeySwitchUser = hotkeySwitchUser.Trim();
+        if (hotkeySessionLock != null) _hotkeySessionLock = hotkeySessionLock.Trim();
+        if (hotkeyLockApp != null) _hotkeyLockApp = hotkeyLockApp.Trim();
+        if (hotkeyCheckIntegrity != null) _hotkeyCheckIntegrity = hotkeyCheckIntegrity.Trim();
+        if (hotkeyServerConsole != null) _hotkeyServerConsole = hotkeyServerConsole.Trim();
         OnPropertyChanged(nameof(AllowMultipleInstances));
         OnPropertyChanged(nameof(CheckForUpdatesOnStartup));
         OnPropertyChanged(nameof(AutoUpdateEnabled));
@@ -1900,6 +1911,8 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HotkeyClearTags));
         OnPropertyChanged(nameof(HotkeyRightPanelDetails));
         OnPropertyChanged(nameof(HotkeySwitchUser));
+        OnPropertyChanged(nameof(HotkeyCheckIntegrity));
+        OnPropertyChanged(nameof(HotkeyServerConsole));
         OnPropertyChanged(nameof(RememberWindowLayout));
         SaveSettings();
     }

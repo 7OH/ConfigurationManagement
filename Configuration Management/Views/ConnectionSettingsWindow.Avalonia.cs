@@ -820,12 +820,78 @@ namespace Configuration_Management
                 };
             };
 
+            // Действие по двойному щелчку (функция №28 StartManager): пусто — использовать
+            // глобальную настройку, либо индивидуальное значение для этой базы.
+            var dblLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("Connection.DblClickActionLabel"),
+                FontSize = 12,
+                FontWeight = FontWeight.SemiBold,
+                Margin = new Thickness(0, 6, 0, 4)
+            };
+            var dblBox = new ComboBox
+            {
+                Width = 220,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            dblBox.ItemsSource = new[]
+            {
+                LocalizationManager.T("Connection.DblClickGlobal"),
+                LocalizationManager.T("Connection.DefaultLaunchEnterprise"),
+                LocalizationManager.T("Connection.DefaultLaunchConfigurator"),
+                LocalizationManager.T("Connection.DblClickNone")
+            };
+            dblBox.SelectedIndex = (_viewModel.DoubleClickAction ?? string.Empty).Trim() switch
+            {
+                Configuration_Management.Models.DoubleClickAction.Enterprise => 1,
+                Configuration_Management.Models.DoubleClickAction.Configurator => 2,
+                Configuration_Management.Models.DoubleClickAction.None => 3,
+                _ => 0
+            };
+            dblBox.SelectionChanged += (_, _) =>
+            {
+                _viewModel.DoubleClickAction = dblBox.SelectedIndex switch
+                {
+                    1 => Configuration_Management.Models.DoubleClickAction.Enterprise,
+                    2 => Configuration_Management.Models.DoubleClickAction.Configurator,
+                    3 => Configuration_Management.Models.DoubleClickAction.None,
+                    _ => Configuration_Management.Models.DoubleClickAction.Default
+                };
+            };
+
+            // Внешняя обработка, запускаемая при открытии ИБ (функция №25 StartManager).
+            var extLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("Connection.ExternalProcessingLabel"),
+                FontSize = 12,
+                FontWeight = FontWeight.SemiBold,
+                Margin = new Thickness(0, 8, 0, 4)
+            };
+            var extPath = Tb("ExternalProcessingPath");
+            extPath.Padding = new Thickness(8, 6);
+            var extDataLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("Connection.ExternalProcessingDataLabel"),
+                FontSize = 12,
+                FontWeight = FontWeight.SemiBold,
+                Margin = new Thickness(0, 6, 0, 4)
+            };
+            var extData = Tb("ExternalProcessingData");
+            extData.Padding = new Thickness(8, 6);
+
             var content = new StackPanel
             {
                 Children =
                 {
                     defaultModeLabel,
                     defaultModeBox,
+                    dblLabel,
+                    dblBox,
+                    extLabel,
+                    extPath,
+                    extDataLabel,
+                    extData,
                     OptionCard("LaunchMode", "IsAutoMode", "Connection.LaunchAuto", "Connection.LaunchAutoHint", wrapHint: true),
                     OptionCard("LaunchMode", "IsThinClient", "Connection.LaunchThin", "Connection.LaunchThinHint", wrapHint: true),
                     OptionCard("LaunchMode", "IsThickClient", "Connection.LaunchThickManaged", "Connection.LaunchThickManagedHint", wrapHint: true),

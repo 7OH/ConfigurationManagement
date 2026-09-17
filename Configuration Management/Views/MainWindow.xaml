@@ -722,6 +722,15 @@
                                             </MultiBinding>
                                         </ColumnDefinition.Width>
                                     </ColumnDefinition>
+                                    <!-- Колонка «Дата изменений» — сразу после «Размера» -->
+                                    <ColumnDefinition x:Name="ModifiedColumn">
+                                        <ColumnDefinition.Width>
+                                            <MultiBinding Converter="{StaticResource ColumnVis}" ConverterParameter="130">
+                                                <Binding Path="DataContext.ShowModifiedColumn" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                <Binding Path="DataContext.ModifiedColumnWidth" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                            </MultiBinding>
+                                        </ColumnDefinition.Width>
+                                    </ColumnDefinition>
                                     <!-- Колонка «Конфигурация» (только название) — в самом конце списка колонок -->
                                     <ColumnDefinition x:Name="ConfigurationColumn">
                                         <ColumnDefinition.Width>
@@ -859,6 +868,21 @@
                                                TextTrimming="CharacterEllipsis" Margin="4,0,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="11" Orientation="Horizontal" VerticalAlignment="Center"
+                                            HorizontalAlignment="Stretch" Margin="6,0,6,4">
+                                    <StackPanel.ContextMenu>
+                                        <ContextMenu Style="{DynamicResource ModernContextMenu}">
+                                            <MenuItem Header="{loc:Loc Column.HideColumn}" Tag="Modified" Click="OnColumnHeaderContextMenu_Hide" Style="{DynamicResource ModernMenuItem}"/>
+                                            <MenuItem Header="{loc:Loc Settings.Columns.OpenSettings}" Click="OnColumnHeaderContextMenu_OpenSettings" Style="{DynamicResource ModernMenuItem}"/>
+                                        </ContextMenu>
+                                    </StackPanel.ContextMenu>
+                                    <materialDesign:PackIcon Kind="CalendarClock" Width="13" Height="13"
+                                                             Foreground="{DynamicResource TextSecondaryBrush}"
+                                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text="{loc:Loc Column.Modified}" FontWeight="SemiBold" FontSize="12"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" Margin="4,0,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="12" Orientation="Horizontal" VerticalAlignment="Center"
                                             HorizontalAlignment="Stretch" Margin="6,0,6,4"
                                             ToolTip="{loc:Loc Main.ColumnNameTooltip}">
                                     <StackPanel.ContextMenu>
@@ -874,7 +898,7 @@
                                                Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis" Margin="4,0,0,0"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="12" Orientation="Horizontal" VerticalAlignment="Center"
+                                <StackPanel Grid.Column="13" Orientation="Horizontal" VerticalAlignment="Center"
                                             HorizontalAlignment="Stretch" Margin="6,0,6,4">
                                     <StackPanel.ContextMenu>
                                         <ContextMenu Style="{DynamicResource ModernContextMenu}">
@@ -973,7 +997,19 @@
                                             Background="{DynamicResource BorderBrushColor}" Opacity="0.55"
                                             Margin="0,2,0,4"/>
                                 </Border>
-                                <Border x:Name="ConfigurationSplitter" Grid.Column="11"
+                                <Border x:Name="ModifiedSplitter" Grid.Column="11"
+                                        HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="8"
+                                        Panel.ZIndex="1" Background="Transparent" Cursor="SizeWE"
+                                        ToolTip="{loc:Loc Main.ResizeColumnTooltip}"
+                                        Visibility="{Binding DataContext.ShowModifiedColumn, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                        MouseLeftButtonDown="OnColumnResize_MouseDown"
+                                        MouseMove="OnColumnResize_MouseMove"
+                                        MouseLeftButtonUp="OnColumnResize_MouseUp">
+                                    <Border Width="1" HorizontalAlignment="Center"
+                                            Background="{DynamicResource BorderBrushColor}" Opacity="0.55"
+                                            Margin="0,2,0,4"/>
+                                </Border>
+                                <Border x:Name="ConfigurationSplitter" Grid.Column="12"
                                         HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="8"
                                         Panel.ZIndex="1" Background="Transparent" Cursor="SizeWE"
                                         ToolTip="{loc:Loc Main.ResizeColumnTooltip}"
@@ -985,7 +1021,7 @@
                                             Background="{DynamicResource BorderBrushColor}" Opacity="0.55"
                                             Margin="0,2,0,4"/>
                                 </Border>
-                                <Border x:Name="ConfigurationVersionSplitter" Grid.Column="12"
+                                <Border x:Name="ConfigurationVersionSplitter" Grid.Column="13"
                                         HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="8"
                                         Panel.ZIndex="1" Background="Transparent" Cursor="SizeWE"
                                         ToolTip="{loc:Loc Main.ResizeColumnTooltip}"
@@ -1168,6 +1204,14 @@
                                                     <MultiBinding Converter="{StaticResource ColumnVis}" ConverterParameter="90">
                                                         <Binding Path="DataContext.ShowSizeColumn" RelativeSource="{RelativeSource AncestorType=Window}"/>
                                                         <Binding Path="DataContext.SizeColumnWidth" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                    </MultiBinding>
+                                                </ColumnDefinition.Width>
+                                            </ColumnDefinition>
+                                            <ColumnDefinition>
+                                                <ColumnDefinition.Width>
+                                                    <MultiBinding Converter="{StaticResource ColumnVis}" ConverterParameter="130">
+                                                        <Binding Path="DataContext.ShowModifiedColumn" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                        <Binding Path="DataContext.ModifiedColumnWidth" RelativeSource="{RelativeSource AncestorType=Window}"/>
                                                     </MultiBinding>
                                                 </ColumnDefinition.Width>
                                             </ColumnDefinition>
@@ -1396,6 +1440,15 @@
                                                     </MultiBinding>
                                                 </ColumnDefinition.Width>
                                             </ColumnDefinition>
+                                            <!-- Колонка «Дата изменений» — сразу после «Размера» -->
+                                            <ColumnDefinition>
+                                                <ColumnDefinition.Width>
+                                                    <MultiBinding Converter="{StaticResource ColumnVis}" ConverterParameter="130">
+                                                        <Binding Path="DataContext.ShowModifiedColumn" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                        <Binding Path="DataContext.ModifiedColumnWidth" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                    </MultiBinding>
+                                                </ColumnDefinition.Width>
+                                            </ColumnDefinition>
                                             <!-- Колонка «Конфигурация» (только название) — в самом конце списка колонок -->
                                             <ColumnDefinition>
                                                 <ColumnDefinition.Width>
@@ -1529,12 +1582,12 @@
                                                    Cursor="Hand"
                                                    ToolTip="{loc:Loc Main.PlatformVersionTooltip}"/>
 
-                                        <TextBlock Grid.Column="11" Text="{Binding ConfigurationNameDisplay}" FontSize="12"
+                                        <TextBlock Grid.Column="12" Text="{Binding ConfigurationNameDisplay}" FontSize="12"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
                                                    ToolTip="{Binding ConfigurationNameDisplay}"/>
 
-                                        <TextBlock Grid.Column="12" Text="{Binding ConfigurationVersionDisplay}" FontSize="12"
+                                        <TextBlock Grid.Column="13" Text="{Binding ConfigurationVersionDisplay}" FontSize="12"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
                                                    ToolTip="{Binding ConfigurationVersionDisplay}"/>
@@ -1554,6 +1607,11 @@
                                         <TextBlock Grid.Column="10" Text="{Binding FileSizeDisplay}" FontSize="12"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
+
+                                        <TextBlock Grid.Column="11" Text="{Binding LastModifiedDisplay}" FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                                                   HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding LastModifiedDisplay}"/>
 
                                         <!-- Колонка «Действия»: встаёт сразу после «Режим запуска»; кнопки управления конкретной базой этой строки -->
                                         <StackPanel Grid.Column="7" Grid.RowSpan="2" Orientation="Horizontal"
@@ -1838,24 +1896,32 @@
 
                         <!-- Контекстное меню по правой кнопке мыши для выбранной базы -->
                         <controls:LeveledTreeView.ContextMenu>
-                            <ContextMenu Style="{DynamicResource ModernContextMenu}">
-                                <MenuItem Header="{loc:Loc Main.LaunchEnterprise}" Command="{Binding LaunchEnterpriseCommand}" InputGestureText="{Binding HotkeyEnterprise}" Style="{DynamicResource ModernMenuItem}">
+                            <ContextMenu Style="{DynamicResource ModernContextMenu}" Opened="OnBaseContextMenu_Opened">
+                                <MenuItem Header="{loc:Loc Main.LaunchEnterprise}" Tag="User" Command="{Binding LaunchEnterpriseCommand}" InputGestureText="{Binding HotkeyEnterprise}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Play" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="{loc:Loc Main.LaunchConfigurator}" Command="{Binding LaunchConfiguratorCommand}" InputGestureText="{Binding HotkeyConfigurator}" Style="{DynamicResource ModernMenuItem}">
+                                <MenuItem Header="{loc:Loc Main.LaunchConfigurator}" Tag="User" Command="{Binding LaunchConfiguratorCommand}" InputGestureText="{Binding HotkeyConfigurator}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Cog" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem Header="{loc:Loc Main.RefreshConfigInfo}" Command="{Binding RefreshConfigurationInfoCommand}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                 </MenuItem>
+                                <!-- Проверка обновлений конфигураций 1С (функции №21/№22): F9 — для
+                                     выбранной ИБ, ALT+F9 — окно «Актуальные релизы». -->
+                                <MenuItem Header="{loc:Loc Updates.CheckTitle}" Command="{Binding CheckUpdateCommand}" InputGestureText="{Binding HotkeyCheckUpdate}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="{loc:Loc Updates.ActualReleasesTitle}" Command="{Binding ShowActualReleasesCommand}" InputGestureText="{Binding HotkeyActualReleases}" Style="{DynamicResource ModernMenuItem}"/>
+                                <MenuItem Header="{loc:Loc Updates.ConfigLink}" Click="OnConfigUpdateLinkMenuClick" Style="{DynamicResource ModernMenuItem}"/>
+                                <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
                                 <MenuItem Header="{loc:Loc Main.RegisterComConnector}" Command="{Binding RegisterComConnectorCommand}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Key" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                 </MenuItem>
                                 <Separator/>
-                                <MenuItem Header="{loc:Loc Main.ToFavorites}" Command="{Binding ToggleFavoriteCommand}" InputGestureText="{Binding HotkeyFavorite}" Style="{DynamicResource ModernMenuItem}">
+                                <MenuItem Header="{loc:Loc Main.ToFavorites}" Tag="User" Command="{Binding ToggleFavoriteCommand}" InputGestureText="{Binding HotkeyFavorite}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Star" Width="16" Height="16" Foreground="#FBBF24"/></MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="{loc:Loc Main.Pin}" Command="{Binding TogglePinCommand}" InputGestureText="{Binding HotkeyPin}" Style="{DynamicResource ModernMenuItem}">
+                                <MenuItem Header="{loc:Loc Main.Pin}" Tag="User" Command="{Binding TogglePinCommand}" InputGestureText="{Binding HotkeyPin}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Pin" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
                                 </MenuItem>
                                 <!-- «Очистить кеш» по аналогии со split-кнопкой правой панели:
@@ -1905,6 +1971,34 @@
                                 </MenuItem>
                                 <MenuItem Header="{loc:Loc Main.LaunchHistory}" Command="{Binding ShowLaunchHistoryCommand}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="History" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
+                                </MenuItem>
+                                <!-- Сценарии резервирования и «Список выгрузок» (функции №16/№18):
+                                     Ctrl+Shift+F5 — выполнить сценарий, Ctrl+Shift+F7 — список выгрузок. -->
+                                <MenuItem Header="{loc:Loc Backup.ScenariosTitle}" Command="{Binding ShowBackupScenariosCommand}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="Cog" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="{loc:Loc Backup.RunTitle}" Command="{Binding RunBackupScenarioCommand}" InputGestureText="{Binding HotkeyRunBackup}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseExport" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="{loc:Loc Restore.Title}" Command="{Binding ShowExportsListCommand}" InputGestureText="{Binding HotkeyExportsList}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseImport" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
+                                </MenuItem>
+                                <!-- Блокировка сеансов файловой ИБ (функция №20, Ctrl+Alt+L)
+                                     и временная блокировка приложения (функция №19). -->
+                                <MenuItem Header="{loc:Loc SessionLock.Title}" Command="{Binding ShowSessionLockCommand}" InputGestureText="{Binding HotkeySessionLock}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="ShieldLockOutline" Width="16" Height="16" Foreground="#EF4444"/></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="{loc:Loc AppLock.LockTitle}" Command="{Binding LockAppCommand}" InputGestureText="{Binding HotkeyLockApp}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="Lock" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
+                                </MenuItem>
+                                <!-- Администрирование ИБ (Этап 6, функция №29 + консоль серверов):
+                                     проверка целостности файловой ИБ (chdbfl) и консоль
+                                     администрирования серверов 1С для клиент-серверных баз. -->
+                                <MenuItem Header="{loc:Loc Admin.CheckIntegrity}" Command="{Binding CheckIntegrityCommand}" InputGestureText="{Binding HotkeyCheckIntegrity}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseCheck" Width="16" Height="16" Foreground="#10B981"/></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="{loc:Loc Admin.ServerConsole}" Command="{Binding OpenServerConsoleCommand}" InputGestureText="{Binding HotkeyServerConsole}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="Server" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                 </MenuItem>
                                 <Separator/>
                                 <!-- «Изменить настройки» (аналог «Свойств» в ОС) размещён внизу меню,

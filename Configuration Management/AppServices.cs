@@ -25,6 +25,31 @@ public static class AppServices
         services.AddSingleton<IPlatformVersionService, PlatformVersionServiceAdapter>();
         services.AddSingleton<IIbasesSyncService, IbasesSyncService>();
         services.AddSingleton<ICreateInfobaseService, CreateInfobaseService>();
+        // Проверка обновлений конфигураций 1С по web-ресурсу обновлений (функции №21/№22).
+        services.AddSingleton<IOneCUpdatesService, OneCUpdatesService>();
+        // Сценарии резервирования и восстановление (функции №16/№18): хранилище сценариев,
+        // архивация ZIP/RAR и оркестратор выполнения. Чистые сервисы — без UI-зависимостей.
+        services.AddSingleton<IBackupScenarioStore, BackupScenarioStore>();
+        services.AddSingleton<IArchiveService, ArchiveService>();
+        services.AddSingleton<IBackupService, BackupService>();
+        // Блокировка сеансов файловой ИБ (функция №20): пакетный запуск конфигуратора
+        // (/LockIB) без открытия «1С:Предприятия». Чистый сервис — без UI-зависимостей.
+        services.AddSingleton<ISessionLockService, SessionLockService>();
+        // Интеграция с проводником Windows (функция №12): ассоциация .1CD и команды
+        // контекстного меню. На Windows/WPF — реализация на реестре HKCU; на Linux/Avalonia —
+        // заглушка (IExplorerIntegrationService.IsAvailable == false). Тип один, реализация
+        // выбирается символами условной компиляции (#if WINDOWS / #if LINUX).
+        services.AddSingleton<IExplorerIntegrationService, ExplorerIntegrationService>();
+        // Автозапуск при старте ОС (функция №31 StartManager): на Windows/WPF — ключ реестра
+        // HKCU\...\Run; на Linux/Avalonia — автозапуск десктоп-окружения (~/.config/autostart).
+        services.AddSingleton<IAutoStartService, AutoStartService>();
+        // Сохранение копии экрана по хоткею (функция №30 StartManager): на Windows — захват
+        // всего виртуального рабочего стола (CopyFromScreen); на Linux/Avalonia — снимок окна.
+        services.AddSingleton<IScreenshotService, ScreenshotService>();
+        // Администрирование ИБ (Этап 6, функция №29 + консоль серверов): запуск chdbfl
+        // для проверки целостности файловой ИБ и консоли администрирования серверов 1С
+        // для клиент-серверных баз. Чистый сервис — без UI-зависимостей.
+        services.AddSingleton<IInfobaseAdminService, InfobaseAdminService>();
         services.AddTransient<MainViewModel>();
         services.AddTransient<MainWindow>();
 
