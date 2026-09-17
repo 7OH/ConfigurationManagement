@@ -9,6 +9,19 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.8.21] — 2026-09-17
+
+### Исправления
+
+- **Устранён крах Windows/WPF при запуске** (`XamlParseException: Set property 'System.Windows.Window.Title' threw an exception`, внутренняя ошибка `InvalidOperationException: Cannot find non-neutral culture related to 'en-us'`).
+- **Причина:** в версии 0.3.8.10 была включена инвариантная глобализация (`InvariantGlobalization=true`) для уменьшения single-file сборок. На Windows/WPF это делает невозможным резолв специфичной культуры (`XmlLanguage.GetSpecificCulture()`) при активации любой привязки с конвертером, в т.ч. `{loc:Loc ...}` — окно падало ещё на заголовке.
+- **Решение:** `InvariantGlobalization` отключён в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj) и убран флаг `-p:InvariantGlobalization=true` из скриптов сборки [`build-windows-single-file.ps1`](Configuration%20Management/build-windows-single-file.ps1), [`build-linux-single-file.ps1`](Configuration%20Management/build-linux-single-file.ps1) и [`build-linux-single-file.sh`](Configuration%20Management/build-linux-single-file.sh). ICU-данные остаются в сборке — размер single-file увеличивается, но WPF-интерфейс с привязками работает корректно.
+- Сопутствующий `NullReferenceException` в `MainWindow.OnClosing` при аварийном закрытии возникал из-за незавершённого конструктора окна и исчезает вместе с устранением корневой причины.
+
+### Версия
+
+- **Версия поднята до `0.3.8.21`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.8.20] — 2026-09-17
 
 ### Новые возможности

@@ -82,7 +82,6 @@ dotnet publish "$PROJECT" \
   -p:IncludeNativeLibrariesForSelfExtract=true \
   -p:EnableCompressionInSingleFile=true \
   -p:PublishReadyToRun=false \
-  -p:InvariantGlobalization=true \
   -o "$DIST"
 
 # Оставляем ТОЛЬКО исполняемый файл: удаляем .pdb и любые файлы, кроме бинарника.

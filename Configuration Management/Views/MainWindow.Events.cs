@@ -133,6 +133,15 @@ namespace Configuration_Management
         /// </summary>
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
+            // Защита от NRE при аварийном закрытии, если окно не было полностью
+            // сконструировано (например, сбой в конструкторе): состояние сохранять
+            // нечем, просто передаём управление базовой реализации.
+            if (_viewModel == null)
+            {
+                base.OnClosing(e);
+                return;
+            }
+
             // Гарантированно сохраняем все настройки (включая компактный режим) при закрытии,
             // даже если переключатель не был задействован через сеттер.
             _viewModel.SaveSettings();
