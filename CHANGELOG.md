@@ -9,7 +9,7 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
-## [0.3.9.0] — 2026-09-17
+## [0.3.8.10] — 2026-09-17
 
 ### Оптимизация
 
@@ -19,7 +19,7 @@
 
 ### Версия
 
-- **Версия поднята до `0.3.9.0`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- **Версия поднята до `0.3.8.10`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
 - Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
 
 ## [0.3.8.9] — 2026-09-17
