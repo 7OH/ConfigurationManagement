@@ -9,6 +9,19 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.0] — 2026-09-17
+
+### Оптимизация
+
+- **Уменьшен размер self-contained single-file сборок (Windows/WPF и Linux/Avalonia)** за счёт включения `InvariantGlobalization=true`: из состава исполняемых файлов исключены ICU-данные глобализации. Ожидаемая экономия порядка **~5–20 МБ** на каждую платформу.
+- Свойство задано в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj) и продублировано явными параметрами `-p:InvariantGlobalization=true` в скриптах сборки [`build-windows-single-file.ps1`](Configuration%20Management/build-windows-single-file.ps1), [`build-linux-single-file.ps1`](Configuration%20Management/build-linux-single-file.ps1) и [`build-linux-single-file.sh`](Configuration%20Management/build-linux-single-file.sh).
+- **Особенность**: переводы интерфейса (ru/en) не зависят от ICU — они загружаются из JSON, поэтому локализация сохраняется. Форматирование дат/чисел при этом переходит на инвариантную культуру (стиль en-US). Базовые оптимизации (компрессия bundle, `PublishReadyToRun=false`, `DebugType=embedded`) уже были включены ранее.
+
+### Версия
+
+- **Версия поднята до `0.3.9.0`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.8.9] — 2026-09-17
 
 ### Улучшения
