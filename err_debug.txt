@@ -1,5 +1,0 @@
-[l10n-debug] LoadSettings: Language=ru, file=C:\Users\sivat\AppData\Roaming\ConfigurationManagement\profiles\45025d26-04e3-46d5-ad07-7bb3518e7db4\settings.json
-[l10n-debug] SetLanguage(requested=ru, current=ru)
-[l10n-debug] Initialize: preferred=ru, dataDir=null, selected=ru, loaded=[en,ru]
-[l10n-debug] SetLanguage(requested=ru, current=ru)
-[l10n-debug] LoadSettings: Language=ru, file=C:\Users\sivat\AppData\Roaming\ConfigurationManagement\profiles\45025d26-04e3-46d5-ad07-7bb3518e7db4\settings.json
