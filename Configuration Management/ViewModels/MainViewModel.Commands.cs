@@ -913,6 +913,9 @@ public partial class MainViewModel : ViewModelBase
             AfterLaunchRequested?.Invoke(action);
     }
 
+    /// <summary>Каталоги шаблонов конфигураций, заданные пользователем (Windows/WPF).</summary>
+    public System.Collections.Generic.IReadOnlyList<string> TemplateCatalogPaths => _templateCatalogPaths;
+
     /// <summary>Обновляет список каталогов шаблонов из настроек.</summary>
     public void SetTemplateCatalogPaths(System.Collections.Generic.IEnumerable<string> paths)
     {

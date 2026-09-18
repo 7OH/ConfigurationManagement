@@ -1772,7 +1772,9 @@
     "Updates.AuthGroupTitle": "Авторизация на сайте 1С",
     "Updates.Login": "Логин",
     "Updates.Password": "Пароль",
-    "Updates.AuthHint": "Учётные данные для доступа к защищённым каталогам downloads.1c.ru при проверке обновлений конфигураций.",
+    "Updates.AuthHint": "Учётные данные для доступа к защищённым каталогам downloads.1c.ru и portal.1c.ru при проверке обновлений конфигураций.",
+    "Updates.PortalLoginError": "Не удалось выполнить вход на portal.1c.ru: проверьте логин и пароль.",
+    "Updates.NickMissing": "Для конфигурации не задан ник на releases.1c.ru — используется устаревший адрес.",
 
     "Launcher.OperationLockIB": "Блокировка сеансов ИБ",
     "Launcher.OperationUnlockIB": "Снятие блокировки сеансов",

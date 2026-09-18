@@ -24,6 +24,7 @@ public static class BuiltInConfigTypes
                 Code = "BP",
                 Name = "Бухгалтерия предприятия",
                 UrlCode = "Бухгалтерия предприятия",
+                Nick = "AccountingCorp30",
                 IsBuiltIn = true,
                 Editions =
                 {
@@ -37,6 +38,9 @@ public static class BuiltInConfigTypes
                 Code = "ZUP",
                 Name = "Зарплата и управление персоналом",
                 UrlCode = "Зарплата и управление персоналом",
+                // Точный ник для ЗУП 3.1 на releases.1c.ru не подтверждён — остаётся пустым,
+                // чтобы не выдавать ложный результат проверки (будет заполнен после уточнения).
+                Nick = string.Empty,
                 IsBuiltIn = true,
                 Editions =
                 {
@@ -49,6 +53,8 @@ public static class BuiltInConfigTypes
                 Code = "UT",
                 Name = "Управление торговлей",
                 UrlCode = "Управление торговлей",
+                // Точный ник для УТ 11 на releases.1c.ru не подтверждён — остаётся пустым.
+                Nick = string.Empty,
                 IsBuiltIn = true,
                 Editions =
                 {
@@ -61,6 +67,8 @@ public static class BuiltInConfigTypes
                 Code = "KA",
                 Name = "Комплексная автоматизация",
                 UrlCode = "Комплексная автоматизация",
+                // Точный ник для КА 2.5 на releases.1c.ru не подтверждён — остаётся пустым.
+                Nick = string.Empty,
                 IsBuiltIn = true,
                 Editions =
                 {
@@ -73,6 +81,8 @@ public static class BuiltInConfigTypes
                 Code = "ERP",
                 Name = "ERP Управление холдингом",
                 UrlCode = "ERP Управление холдингом",
+                // Точный ник для ERP 2.5 неизвестен — остаётся пустым (будет скорректировано).
+                Nick = string.Empty,
                 IsBuiltIn = true,
                 Editions =
                 {
@@ -85,6 +95,8 @@ public static class BuiltInConfigTypes
                 Code = "Retail",
                 Name = "Розница",
                 UrlCode = "Розница",
+                // Точный ник для Розницы на releases.1c.ru не подтверждён — остаётся пустым.
+                Nick = string.Empty,
                 IsBuiltIn = true,
                 Editions =
                 {
@@ -97,6 +109,8 @@ public static class BuiltInConfigTypes
                 Code = "BGU",
                 Name = "Бухгалтерия государственного учреждения",
                 UrlCode = "Бухгалтерия государственного учреждения",
+                // Точный ник для БГУ неизвестен — остаётся пустым (будет скорректировано).
+                Nick = string.Empty,
                 IsBuiltIn = true,
                 Editions =
                 {

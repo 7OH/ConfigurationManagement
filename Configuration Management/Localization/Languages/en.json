@@ -1772,7 +1772,9 @@
     "Updates.AuthGroupTitle": "1C website authorization",
     "Updates.Login": "Login",
     "Updates.Password": "Password",
-    "Updates.AuthHint": "Credentials for access to protected downloads.1c.ru catalogs when checking configuration updates.",
+    "Updates.AuthHint": "Credentials for access to protected downloads.1c.ru and portal.1c.ru when checking configuration updates.",
+    "Updates.PortalLoginError": "Failed to sign in to portal.1c.ru: check the login and password.",
+    "Updates.NickMissing": "The configuration has no nick on releases.1c.ru — the legacy address is used.",
 
     "Launcher.OperationLockIB": "Infobase session lock",
     "Launcher.OperationUnlockIB": "Remove session lock",

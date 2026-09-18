@@ -22,6 +22,12 @@ public class OneCConfigType
     /// при формировании URL используется <see cref="Name"/>.</summary>
     public string UrlCode { get; set; } = string.Empty;
 
+    /// <summary>Ник конфигурации на ресурсе обновлений 1С
+    /// (<c>releases.1c.ru/version_files?nick=…</c>), например «AccountingCorp30» для
+    /// Бухгалтерии предприятия 3.0. Если пуст — используется устаревший механизм
+    /// формирования адреса (сегментный путь <c>downloads.1c.ru/ipp/…/Configs/…</c>).</summary>
+    public string Nick { get; set; } = string.Empty;
+
     /// <summary>Признак предопределённой конфигурации из встроенного набора.</summary>
     public bool IsBuiltIn { get; set; }
 

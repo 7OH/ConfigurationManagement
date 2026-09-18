@@ -92,6 +92,17 @@ namespace Configuration_Management
             // Глубина истории запусков одной базы (issue #246).
             if (MaxLaunchHistoryDepthBox != null)
                 MaxLaunchHistoryDepthBox.Text = viewModel.MaxLaunchHistoryPerBase.ToString();
+            // Каталоги шаблонов конфигураций: показываем сохранённые значения при открытии,
+            // иначе список выглядел бы пустым и «ОК» затирал их пустым списком (как в Avalonia).
+            if (TemplatePathsList != null)
+            {
+                TemplatePathsList.Items.Clear();
+                foreach (var p in viewModel.TemplateCatalogPaths ?? new System.Collections.Generic.List<string>())
+                {
+                    if (!string.IsNullOrWhiteSpace(p))
+                        TemplatePathsList.Items.Add(p);
+                }
+            }
             // Авторизация на сайте 1С при проверке обновлений конфигураций.
             if (UpdatesLoginBox != null)
                 UpdatesLoginBox.Text = viewModel.UpdatesLogin;
