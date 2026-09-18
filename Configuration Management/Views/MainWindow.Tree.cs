@@ -27,6 +27,10 @@ namespace Configuration_Management
     public partial class MainWindow
     {
 
+        /// <summary>Данные строки, к которой запланирована прокрутка после выбора (issue #255).</summary>
+        private object? _scrollTargetData;
+        private bool _scrollQueued;
+
         /// <summary>
         /// Собирает контейнеры видимых строк дерева в порядке их отображения
         /// (сверху вниз), включая строки развёрнутых подгрупп. Навигация ведётся
@@ -120,9 +124,7 @@ namespace Configuration_Management
 
             // Прокручиваем список к выбранной строке (отложенно, чтобы контейнер
             // виртуализированного узла успел создаться после установки выделения).
-            var scrollTarget = item;
-            Dispatcher.BeginInvoke(new Action(() => ScrollSelectedIntoView(scrollTarget)),
-                System.Windows.Threading.DispatcherPriority.Loaded);
+            QueueScrollSelectedIntoView(item);
         }
 
         /// <summary>
@@ -149,9 +151,7 @@ namespace Configuration_Management
             System.Windows.Input.Keyboard.Focus(item);
 
             // Прокрутка к строке, как у SelectTreeNode.
-            var scrollTarget = item;
-            Dispatcher.BeginInvoke(new Action(() => ScrollSelectedIntoView(scrollTarget)),
-                System.Windows.Threading.DispatcherPriority.Loaded);
+            QueueScrollSelectedIntoView(item);
         }
 
         /// <summary>
@@ -312,6 +312,11 @@ namespace Configuration_Management
 
                 item.BringIntoView();
 
+                // Позицию прокрутки возвращаем последней: BringIntoView мог сдвинуть список к строке,
+                // а пользователь хочет остаться там, где был (например, после правки свойств базы,
+                // issue #252).
+                RestoreTreeScrollAfterRebuild();
+
                 // Клавиатурный фокус возвращаем строке. Защищаем только поле поиска: после закрытия
                 // модального окна настроек WPF может временно держать фокус на каком-либо контроле,
                 // и строгая проверка «не TextBox» оставила бы базу без фокуса. Во время набора в поиске
@@ -323,6 +328,40 @@ namespace Configuration_Management
                 }
             }
             catch { /* элемент мог отсоединиться во время пересборки */ }
+        }
+
+        /// <summary>
+        /// Планирует прокрутку к строке по её данным, а не по контейнеру. В режиме
+        /// Recycling-виртуализации контейнер переиспользуется под другие строки, поэтому
+        /// захват ссылки на контейнер в отложенном вызове к моменту исполнения мог указывать
+        /// уже на другую базу — список «прыгал» туда-сюда, а при автоповторе клавиши «вниз»
+        /// в очереди копились десятки таких вызовов, которые доигрывали и после отпускания
+        /// клавиши (issue #255). Вызовы склеиваются по флагу: за проход исполняется только
+        /// последняя цель.
+        /// </summary>
+        private void QueueScrollSelectedIntoView(TreeViewItem? item)
+        {
+            if (item is null)
+                return;
+            _scrollTargetData = item.DataContext;
+            if (_scrollQueued)
+                return;
+            _scrollQueued = true;
+            Dispatcher.BeginInvoke(new Action(DeferredScrollSelectedIntoView),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        private void DeferredScrollSelectedIntoView()
+        {
+            _scrollQueued = false;
+            var data = _scrollTargetData;
+            _scrollTargetData = null;
+            if (data is null)
+                return;
+            var item = FindTreeViewItemForData(data);
+            if (item is null)
+                return;
+            ScrollSelectedIntoView(item);
         }
 
         /// <summary>

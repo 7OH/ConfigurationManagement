@@ -55,6 +55,13 @@ public partial class MainViewModel : ViewModelBase
 
 
     /// <summary>
+    /// Состав списка вот-вот сменится: окну нужно запомнить позицию прокрутки
+    /// (issue #252). Поднимается перед заменой коллекции <see cref="GroupNodes"/>,
+    /// пока прежнее дерево ещё на месте и смещение читается корректно.
+    /// </summary>
+    public event Action? TreeRebuilding;
+
+    /// <summary>
     /// Состав списка обновлён: окну нужно вернуть выделение строки и клавиатурный фокус.
     /// Поднимается после полной пересборки дерева, когда прежние контейнеры строк
     /// уничтожены заменой коллекции <see cref="GroupNodes"/>.
@@ -66,6 +73,9 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void ReplaceGroupNodes(List<GroupNodeViewModel> next)
     {
+        // Пока дерево ещё на месте, даём окну запомнить позицию прокрутки до пересборки.
+        TreeRebuilding?.Invoke();
+
         // Новая коллекция вместо Clear/Add: один сброс ItemsSource у TreeView,
         // без промежуточных CollectionChanged на каждый корневой узел.
         GroupNodes = new ObservableCollection<GroupNodeViewModel>(next);

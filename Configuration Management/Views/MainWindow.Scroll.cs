@@ -31,6 +31,43 @@ namespace Configuration_Management
         private ScrollViewer? _treeScrollViewer;
         private bool _treeScrollHookAttached;
 
+        /// <summary>Позиция вертикальной прокрутки, запомненная до пересборки дерева (issue #252).</summary>
+        private double _treeScrollOffset;
+
+        /// <summary>
+        /// Запоминает позицию прокрутки до пересборки: список опустеет, и после неё
+        /// прежнюю позицию узнать уже неоткуда (паттерн из Linux/Avalonia-версии).
+        /// Значение не обнуляется после применения, чтобы две пересборки подряд
+        /// восстановили одну и ту же позицию.
+        /// </summary>
+        private void RememberTreeScroll()
+        {
+            var treeScroll = GetTreeScrollViewer();
+            if (treeScroll is not null)
+                _treeScrollOffset = treeScroll.VerticalOffset;
+        }
+
+        /// <summary>
+        /// Восстанавливает позицию прокрутки после пересборки дерева, чтобы список
+        /// не «прыгал» в сторону (например, после сохранения свойств базы, issue #252).
+        /// Вызывается после восстановления выделения: BringIntoView мог сдвинуть список
+        /// к строке — возвращаем позицию, где был пользователь.
+        /// </summary>
+        private void RestoreTreeScrollAfterRebuild()
+        {
+            var treeScroll = GetTreeScrollViewer();
+            if (treeScroll is null)
+                return;
+            try
+            {
+                treeScroll.ScrollToVerticalOffset(_treeScrollOffset);
+            }
+            catch
+            {
+                // Дерево могло отсоединиться во время пересборки — игнорируем.
+            }
+        }
+
         /// <summary>
         /// Внутренний ScrollViewer шаблона TreeView (отвечает за вертикальную и горизонтальную прокрутку).
         /// Найденный экземпляр кэшируется: без кэша каждый вызов делает <c>ApplyTemplate()</c> и полный
@@ -77,7 +114,12 @@ namespace Configuration_Management
             if (Math.Abs(DbHeaderScroll.HorizontalOffset - e.HorizontalOffset) > 0.01)
                 DbHeaderScroll.ScrollToHorizontalOffset(e.HorizontalOffset);
 
-            if (e.ExtentWidthChange != 0 || e.ViewportWidthChange != 0 || e.ViewportHeightChange != 0)
+            // Синхронизируем ширину заголовка с данными только при изменении размеров вьюпорта,
+            // а не при изменении ExtentWidth. При пиксельной виртуализации ExtentWidth определяется
+            // максимумом по РЕАЛИЗОВАННЫМ детям и меняется на каждом шаге прокрутки; реакция на него
+            // каждый раз пересчитывала ширину и запускала повторную раскладку, из-за чего полоса
+            // прокрутки меняла размер и список «прыгал» (issue #255).
+            if (e.ViewportWidthChange != 0 || e.ViewportHeightChange != 0)
                 SyncHeaderWidthWithList();
         }
 

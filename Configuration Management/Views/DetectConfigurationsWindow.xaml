@@ -47,6 +47,15 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Вертикальное центрирование текста текстовых колонок DataGrid (#254): сгенерированный
+             DataGridTextColumn TextBlock по умолчанию растягивается на всю высоту ячейки и текст
+             рендерится у верхнего края, поэтому даже при VerticalContentAlignment=Center у ячейки
+             текст колонок стоит выше, чем галочка/индикатор/кнопка. -->
+        <Style x:Key="DetectCellTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="16">
@@ -151,14 +160,18 @@
 
                         <!-- Колонка платформы (issue #236, п.4) -->
                         <DataGridTextColumn Width="Auto" Header="{loc:Loc DetectConfigs.Column.Platform}"
-                                            Binding="{Binding PlatformVersion}" IsReadOnly="True"/>
+                                            Binding="{Binding PlatformVersion}" IsReadOnly="True"
+                                            ElementStyle="{StaticResource DetectCellTextStyle}"/>
 
                         <DataGridTextColumn Width="*" Header="{loc:Loc DetectConfigs.Column.Name}"
-                                            Binding="{Binding Name}" IsReadOnly="True"/>
+                                            Binding="{Binding Name}" IsReadOnly="True"
+                                            ElementStyle="{StaticResource DetectCellTextStyle}"/>
                         <DataGridTextColumn Width="*" Header="{loc:Loc DetectConfigs.Column.CurrentConfig}"
-                                            Binding="{Binding ConfigurationName}" IsReadOnly="True"/>
+                                            Binding="{Binding ConfigurationName}" IsReadOnly="True"
+                                            ElementStyle="{StaticResource DetectCellTextStyle}"/>
                         <DataGridTextColumn Width="*" Header="{loc:Loc DetectConfigs.Column.Version}"
-                                            Binding="{Binding ConfigurationVersion}" IsReadOnly="True"/>
+                                            Binding="{Binding ConfigurationVersion}" IsReadOnly="True"
+                                            ElementStyle="{StaticResource DetectCellTextStyle}"/>
 
                         <!-- Индикатор заполненности логина/пароля (issue #236, п.5) -->
                         <DataGridTemplateColumn Width="40" Header="{loc:Loc DetectConfigs.Column.Credentials}">

@@ -9,6 +9,30 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.0] — 2026-09-18
+
+### Исправления
+
+- **Закрытие окна «Определение конфигураций всех баз» без двойного вопроса (#260)** — в Linux/Avalonia-версии обработчик закрытия не отменял закрытие при отказе («Нет»), из-за чего вопрос подтверждения показывался повторно ([`Views/DetectConfigurationsWindow.Avalonia.cs`](Configuration%20Management/Views/DetectConfigurationsWindow.Avalonia.cs)). Теперь при необработанных отмеченных строках и ответе «Нет» закрытие отменяется (`e.Cancel = true`), как в Windows/WPF-версии.
+
+- **Выравнивание элементов строки в окне «Определение конфигураций всех баз» по вертикали (#254)** — в WPF-версии текст текстовых колонок `DataGrid` рендерился через сгенерированный `TextBlock`, растянутый на всю высоту ячейки, поэтому стоял выше галочки/индикатора/кнопки, несмотря на `VerticalContentAlignment=Center` ([`Views/DetectConfigurationsWindow.xaml`](Configuration%20Management/Views/DetectConfigurationsWindow.xaml)). Добавлен `ElementStyle` с `VerticalAlignment=Center` для всех текстовых колонок — элементы каждой строки выравниваются по одной линии.
+
+- **Список баз больше не «скачет» после сохранения свойств базы (#252)** — позиция прокрутки запоминается до пересборки дерева (новое событие `TreeRebuilding` в ViewModel) и восстанавливается после неё в `RevealAndSelectAfterRebuild` (паттерн из Linux/Avalonia-версии), поэтому после правки свойств список остаётся на прежнем месте ([`ViewModels/MainViewModel.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs), [`Views/MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs), [`Views/MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs)).
+
+- **Уменьшены «рывки» списка баз при прокрутке, полоса прокрутки стабилизирована (#255)** — три независимые правки в WPF:
+  - `OnTreeScroll_ScrollChanged` больше не пересчитывает ширину заголовка на изменение `ExtentWidth` (при пиксельной виртуализации Extent меняется на каждом шаге прокрутки, что вызывало изменение размера полосы и «прыжки»);
+  - убрана перезапуск стабилизации выравнивания заголовка из обработчика `Loaded` каждой строки (стабилизатор сам добирает строки);
+  - отложенные прокрутки к выбранной строке теперь захватывают данные, а не ссылку на переиспользуемый контейнер, и склеиваются по флагу — при автоповторе клавиши «вниз» список перестал «прыгать» туда-сюда и продолжать двигаться после отпускания ([`Views/MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs), [`Views/MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs), [`Views/MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs)).
+
+- **Приоритет платформы для «папки» в режиме Авто (#251)** — при открытии окна выбора версии с частичной версией («8.3» / «8.3.27», «папкой») выделение остаётся на самой папке, а не переходит на максимальную полную сборку; переключение фильтра разрядности больше не смещает выделение с папки на полную версию. Частичная версия выбирается в чистом виде без подстановки разрядности x86. Правка выполнена симметрично на Windows/WPF и Linux/Avalonia ([`Views/PlatformVersionPickerWindow.xaml.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.xaml.cs), [`Views/PlatformVersionPickerWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.Avalonia.cs)).
+
+- **Двойной клик по всей колонке «Платформа» (#250)** — колонку платформы при координатной проверке теперь определяют динамически по элементу с `Tag="PlatformVersion"` (его фактической позиции после переупорядочивания колонок), а не по фиксированному индексу 5, который расходился с реальным положением колонки на экране. Двойной клик по пустой области колонки «Платформа» снова открывает выбор версии, а не запускает базу ([`Views/MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs)).
+
+### Версия
+
+- **Версия поднята до `0.3.9.0`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.8.28] — 2026-09-18
 
 ### Исправления

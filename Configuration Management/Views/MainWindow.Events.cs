@@ -395,12 +395,21 @@ namespace Configuration_Management
                 var rowGrid = FindAncestorByName(source, "InfobaseRowGrid");
                 if (rowGrid is System.Windows.Controls.Grid ibGrid && ibGrid.DataContext is Infobase rowIb)
                 {
-                    var pos = e.GetPosition(ibGrid);
-                    if (GetColumnIndexAt(ibGrid, pos.X) == PlatformVersionColumnIndex)
+                    // Колонку платформы определяем динамически по элементу с Tag="PlatformVersion":
+                    // ReorderGridColumns переупорядочивает колонки по настройкам и смещает детей
+                    // через Grid.SetColumn, поэтому фиксированный индекс (старый баг) не совпадал
+                    // с фактическим положением колонки на экране и двойной клик не срабатывал.
+                    var platformCol = FindDescendantWithTag(ibGrid, "PlatformVersion")?
+                        .GetValue(System.Windows.Controls.Grid.ColumnProperty);
+                    if (platformCol is int pc)
                     {
-                        OpenPlatformVersionPicker(rowIb);
-                        e.Handled = true;
-                        return;
+                        var pos = e.GetPosition(ibGrid);
+                        if (GetColumnIndexAt(ibGrid, pos.X) == pc)
+                        {
+                            OpenPlatformVersionPicker(rowIb);
+                            e.Handled = true;
+                            return;
+                        }
                     }
                 }
             }
@@ -451,6 +460,22 @@ namespace Configuration_Management
                 if (current is FrameworkElement fe && string.Equals(fe.Name, name, StringComparison.Ordinal))
                     return fe;
                 current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+            }
+            return null;
+        }
+
+        /// <summary>Ищет первого потомка с заданным тегом в визуальном поддереве (в глубину).</summary>
+        private static FrameworkElement? FindDescendantWithTag(DependencyObject root, string tag)
+        {
+            var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+                if (child is FrameworkElement fe && string.Equals(fe.Tag as string, tag, StringComparison.Ordinal))
+                    return fe;
+                var found = FindDescendantWithTag(child, tag);
+                if (found is not null)
+                    return found;
             }
             return null;
         }

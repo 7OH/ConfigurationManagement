@@ -352,16 +352,16 @@ namespace Configuration_Management
 
         private void SelectCurrent(IEnumerable<PlatformVersionGroup> roots)
         {
-            var leaf = FindBestLeaf(roots, _currentVersion);
-            if (leaf is null) return;
-            leaf.IsCurrent = true;
+            var node = FindBestNode(roots, _currentVersion);
+            if (node is null) return;
+            node.IsCurrent = true;
 
             // Avalonia выделяет только через TreeView.SelectedItem, а контейнеры вложенных
-            // узлов создаются лениво — пока не раскрыты предки. Поэтому запоминаем лист и
+            // узлов создаются лениво — пока не раскрыты предки. Поэтому запоминаем узел и
             // путь к нему, а раскрываем и выбираем по мере подготовки контейнеров.
-            _initialLeaf = leaf;
+            _initialLeaf = node;
             _initialAncestors = new HashSet<PlatformVersionGroup>();
-            CollectAncestors(roots, leaf, _initialAncestors);
+            CollectAncestors(roots, node, _initialAncestors);
         }
 
         private static bool CollectAncestors(
@@ -384,11 +384,11 @@ namespace Configuration_Management
             return false;
         }
 
-        private static PlatformVersionGroup? FindBestLeaf(IEnumerable<PlatformVersionGroup> nodes, string currentVersion)
+        private static PlatformVersionGroup? FindBestNode(IEnumerable<PlatformVersionGroup> nodes, string currentVersion)
         {
             if (string.IsNullOrWhiteSpace(currentVersion)) return null;
 
-            ParseVersionAndArch(currentVersion, out var version, out var arch);
+            ParseVersionAndArch(currentVersion, out var version, out _);
             var parts = version.Split('.', StringSplitOptions.RemoveEmptyEntries);
 
             if (parts.Length >= 4)
@@ -401,13 +401,14 @@ namespace Configuration_Management
 
             if (parts.Length == 3)
             {
+                // группа сборок «8.3.27» → сама папка группы, а не максимальная сборка в ней
                 var buildPrefix = string.Join(".", parts.Take(3));
-                var build = line.Children.FirstOrDefault(n =>
+                return line.Children.FirstOrDefault(n =>
                     !n.IsLeaf && string.Equals(n.Name, buildPrefix, StringComparison.OrdinalIgnoreCase));
-                return build is null ? null : FirstLeaf(build.Children, arch);
             }
 
-            return FirstLeaf(line.Children, arch);
+            // только линия «8.3» → сама папка линии
+            return line;
         }
 
         private static PlatformVersionGroup? FirstLeaf(IEnumerable<PlatformVersionGroup> nodes, string? arch)

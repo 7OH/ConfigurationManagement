@@ -224,23 +224,25 @@ namespace Configuration_Management
         {
             if (PlatformsTree.ItemsSource is not IEnumerable<PlatformVersionGroup> roots)
                 return;
-            var leaf = FindBestLeaf(roots, currentVersion);
-            if (leaf is null) return;
-            leaf.IsCurrent = true; // подсветка жирным
-            SelectNodeInTree(PlatformsTree, leaf);
+            var node = FindBestNode(roots, currentVersion);
+            if (node is null) return;
+            node.IsCurrent = true; // подсветка жирным
+            SelectNodeInTree(PlatformsTree, node);
         }
 
         /// <summary>
-        /// Ищет лист, соответствующий текущей версии. Повторяет «трюк 1С»:
-        /// если указана частичная версия (8.3 или 8.3.19, в т.ч. с разрядностью «8.3 (64)»),
-        /// выбирается максимальная доступная сборка в пределах этой линии/группы.
+        /// Ищет узел дерева, соответствующий текущей версии. Полной версии (4+ части)
+        /// соответствует точный лист; частичной версии («8.3» / «8.3.27») — сама «папка»
+        /// (узел линии/группы сборок), а не максимальная сборка в ней: иначе при открытии
+        /// выбора с указанной папкой и при переключении фильтра разрядности выделение
+        /// «прыгало» с папки на полную версию (issue #251).
         /// </summary>
-        private static PlatformVersionGroup? FindBestLeaf(
+        private static PlatformVersionGroup? FindBestNode(
             IEnumerable<PlatformVersionGroup> nodes, string currentVersion)
         {
             if (string.IsNullOrWhiteSpace(currentVersion)) return null;
 
-            ParseVersionAndArch(currentVersion, out var version, out var arch);
+            ParseVersionAndArch(currentVersion, out var version, out _);
             var parts = version.Split('.', StringSplitOptions.RemoveEmptyEntries);
 
             if (parts.Length >= 4)
@@ -253,15 +255,14 @@ namespace Configuration_Management
 
             if (parts.Length == 3)
             {
-                // группа сборок, например «8.3.19» → максимальная сборка в 8.3.19
+                // группа сборок «8.3.27» → сама папка группы, а не максимальная сборка в ней
                 var buildPrefix = string.Join(".", parts.Take(3));
-                var build = line.Children.FirstOrDefault(n =>
+                return line.Children.FirstOrDefault(n =>
                     !n.IsLeaf && string.Equals(n.Name, buildPrefix, StringComparison.OrdinalIgnoreCase));
-                return build is null ? null : FirstLeaf(build.Children, arch);
             }
 
-            // только линия, например «8.3» → 1С сама выбирает максимальную доступную версию
-            return FirstLeaf(line.Children, arch);
+            // только линия «8.3» → сама папка линии
+            return line;
         }
 
         /// <summary>

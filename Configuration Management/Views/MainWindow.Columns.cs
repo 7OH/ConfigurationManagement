@@ -325,7 +325,12 @@ namespace Configuration_Management
             ReorderGridColumns(grid, RowFirstDataColumn);
             grid.Tag = RowGridMarker;
             ApplyRowCompact(grid);
-            QueueHeaderAlign();
+            // Намеренно НЕ вызываем QueueHeaderAlign здесь: обработчик Loaded срабатывает на
+            // каждую реализацию строки при прокрутке/виртуализации, и перезапуск цикла
+            // стабилизации на каждую строку держал компенсатор заголовка «в работе» всё время
+            // скролла и усиливал рывки (issue #255). Стабилизатор HeaderAlignStabilizeStep
+            // сам повторяется, пока первая строка ещё не появилась (!hadRows), поэтому
+            // выравнивание после пересборки восстанавливается и без перезапуска здесь.
         }
 
         /// <summary>

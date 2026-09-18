@@ -71,7 +71,7 @@ namespace Configuration_Management
             foreach (var row in _rows)
                 AddRow(row);
             UpdateCheckedHeader();
-            Closing += (_, _) => OnClosingConfirm();
+            Closing += OnClosingConfirm;
         }
 
         /// <summary>Признак того, что хотя бы одна база была изменена (для персиста в настройках).</summary>
@@ -274,7 +274,7 @@ namespace Configuration_Management
             }
         }
 
-        private void OnClosingConfirm()
+        private void OnClosingConfirm(object? sender, WindowClosingEventArgs e)
         {
             if (_closeConfirmed || !_rows.Any(r => r.IsChecked))
                 return;
@@ -286,6 +286,12 @@ namespace Configuration_Management
                 LocalizationManager.T("DetectConfigs.Title")))
             {
                 _closeConfirmed = true;
+            }
+            else
+            {
+                // Отказ закрывать при необработанных строках должен отменять закрытие,
+                // иначе вопрос показывается повторно (issue #260).
+                e.Cancel = true;
             }
         }
 
