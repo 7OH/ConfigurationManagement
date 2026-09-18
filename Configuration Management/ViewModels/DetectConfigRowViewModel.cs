@@ -1,4 +1,5 @@
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 
 namespace Configuration_Management.ViewModels;
 
@@ -122,18 +123,17 @@ public class DetectConfigRowViewModel : ViewModelBase
 
     private bool ComputeHasCredentials()
     {
-        var conn = Infobase.Connection;
-        if (conn != null
-            && !string.IsNullOrWhiteSpace(conn.User)
-            && !string.IsNullOrWhiteSpace(conn.Password))
-            return true;
-
-        var cfgAuth = Infobase.ConfiguratorAuth;
-        if (cfgAuth != null
-            && !string.IsNullOrWhiteSpace(cfgAuth.User)
-            && !string.IsNullOrWhiteSpace(cfgAuth.Password))
-            return true;
-
+        // Логин/пароль считаем заданными, если хотя бы для одного режима чтения
+        // («1С:Предприятие» или «Конфигуратор») единый резолвер даёт и логин, и пароль.
+        // Это учитывает отдельную авторизацию Предприятия (EnterpriseAuth) и Конфигуратора
+        // (ConfiguratorAuth), а также базовую авторизацию Connection (обратная совместимость),
+        // и согласуется с индикатором логина/пароля в главном списке (issue #253).
+        foreach (var mode in new[] { OneCLaunchMode.Enterprise, OneCLaunchMode.Configurator })
+        {
+            InfobaseAuthResolver.Resolve(Infobase, mode, out _, out var user, out var password);
+            if (!string.IsNullOrWhiteSpace(user) && !string.IsNullOrWhiteSpace(password))
+                return true;
+        }
         return false;
     }
 }
