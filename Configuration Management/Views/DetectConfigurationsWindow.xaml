@@ -123,7 +123,15 @@
                           HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
                           CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
                           BorderThickness="0" Background="Transparent" GridLinesVisibility="None"
-                          RowHeight="32" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}">
+                          RowHeight="32" VerticalContentAlignment="Center"
+                          AlternatingRowBackground="{DynamicResource CardBackgroundBrush}">
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </DataGrid.CellStyle>
                     <DataGrid.Columns>
                         <!-- Флажок через шаблонную колонку с CheckBox: срабатывает с первого клика,
                              без предварительного фокуса (issue #236, п.3). -->
