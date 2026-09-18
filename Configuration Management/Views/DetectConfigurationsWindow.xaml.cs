@@ -30,6 +30,10 @@ namespace Configuration_Management
 
         private CancellationTokenSource? _cts;
 
+        // Флаг подтверждения закрытия (issue #260): после согласия на закрытие при отмеченных
+        // строках повторный Closing не должен переспрашивать (зеркально Avalonia-версии).
+        private bool _closeConfirmed;
+
         /// <param name="infobases">Все информационные базы для определения.</param>
         /// <param name="editBase">Обратный вызов открытия окна свойств базы (под курсором). Может быть null.</param>
         public DetectConfigurationsWindow(IReadOnlyList<Infobase> infobases, Action<Infobase>? editBase = null)
@@ -252,14 +256,23 @@ namespace Configuration_Management
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
-            if (e.Cancel)
+            // Ранний выход: отмена уже выставлена кем-то ещё или закрытие уже подтверждено.
+            if (e.Cancel || _closeConfirmed)
                 return;
+
             if (_rows.Any(r => r.IsChecked))
             {
-                if (!_dialogs.Confirm(
+                if (_dialogs.Confirm(
                         LocalizationManager.T("DetectConfigs.CloseConfirm"),
                         LocalizationManager.T("DetectConfigs.Title")))
                 {
+                    // Выставляем флаг перед фактическим закрытием, чтобы повторный Closing
+                    // не показывал вопрос заново (issue #260).
+                    _closeConfirmed = true;
+                }
+                else
+                {
+                    // Отказ закрывать при необработанных строках отменяет закрытие.
                     e.Cancel = true;
                     return;
                 }

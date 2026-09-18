@@ -9,6 +9,25 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.1] — 2026-09-18
+
+### Исправления
+
+- **Закрытие окна «Определение конфигураций всех баз» без двойного вопроса на Windows (#260)** — фикс 0.3.9.0 ушёл только в Linux/Avalonia; WPF-обработчик `OnClosing` не имел флага `_closeConfirmed`, из-за чего вопрос подтверждения повторялся. Добавлен флаг `_closeConfirmed` (ранний выход при `e.Cancel`), закрытие при отказе отменяется (`e.Cancel = true`) ([`Views/DetectConfigurationsWindow.xaml.cs`](Configuration%20Management/Views/DetectConfigurationsWindow.xaml.cs)).
+
+- **Убран «необоснованный» горизонтальный скролл при запуске списка (#255)** — для дерева `MainTree` горизонтальная полоса отключена (`ScrollBarVisibility=Disabled`), при восстановлении позиции после пересборки сбрасывается `HorizontalOffset=0`. Вертикальная пиксельная виртуализация сохранена ([`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml), [`Views/MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs)).
+
+- **Точное восстановление позиции списка после правки свойств базы (#252)** — позиция запоминается не по абсолютному offset, а по верхней видимой строке (индексу/ссылке); применяется только на последнем (ApplicationIdle) проходе восстановления, чтобы второй проход не затирал позицию; добавлен clamp к `ScrollableHeight` ([`Views/MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs), [`Views/MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs)).
+
+- **Выбор «папки» платформы больше не подставляет разрядность x86 (#251)** — при выборе частичной версии («8.3» / «8.3.27», «папки») приоритет разрядности больше не ставится на «Приоритет 32»: добавлен хелпер `HasExplicitArchitecture`, запись разрядности выполняется только при явном суффиксе «(32)/(64)». Симметрично на Windows/WPF и Linux/Avalonia ([`Services/PlatformVersionService.cs`](Configuration%20Management/Services/PlatformVersionService.cs), [`Views/MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs), [`ViewModels/MainViewModel.Avalonia.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Tools.cs)).
+
+- **Двойной клик по всей ширине колонки «Платформа» (#250)** — ячейка платформы обёрнута в растягивающийся прозрачный контейнер с `Tag="PlatformVersion"`, поэтому двойной клик и по надписи, и по пустой области колонки открывает выбор версии, а не запускает базу; совместимо с `ReorderGridColumns` ([`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml), [`Views/MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs)).
+
+### Версия
+
+- **Версия поднята до `0.3.9.1`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.9.0] — 2026-09-18
 
 ### Исправления

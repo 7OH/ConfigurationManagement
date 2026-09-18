@@ -559,7 +559,11 @@ public partial class MainViewModel : ViewModelBase
         // нельзя было сменить разрядность (х86 → х64) одной и той же версии (issue #146).
         if (versionChanged)
             infobase.PlatformVersion = newVersion;
-        if (arch is "32" or "64")
+        // Разрядность записываем, только если она задана в выбранном варианте ЯВНО суффиксом
+        // «(32)/(64)». ParseVariant по умолчанию возвращает разрядность даже без суффикса,
+        // поэтому выбор папки/частичной версии («8.3», «8.3.27») не должен подставлять x86 —
+        // разрешение разрядности остаётся за лаунчером (issue #251).
+        if ((arch is "32" or "64") && PlatformVersionService.HasExplicitArchitecture(selected))
             infobase.Architecture = arch;
         if (versionChanged || arch is "32" or "64")
         {

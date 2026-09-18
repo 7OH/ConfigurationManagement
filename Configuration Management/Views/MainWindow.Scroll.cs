@@ -34,17 +34,34 @@ namespace Configuration_Management
         /// <summary>Позиция вертикальной прокрутки, запомненная до пересборки дерева (issue #252).</summary>
         private double _treeScrollOffset;
 
+        /// <summary>Ссылка на верхнюю видимую строку до пересборки (восстановление по строке, а не по пикселям).</summary>
+        private object? _treeScrollAnchorData;
+
+        /// <summary>
+        /// Возвращает данные верхней видимой строки дерева. Виртуализация реализует только
+        /// видимые контейнеры, поэтому первый собранный контейнер и есть верхняя видимая строка.
+        /// </summary>
+        private object? GetTopVisibleRowData()
+        {
+            var rows = GetVisibleTreeViewItems();
+            return rows.Count > 0 ? rows[0].DataContext : null;
+        }
+
         /// <summary>
         /// Запоминает позицию прокрутки до пересборки: список опустеет, и после неё
         /// прежнюю позицию узнать уже неоткуда (паттерн из Linux/Avalonia-версии).
-        /// Значение не обнуляется после применения, чтобы две пересборки подряд
-        /// восстановили одну и ту же позицию.
+        /// Помимо «сырого» offset сохраняем ссылку на верхнюю видимую строку: после
+        /// пересборки виртуализированное дерево имеет другой контент/высоты, и восстановление
+        /// по строке точнее, чем по пикселям (issue #252). Значения не обнуляются после
+        /// применения, чтобы две пересборки подряд восстановили одну и ту же позицию.
         /// </summary>
         private void RememberTreeScroll()
         {
             var treeScroll = GetTreeScrollViewer();
-            if (treeScroll is not null)
-                _treeScrollOffset = treeScroll.VerticalOffset;
+            if (treeScroll is null)
+                return;
+            _treeScrollOffset = treeScroll.VerticalOffset;
+            _treeScrollAnchorData = GetTopVisibleRowData();
         }
 
         /// <summary>
@@ -60,7 +77,31 @@ namespace Configuration_Management
                 return;
             try
             {
-                treeScroll.ScrollToVerticalOffset(_treeScrollOffset);
+                // Раскрытие предков и layout должны устояться, иначе позиция «садится не туда».
+                MainTree.UpdateLayout();
+
+                // Восстанавливаем по запомненной верхней видимой строке (не по «сырым» пикселям):
+                // виртуализированное дерево после пересборки имеет другой контент/высоты (issue #252).
+                if (_treeScrollAnchorData is { } anchor)
+                {
+                    if (FindTreeViewItemForData(anchor) is { } anchorItem)
+                        anchorItem.BringIntoView();
+                }
+                else
+                {
+                    treeScroll.ScrollToVerticalOffset(_treeScrollOffset);
+                }
+
+                // Горизонтальная прокрутка дерева не используется (синхронизацию ведёт внешний
+                // заголовок): сбрасываем горизонталь, чтобы восстановление не создавало лишний
+                // горизонтальный скрол (issue #255).
+                if (treeScroll.HorizontalOffset != 0)
+                    treeScroll.ScrollToHorizontalOffset(0);
+
+                // Clamp вертикальной позиции к допустимому диапазону (issue #252).
+                var maxOffset = Math.Max(0, treeScroll.ScrollableHeight);
+                if (treeScroll.VerticalOffset > maxOffset + 0.01)
+                    treeScroll.ScrollToVerticalOffset(maxOffset);
             }
             catch
             {

@@ -1054,7 +1054,7 @@
                               Padding="0"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
-                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                               ScrollViewer.CanContentScroll="True"
                               VirtualizingPanel.IsVirtualizing="True"
@@ -1575,12 +1575,18 @@
                                                        TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
 
-                                        <TextBlock Grid.Column="5" Text="{Binding PlatformVersionDisplay}" FontSize="12"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
-                                                   HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
-                                                   Tag="PlatformVersion"
-                                                   Cursor="Hand"
-                                                   ToolTip="{loc:Loc Main.PlatformVersionTooltip}"/>
+                                        <!-- Ячейка «Версия платформы» (issue #250): растягивающийся прозрачный контейнер
+                                             ловит двойной клик по ВСЕЙ ширине колонки, а не только по надписи. TextBlock
+                                             внутри остаётся выровненным влево. Grid.ColumnSpan по умолчанию =1, чтобы
+                                             ReorderGridColumns корректно перемещал обёртку через Grid.SetColumn. -->
+                                        <Border Grid.Column="5" Background="Transparent"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                Cursor="Hand" Tag="PlatformVersion"
+                                                ToolTip="{loc:Loc Main.PlatformVersionTooltip}">
+                                            <TextBlock Text="{Binding PlatformVersionDisplay}" FontSize="12"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
+                                        </Border>
 
                                         <TextBlock Grid.Column="12" Text="{Binding ConfigurationNameDisplay}" FontSize="12"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"

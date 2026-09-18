@@ -216,9 +216,12 @@ namespace Configuration_Management
             // Два прохода: первый — как только дерево перестроено (Loaded); второй — в самом
             // конце очереди (ApplicationIdle), когда виртуализация уже достроила контейнеры и
             // WPF завершил собственное восстановление фокуса после закрытия модального окна.
-            Dispatcher.BeginInvoke(new Action(RevealAndSelectAfterRebuild),
+            // Восстановление прокрутки (а она может двигать список) выполняем ТОЛЬКО на втором
+            // проходе: первый зарезервирован под выделение/фокус, иначе повторный BringIntoView
+            // затирал восстановленную позицию (issue #252).
+            Dispatcher.BeginInvoke(new Action(() => RevealAndSelectAfterRebuild(restoreScroll: false)),
                 System.Windows.Threading.DispatcherPriority.Loaded);
-            Dispatcher.BeginInvoke(new Action(RevealAndSelectAfterRebuild),
+            Dispatcher.BeginInvoke(new Action(() => RevealAndSelectAfterRebuild(restoreScroll: true)),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
@@ -230,7 +233,7 @@ namespace Configuration_Management
         /// фокус. Цель читается в момент выполнения, поэтому порядок установки SelectedInfobase
         /// относительно пересборки не важен.
         /// </summary>
-        private void RevealAndSelectAfterRebuild()
+        private void RevealAndSelectAfterRebuild(bool restoreScroll)
         {
             if (MainTree is null || _viewModel is null)
                 return;
@@ -314,8 +317,9 @@ namespace Configuration_Management
 
                 // Позицию прокрутки возвращаем последней: BringIntoView мог сдвинуть список к строке,
                 // а пользователь хочет остаться там, где был (например, после правки свойств базы,
-                // issue #252).
-                RestoreTreeScrollAfterRebuild();
+                // issue #252). Выполняем только на последнем (ApplicationIdle) проходе.
+                if (restoreScroll)
+                    RestoreTreeScrollAfterRebuild();
 
                 // Клавиатурный фокус возвращаем строке. Защищаем только поле поиска: после закрытия
                 // модального окна настроек WPF может временно держать фокус на каком-либо контроле,

@@ -517,7 +517,11 @@ namespace Configuration_Management
             // нельзя было сменить разрядность (х86 → х64) одной и той же версии (issue #146).
             if (versionChanged)
                 ib.PlatformVersion = newVersion;
-            if (arch == "32" || arch == "64")
+            // Разрядность записываем, только если она задана в выбранном варианте ЯВНО суффиксом
+            // «(32)/(64)». ParseVariant по умолчанию возвращает «32» даже без суффикса, поэтому
+            // выбор папки/частичной версии («8.3», «8.3.27») не должен подставлять x86 — разрешение
+            // разрядности остаётся за лаунчером (issue #251).
+            if ((arch == "32" || arch == "64") && PlatformVersionService.HasExplicitArchitecture(selected))
                 ib.Architecture = arch;
             if (versionChanged || arch == "32" || arch == "64")
                 _viewModel.PersistInfobasesAfterInlineEdit();

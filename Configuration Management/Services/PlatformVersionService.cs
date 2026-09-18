@@ -612,6 +612,20 @@ public static class PlatformVersionService
     }
 
     /// <summary>
+    /// Возвращает true, если в варианте разрядность задана явно суффиксом «(32)»/«(64)».
+    /// <see cref="ParseVariant"/> по умолчанию возвращает «32» даже без суффикса, поэтому выбор
+    /// папки/частичной версии («8.3», «8.3.27») не должен подставлять разрядность x86, пока она
+    /// не задана явно (issue #251). Разрешение разрядности при этом остаётся за лаунчером.
+    /// </summary>
+    public static bool HasExplicitArchitecture(string variant)
+    {
+        if (string.IsNullOrWhiteSpace(variant))
+            return false;
+        return variant.Contains("(32)", StringComparison.OrdinalIgnoreCase)
+            || variant.Contains("(64)", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Линия платформы — первые два числа версии: «8.3.27.1688 (64)» → «8.3».
     /// Группировка по двум цифрам (issue #9): берём первые два числовых сегмента,
     /// чтобы даже нестандартный вариант (с нечисловым сегментом) попадал в свою линию.
