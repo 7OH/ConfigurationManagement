@@ -205,6 +205,21 @@ namespace Configuration_Management
                     placed.Add(defKey[i]);
                 }
 
+            // Ранний выход (issue #255): если фактический порядок определений колонок данных
+            // уже совпадает с целевым, ничего не пересобираем. Строки реализуются виртуализацией
+            // на каждую прокрутку/материализацию, и до правки здесь каждый раз выполнялся
+            // defs.Clear() с повторным добавлением всех ColumnDefinition — сброс внутреннего кэша
+            // колонок сетки и инвалидация measure/arrange даже когда переставлять нечего.
+            var orderUnchanged = true;
+            for (var i = 0; i < dataCount; i++)
+                if (!ReferenceEquals(defs[leading + i], newOrder[i]))
+                {
+                    orderUnchanged = false;
+                    break;
+                }
+            if (orderUnchanged)
+                return;
+
             // Пересобираем коллекцию определений: фиксированные слева + новый порядок данных.
             var leadingDefs = new List<ColumnDefinition>(leading);
             for (var i = 0; i < leading; i++)
