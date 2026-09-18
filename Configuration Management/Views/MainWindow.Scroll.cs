@@ -27,16 +27,34 @@ namespace Configuration_Management
     public partial class MainWindow
     {
 
+        /// <summary>Кэш внутреннего <see cref="ScrollViewer"/> дерева (issue #252).</summary>
+        private ScrollViewer? _treeScrollViewer;
+        private bool _treeScrollHookAttached;
+
         /// <summary>
         /// Внутренний ScrollViewer шаблона TreeView (отвечает за вертикальную и горизонтальную прокрутку).
+        /// Найденный экземпляр кэшируется: без кэша каждый вызов делает <c>ApplyTemplate()</c> и полный
+        /// обход визуального дерева, что при частой прокрутке/материализации строк добавляет нагрузку и
+        /// «прыжки» списка. Кэш сбрасывается при отсоединении дерева (Unloaded), чтобы не оставаться
+        /// с устаревшей ссылкой после пересборки/пересоздания контейнера.
         /// </summary>
         private ScrollViewer? GetTreeScrollViewer()
         {
             if (MainTree is null)
                 return null;
+
+            if (!_treeScrollHookAttached)
+            {
+                _treeScrollHookAttached = true;
+                MainTree.Unloaded += (_, _) => _treeScrollViewer = null;
+            }
+            if (_treeScrollViewer is not null)
+                return _treeScrollViewer;
+
             // Шаблон может быть ещё не применён.
             MainTree.ApplyTemplate();
-            return FindVisualChild<ScrollViewer>(MainTree);
+            _treeScrollViewer = FindVisualChild<ScrollViewer>(MainTree);
+            return _treeScrollViewer;
         }
 
         /// <summary>
