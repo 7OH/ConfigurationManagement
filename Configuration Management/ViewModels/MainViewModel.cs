@@ -158,6 +158,9 @@ public partial class MainViewModel : ViewModelBase
     private string _hotkeyConfigurator = "F4";
     private string _hotkeyCheckUpdate = "F9";
     private string _hotkeyActualReleases = "Alt+F9";
+    // Авторизация на сайте 1С (HTTP Basic Auth) при проверке обновлений конфигураций.
+    private string _updatesLogin = "";
+    private string _updatesPassword = "";
     private string _hotkeyFavorite = "F8";
     private string _hotkeyEdit = "F2";
     private string _hotkeyDelete = "Delete";
@@ -372,6 +375,9 @@ public partial class MainViewModel : ViewModelBase
         _hotkeyConfigurator = string.IsNullOrWhiteSpace(settings.HotkeyConfigurator) ? "F4" : settings.HotkeyConfigurator.Trim();
         _hotkeyCheckUpdate = string.IsNullOrWhiteSpace(settings.HotkeyCheckUpdate) ? "F9" : settings.HotkeyCheckUpdate.Trim();
         _hotkeyActualReleases = string.IsNullOrWhiteSpace(settings.HotkeyActualReleases) ? "Alt+F9" : settings.HotkeyActualReleases.Trim();
+        // Авторизация на сайте 1С при проверке обновлений конфигураций.
+        _updatesLogin = settings.UpdatesLogin ?? "";
+        _updatesPassword = settings.UpdatesPassword ?? "";
         // Сценарии резервирования (функции №16/№18): выполнение сценария и «Список выгрузок».
         _hotkeyRunBackup = string.IsNullOrWhiteSpace(settings.HotkeyRunBackup) ? "Ctrl+Shift+F5" : settings.HotkeyRunBackup.Trim();
         _hotkeyExportsList = string.IsNullOrWhiteSpace(settings.HotkeyExportsList) ? "Ctrl+Shift+F7" : settings.HotkeyExportsList.Trim();

@@ -92,6 +92,11 @@ namespace Configuration_Management
             // Глубина истории запусков одной базы (issue #246).
             if (MaxLaunchHistoryDepthBox != null)
                 MaxLaunchHistoryDepthBox.Text = viewModel.MaxLaunchHistoryPerBase.ToString();
+            // Авторизация на сайте 1С при проверке обновлений конфигураций.
+            if (UpdatesLoginBox != null)
+                UpdatesLoginBox.Text = viewModel.UpdatesLogin;
+            if (UpdatesPasswordBox != null)
+                UpdatesPasswordBox.Password = viewModel.UpdatesPassword;
             // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
             InitGlobalDoubleClickCombo();
             // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка
@@ -486,6 +491,11 @@ namespace Configuration_Management
             // Копия экрана (функция №30, Этап 8): сочетание и каталог сохранения.
             _viewModel.ScreenshotHotkey = hkScreenshot;
             _viewModel.ScreenshotSaveDirectory = ScreenshotDirectoryBox?.Text?.Trim() ?? "";
+            // Авторизация на сайте 1С при проверке обновлений конфигураций.
+            if (UpdatesLoginBox != null)
+                _viewModel.UpdatesLogin = UpdatesLoginBox.Text?.Trim() ?? "";
+            if (UpdatesPasswordBox != null)
+                _viewModel.UpdatesPassword = UpdatesPasswordBox.Password;
             _viewModel.SaveSettings();
 
             var templatePaths = TemplatePathsList?.Items.Cast<string>().Where(s => !string.IsNullOrWhiteSpace(s)).ToList()

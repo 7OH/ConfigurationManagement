@@ -37,6 +37,28 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>Логин учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
+    public string UpdatesLogin
+    {
+        get => _updatesLogin;
+        set
+        {
+            if (SetProperty(ref _updatesLogin, value ?? ""))
+                ScheduleSaveSettings();
+        }
+    }
+
+    /// <summary>Пароль учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
+    public string UpdatesPassword
+    {
+        get => _updatesPassword;
+        set
+        {
+            if (SetProperty(ref _updatesPassword, value ?? ""))
+                ScheduleSaveSettings();
+        }
+    }
+
     /// <summary>Команда «Проверить обновления» для выбранной ИБ (F9).</summary>
     public ICommand CheckUpdateCommand =>
         _checkUpdateCommand ??= new RelayCommand(

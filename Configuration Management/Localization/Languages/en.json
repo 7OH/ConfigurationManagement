@@ -1769,6 +1769,10 @@
     "Updates.EditionSubRed": "Subrev",
     "Updates.UrlOverride": "Overridden URL",
     "Updates.BuiltIn": "Built-in",
+    "Updates.AuthGroupTitle": "1C website authorization",
+    "Updates.Login": "Login",
+    "Updates.Password": "Password",
+    "Updates.AuthHint": "Credentials for access to protected downloads.1c.ru catalogs when checking configuration updates.",
 
     "Launcher.OperationLockIB": "Infobase session lock",
     "Launcher.OperationUnlockIB": "Remove session lock",

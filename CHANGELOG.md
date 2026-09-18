@@ -9,6 +9,17 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.2] — 2026-09-18
+
+### Новые возможности
+
+- **Настройки логина/пароля для авторизации на сайте 1С (HTTP Basic Auth) при проверке обновлений конфигураций** — добавлены поля `UpdatesLogin` / `UpdatesPassword` в [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs), по которым формируется заголовок `Authorization` (`OneCUpdatesService.AddBasicAuth`). Заголовок передаётся при проверке обновлений (F9), в окне «Актуальные релизы» (ALT+F9) и при скачивании дистрибутива — это позволяет обращаться к защищённым каталогам `downloads.1c.ru`. Настройка выполняется в окне «Настройки» (на обеих платформах: **Windows/WPF** и **Linux/Avalonia**), локализация ru/en добавлена для ключей `Updates.AuthGroupTitle`, `Updates.Login`, `Updates.Password`, `Updates.AuthHint`.
+
+### Версия
+
+- **Версия поднята до `0.3.9.2`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.9.1] — 2026-09-18
 
 ### Исправления

@@ -539,6 +539,12 @@ public class AppSettings
     /// <summary>Горячая клавиша окна «Актуальные релизы» (по умолчанию Alt+F9).</summary>
     public string HotkeyActualReleases { get; set; } = "Alt+F9";
 
+    /// <summary>Логин учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
+    public string UpdatesLogin { get; set; } = "";
+
+    /// <summary>Пароль учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
+    public string UpdatesPassword { get; set; } = "";
+
     /// <summary>Горячая клавиша «Выполнить сценарий резервирования» для выбранной ИБ (по умолчанию Ctrl+Shift+F5).</summary>
     public string HotkeyRunBackup { get; set; } = "Ctrl+Shift+F5";
 

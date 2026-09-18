@@ -1769,6 +1769,10 @@
     "Updates.EditionSubRed": "Подред",
     "Updates.UrlOverride": "Переопределённая ссылка",
     "Updates.BuiltIn": "Предопределённая",
+    "Updates.AuthGroupTitle": "Авторизация на сайте 1С",
+    "Updates.Login": "Логин",
+    "Updates.Password": "Пароль",
+    "Updates.AuthHint": "Учётные данные для доступа к защищённым каталогам downloads.1c.ru при проверке обновлений конфигураций.",
 
     "Launcher.OperationLockIB": "Блокировка сеансов ИБ",
     "Launcher.OperationUnlockIB": "Снятие блокировки сеансов",

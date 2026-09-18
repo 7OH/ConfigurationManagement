@@ -238,6 +238,68 @@ namespace Configuration_Management
             settings.Children.Add(checkUpdatesCheck);
             settings.Children.Add(autoUpdateCheck);
 
+            // Авторизация на сайте 1С при проверке обновлений конфигураций (HTTP Basic Auth).
+            var updatesAuthContent = new StackPanel();
+            var updatesAuthHint = new TextBlock
+            {
+                Text = LocalizationManager.T("Updates.AuthHint"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            ThemeBrushes.Bind(updatesAuthHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            updatesAuthContent.Children.Add(updatesAuthHint);
+
+            var loginRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            loginRow.Children.Add(new TextBlock
+            {
+                Text = LocalizationManager.T("Updates.Login"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 80
+            });
+            var updatesLoginBox = new TextBox
+            {
+                Text = _viewModel.UpdatesLogin,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            }.Styled(ControlThemes.ModernTextBox);
+            ToolTip.SetTip(updatesLoginBox, new TextBlock
+            {
+                Text = LocalizationManager.T("Updates.AuthHint"),
+                MaxWidth = 320,
+                TextWrapping = TextWrapping.Wrap
+            });
+            loginRow.Children.Add(updatesLoginBox);
+
+            var passwordRow = new StackPanel { Orientation = Orientation.Horizontal };
+            passwordRow.Children.Add(new TextBlock
+            {
+                Text = LocalizationManager.T("Updates.Password"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 80
+            });
+            var updatesPasswordBox = new PasswordBox
+            {
+                Password = _viewModel.UpdatesPassword,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            ToolTip.SetTip(updatesPasswordBox, new TextBlock
+            {
+                Text = LocalizationManager.T("Updates.AuthHint"),
+                MaxWidth = 320,
+                TextWrapping = TextWrapping.Wrap
+            });
+            passwordRow.Children.Add(updatesPasswordBox);
+
+            updatesAuthContent.Children.Add(loginRow);
+            updatesAuthContent.Children.Add(passwordRow);
+
+            settings.Children.Add(Controls.GroupBoxPanel.Build(
+                "Updates.AuthGroupTitle", updatesAuthContent,
+                margin: new Thickness(0, 14, 0, 0),
+                padding: new Thickness(8)));
+
             // Поведение значка в области уведомлений. До этого три настройки
             // жили только в файле и в версии для Windows: в Linux-сборке ни
             // флажков, ни учёта не было.
@@ -2772,6 +2834,10 @@ namespace Configuration_Management
                 // Таймаут определения свойств конфигурации через COM (issue #174).
                 if (int.TryParse(detectTimeoutBox.Text, out var detectTimeout))
                     _viewModel.ComDetectTimeoutMs = detectTimeout;
+
+                // Авторизация на сайте 1С при проверке обновлений конфигураций (HTTP Basic Auth).
+                _viewModel.UpdatesLogin = updatesLoginBox.Text?.Trim() ?? "";
+                _viewModel.UpdatesPassword = updatesPasswordBox.Password ?? "";
 
                 // Глубина истории запусков одной базы (issue #246).
                 if (int.TryParse(historyDepthBox.Text, out var historyDepth))

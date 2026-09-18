@@ -1,0 +1,8 @@
+﻿260 | last_author=7OH | ncomments=3 | Закрытие окна Определения конфигураций всех баз
+255 | last_author=7OH | ncomments=9 | Список колбасит
+252 | last_author=7OH | ncomments=4 | Скачет список
+251 | last_author=7OH | ncomments=5 | Приоритет платформы для папки
+250 | last_author=7OH | ncomments=4 | Место для двойнойго клика
+243 | last_author=sivatorov | ncomments=1 | Ручное изменение размера базы
+242 | last_author=sivatorov | ncomments=3 | Меню по базе (0.3.7.25)
+240 | last_author=sivatorov | ncomments=3 | Цвет для группы (Без групп) нельзя изменить

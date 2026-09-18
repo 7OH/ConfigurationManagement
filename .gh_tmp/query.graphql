@@ -1,0 +1,20 @@
+query {
+  repository(owner: "sivatorov", name: "ConfigurationManagement") {
+    issues(states: OPEN, first: 100, orderBy: {field: CREATED_AT, direction: DESC}) {
+      nodes {
+        number
+        title
+        body
+        createdAt
+        updatedAt
+        comments(first: 50) {
+          nodes {
+            author { login }
+            body
+            createdAt
+          }
+        }
+      }
+    }
+  }
+}

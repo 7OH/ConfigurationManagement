@@ -4,6 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +28,17 @@ public class OneCUpdatesService : IOneCUpdatesService
     private const int TimeoutSeconds = 15;
 
     private static readonly HttpClient HttpClient = CreateHttpClient();
+
+    private readonly IInfobaseRepository _repository;
+
+    /// <summary>
+    /// Создаёт экземпляр службы. <paramref name="repository"/> (singleton) используется для
+    /// чтения настроек логина/пароля авторизации на сайте 1С на каждый сетевой запрос.
+    /// </summary>
+    public OneCUpdatesService(IInfobaseRepository repository)
+    {
+        _repository = repository;
+    }
 
     /// <summary>Шаблон ссылки на архив дистрибутива конфигурации на странице каталога.</summary>
     private static readonly Regex ArchiveLinkRegex =
@@ -52,7 +65,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             Timeout = TimeSpan.FromSeconds(TimeoutSeconds),
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "ConfigurationManagement/0.3.8.11 (+https://github.com/sivatorov/ConfigurationManagement)");
+            "ConfigurationManagement/0.3.9.2 (+https://github.com/sivatorov/ConfigurationManagement)");
         client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,*/*;q=0.8");
         return client;
     }
@@ -106,7 +119,9 @@ public class OneCUpdatesService : IOneCUpdatesService
 
         try
         {
-            using var response = await HttpClient.GetAsync(url, ct).ConfigureAwait(false);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            AddBasicAuth(request);
+            using var response = await HttpClient.SendAsync(request, ct).ConfigureAwait(false);
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -281,6 +296,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                 Directory.CreateDirectory(dir);
 
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            AddBasicAuth(request);
             using var response = await HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
                 .ConfigureAwait(false);
 
@@ -330,5 +346,24 @@ public class OneCUpdatesService : IOneCUpdatesService
         {
             // Игнорируем ошибки удаления временного файла.
         }
+    }
+
+    /// <summary>
+    /// Добавляет HTTP Basic Auth заголовок (<c>Authorization: Basic base64(логин:пароль)</c>)
+    /// на основе настроек <see cref="AppSettings.UpdatesLogin"/>/<see cref="AppSettings.UpdatesPassword"/>.
+    /// Если логин не задан — запрос выполняется без авторизации (обратная совместимость).
+    /// Настройки читаются на каждый запрос, поэтому смена учётных данных не требует перезапуска.
+    /// Заголовок Authorization и пароль не логируются.
+    /// </summary>
+    private void AddBasicAuth(HttpRequestMessage request)
+    {
+        var settings = _repository.LoadSettings();
+        var login = settings.UpdatesLogin ?? string.Empty;
+        if (string.IsNullOrEmpty(login))
+            return;
+
+        var password = settings.UpdatesPassword ?? string.Empty;
+        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{login}:{password}"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", token);
     }
 }

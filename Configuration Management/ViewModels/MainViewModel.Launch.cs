@@ -559,6 +559,9 @@ public partial class MainViewModel : ViewModelBase
             HotkeySwitchUser = _hotkeySwitchUser,
             HotkeyCheckUpdate = _hotkeyCheckUpdate,
             HotkeyActualReleases = _hotkeyActualReleases,
+            // Авторизация на сайте 1С (HTTP Basic Auth) при проверке обновлений конфигураций.
+            UpdatesLogin = _updatesLogin,
+            UpdatesPassword = _updatesPassword,
             // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
             HotkeySessionLock = _hotkeySessionLock,
             HotkeyLockApp = _hotkeyLockApp,
