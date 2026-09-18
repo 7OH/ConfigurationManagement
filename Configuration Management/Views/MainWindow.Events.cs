@@ -388,6 +388,23 @@ namespace Configuration_Management
                 return;
             }
 
+            // Двойной клик по пустой области колонки «Версия платформы» (issue #250):
+            // выбор версии должен срабатывать по всей ширине колонки, а не только по надписи.
+            if (source is not null)
+            {
+                var rowGrid = FindAncestorByName(source, "InfobaseRowGrid");
+                if (rowGrid is System.Windows.Controls.Grid ibGrid && ibGrid.DataContext is Infobase rowIb)
+                {
+                    var pos = e.GetPosition(ibGrid);
+                    if (GetColumnIndexAt(ibGrid, pos.X) == PlatformVersionColumnIndex)
+                    {
+                        OpenPlatformVersionPicker(rowIb);
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+
             var treeViewItem = source is null ? null : FindAncestor<TreeViewItem>(source);
             if (treeViewItem?.DataContext is GroupNodeViewModel groupNode && groupNode.Group is not null)
             {
@@ -421,6 +438,35 @@ namespace Configuration_Management
                 current = System.Windows.Media.VisualTreeHelper.GetParent(current);
             }
             return null;
+        }
+
+        /// <summary>Индекс колонки «Версия платформы» в сетке строки базы <c>InfobaseRowGrid</c>.</summary>
+        private const int PlatformVersionColumnIndex = 5;
+
+        /// <summary>Поднимается по визуальному дереву и возвращает элемент с заданным именем.</summary>
+        private static FrameworkElement? FindAncestorByName(DependencyObject? current, string name)
+        {
+            while (current is not null)
+            {
+                if (current is FrameworkElement fe && string.Equals(fe.Name, name, StringComparison.Ordinal))
+                    return fe;
+                current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+            }
+            return null;
+        }
+
+        /// <summary>Возвращает индекс колонки сетки, в которую попадает координата <paramref name="x"/>.</summary>
+        private static int GetColumnIndexAt(System.Windows.Controls.Grid grid, double x)
+        {
+            double offset = 0;
+            for (var i = 0; i < grid.ColumnDefinitions.Count; i++)
+            {
+                var w = grid.ColumnDefinitions[i].ActualWidth;
+                if (x < offset + w)
+                    return i;
+                offset += w;
+            }
+            return grid.ColumnDefinitions.Count - 1;
         }
 
         private void OpenPlatformVersionPicker(Infobase ib)

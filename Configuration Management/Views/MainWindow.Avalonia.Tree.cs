@@ -322,6 +322,11 @@ namespace Configuration_Management
                     // PlatformVersionPickerWindow собиралось, но из интерфейса
                     // Linux-версии было недостижимо.
                     ToolTip.SetTip(cell, LocalizationManager.T("Main.PlatformVersionTooltip"));
+                    // Issue #250: растягиваем ячейку на всю ширину колонки, чтобы
+                    // двойной клик по пустой области колонки тоже открывал выбор версии,
+                    // а не запускал базу (текст при этом остаётся прижатым влево).
+                    cell.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    cell.TextTrimming = TextTrimming.CharacterEllipsis;
                     cell.DoubleTapped += (_, e) =>
                     {
                         e.Handled = true;
