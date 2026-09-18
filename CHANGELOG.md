@@ -9,6 +9,17 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.8.24] — 2026-09-18
+
+### Исправления
+
+- **Выбор частичной версии платформы («папки») в режиме «Все» больше не добавляет суффикс разрядности (#251)** — при выборе версии с неполным номером (линии «8.3» или группы сборок «8.3.27») в фильтре «Все/Авто» окно подставляло разрядность по умолчанию (x86). Теперь частичная версия выбирается в чистом виде без указания разрядностей — «8.3.27», как её показывает родной стартер и колонка списка. Разрядность в этом случае разрешается при запуске (сессия / приоритет базы). Исправлено на обеих платформах ([`PlatformVersionPickerWindow.xaml.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.xaml.cs) и [`PlatformVersionPickerWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.Avalonia.cs)).
+
+### Версия
+
+- **Версия поднята до `0.3.8.24`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+- Обе сборки — **Windows/WPF** и **Linux/Avalonia** (`-p:ForceLinux=true`) — проходят без ошибок.
+
 ## [0.3.8.23] — 2026-09-18
 
 ### Исправления

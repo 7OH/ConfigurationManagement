@@ -499,16 +499,11 @@ namespace Configuration_Management
             if (archFilter == "x32") return "32";
             if (archFilter == "x64") return "64";
 
-            // Фильтр «Все» — только если все листья узла одной разрядности.
-            string? uniform = null;
-            foreach (var arch in EnumerateLeafArch(node))
-            {
-                if (uniform is null)
-                    uniform = arch;
-                else if (!string.Equals(uniform, arch, StringComparison.OrdinalIgnoreCase))
-                    return null;
-            }
-            return uniform;
+            // Режим «Все» (авто): разрядность для частичной версии не подставляем, чтобы
+            // выбор папки/линии дерева давал чистую версию без суффикса (issue #251) —
+            // как её обычно показывает родной стартер и колонка списка («8.3.27»).
+            // Разрядность в этом случае разрешается при запуске (сессия / приоритет базы).
+            return null;
         }
 
         /// <summary>Перечисляет разрядность всех листьев поддерева.</summary>
