@@ -1305,15 +1305,17 @@
                         <ToggleButton Style="{DynamicResource SettingsToggle}" x:Name="CheckForUpdatesOnStartupCheck" Margin="0,0,0,6">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#22C55E" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="{loc:Loc Settings.General.CheckForUpdatesOnStartup}" VerticalAlignment="Center"
-                                           ToolTip="{loc:Loc Settings.General.CheckForUpdatesOnStartupTooltip}"/>
+                                <TextBlock Text="{loc:Loc Settings.General.CheckForUpdatesOnStartup}" VerticalAlignment="Center"/>
+                                <controls:HelpLink Margin="6,0,0,0" VerticalAlignment="Center"
+                                                   HelpText="{loc:Loc Settings.General.CheckForUpdatesOnStartupTooltip}"/>
                             </StackPanel>
                         </ToggleButton>
                         <ToggleButton Style="{DynamicResource SettingsToggle}" x:Name="AutoUpdateEnabledCheck" Margin="0,0,0,6">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#22C55E" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="{loc:Loc Settings.General.AutoUpdate}" VerticalAlignment="Center"
-                                           ToolTip="{loc:Loc Settings.General.AutoUpdateTooltip}"/>
+                                <TextBlock Text="{loc:Loc Settings.General.AutoUpdate}" VerticalAlignment="Center"/>
+                                <controls:HelpLink Margin="6,0,0,0" VerticalAlignment="Center"
+                                                   HelpText="{loc:Loc Settings.General.AutoUpdateTooltip}"/>
                             </StackPanel>
                         </ToggleButton>
                         <ToggleButton Style="{DynamicResource SettingsToggle}" x:Name="ShowTrayIconCheck" Margin="0,0,0,6">
@@ -1386,15 +1388,21 @@
                         </GroupBox>
 
                         <!-- Имя COM-коннектора 1С по шаблону версии платформы (issue #175) -->
-                        <GroupBox Header="{loc:Loc Settings.General.ComConnectorTemplate}" Padding="8" Margin="0,14,0,0">
+                        <GroupBox Padding="8" Margin="0,14,0,0">
+                            <GroupBox.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{loc:Loc Settings.General.ComConnectorTemplate}" VerticalAlignment="Center"/>
+                                    <controls:HelpLink Margin="6,0,0,0" VerticalAlignment="Center"
+                                                       HelpText="{loc:Loc Settings.General.ComConnectorTemplateTooltip}"/>
+                                </StackPanel>
+                            </GroupBox.Header>
                             <StackPanel>
                                 <TextBlock Text="{loc:Loc Settings.General.ComConnectorTemplateHint}"
                                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
                                            TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <TextBox x:Name="ComConnectorNameTemplateBox" Height="32"
                                          VerticalContentAlignment="Center"
-                                         Style="{StaticResource ModernTextBox}"
-                                         ToolTip="{loc:Loc Settings.General.ComConnectorTemplateTooltip}"/>
+                                         Style="{StaticResource ModernTextBox}"/>
                                 <!-- Интерактивный предпросмотр имени COM-коннектора (issue #175):
                                      версия + результат разворота шаблона. Поле версии
                                      исключительно для предпросмотра, в настройки не сохраняется. -->
@@ -1415,7 +1423,14 @@
                         </GroupBox>
 
                         <!-- Таймаут определения свойств конфигурации через COM (issue #174) -->
-                        <GroupBox Header="{loc:Loc Settings.General.ComDetectTimeout}" Padding="8" Margin="0,14,0,0">
+                        <GroupBox Padding="8" Margin="0,14,0,0">
+                            <GroupBox.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{loc:Loc Settings.General.ComDetectTimeout}" VerticalAlignment="Center"/>
+                                    <controls:HelpLink Margin="6,0,0,0" VerticalAlignment="Center"
+                                                       HelpText="{loc:Loc Settings.General.ComDetectTimeoutTooltip}"/>
+                                </StackPanel>
+                            </GroupBox.Header>
                             <StackPanel>
                                 <TextBlock Text="{loc:Loc Settings.General.ComDetectTimeoutHint}"
                                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
@@ -1423,8 +1438,7 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBox x:Name="ComDetectTimeoutMsBox" Height="32" Width="120"
                                              VerticalContentAlignment="Center"
-                                             Style="{StaticResource ModernTextBox}"
-                                             ToolTip="{loc:Loc Settings.General.ComDetectTimeoutTooltip}"/>
+                                             Style="{StaticResource ModernTextBox}"/>
                                     <TextBlock Text="{loc:Loc Settings.General.ComDetectTimeoutUnit}"
                                                VerticalAlignment="Center" Margin="8,0,0,0"/>
                                 </StackPanel>
@@ -1705,17 +1719,19 @@
                                             <StackPanel Orientation="Horizontal" Margin="0,2,0,10">
                                                 <TextBlock Text="{loc:Loc Settings.Bases.HistoryDepth}"
                                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <controls:HelpLink Margin="0,0,8,0" VerticalAlignment="Center"
+                                                                   HelpText="{loc:Loc Settings.Bases.HistoryDepthTooltip}"/>
                                                 <TextBox x:Name="MaxLaunchHistoryDepthBox" Height="30" Width="90"
-                                                         VerticalContentAlignment="Center"
-                                                         ToolTip="{loc:Loc Settings.Bases.HistoryDepthTooltip}"/>
+                                                         VerticalContentAlignment="Center"/>
                                             </StackPanel>
                                             <!-- Глобальное действие по двойному щелчку на базе (функция №28 StartManager). -->
                                             <StackPanel Orientation="Horizontal" Margin="0,2,0,10">
                                                 <TextBlock Text="{loc:Loc Settings.DblClickActionLabel}"
                                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <controls:HelpLink Margin="0,0,8,0" VerticalAlignment="Center"
+                                                                   HelpText="{loc:Loc Settings.DblClickActionTooltip}"/>
                                                 <ComboBox x:Name="DoubleClickActionGlobalCombo" Height="30" Width="200"
                                                           VerticalContentAlignment="Center"
-                                                          ToolTip="{loc:Loc Settings.DblClickActionTooltip}"
                                                           SelectionChanged="OnDoubleClickActionGlobal_SelectionChanged"/>
                                             </StackPanel>
                                             <!-- Импорт баз и настроек платформы из программы StartManager (issue #163). -->
@@ -1728,13 +1744,19 @@
                                                     <TextBlock Text="{loc:Loc Settings.Bases.ImportStartManager}" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
-                                            <CheckBox x:Name="AddTimestampToExportFileNameCheck"
-                                                      Content="{loc:Loc Settings.AddTimestamp}"
-                                                      Margin="0,6,0,0"
-                                                      ToolTip="{loc:Loc Settings.AddTimestampTooltip}"/>
-                                            <TextBlock Text="{loc:Loc Settings.Bases.TimestampFormat}"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
-                                                       Margin="0,12,0,4"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                <CheckBox x:Name="AddTimestampToExportFileNameCheck"
+                                                          Content="{loc:Loc Settings.AddTimestamp}"
+                                                          VerticalAlignment="Center"/>
+                                                <controls:HelpLink Margin="6,0,0,0" VerticalAlignment="Center"
+                                                                   HelpText="{loc:Loc Settings.AddTimestampTooltip}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,12,0,4">
+                                                <TextBlock Text="{loc:Loc Settings.Bases.TimestampFormat}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/>
+                                                <controls:HelpLink Margin="6,0,0,0" VerticalAlignment="Center"
+                                                                   HelpText="{loc:Loc Settings.Bases.TimestampFormatTooltip}"/>
+                                            </StackPanel>
                                             <!-- Вертикальная обрезка текста шаблона: фиксированная
                                                  Height=34 конфликтовала с MinHeight=36 стиля и не давала
                                                  строке формата поместиться по вертикали. Поднимаем MinHeight
@@ -1748,8 +1770,7 @@
                                                       IsEditable="True"
                                                       IsTextSearchEnabled="True"
                                                       StaysOpenOnEdit="True"
-                                                      SelectionChanged="OnExportTimestampFormat_SelectionChanged"
-                                                      ToolTip="{loc:Loc Settings.Bases.TimestampFormatTooltip}"/>
+                                                      SelectionChanged="OnExportTimestampFormat_SelectionChanged"/>
                                             <TextBlock x:Name="ExportTimestampPreview"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
                                                        Margin="0,6,0,0" TextWrapping="Wrap"/>
@@ -1865,12 +1886,16 @@
                                             <TextBlock Text="{loc:Loc Settings.ExplorerIntegrationHint}"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8"
                                                        TextWrapping="Wrap"/>
-                                            <CheckBox x:Name="ExplorerIntegrationCheck"
-                                                      Content="{loc:Loc Settings.ExplorerIntegrationEnable}"
-                                                      IsChecked="False" Margin="0,0,0,6"
-                                                      Checked="OnExplorerIntegration_Toggled"
-                                                      Unchecked="OnExplorerIntegration_Toggled"
-                                                      ToolTip="{loc:Loc Settings.ExplorerIntegrationEnableTooltip}"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                <CheckBox x:Name="ExplorerIntegrationCheck"
+                                                          Content="{loc:Loc Settings.ExplorerIntegrationEnable}"
+                                                          IsChecked="False"
+                                                          Checked="OnExplorerIntegration_Toggled"
+                                                          Unchecked="OnExplorerIntegration_Toggled"
+                                                          VerticalAlignment="Center"/>
+                                                <controls:HelpLink Margin="6,0,0,0" VerticalAlignment="Center"
+                                                                   HelpText="{loc:Loc Settings.ExplorerIntegrationEnableTooltip}"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </GroupBox>
 

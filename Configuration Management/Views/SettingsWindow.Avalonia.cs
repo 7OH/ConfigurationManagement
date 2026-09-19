@@ -231,8 +231,8 @@ namespace Configuration_Management
             // (App.axaml.cs), но в Linux-сборке их нечем было изменить. Цвет значка
             // взят из разметки Windows (SettingsWindow.xaml:1269, 1275); значка
             // Update в наборе Icons.axaml нет, поэтому стоит ближайший IconRefresh.
-            var checkUpdatesCheck = SettingsSwitch("Settings.General.CheckForUpdatesOnStartup", _viewModel.CheckForUpdatesOnStartup, "IconRefresh", "#22C55E");
-            var autoUpdateCheck = SettingsSwitch("Settings.General.AutoUpdate", _viewModel.AutoUpdateEnabled, "IconRefresh", "#22C55E");
+            var checkUpdatesCheck = SettingsSwitch("Settings.General.CheckForUpdatesOnStartup", _viewModel.CheckForUpdatesOnStartup, "IconRefresh", "#22C55E", "Settings.General.CheckForUpdatesOnStartupTooltip");
+            var autoUpdateCheck = SettingsSwitch("Settings.General.AutoUpdate", _viewModel.AutoUpdateEnabled, "IconRefresh", "#22C55E", "Settings.General.AutoUpdateTooltip");
             checkUpdatesCheck.Margin = new Thickness(0, 0, 0, 6);
             autoUpdateCheck.Margin = new Thickness(0, 0, 0, 6);
             settings.Children.Add(checkUpdatesCheck);
@@ -397,6 +397,13 @@ namespace Configuration_Management
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 10, 0)
             });
+            // Пояснение пункта вынесено под знак «?» рядом с заголовком (как в WPF).
+            comTemplateRow.Children.Add(new HelpLink
+            {
+                HelpText = LocalizationManager.T("Settings.General.ComConnectorTemplateTooltip"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0)
+            });
             var comTemplateBox = new TextBox
             {
                 Text = _viewModel.ComConnectorNameTemplate,
@@ -410,12 +417,6 @@ namespace Configuration_Management
                 // по версии платформы «V%V12%.ComConnector» даёт V83.COMConnector для 8.3.
                 Watermark = "V%V12%.ComConnector"
             }.Styled(ControlThemes.ModernTextBox);
-            ToolTip.SetTip(comTemplateBox, new TextBlock
-            {
-                Text = LocalizationManager.T("Settings.General.ComConnectorTemplateTooltip"),
-                MaxWidth = 320,
-                TextWrapping = TextWrapping.Wrap
-            });
             comTemplateRow.Children.Add(comTemplateBox);
             settings.Children.Add(comTemplateRow);
 
@@ -482,6 +483,13 @@ namespace Configuration_Management
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 10, 0)
             });
+            // Пояснение пункта вынесено под знак «?» рядом с заголовком (как в WPF).
+            detectTimeoutRow.Children.Add(new HelpLink
+            {
+                HelpText = LocalizationManager.T("Settings.General.ComDetectTimeoutTooltip"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0)
+            });
             var detectTimeoutBox = new TextBox
             {
                 Text = _viewModel.ComDetectTimeoutMs.ToString(),
@@ -490,12 +498,6 @@ namespace Configuration_Management
                 VerticalContentAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Stretch
             }.Styled(ControlThemes.ModernTextBox);
-            ToolTip.SetTip(detectTimeoutBox, new TextBlock
-            {
-                Text = LocalizationManager.T("Settings.General.ComDetectTimeoutTooltip"),
-                MaxWidth = 320,
-                TextWrapping = TextWrapping.Wrap
-            });
             detectTimeoutRow.Children.Add(detectTimeoutBox);
             detectTimeoutRow.Children.Add(new TextBlock
             {
@@ -1869,7 +1871,14 @@ namespace Configuration_Management
                 IsChecked = _viewModel.AddTimestampToExportFileName,
                 Margin = new Thickness(0, 4, 0, 0)
             };
-            ToolTip.SetTip(timestampCheck, LocalizationManager.T("Settings.AddTimestampTooltip"));
+            // Пояснение пункта вынесено под знак «?» рядом с флажком (как в WPF).
+            var timestampCheckRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            timestampCheckRow.Children.Add(timestampCheck);
+            timestampCheckRow.Children.Add(new HelpLink
+            {
+                HelpText = LocalizationManager.T("Settings.AddTimestampTooltip"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
 
             var timestampBox = new AutoCompleteBox
             {
@@ -1895,7 +1904,6 @@ namespace Configuration_Management
                     new Setter(TextBox.PaddingProperty, new Thickness(6, 4))
                 }
             });
-            ToolTip.SetTip(timestampBox, LocalizationManager.T("Settings.Bases.TimestampFormatTooltip"));
 
             var timestampPreview = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
 
@@ -2018,13 +2026,18 @@ namespace Configuration_Management
                 Text = LocalizationManager.T("Settings.Bases.HistoryDepth"),
                 VerticalAlignment = VerticalAlignment.Center
             });
+            // Пояснение пункта вынесено под знак «?» рядом с заголовком (как в WPF).
+            historyDepthRow.Children.Add(new HelpLink
+            {
+                HelpText = LocalizationManager.T("Settings.Bases.HistoryDepthTooltip"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
             var historyDepthBox = new TextBox
             {
                 Text = _viewModel.MaxLaunchHistoryPerBase.ToString(),
                 Width = 120,
                 VerticalContentAlignment = VerticalAlignment.Center
             }.Styled(ControlThemes.ModernTextBox);
-            ToolTip.SetTip(historyDepthBox, LocalizationManager.T("Settings.Bases.HistoryDepthTooltip"));
             historyDepthRow.Children.Add(historyDepthBox);
             basesListPanel.Children.Add(historyDepthRow);
 
@@ -2040,12 +2053,17 @@ namespace Configuration_Management
                 Text = LocalizationManager.T("Settings.DblClickActionLabel"),
                 VerticalAlignment = VerticalAlignment.Center
             });
+            // Пояснение пункта вынесено под знак «?» рядом с заголовком (как в WPF).
+            dblClickRow.Children.Add(new HelpLink
+            {
+                HelpText = LocalizationManager.T("Settings.DblClickActionTooltip"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
             var dblClickBox = new ComboBox
             {
                 Width = 200,
                 VerticalContentAlignment = VerticalAlignment.Center
             };
-            ToolTip.SetTip(dblClickBox, LocalizationManager.T("Settings.DblClickActionTooltip"));
             dblClickBox.ItemsSource = new[]
             {
                 LocalizationManager.T("Connection.DefaultLaunchEnterprise"),
@@ -2070,18 +2088,30 @@ namespace Configuration_Management
             dblClickRow.Children.Add(dblClickBox);
             basesListPanel.Children.Add(dblClickRow);
 
-            basesListPanel.Children.Add(timestampCheck);
+            basesListPanel.Children.Add(timestampCheckRow);
 
             // Как в Windows-разметке (SettingsWindow.xaml:1419): подпись сверху, поле —
             // на всю ширину, предпросмотр снизу. В горизонтальной панели рядом с подписью
             // и предпросмотром AutoCompleteBox не получал всю ширину, и строка формата
             // (yyyyMMdd_HHmmss) обрезалась.
             var timestampRow = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
-            timestampRow.Children.Add(new TextBlock
+            // Заголовок и знак «?» с пояснением формата — в одну строку (как в WPF).
+            var timestampFormatHeader = new StackPanel
             {
-                Text = LocalizationManager.T("Settings.Bases.TimestampFormat"),
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
                 Margin = new Thickness(0, 0, 0, 4)
+            };
+            timestampFormatHeader.Children.Add(new TextBlock
+            {
+                Text = LocalizationManager.T("Settings.Bases.TimestampFormat")
             });
+            timestampFormatHeader.Children.Add(new HelpLink
+            {
+                HelpText = LocalizationManager.T("Settings.Bases.TimestampFormatTooltip"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            timestampRow.Children.Add(timestampFormatHeader);
             timestampRow.Children.Add(timestampBox);
             timestampRow.Children.Add(timestampPreview);
             basesListPanel.Children.Add(timestampRow);
@@ -2125,12 +2155,22 @@ namespace Configuration_Management
             {
                 Content = LocalizationManager.T("Settings.ExplorerIntegrationEnable"),
                 IsEnabled = false,
-                IsChecked = false,
+                IsChecked = false
+            };
+            // Пояснение пункта вынесено под знак «?» рядом с флажком (как в WPF).
+            var explorerIntegrationRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
                 Margin = new Thickness(0, 0, 0, 8)
             };
-            ToolTip.SetTip(explorerIntegrationCheck,
-                LocalizationManager.T("Settings.ExplorerIntegrationUnavailable"));
-            basesMaintenancePanel.Children.Add(explorerIntegrationCheck);
+            explorerIntegrationRow.Children.Add(explorerIntegrationCheck);
+            explorerIntegrationRow.Children.Add(new HelpLink
+            {
+                HelpText = LocalizationManager.T("Settings.ExplorerIntegrationEnableTooltip"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            basesMaintenancePanel.Children.Add(explorerIntegrationRow);
 
             // Автозапуск при старте ОС (функция №31, Этап 8) и каталог копий экрана (функция №30).
             basesMaintenancePanel.Children.Add(GroupTitle(LocalizationManager.T("Settings.AutoStart")));
@@ -3286,7 +3326,7 @@ namespace Configuration_Management
         /// это ToggleButton со стилем SettingsToggle, а не флажок.
         /// </summary>
         private static ToggleButton SettingsSwitch(string textKey, bool value,
-            string? iconKey = null, string? iconColor = null)
+            string? iconKey = null, string? iconColor = null, string? helpTextKey = null)
         {
             var caption = new TextBlock
             {
@@ -3297,20 +3337,37 @@ namespace Configuration_Management
 
             // Значок слева от подписи и его цвет заданы в разметке числом
             // у каждого переключателя (SettingsWindow.xaml:500 и далее).
-            Control content = iconKey is null
-                ? caption
-                : new StackPanel
+            Control content;
+            if (iconKey is null && helpTextKey is null)
+            {
+                content = caption;
+            }
+            else
+            {
+                var panel = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
-                    Children =
-                    {
-                        IconHelper.MakeIcon(iconKey, UiMetrics.Scaled(16),
-                            new SolidColorBrush(Color.Parse(iconColor ?? "#94A3B8"))),
-                        caption
-                    }
+                    Children = { caption }
                 };
-            if (content is StackPanel panel)
-                ((Control)panel.Children[0]).Margin = new Thickness(0, 0, 8, 0);
+                if (iconKey is not null)
+                {
+                    var icon = IconHelper.MakeIcon(iconKey, UiMetrics.Scaled(16),
+                        new SolidColorBrush(Color.Parse(iconColor ?? "#94A3B8")));
+                    icon.Margin = new Thickness(0, 0, 8, 0);
+                    panel.Children.Insert(0, icon);
+                }
+                // Пояснение пункта выносим под знак «?» рядом с подписью (как в WPF).
+                if (helpTextKey is not null)
+                {
+                    panel.Children.Add(new HelpLink
+                    {
+                        HelpText = LocalizationManager.T(helpTextKey),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(6, 0, 0, 0)
+                    });
+                }
+                content = panel;
+            }
 
             var toggle = new ToggleButton
             {

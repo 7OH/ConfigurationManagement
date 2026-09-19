@@ -9,6 +9,26 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.5] — 2026-09-19
+
+### Изменения
+
+- **Пояснения настроек перенесены под знак «?»** — в окне «Настройки» пояснительные
+  ToolTip пунктов (что делает пункт) заменены на компактный контрол `HelpLink` со знаком «?»
+  рядом с заголовком пункта. Текст справки взят из существующих ключей локализации `...Tooltip`
+  (ru/en), новые ключи не потребовались. Реализовано для WPF (`SettingsWindow.xaml`) и Avalonia
+  (`SettingsWindow.Avalonia.*.cs`).
+- **Перенесённые пункты**: `CheckForUpdatesOnStartup`, `AutoUpdate`, `ComConnectorTemplate`,
+  `ComDetectTimeout`, `HistoryDepth`, `DblClickAction`, `AddTimestamp`, `TimestampFormat`,
+  `ExplorerIntegration`.
+- **Не затронуты**: короткие тултипы действий («Добавить/Удалить/Изменить», стрелки, обновить)
+  и тултипы заголовков подвкладок остались как есть — они описывают подписи действий, а не смысл пункта.
+
+### Версия
+
+- **Версия поднята до `0.3.9.5`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.4] — 2026-09-18
 
 ### Исправления
