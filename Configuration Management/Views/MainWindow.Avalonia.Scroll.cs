@@ -60,6 +60,13 @@ namespace Configuration_Management
                 _syncingScrollBar = true;
                 try
                 {
+                    // Горизонтальная прокрутка дерева не используется (её ведёт внешний
+                    // заголовок), но при пересборке/старте внутренняя прокрутка может получить
+                    // ненулевую горизонталь — из-за неё появляется «необоснованный»
+                    // горизонтальный скролл (issue #255). Держим её на нуле.
+                    if (scroll.Offset.X != 0)
+                        scroll.Offset = scroll.Offset.WithX(0);
+
                     var hidden = Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height);
                     bar.Maximum = hidden;
                     bar.ViewportSize = scroll.Viewport.Height;

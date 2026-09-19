@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using Configuration_Management.Controls;
 using Configuration_Management.ViewModels;
 
@@ -171,6 +172,16 @@ namespace Configuration_Management
                 return;
             }
 
+            // Сначала закрываем открытую подсказку главного окна (issue #261): первый ESC
+            // прячет тултип, а не уводит окно в трей. Иначе окно сворачивается, а подсказка
+            // остаётся «висеть». После закрытия модального диалога (ветка выше) не трогаем.
+            if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None
+                && CloseOpenToolTips())
+            {
+                e.Handled = true;
+                return;
+            }
+
             // Esc уводит окно в трей, если так задано настройкой. В поле ввода
             // клавиша остаётся своей: там ей отменяют правку.
             if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None
@@ -257,6 +268,30 @@ namespace Configuration_Management
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Закрывает открытую всплывающую подсказку (ToolTip) главного окна.
+        /// Используется при нажатии ESC (issue #261): первый ESC должен скрыть подсказку,
+        /// а не сворачивать/закрывать окно. Возвращает true, если была закрыта хотя бы одна.
+        /// </summary>
+        private bool CloseOpenToolTips()
+        {
+            var closed = false;
+            CloseIn(this);
+            return closed;
+
+            void CloseIn(Visual node)
+            {
+                if (node is Control control && ToolTip.GetIsOpen(control))
+                {
+                    ToolTip.SetIsOpen(control, false);
+                    closed = true;
+                }
+
+                foreach (var child in node.GetVisualChildren())
+                    CloseIn(child);
+            }
         }
 
         private void AddHotkey(string? gesture, System.Windows.Input.ICommand? command)

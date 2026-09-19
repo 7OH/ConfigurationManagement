@@ -1540,6 +1540,31 @@ namespace Configuration_Management
         /// COM-коннектора на Linux неприменима, выгрузка в dt и cf и история
         /// запусков ждут порта сервисов запуска).
         /// </summary>
+        /// <summary>
+        /// Подменю «Утилиты» общей панели (issue #262): глобальные команды, не привязанные
+        /// к конкретной базе. Раньше они жили в контекстном меню строки базы; теперь собраны
+        /// в общее подменю, куда в будущем можно добавлять новые общие команды.
+        /// </summary>
+        private ContextMenu BuildUtilitiesMenu()
+        {
+            var menu = new ContextMenu().Styled(Themes.ControlThemes.ModernContextMenu);
+            if (_vm is null)
+                return menu;
+
+            // Общие команды, перенесённые из контекстного меню базы.
+            menu.Items.Add(MenuAction("Updates.ActualReleasesTitle", _vm.ShowActualReleasesCommand, _vm.HotkeyActualReleases, "IconCloudDownload", "#14B8A6"));
+
+            var manageItem = new MenuItem { Header = LocalizationManager.T("Updates.ManageList") };
+            manageItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            manageItem.Click += (_, _) => _vm.OpenConfigTypesEdit();
+            menu.Items.Add(manageItem);
+
+            menu.Items.Add(MenuAction("AppLock.LockTitle", _vm.LockAppCommand, _vm.HotkeyLockApp, "IconExitToApp", "#8B5CF6"));
+            menu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
+
+            return menu;
+        }
+
         private ContextMenu BuildRowContextMenu()
         {
             var menu = new ContextMenu().Styled(Themes.ControlThemes.ModernContextMenu);
@@ -1566,7 +1591,7 @@ namespace Configuration_Management
             // Проверка обновлений конфигураций 1С (функции №21/№22): F9 — для выбранной
             // ИБ, ALT+F9 — окно «Актуальные релизы». Сочетания показываются из настроек.
             menu.Items.Add(MenuAction("Updates.CheckTitle", _vm.CheckUpdateCommand, _vm.HotkeyCheckUpdate, "IconCloudDownload", "#14B8A6"));
-            menu.Items.Add(MenuAction("Updates.ActualReleasesTitle", _vm.ShowActualReleasesCommand, _vm.HotkeyActualReleases, null, null));
+            // «Актуальные релизы» перенесено в общее подменю «Утилиты» верхней панели (issue #262).
             var linkItem = new MenuItem { Header = LocalizationManager.T("Updates.ConfigLink") };
             linkItem.Styled(Themes.ControlThemes.ModernMenuItem);
             linkItem.Click += (_, _) =>

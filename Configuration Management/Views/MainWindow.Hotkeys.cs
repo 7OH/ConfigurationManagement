@@ -262,6 +262,15 @@ namespace Configuration_Management
                 if (Keyboard.FocusedElement is TextBox { Name: "InlineTagBox" })
                     return;
 
+                // Сначала закрываем открытую подсказку (issue #261): первый ESC прячет
+                // тултип, а не сворачивает/закрывает окно. Иначе главное окно уходит
+                // в трей, а подсказка остаётся «висеть».
+                if (CloseOpenToolTips())
+                {
+                    e.Handled = true;
+                    return;
+                }
+
                 if (_viewModel.EscapeToTray && _viewModel.ShowTrayIcon)
                 {
                     MinimizeToTray();
@@ -295,6 +304,47 @@ namespace Configuration_Management
                 _viewModel.LaunchFavoriteByHotkey(key - Key.NumPad0);
                 e.Handled = true;
             }
+        }
+
+        /// <summary>
+        /// Закрывает все открытые всплывающие подсказки (ToolTip) главного окна.
+        /// Используется при нажатии ESC (issue #261): первый ESC должен скрыть подсказку,
+        /// а не сворачивать/закрывать окно. Возвращает true, если была закрыта хотя бы одна.
+        /// </summary>
+        private bool CloseOpenToolTips()
+        {
+            var closed = false;
+            foreach (Window window in Application.Current.Windows)
+            {
+                if (CloseToolTipsIn(window))
+                    closed = true;
+            }
+            return closed;
+        }
+
+        private static bool CloseToolTipsIn(DependencyObject root)
+        {
+            var closed = false;
+            var queue = new Queue<DependencyObject>();
+            queue.Enqueue(root);
+            while (queue.Count > 0)
+            {
+                var node = queue.Dequeue();
+                if (node is UIElement ui && ToolTipService.GetIsOpen(ui))
+                {
+                    // IsOpen у ToolTipService доступен только на чтение, а строковые подсказки
+                    // оборачиваются во внутренний ToolTip, до которого нельзя добраться. Надёжное
+                    // закрытие открытой подсказки — кратковременно отключить и включить тултип
+                    // элемента: текущая подсказка снимается (issue #261).
+                    ToolTipService.SetIsEnabled(ui, false);
+                    ToolTipService.SetIsEnabled(ui, true);
+                    closed = true;
+                }
+
+                for (var i = VisualTreeHelper.GetChildrenCount(node) - 1; i >= 0; i--)
+                    queue.Enqueue(VisualTreeHelper.GetChild(node, i));
+            }
+            return closed;
         }
 
         /// <summary>

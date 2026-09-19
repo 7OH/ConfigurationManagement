@@ -285,9 +285,15 @@ namespace Configuration_Management
 
                 if (FunctionalModeHintText != null)
                 {
-                    FunctionalModeHintText.Text = _viewModel.IsSystemMenuRestricted
-                        ? LocalizationManager.T("FunctionalMode.UserHint")
-                        : "";
+                    // Подсказка по текущему режиму функциональности (issue #263): у каждого
+                    // режима («Пользователь»/«Специалист»/«Разработчик») своё пояснение,
+                    // а не только у ограничивающего «Пользователя».
+                    FunctionalModeHintText.Text = _viewModel.FunctionalMode switch
+                    {
+                        Models.FunctionalModes.User => LocalizationManager.T("FunctionalMode.UserHint"),
+                        Models.FunctionalModes.Developer => LocalizationManager.T("FunctionalMode.DeveloperHint"),
+                        _ => LocalizationManager.T("FunctionalMode.SpecialistHint")
+                    };
                 }
 
                 if (LaunchConfigHintText != null)

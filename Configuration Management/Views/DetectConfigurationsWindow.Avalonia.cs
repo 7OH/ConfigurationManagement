@@ -51,6 +51,11 @@ namespace Configuration_Management
         private CancellationTokenSource? _cts;
         private bool _closeConfirmed;
 
+        // Признак того, что вопрос подтверждения сейчас на экране (issue #260). Пока вопрос
+        // показан модально (Confirm крутит вложенный цикл PushFrame), повторный Closing снова
+        // попадал бы в обработчик и показывал вопрос второй раз. Guard-флаг ставится ДО показа.
+        private bool _closePromptOpen;
+
         /// <param name="infobases">Все информационные базы для определения.</param>
         /// <param name="editBase">Обратный вызов открытия окна свойств базы (под курсором). Может быть null.</param>
         public DetectConfigurationsWindow(IReadOnlyList<Infobase> infobases, Action<Infobase>? editBase = null)
@@ -276,22 +281,32 @@ namespace Configuration_Management
 
         private void OnClosingConfirm(object? sender, WindowClosingEventArgs e)
         {
-            if (_closeConfirmed || !_rows.Any(r => r.IsChecked))
+            // Ранний выход: закрытие уже подтверждено или вопрос сейчас на экране
+            // (issue #260 — защита от повторного показа из вложенного цикла PushFrame).
+            if (_closeConfirmed || _closePromptOpen || !_rows.Any(r => r.IsChecked))
                 return;
 
             // Требование #6/#7: если остались отмеченные (необработанные) строки,
             // спрашиваем подтверждение перед закрытием — окно само не закрывается.
-            if (_dialogs.Confirm(
-                LocalizationManager.T("DetectConfigs.CloseConfirm"),
-                LocalizationManager.T("DetectConfigs.Title")))
+            _closePromptOpen = true;
+            try
             {
-                _closeConfirmed = true;
+                if (_dialogs.Confirm(
+                    LocalizationManager.T("DetectConfigs.CloseConfirm"),
+                    LocalizationManager.T("DetectConfigs.Title")))
+                {
+                    _closeConfirmed = true;
+                }
+                else
+                {
+                    // Отказ закрывать при необработанных строках должен отменять закрытие,
+                    // иначе вопрос показывается повторно (issue #260).
+                    e.Cancel = true;
+                }
             }
-            else
+            finally
             {
-                // Отказ закрывать при необработанных строках должен отменять закрытие,
-                // иначе вопрос показывается повторно (issue #260).
-                e.Cancel = true;
+                _closePromptOpen = false;
             }
         }
 

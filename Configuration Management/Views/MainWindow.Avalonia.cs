@@ -463,6 +463,33 @@ namespace Configuration_Management
 
             panel.Children.Add(CommandPanelSeparator());
 
+            // «Утилиты»: общие команды, не привязанные к конкретной базе (issue #262).
+            // Раньше такие команды лежали в контекстном меню базы; теперь собраны в
+            // отдельное подменю общей панели, куда в будущем можно добавлять новые.
+            var utilitiesMenu = BuildUtilitiesMenu();
+            var utilitiesBtn = new Button
+            {
+                Content = ThemedIconAndText("IconWrench",
+                    LocalizationManager.T("Main.Utilities"), "TextSecondaryColorBrush",
+                    UiMetrics.ScaledFont(13), centered: false),
+                Padding = new Thickness(UiMetrics.ButtonPadH, UiMetrics.ButtonPadV),
+                HorizontalContentAlignment = HorizontalAlignment.Center
+            };
+            utilitiesBtn.Styled(Themes.ControlThemes.IconButton);
+            ToolTip.SetTip(utilitiesBtn, LocalizationManager.T("Main.UtilitiesTooltip"));
+            utilitiesBtn.ContextMenu = utilitiesMenu;
+            utilitiesBtn.Click += (_, _) => utilitiesMenu.Open(utilitiesBtn);
+            panel.Children.Add(utilitiesBtn);
+
+            // «Актуальные релизы» — глобальная команда (Alt+F9), вынесена из контекстного
+            // меню базы на общую панель (issue #262).
+            var releasesBtn = TopBarIconButton("IconCloudDownload",
+                LocalizationManager.T("Updates.ActualReleasesTitle"), "#14B8A6");
+            releasesBtn.Bind(Button.CommandProperty, new Binding("ShowActualReleasesCommand"));
+            panel.Children.Add(releasesBtn);
+
+            panel.Children.Add(CommandPanelSeparator());
+
             // «Настройки»: тема, компактный режим, окно настроек и справка.
             // Значок темы меняется вместе со схемой, как в версии для Windows
             // (MainWindow.Language.cs:41): в тёмной солнце, в светлой луна.

@@ -403,15 +403,22 @@ namespace Configuration_Management
                 var bottom = top + item.ActualHeight;     // относительно вьюпорта
                 var viewportBottom = scrollViewer.ViewportHeight;
 
+                // Ограничиваем шаг размером вьюпорта. У контейнера ГРУППЫ ActualHeight включает
+                // высоту всех дочерних строк, поэтому «выступ» за нижний край огромен и при
+                // листании клавишами по папке список «перепрыгивал» вниз на несколько экранов
+                // (issue #255). Шаг на страницу не даёт такого скачка: следующее нажатие
+                // доводит выделение до нужной строки обычным шагом.
                 if (top < 0)
                 {
-                    // Элемент выше верха вьюпорта: поднимаем на разницу top.
-                    scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset + top);
+                    // Элемент выше верха вьюпорта: поднимаем, но не более чем на вьюпорт.
+                    var step = Math.Min(-top, viewportBottom);
+                    scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - step);
                 }
                 else if (bottom > viewportBottom)
                 {
-                    // Элемент ниже низа вьюпорта: опускаем на величину выступа за нижний край.
-                    scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset + (bottom - viewportBottom));
+                    // Элемент ниже низа вьюпорта: опускаем, но не более чем на вьюпорт.
+                    var step = Math.Min(bottom - viewportBottom, viewportBottom);
+                    scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset + step);
                 }
             }
             catch

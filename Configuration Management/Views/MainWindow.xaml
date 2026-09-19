@@ -586,6 +586,29 @@
                             <!-- Вертикальный разделитель: отделяет группу «Управление списком» от «Настройки» -->
                             <Border Width="1" Margin="4,5" VerticalAlignment="Stretch"
                                     Background="{DynamicResource BorderBrushColor}" Opacity="0.55"/>
+                            <!-- «Утилиты»: общие команды, не привязанные к конкретной базе (issue #262).
+                                 Раньше такие команды лежали в контекстном меню базы; теперь собраны
+                                 в отдельное подменю общей панели, куда можно добавлять новые. -->
+                            <Button x:Name="UtilitiesButton" Click="OnUtilitiesMenuButton_Click"
+                                    Style="{DynamicResource IconButton}" Margin="0,0,2,0"
+                                    ToolTip="{loc:Loc Main.UtilitiesTooltip}">
+                                <materialDesign:PackIcon Kind="Wrench" Width="18" Height="18"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <Button.ContextMenu>
+                                    <ContextMenu Style="{DynamicResource ModernContextMenu}">
+                                        <MenuItem Header="{loc:Loc Updates.ActualReleasesTitle}" Command="{Binding ShowActualReleasesCommand}" InputGestureText="{Binding HotkeyActualReleases}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <!-- «Актуальные релизы» — глобальная команда (Alt+F9), вынесена из
+                                 контекстного меню базы на общую панель (issue #262). -->
+                            <Button Command="{Binding ShowActualReleasesCommand}" Style="{DynamicResource IconButton}"
+                                    Margin="0,0,2,0" ToolTip="{loc:Loc Main.ActualReleasesTooltip}">
+                                <materialDesign:PackIcon Kind="CloudDownload" Width="18" Height="18" Foreground="#14B8A6"/>
+                            </Button>
                             <!-- «Настройки»: тема, компактный режим, настройки, справка -->
                             <Button x:Name="ThemeToggleButton" Click="OnToggleTheme_Click"
                                     Style="{DynamicResource IconButton}" Margin="0,0,2,0" ToolTip="{loc:Loc Main.Theme}">
@@ -1917,7 +1940,8 @@
                                 <MenuItem Header="{loc:Loc Updates.CheckTitle}" Command="{Binding CheckUpdateCommand}" InputGestureText="{Binding HotkeyCheckUpdate}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="{loc:Loc Updates.ActualReleasesTitle}" Command="{Binding ShowActualReleasesCommand}" InputGestureText="{Binding HotkeyActualReleases}" Style="{DynamicResource ModernMenuItem}"/>
+                                <!-- «Актуальные релизы» перенесено в общее подменю «Утилиты»
+                                     верхней панели (issue #262). -->
                                 <MenuItem Header="{loc:Loc Updates.ConfigLink}" Click="OnConfigUpdateLinkMenuClick" Style="{DynamicResource ModernMenuItem}"/>
                                 <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
                                 <MenuItem Header="{loc:Loc Main.RegisterComConnector}" Command="{Binding RegisterComConnectorCommand}" Style="{DynamicResource ModernMenuItem}">

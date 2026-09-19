@@ -152,8 +152,46 @@ namespace Configuration_Management.Controls
             // копии; SelectedItem дерева поднимается из контейнера сам (штатный
             // путь выбора, как по клику), а с ним — правая панель и модель.
             rows[target].IsSelected = true;
-            rows[target].BringIntoView();
+            BringRowIntoView(rows[target]);
             rows[target].Focus();
+        }
+
+        /// <summary>
+        /// Прокручивает список к строке, не «перепрыгивая» вниз на высоту всей группы
+        /// (issue #255). У контейнера группы высота включает все дочерние строки, поэтому
+        /// штатный BringIntoView уводил список на несколько экранов при листании по папке.
+        /// Шаг ограничен размером вьюпорта; следующее нажатие доводит выделение обычным шагом.
+        /// </summary>
+        private void BringRowIntoView(TreeViewItem item)
+        {
+            if (TreeScroll is not { } scroll)
+            {
+                item.BringIntoView();
+                return;
+            }
+
+            var point = item.TranslatePoint(default, scroll);
+            if (point is null)
+            {
+                item.BringIntoView();
+                return;
+            }
+
+            var top = point.Value.Y;
+            var bottom = top + item.Bounds.Height;
+            var viewport = Math.Max(1, scroll.Viewport.Height);
+            var current = scroll.Offset.Y;
+
+            if (top < 0)
+            {
+                var step = Math.Min(-top, viewport);
+                scroll.Offset = scroll.Offset.WithY(Math.Max(0, current - step));
+            }
+            else if (bottom > viewport)
+            {
+                var step = Math.Min(bottom - viewport, viewport);
+                scroll.Offset = scroll.Offset.WithY(current + step);
+            }
         }
 
         /// <summary>Фокус клавиатуры сейчас в текстовом поле (поиск, инлайн-теги).</summary>

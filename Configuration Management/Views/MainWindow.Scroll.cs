@@ -31,11 +31,19 @@ namespace Configuration_Management
         private ScrollViewer? _treeScrollViewer;
         private bool _treeScrollHookAttached;
 
+        // Guard от рекурсии при принудительном сбросе горизонтали дерева (issue #255).
+        private bool _resettingTreeHScroll;
+
         /// <summary>Позиция вертикальной прокрутки, запомненная до пересборки дерева (issue #252).</summary>
         private double _treeScrollOffset;
 
         /// <summary>Ссылка на верхнюю видимую строку до пересборки (восстановление по строке, а не по пикселям).</summary>
         private object? _treeScrollAnchorData;
+
+        // Ключ группы выбранной базы до пересборки (issue #252): если после пересборки база
+        // осталась в той же группе и видимой, позицию восстанавливаем точным offset, а не
+        // BringIntoView — иначе список «съезжает» после правки свойств без смены группы.
+        private string? _treeScrollAnchorGroup;
 
         /// <summary>
         /// Возвращает данные верхней видимой строки дерева. Виртуализация реализует только
@@ -62,6 +70,9 @@ namespace Configuration_Management
                 return;
             _treeScrollOffset = treeScroll.VerticalOffset;
             _treeScrollAnchorData = GetTopVisibleRowData();
+            _treeScrollAnchorGroup = _viewModel?.SelectedInfobase is { } ib
+                ? FindGroupNodeByInfobase(ib)?.NodeKey
+                : null;
         }
 
         /// <summary>
@@ -80,10 +91,23 @@ namespace Configuration_Management
                 // Раскрытие предков и layout должны устояться, иначе позиция «садится не туда».
                 MainTree.UpdateLayout();
 
-                // Восстанавливаем по запомненной верхней видимой строке (не по «сырым» пикселям):
-                // виртуализированное дерево после пересборки имеет другой контент/высоты (issue #252).
-                if (_treeScrollAnchorData is { } anchor)
+                // Если выбранная база осталась в той же группе, ключевое состояние не изменилось —
+                // восстанавливаем точный offset, а не «якорную» строку: так после правки свойств
+                // без смены группы список не сдвигается (issue #252).
+                var currentGroup = _viewModel?.SelectedInfobase is { } ib
+                    ? FindGroupNodeByInfobase(ib)?.NodeKey
+                    : null;
+                var groupUnchanged = !string.IsNullOrEmpty(_treeScrollAnchorGroup)
+                    && string.Equals(_treeScrollAnchorGroup, currentGroup, StringComparison.Ordinal);
+
+                if (groupUnchanged)
                 {
+                    treeScroll.ScrollToVerticalOffset(_treeScrollOffset);
+                }
+                else if (_treeScrollAnchorData is { } anchor)
+                {
+                    // Восстанавливаем по запомненной верхней видимой строке (не по «сырым» пикселям):
+                    // виртуализированное дерево после пересборки имеет другой контент/высоты (issue #252).
                     if (FindTreeViewItemForData(anchor) is { } anchorItem)
                         anchorItem.BringIntoView();
                 }
@@ -151,6 +175,17 @@ namespace Configuration_Management
         {
             if (DbHeaderScroll is null)
                 return;
+
+            // Горизонтальная прокрутка дерева не используется (её ведёт внешний заголовок),
+            // но при пиксельной виртуализации на старте дерево может получить ненулевую
+            // горизонталь — из-за неё появляется «необоснованный» горизонтальный скролл
+            // (issue #255). Принудительно держим горизонталь дерева на нуле.
+            if (!_resettingTreeHScroll && Math.Abs(e.HorizontalOffset) > 0.01)
+            {
+                _resettingTreeHScroll = true;
+                try { ((ScrollViewer)sender).ScrollToHorizontalOffset(0); }
+                finally { _resettingTreeHScroll = false; }
+            }
 
             if (Math.Abs(DbHeaderScroll.HorizontalOffset - e.HorizontalOffset) > 0.01)
                 DbHeaderScroll.ScrollToHorizontalOffset(e.HorizontalOffset);
