@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -34,10 +35,10 @@ namespace Configuration_Management
         // строках повторный Closing не должен переспрашивать (зеркально Avalonia-версии).
         private bool _closeConfirmed;
 
-        // Признак того, что вопрос подтверждения сейчас на экране (issue #260). Пока вопрос
-        // показан модально (ShowDialog крутит вложенный цикл сообщений), повторный Closing
-        // снова попадал бы в обработчик и показывал вопрос второй раз. Guard-флаг ставится
-        // ДО показа вопроса, а не после согласия.
+        // Признак того, что вопрос подтверждения показывается или запланирован (issue #260).
+        // Вопрос выносится из события Closing в отложенный вызов: если показывать Confirm
+        // синхронно внутри Closing, его вложенный цикл сообщений (ShowDialog) вызывает
+        // реентерабельный Closing уже после завершения модального окна, и вопрос повторяется.
         private bool _closePromptOpen;
 
         /// <param name="infobases">Все информационные базы для определения.</param>
@@ -262,38 +263,71 @@ namespace Configuration_Management
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
-            // Ранний выход: отмена уже выставлена кем-то ещё, закрытие уже подтверждено
-            // или вопрос сейчас на экране (issue #260 — защита от повторного показа из
-            // вложенного цикла сообщений модального Confirm).
-            if (e.Cancel || _closeConfirmed || _closePromptOpen)
+            // Закрытие уже подтверждено ранее — пропускаем вопрос и даём окну закрыться.
+            if (_closeConfirmed)
+            {
+                base.OnClosing(e);
                 return;
+            }
 
-            if (_rows.Any(r => r.IsChecked))
+            // Есть необработанные отмеченные строки и вопрос ещё не показывается/не запланирован:
+            // отменяем текущее закрытие и показываем подтверждение ОТЛОЖЕННО, вне события Closing.
+            // Прямой вызов Confirm здесь крутил бы вложенный цикл сообщений модального окна
+            // (ShowDialog) реентерабельно, и после ответа «Нет» платформа повторно инициировала бы
+            // Closing того же окна — вопрос показывался бы второй раз (issue #260).
+            if (!_closePromptOpen && _rows.Any(r => r.IsChecked))
             {
                 _closePromptOpen = true;
+                e.Cancel = true;
                 try
                 {
-                    if (_dialogs.Confirm(
-                            LocalizationManager.T("DetectConfigs.CloseConfirm"),
-                            LocalizationManager.T("DetectConfigs.Title")))
-                    {
-                        // Выставляем флаг перед фактическим закрытием, чтобы повторный Closing
-                        // не показывал вопрос заново (issue #260).
-                        _closeConfirmed = true;
-                    }
-                    else
-                    {
-                        // Отказ закрывать при необработанных строках отменяет закрытие.
-                        e.Cancel = true;
-                        return;
-                    }
+                    // Background-приоритет: откладываем вопрос до завершения текущего закрытия,
+                    // чтобы Confirm не выполнялся внутри обработчика Closing.
+                    Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(AskCloseConfirm));
                 }
-                finally
+                catch
                 {
                     _closePromptOpen = false;
                 }
+                return;
             }
+
+            // Вопрос уже показывается/запланирован — повторное закрытие отменяем молча.
+            if (_closePromptOpen)
+            {
+                e.Cancel = true;
+                return;
+            }
+
             base.OnClosing(e);
+        }
+
+        /// <summary>
+        /// Показывает вопрос подтверждения закрытия вне события Closing (issue #260).
+        /// При согласии закрывает окно один раз без повторного запроса; при отказе окно
+        /// остаётся открытым.
+        /// </summary>
+        private void AskCloseConfirm()
+        {
+            _closePromptOpen = false;
+            if (_closeConfirmed || !_rows.Any(r => r.IsChecked))
+                return;
+
+            try
+            {
+                if (_dialogs.Confirm(
+                        LocalizationManager.T("DetectConfigs.CloseConfirm"),
+                        LocalizationManager.T("DetectConfigs.Title")))
+                {
+                    // Флаг до фактического закрытия, чтобы повторный Closing не спрашивал заново.
+                    _closeConfirmed = true;
+                    Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Ошибка при подтверждении закрытия окна определения конфигураций", ex);
+            }
         }
     }
 }

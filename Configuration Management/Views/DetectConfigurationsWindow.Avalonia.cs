@@ -51,9 +51,10 @@ namespace Configuration_Management
         private CancellationTokenSource? _cts;
         private bool _closeConfirmed;
 
-        // Признак того, что вопрос подтверждения сейчас на экране (issue #260). Пока вопрос
-        // показан модально (Confirm крутит вложенный цикл PushFrame), повторный Closing снова
-        // попадал бы в обработчик и показывал вопрос второй раз. Guard-флаг ставится ДО показа.
+        // Признак того, что вопрос подтверждения показывается или запланирован (issue #260).
+        // Вопрос выносится из события Closing в отложенный вызов: если показывать Confirm
+        // синхронно внутри Closing, его вложенный цикл PushFrame вызывает реентерабельный
+        // Closing уже после завершения модального окна, и вопрос повторяется.
         private bool _closePromptOpen;
 
         /// <param name="infobases">Все информационные базы для определения.</param>
@@ -281,32 +282,59 @@ namespace Configuration_Management
 
         private void OnClosingConfirm(object? sender, WindowClosingEventArgs e)
         {
-            // Ранний выход: закрытие уже подтверждено или вопрос сейчас на экране
-            // (issue #260 — защита от повторного показа из вложенного цикла PushFrame).
-            if (_closeConfirmed || _closePromptOpen || !_rows.Any(r => r.IsChecked))
+            // Закрытие уже подтверждено ранее — пропускаем вопрос и даём окну закрыться.
+            if (_closeConfirmed || !_rows.Any(r => r.IsChecked))
                 return;
 
-            // Требование #6/#7: если остались отмеченные (необработанные) строки,
-            // спрашиваем подтверждение перед закрытием — окно само не закрывается.
+            // Вопрос уже показывается/запланирован — повторное закрытие отменяем молча.
+            if (_closePromptOpen)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            // Отменяем текущее закрытие и показываем подтверждение ОТЛОЖЕННО, вне события Closing.
+            // Прямой вызов Confirm здесь крутил бы вложенный цикл PushFrame модального окна
+            // реентерабельно, и после ответа «Нет» повторно инициировалось бы Closing того же
+            // окна — вопрос показывался бы второй раз (issue #260).
             _closePromptOpen = true;
+            e.Cancel = true;
+            try
+            {
+                // Background-приоритет: откладываем вопрос до завершения текущего закрытия,
+                // чтобы Confirm не выполнялся внутри обработчика Closing.
+                Dispatcher.UIThread.InvokeAsync(AskCloseConfirm, DispatcherPriority.Background);
+            }
+            catch
+            {
+                _closePromptOpen = false;
+            }
+        }
+
+        /// <summary>
+        /// Показывает вопрос подтверждения закрытия вне события Closing (issue #260).
+        /// При согласии закрывает окно один раз; при отказе окно остаётся открытым.
+        /// </summary>
+        private void AskCloseConfirm()
+        {
+            _closePromptOpen = false;
+            if (_closeConfirmed || !_rows.Any(r => r.IsChecked))
+                return;
+
             try
             {
                 if (_dialogs.Confirm(
                     LocalizationManager.T("DetectConfigs.CloseConfirm"),
                     LocalizationManager.T("DetectConfigs.Title")))
                 {
+                    // Флаг до фактического закрытия, чтобы повторный Closing не спрашивал заново.
                     _closeConfirmed = true;
-                }
-                else
-                {
-                    // Отказ закрывать при необработанных строках должен отменять закрытие,
-                    // иначе вопрос показывается повторно (issue #260).
-                    e.Cancel = true;
+                    Close();
                 }
             }
-            finally
+            catch (Exception ex)
             {
-                _closePromptOpen = false;
+                _logger.Error("Ошибка при подтверждении закрытия окна определения конфигураций", ex);
             }
         }
 
