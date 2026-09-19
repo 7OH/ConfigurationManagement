@@ -294,22 +294,39 @@ namespace Configuration_Management
         {
             var closed = false;
 
-            // Открытая подсказка «висит» на элементе визуального дерева окна (попап ToolTip
-            // живёт в оверлейном слое TopLevel, который также является потомком окна), поэтому
-            // обхода дерева окна достаточно, чтобы дойти и до «хозяина» подсказки.
-            CloseIn(this);
-
-            // Страховка на случай, когда владелец подсказки лежит вне визуального дерева окна
-            // (например, элемент из шаблона/всплывающего окна): проходимся по цепочке визуальных
-            // родителей от элемента в фокусе и закрываем встреченную открытую подсказку.
-            if (!closed && FocusManager?.GetFocusedElement() is Visual focused)
+            // Основной путь: владелец открытого тултипа, записанный класс-обработчиком
+            // изменения ToolTip.IsOpenProperty (см. MainWindow.Avalonia.cs). Это надёжнее
+            // обхода визуального дерева, потому что открытый ToolTip рендерится попапом
+            // в оверлейном слое TopLevel, который не всегда входит в GetVisualChildren() окна,
+            // а ToolTip.GetIsOpen на владельце может не отражать фактически показанный попап.
+            if (_openToolTipOwner is not null && ToolTip.GetIsOpen(_openToolTipOwner))
             {
-                for (var node = focused; node is not null; node = node.GetVisualParent())
+                ToolTip.SetIsOpen(_openToolTipOwner, false);
+                _openToolTipOwner = null;
+                closed = true;
+            }
+
+            // Страховка по оверлейному слою TopLevel (там живут открытые попапы ToolTip) не
+            // нужна: владелец любого открытого тултипа гарантированно записан в
+            // _openToolTipOwner класс-обработчиком ToolTip.IsOpenProperty выше, поэтому основной
+            // путь уже покрывает и попапы оверлея. Отдельный обход OverlayLayer.Children через
+            // PopupHost опущен: в Avalonia 11.3 этот тип internal, а логику закрытия дублировал
+            // бы без выгоды.
+
+            // Резервный путь: старый обход визуального дерева окна и цепочки визуальных
+            // родителей сфокусированного элемента (владелец мог оказаться вне оверлея).
+            if (!closed)
+            {
+                CloseIn(this);
+                if (FocusManager?.GetFocusedElement() is Visual focused)
                 {
-                    if (node is Control control && ToolTip.GetIsOpen(control))
+                    for (var node = focused; node is not null; node = node.GetVisualParent())
                     {
-                        ToolTip.SetIsOpen(control, false);
-                        closed = true;
+                        if (node is Control control && ToolTip.GetIsOpen(control))
+                        {
+                            ToolTip.SetIsOpen(control, false);
+                            closed = true;
+                        }
                     }
                 }
             }

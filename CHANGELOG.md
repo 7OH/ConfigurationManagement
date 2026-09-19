@@ -9,6 +9,36 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.12] — 2026-09-19
+
+### Исправления
+
+- **Режимы «Специалист» и «Разработчик» — честное описание эквивалентности (#263)** —
+  переписаны подсказки в локализации ru/en (ключи `FunctionalMode.SpecialistHint`,
+  `FunctionalMode.DeveloperHint`, `Settings.General.FunctionalModeHint`), синхронизирована
+  XML-документация в [`FunctionalMode.cs`](Configuration%20Management/Models/FunctionalMode.cs).
+  Тексты теперь прямо указывают, что на текущем этапе оба режима дают одинаковый полный
+  доступ, состав меню не различается, а реальные разработческие инструменты конфигуратора
+  запланированы на последующие этапы дорожной карты.
+  Затронуты [`en.json`](Configuration%20Management/Localization/Languages/en.json),
+  [`ru.json`](Configuration%20Management/Localization/Languages/ru.json),
+  [`FunctionalMode.cs`](Configuration%20Management/Models/FunctionalMode.cs).
+
+- **ESC закрывает открытую подсказку до сворачивания окна (#261)** —
+  первый ESC теперь детерминированно закрывает открытый тултип, повторный — сворачивает
+  окно в трей. Добавлен класс-обработчик изменения присоединённого свойства
+  `ToolTip.IsOpenProperty`, который запоминает владельца открытого тултипа (независимо от
+  того, лежит ли он в визуальном дереве окна или в оверлейном слое `TopLevel`), а
+  `CloseOpenToolTips()` закрывает его через `ToolTip.SetIsOpen(owner, false)` надёжно, без
+  опоры на обход визуального дерева (Avalonia).
+  Затронуты [`MainWindow.Avalonia.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Hotkeys.cs)
+  и [`MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs).
+
+### Версия
+
+- **Версия поднята до `0.3.9.12`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.11] — 2026-09-19
 
 ### Исправления

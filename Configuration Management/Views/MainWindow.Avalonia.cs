@@ -48,6 +48,12 @@ namespace Configuration_Management
         private TextBlock _syncMessage = null!;
         private LeveledTreeView _tree = null!;
 
+        // Владелец последнего открытого ToolTip (issue #261). Записывается класс-обработчиком
+        // изменения ToolTip.IsOpenProperty и не зависит от того, где физически отрисован попап
+        // (в визуальном дереве окна или в оверлейном слое TopLevel), поэтому надёжно закрывается
+        // по ESC даже тогда, когда старый обход дерева окна владельца не находит.
+        private Control? _openToolTipOwner;
+
         // Поля empty-state (заглушка пустого списка / «ничего не найдено»).
         private Border _emptyState = null!;
         private Avalonia.Controls.Shapes.Path _emptyIcon = null!;
@@ -146,6 +152,13 @@ namespace Configuration_Management
             // подсказка не обнаружится — окно уйдёт в трей, а тултип останется висеть.
             AddHandler(InputElement.KeyDownEvent, OnPreviewKeyDownCloseToolTips, RoutingStrategies.Tunnel);
 
+            // Отслеживаем владельца любого открытого ToolTip глобально (issue #261): подписка
+            // на изменение присоединённого свойства ToolTip.IsOpenProperty на уровне класса
+            // срабатывает независимо от того, лежит ли владелец в визуальном дереве окна или
+            // в оверлейном слое TopLevel. Так первый ESC гарантированно закрывает подсказку,
+            // а не сворачивает окно в трей с «зависшим» тултипом.
+            ToolTip.IsOpenProperty.Changed.AddClassHandler<Control>(OnToolTipIsOpenChanged);
+
             // Шапка окна реагирует на активность: акцентная заливка у активного окна,
             // цвет карточки у неактивного (MainWindow.xaml.cs:78-79).
             Activated += (_, _) => ApplyTitleBarAppearance(true);
@@ -175,6 +188,19 @@ namespace Configuration_Management
             // создаются в коде через LocalizationManager.T(...), поэтому окно пересобирается,
             // чтобы переведённый текст появился сразу, а не после перезапуска.
             LocalizationManager.Instance.LanguageChanged += OnLanguageChanged;
+        }
+
+        /// <summary>
+        /// Класс-обработчик изменения <see cref="ToolTip.IsOpenProperty"/>. Запоминает владельца
+        /// открытой подсказки в <see cref="_openToolTipOwner"/> (issue #261), чтобы её можно было
+        /// закрыть по ESC детерминированно, не полагаясь на обход визуального дерева окна.
+        /// </summary>
+        private void OnToolTipIsOpenChanged(Control owner, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.NewValue is true)
+                _openToolTipOwner = owner;
+            else if (ReferenceEquals(_openToolTipOwner, owner))
+                _openToolTipOwner = null;
         }
 
         /// <summary>Шапка окна: полоса, подпись и кнопки, перекрашиваемые по активности.</summary>
