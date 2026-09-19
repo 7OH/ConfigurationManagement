@@ -287,13 +287,25 @@ namespace Configuration_Management
                 {
                     // Подсказка по текущему режиму функциональности (issue #263): у каждого
                     // режима («Пользователь»/«Специалист»/«Разработчик») своё пояснение,
-                    // а не только у ограничивающего «Пользователя».
-                    FunctionalModeHintText.Text = _viewModel.FunctionalMode switch
+                    // а не только у ограничивающего «Пользователя». Пояснение обновляется
+                    // сразу при выборе режима, чтобы разницу «Специалист»/«Разработчик»
+                    // пользователь видел без повторного открытия окна.
+                    void UpdateFunctionalModeHint()
                     {
-                        Models.FunctionalModes.User => LocalizationManager.T("FunctionalMode.UserHint"),
-                        Models.FunctionalModes.Developer => LocalizationManager.T("FunctionalMode.DeveloperHint"),
-                        _ => LocalizationManager.T("FunctionalMode.SpecialistHint")
-                    };
+                        var code = FunctionalModeComboBox?.SelectedItem is ComboBoxItem it && it.Tag is string c
+                            ? c
+                            : _viewModel.FunctionalMode;
+                        FunctionalModeHintText.Text = Models.FunctionalModes.Parse(code) switch
+                        {
+                            Models.FunctionalMode.User => LocalizationManager.T("FunctionalMode.UserHint"),
+                            Models.FunctionalMode.Developer => LocalizationManager.T("FunctionalMode.DeveloperHint"),
+                            _ => LocalizationManager.T("FunctionalMode.SpecialistHint")
+                        };
+                    }
+
+                    UpdateFunctionalModeHint();
+                    if (FunctionalModeComboBox != null)
+                        FunctionalModeComboBox.SelectionChanged += (_, __) => UpdateFunctionalModeHint();
                 }
 
                 if (LaunchConfigHintText != null)

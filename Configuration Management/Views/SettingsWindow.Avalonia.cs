@@ -210,6 +210,90 @@ namespace Configuration_Management
                 margin: new Thickness(0, 0, 0, 12),
                 padding: new Thickness(8)));
 
+            // Режим функциональности (Этап 10 StartManager): «Пользователь»/«Специалист»/«Разработчик».
+            // В режиме «Пользователь» ограничивается доступ к системному меню. Блок повторяет
+            // разметку WPF (SettingsWindow.xaml:1450) и показывает пояснение по каждому режиму
+            // (issue #263): разницу «Специалист»/«Разработчик» пользователь видит сразу при выборе.
+            record FunctionalModeOption(string Label, string Code);
+            var functionalModeOptions = new List<FunctionalModeOption>
+            {
+                new(LocalizationManager.T("FunctionalMode.User"), Models.FunctionalModes.User),
+                new(LocalizationManager.T("FunctionalMode.Specialist"), Models.FunctionalModes.Specialist),
+                new(LocalizationManager.T("FunctionalMode.Developer"), Models.FunctionalModes.Developer)
+            };
+
+            var functionalModeContent = new StackPanel();
+            var functionalModeIntro = new TextBlock
+            {
+                Text = LocalizationManager.T("Settings.General.FunctionalModeHint"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            ThemeBrushes.Bind(functionalModeIntro, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            functionalModeContent.Children.Add(functionalModeIntro);
+
+            var functionalModeBox = new ComboBox
+            {
+                Height = 34,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            functionalModeBox.ItemsSource = functionalModeOptions;
+            functionalModeBox.DisplayMemberBinding = new Avalonia.Data.Binding("Label");
+            functionalModeBox.SelectedItem = functionalModeOptions.FirstOrDefault(o =>
+                string.Equals(o.Code, _viewModel.FunctionalMode, StringComparison.OrdinalIgnoreCase));
+
+            var functionalModeHint = new TextBlock
+            {
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap
+            };
+            ThemeBrushes.Bind(functionalModeHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+
+            var launchConfigHint = new TextBlock
+            {
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 6, 0, 0)
+            };
+            ThemeBrushes.Bind(launchConfigHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+
+            // Подсказка по выбранному режиму и по 1CLaunch.cfg/портативному режиму.
+            void UpdateFunctionalModeHints()
+            {
+                functionalModeHint.Text = (functionalModeBox.SelectedItem as FunctionalModeOption)?.Code switch
+                {
+                    Models.FunctionalModes.User => LocalizationManager.T("FunctionalMode.UserHint"),
+                    Models.FunctionalModes.Developer => LocalizationManager.T("FunctionalMode.DeveloperHint"),
+                    _ => LocalizationManager.T("FunctionalMode.SpecialistHint")
+                };
+                var hasConfig = OneCLaunchConfigReader.FindConfigFile() != null;
+                launchConfigHint.Text = hasConfig
+                    ? LocalizationManager.T("FunctionalMode.LaunchConfigPresent")
+                    : LocalizationManager.T("FunctionalMode.LaunchConfigAbsent");
+                if (PortablePaths.IsPortable)
+                    launchConfigHint.Text += " " + LocalizationManager.T("FunctionalMode.Portable");
+            }
+
+            functionalModeBox.SelectionChanged += (_, _) =>
+            {
+                if (functionalModeBox.SelectedItem is FunctionalModeOption opt)
+                    _viewModel.FunctionalMode = opt.Code;
+                UpdateFunctionalModeHints();
+            };
+
+            functionalModeContent.Children.Add(functionalModeBox);
+            functionalModeContent.Children.Add(functionalModeHint);
+            functionalModeContent.Children.Add(launchConfigHint);
+
+            UpdateFunctionalModeHints();
+
+            settings.Children.Add(Controls.GroupBoxPanel.Build(
+                "FunctionalMode.Label", functionalModeContent,
+                margin: new Thickness(0, 14, 0, 0),
+                padding: new Thickness(8)));
+
             // Раздел поведения приложения: в разметке WPF (SettingsWindow.xaml:1104)
             // он начинается своим заголовком, а первым в нём идёт разрешение
             // нескольких экземпляров.
