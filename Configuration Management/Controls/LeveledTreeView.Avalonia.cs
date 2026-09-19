@@ -157,6 +157,24 @@ namespace Configuration_Management.Controls
         }
 
         /// <summary>
+        /// Высота типовой строки списка (заголовок группы или строка базы). Используется как
+        /// «нижняя граница» цели прокрутки для узла-ГРУППЫ: у контейнера группы Bounds.Height
+        /// включает высоту всех дочерних строк, и прокрутка по ней уводила список на высоту
+        /// всего поддерева (issue #255). Для группы достаточно показать её заголовок — одну
+        /// строку, поэтому берём высоту первой видимой строки базы как эталонную.
+        /// </summary>
+        private double ReferenceRowHeight()
+        {
+            foreach (var row in VisibleRows())
+            {
+                if (row.DataContext is not GroupNodeViewModel && row.Bounds.Height > 0)
+                    return row.Bounds.Height;
+            }
+            // Резерв: высота первого реализованного контейнера или вьюпорт прокрутки.
+            return TreeScroll?.Viewport.Height > 0 ? TreeScroll.Viewport.Height : 32;
+        }
+
+        /// <summary>
         /// Прокручивает список к строке, не «перепрыгивая» вниз на высоту всей группы
         /// (issue #255). У контейнера группы высота включает все дочерние строки, поэтому
         /// штатный BringIntoView уводил список на несколько экранов при листании по папке.
@@ -178,7 +196,14 @@ namespace Configuration_Management.Controls
             }
 
             var top = point.Value.Y;
-            var bottom = top + item.Bounds.Height;
+            // У контейнера ГРУППЫ Bounds.Height включает высоту всех дочерних строк, поэтому
+            // «выступ» за нижний край огромен и при листании клавишами по папке список
+            // «перепрыгивал» вниз на высоту всего поддерева (issue #255). Цель прокрутки для
+            // группы — показать её ЗАГОЛОВОК (одну строку): нижняя граница считается по высоте
+            // типовой строки, а не по Bounds.Height контейнера. Для строки базы — её высота.
+            var bottom = item.DataContext is GroupNodeViewModel
+                ? top + ReferenceRowHeight()
+                : top + item.Bounds.Height;
             var viewport = Math.Max(1, scroll.Viewport.Height);
             var current = scroll.Offset.Y;
 
