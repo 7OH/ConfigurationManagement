@@ -125,6 +125,21 @@ namespace Configuration_Management
         /// не идёт, потому что по умолчанию это Delete: клавиша текстовая,
         /// и в поле ввода она должна править текст, а не удалять базу.
         /// </summary>
+        /// <summary>
+        /// Туннельный (Preview) обработчик ESC для закрытия открытой подсказки (issue #261).
+        /// Срабатывает раньше всплывающего <see cref="OnWindowKeyDown"/>, пока на элементе
+        /// ещё стоит ToolTip.GetIsOpen == true. Если подсказка закрыта — событие помечается
+        /// обработанным, и окно на этом же ESC в трей не уходит (второй ESC уже сворачивает).
+        /// </summary>
+        private void OnPreviewKeyDownCloseToolTips(object? sender, KeyEventArgs e)
+        {
+            if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None)
+                return;
+
+            if (CloseOpenToolTips())
+                e.Handled = true;
+        }
+
         private void OnWindowKeyDown(object? sender, KeyEventArgs e)
         {
             if (e.Handled || _vm is null)
@@ -278,7 +293,27 @@ namespace Configuration_Management
         private bool CloseOpenToolTips()
         {
             var closed = false;
+
+            // Открытая подсказка «висит» на элементе визуального дерева окна (попап ToolTip
+            // живёт в оверлейном слое TopLevel, который также является потомком окна), поэтому
+            // обхода дерева окна достаточно, чтобы дойти и до «хозяина» подсказки.
             CloseIn(this);
+
+            // Страховка на случай, когда владелец подсказки лежит вне визуального дерева окна
+            // (например, элемент из шаблона/всплывающего окна): проходимся по цепочке визуальных
+            // родителей от элемента в фокусе и закрываем встреченную открытую подсказку.
+            if (!closed && FocusManager?.GetFocusedElement() is Visual focused)
+            {
+                for (var node = focused; node is not null; node = node.GetVisualParent())
+                {
+                    if (node is Control control && ToolTip.GetIsOpen(control))
+                    {
+                        ToolTip.SetIsOpen(control, false);
+                        closed = true;
+                    }
+                }
+            }
+
             return closed;
 
             void CloseIn(Visual node)

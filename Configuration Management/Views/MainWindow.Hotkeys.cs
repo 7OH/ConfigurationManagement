@@ -314,11 +314,19 @@ namespace Configuration_Management
         private bool CloseOpenToolTips()
         {
             var closed = false;
+
+            // Обходим все окна приложения: открытую подсказку «держит» элемент внутри
+            // визуального дерева окна, поэтому проверяем каждый узел дерева.
             foreach (Window window in Application.Current.Windows)
             {
                 if (CloseToolTipsIn(window))
                     closed = true;
             }
+
+            // Попап открытой подсказки размещается вне визуального дерева окна (отдельный
+            // HWND/Popup), поэтому до «хозяина» подсказки добираемся и по курсору/фокусу.
+            closed |= CloseToolTipByMouseOrFocus();
+
             return closed;
         }
 
@@ -330,21 +338,75 @@ namespace Configuration_Management
             while (queue.Count > 0)
             {
                 var node = queue.Dequeue();
-                if (node is UIElement ui && ToolTipService.GetIsOpen(ui))
+
+                if (node is UIElement ui)
                 {
-                    // IsOpen у ToolTipService доступен только на чтение, а строковые подсказки
-                    // оборачиваются во внутренний ToolTip, до которого нельзя добраться. Надёжное
-                    // закрытие открытой подсказки — кратковременно отключить и включить тултип
-                    // элемента: текущая подсказка снимается (issue #261).
-                    ToolTipService.SetIsEnabled(ui, false);
-                    ToolTipService.SetIsEnabled(ui, true);
-                    closed = true;
+                    // Закрываем открытую подсказку через сам объект ToolTip. IsOpen на
+                    // ToolTipService доступен только на чтение, а трюк из прошлой версии
+                    // (SetIsEnabled(false/true)) не всегда гасит уже показанный ToolTip —
+                    // попап оставался висеть после ухода окна в трей (issue #261).
+                    if (TryCloseToolTip(ui))
+                        closed = true;
                 }
 
                 for (var i = VisualTreeHelper.GetChildrenCount(node) - 1; i >= 0; i--)
                     queue.Enqueue(VisualTreeHelper.GetChild(node, i));
             }
             return closed;
+        }
+
+        /// <summary>
+        /// Закрывает открытую подсказку на элементе под курсором или в фокусе. Всплывающий
+        /// попап ToolTip живёт вне визуального дерева окна и мог не попасть в обход
+        /// <see cref="CloseToolTipsIn"/>, поэтому дополнительно дотягиваемся до «хозяина»
+        /// подсказки по цепочке визуальных родителей от элемента под мышью/в фокусе.
+        /// </summary>
+        private static bool CloseToolTipByMouseOrFocus()
+        {
+            var closed = false;
+            var candidates = new DependencyObject?[]
+            {
+                Mouse.DirectlyOver as DependencyObject,
+                Keyboard.FocusedElement as DependencyObject
+            };
+
+            foreach (var candidate in candidates)
+            {
+                for (var node = candidate; node is not null; node = VisualTreeHelper.GetParent(node))
+                {
+                    if (node is UIElement ui && TryCloseToolTip(ui))
+                        closed = true;
+                }
+            }
+
+            return closed;
+        }
+
+        /// <summary>
+        /// Закрывает открытую подсказку элемента, если таковая есть. Возвращает true,
+        /// если элемент держал открытый ToolTip и тот был закрыт.
+        /// </summary>
+        private static bool TryCloseToolTip(UIElement element)
+        {
+            // GetToolTip возвращает объект ToolTip и для строковых подсказок
+            // (ToolTip="..."), у него свойство IsOpen доступно на чтение и запись —
+            // это надёжный способ погасить уже показанный попап (issue #261).
+            if (ToolTipService.GetToolTip(element) is ToolTip tip && tip.IsOpen)
+            {
+                tip.IsOpen = false;
+                return true;
+            }
+
+            // Страховка для случая, когда строка ещё не обёрнута в ToolTip, но подсказка
+            // уже показана сервисом: снимаем её через отключение/включение тултипа.
+            if (ToolTipService.GetIsOpen(element))
+            {
+                ToolTipService.SetIsEnabled(element, false);
+                ToolTipService.SetIsEnabled(element, true);
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

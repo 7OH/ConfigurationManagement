@@ -140,6 +140,12 @@ namespace Configuration_Management
             Loaded += OnWindowLoaded;
             KeyDown += OnWindowKeyDown;
 
+            // ESC закрывает открытую подсказку (issue #261). Обрабатываем его на фазе
+            // туннелирования (Preview): к моменту всплывающей фазы ToolTip.GetIsOpen на
+            // элементе может быть уже сброшен (таймер показа/оверлейный попап), и открытая
+            // подсказка не обнаружится — окно уйдёт в трей, а тултип останется висеть.
+            AddHandler(InputElement.KeyDownEvent, OnPreviewKeyDownCloseToolTips, RoutingStrategies.Tunnel);
+
             // Шапка окна реагирует на активность: акцентная заливка у активного окна,
             // цвет карточки у неактивного (MainWindow.xaml.cs:78-79).
             Activated += (_, _) => ApplyTitleBarAppearance(true);
