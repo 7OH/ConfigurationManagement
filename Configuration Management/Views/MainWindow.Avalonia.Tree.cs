@@ -1600,10 +1600,9 @@ namespace Configuration_Management
                     _vm.OpenConfigUpdateLink(_vm.SelectedInfobase);
             };
             menu.Items.Add(linkItem);
-            var manageItem = new MenuItem { Header = LocalizationManager.T("Updates.ManageList") };
-            manageItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            manageItem.Click += (_, _) => _vm.OpenConfigTypesEdit();
-            menu.Items.Add(manageItem);
+            // «Список типовых конфигураций» (Updates.ManageList) убран из контекстного меню
+            // строки базы: это глобальная команда, она живёт в подменю «Утилиты» общей панели
+            // (issue #262).
             // «Зарегистрировать COM-коннектор» здесь нет намеренно: внешнее соединение
             // это COM, в Linux регистрировать нечего. Windows-сторона решение подтвердила.
             menu.Items.Add(new Separator());

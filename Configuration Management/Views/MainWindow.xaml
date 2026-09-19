@@ -1940,10 +1940,9 @@
                                 <MenuItem Header="{loc:Loc Updates.CheckTitle}" Command="{Binding CheckUpdateCommand}" InputGestureText="{Binding HotkeyCheckUpdate}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                 </MenuItem>
-                                <!-- «Актуальные релизы» перенесено в общее подменю «Утилиты»
-                                     верхней панели (issue #262). -->
+                                <!-- «Актуальные релизы» и «Список типовых конфигураций» перенесены
+                                     в общее подменю «Утилиты» верхней панели (issue #262). -->
                                 <MenuItem Header="{loc:Loc Updates.ConfigLink}" Click="OnConfigUpdateLinkMenuClick" Style="{DynamicResource ModernMenuItem}"/>
-                                <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
                                 <MenuItem Header="{loc:Loc Main.RegisterComConnector}" Command="{Binding RegisterComConnectorCommand}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Key" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                 </MenuItem>
