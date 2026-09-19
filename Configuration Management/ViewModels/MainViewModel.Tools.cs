@@ -69,6 +69,21 @@ public partial class MainViewModel : ViewModelBase
     public event Action? TreeRebuilt;
 
     /// <summary>
+    /// Модальное окно свойств базы вот-вот откроется: окну нужно запомнить позицию
+    /// прокрутки, чтобы вернуть её даже если пользователь закроет окно без сохранения
+    /// («Нет») и пересборки не будет (issue #252).
+    /// </summary>
+    public event Action? TreeModalOpening;
+
+    /// <summary>
+    /// Модальное окно свойств базы закрылось без сохранения («Нет»): пересборки дерева
+    /// не было, событий <see cref="TreeRebuilding"/>/<see cref="TreeRebuilt"/> не случилось,
+    /// а закрытие модального окна само подтягивает выбранную строку в видимую область.
+    /// Окну нужно вернуть прежнюю позицию прокрутки явно (issue #252).
+    /// </summary>
+    public event Action? TreeModalClosed;
+
+    /// <summary>
     /// Заменяет содержимое GroupNodes с минимумом лишних уведомлений UI.
     /// </summary>
     private void ReplaceGroupNodes(List<GroupNodeViewModel> next)

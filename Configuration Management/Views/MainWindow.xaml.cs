@@ -131,6 +131,11 @@ namespace Configuration_Management
             // компактизированы обработчиками реализации), поэтому прежний сдвиг заголовка
             // устарел (issue #214).
             _viewModel.TreeRebuilding += RememberTreeScroll;
+            // Перед открытием модального окна свойств базы запоминаем позицию прокрутки,
+            // а при закрытии без сохранения («Нет») возвращаем её явно: пересборки не было,
+            // иначе список «уезжает» после отмены правки (issue #252).
+            _viewModel.TreeModalOpening += RememberTreeScroll;
+            _viewModel.TreeModalClosed += RestoreTreeScrollAfterCancel;
             _viewModel.TreeRebuilt += () =>
             {
                 RestoreTreeKeyboardFocus();

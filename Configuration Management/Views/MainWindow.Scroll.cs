@@ -134,6 +134,38 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Восстанавливает прежнюю позицию прокрутки после закрытия окна свойств базы без
+        /// сохранения («Нет»). Пересборки дерева не было, поэтому события TreeRebuilding/
+        /// TreeRebuilt не сработали и <see cref="RestoreTreeScrollAfterRebuild"/> не вызвался,
+        /// а при закрытии модального окна WPF сам подтягивает выбранную строку в видимую
+        /// область — список «уезжает» вверх/вниз (issue #252). Возвращаем точный offset,
+        /// запомненный <see cref="RememberTreeScroll"/> перед открытием окна.
+        /// </summary>
+        private void RestoreTreeScrollAfterCancel()
+        {
+            var treeScroll = GetTreeScrollViewer();
+            if (treeScroll is null)
+                return;
+            try
+            {
+                MainTree.UpdateLayout();
+                treeScroll.ScrollToVerticalOffset(_treeScrollOffset);
+
+                // Горизонталь дерева не используется — сбрасываем (как после пересборки).
+                if (treeScroll.HorizontalOffset != 0)
+                    treeScroll.ScrollToHorizontalOffset(0);
+
+                var maxOffset = Math.Max(0, treeScroll.ScrollableHeight);
+                if (treeScroll.VerticalOffset > maxOffset + 0.01)
+                    treeScroll.ScrollToVerticalOffset(maxOffset);
+            }
+            catch
+            {
+                // Дерево могло быть отсоединено — игнорируем.
+            }
+        }
+
+        /// <summary>
         /// Внутренний ScrollViewer шаблона TreeView (отвечает за вертикальную и горизонтальную прокрутку).
         /// Найденный экземпляр кэшируется: без кэша каждый вызов делает <c>ApplyTemplate()</c> и полный
         /// обход визуального дерева, что при частой прокрутке/материализации строк добавляет нагрузку и

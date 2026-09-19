@@ -164,6 +164,11 @@ namespace Configuration_Management
             // пересобирает содержимое, и обработчики копились бы на каждый показ.
             _vm.TraySettingsChanged += ApplyTrayVisibility;
             _vm.TreeRebuilding += RememberTreeScroll;
+            // Перед открытием модального окна свойств базы запоминаем позицию прокрутки,
+            // а при закрытии без сохранения («Нет») возвращаем её явно: пересборки не было,
+            // иначе список «уезжает» после отмены правки (issue #252).
+            _vm.TreeModalOpening += RememberTreeScroll;
+            _vm.TreeModalClosed += RestoreTreeScrollAfterCancel;
             _vm.TreeRebuilt += RestoreTreeSelection;
 
             // Смена языка интерфейса: названия колонок, кнопки правой панели и подсказки

@@ -9,6 +9,28 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.11] — 2026-09-19
+
+### Исправления
+
+- **Позиция списка после правки свойств базы больше не сдвигается, в т.ч. при ответе «Нет» (#252)** —
+  раньше при закрытии окна свойств базы без сохранения («Нет») пересборка дерева не происходила,
+  события `TreeRebuilding`/`TreeRebuilt` не срабатывали, а закрытие модального окна само подтягивало
+  выбранную строку в видимую область — список «уезжал» вверх/вниз. Теперь перед открытием окна
+  свойств запоминается точная позиция прокрутки, а при закрытии без сохранения она возвращается
+  явно (WPF и Avalonia). При «Да» поведение прежнее: позиция восстанавливается в ходе пересборки.
+  Затронуты [`MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs),
+  [`MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs),
+  [`MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs),
+  [`MainWindow.Avalonia.Scroll.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Scroll.cs),
+  [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs),
+  [`MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs).
+
+### Версия
+
+- **Версия поднята до `0.3.9.11`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.10] — 2026-09-19
 
 ### Исправления

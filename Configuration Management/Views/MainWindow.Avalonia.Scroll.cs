@@ -152,6 +152,23 @@ namespace Configuration_Management
                 }
             }, Avalonia.Threading.DispatcherPriority.Background);
         }
+
+        /// <summary>
+        /// Восстанавливает прежнюю позицию прокрутки после закрытия окна свойств базы без
+        /// сохранения («Нет»). Пересборки дерева не было, поэтому события TreeRebuilding/
+        /// TreeRebuilt не сработали и <see cref="RestoreTreeSelection"/> не вызвался, а при
+        /// закрытии модального окна Avalonia сама подтягивает выбранную строку в видимую
+        /// область — список «уезжает» вверх/вниз (issue #252). Возвращаем точный offset,
+        /// запомненный <see cref="RememberTreeScroll"/> перед открытием окна.
+        /// </summary>
+        private void RestoreTreeScrollAfterCancel()
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (_treeScrollOffset is { } offset && TreeScroll is { } scroll)
+                    scroll.Offset = offset;
+            }, Avalonia.Threading.DispatcherPriority.Background);
+        }
     }
 }
 #endif
