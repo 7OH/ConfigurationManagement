@@ -36,6 +36,19 @@ namespace Configuration_Management
     {
         private readonly MainViewModel _viewModel;
 
+        /// <summary>Пара «подпись режима функциональности — канонический код» для списка выбора (issue #263).</summary>
+        private sealed class FunctionalModeOption
+        {
+            public FunctionalModeOption(string label, string code)
+            {
+                Label = label;
+                Code = code;
+            }
+
+            public string Label { get; }
+            public string Code { get; }
+        }
+
         /// <summary>Главный контрол вкладок окна (полоса слева).</summary>
         private TabControl? _settingsTabs;
 
@@ -214,12 +227,11 @@ namespace Configuration_Management
             // В режиме «Пользователь» ограничивается доступ к системному меню. Блок повторяет
             // разметку WPF (SettingsWindow.xaml:1450) и показывает пояснение по каждому режиму
             // (issue #263): разницу «Специалист»/«Разработчик» пользователь видит сразу при выборе.
-            record FunctionalModeOption(string Label, string Code);
             var functionalModeOptions = new List<FunctionalModeOption>
             {
-                new(LocalizationManager.T("FunctionalMode.User"), Models.FunctionalModes.User),
-                new(LocalizationManager.T("FunctionalMode.Specialist"), Models.FunctionalModes.Specialist),
-                new(LocalizationManager.T("FunctionalMode.Developer"), Models.FunctionalModes.Developer)
+                new FunctionalModeOption(LocalizationManager.T("FunctionalMode.User"), Models.FunctionalModes.User),
+                new FunctionalModeOption(LocalizationManager.T("FunctionalMode.Specialist"), Models.FunctionalModes.Specialist),
+                new FunctionalModeOption(LocalizationManager.T("FunctionalMode.Developer"), Models.FunctionalModes.Developer)
             };
 
             var functionalModeContent = new StackPanel();
