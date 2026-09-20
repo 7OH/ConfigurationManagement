@@ -38,6 +38,15 @@ namespace Configuration_Management
         private bool _forceClose;
 
         /// <summary>
+        /// Открытый ToolTip главного окна (issue #261). Записывается класс-обработчиком
+        /// <see cref="ToolTip.OpenedEvent"/>/<see cref="ToolTip.ClosedEvent"/>, поэтому не зависит
+        /// от того, где физически отрисован попап (в визуальном дереве окна или во внешнем
+        /// HWND/Popup) и надёжно закрывается по ESC даже тогда, когда старый обход дерева окна
+        /// владельца подсказки не находит.
+        /// </summary>
+        private ToolTip? _openToolTip;
+
+        /// <summary>
         /// Текущее состояние активности окна, по которому окрашивается шапка
         /// (акцент при активном, цвет карточки при неактивном). Хранится отдельным
         /// флагом, чтобы не зависеть от временного значения <see cref="Window.IsActive"/>
@@ -119,6 +128,22 @@ namespace Configuration_Management
 
             _viewModel = viewModel ?? new ViewModels.MainViewModel();
             DataContext = _viewModel;
+
+            // Отслеживаем открытый ToolTip глобально (issue #261): класс-обработчик на тип ToolTip
+            // срабатывает для любой открытой подсказки независимо от того, лежит ли её владелец в
+            // визуальном дереве окна или во внешнем попапе/HWND. Так первый ESC гарантированно
+            // закрывает подсказку, а не сворачивает окно в трей с «зависшим» тултипом.
+            // Тип квалифицируем полностью: внутри Window идентификатор ToolTip затенён унаследованным
+            // свойством FrameworkElement.ToolTip (object), и в выражении ToolTip.OpenedEvent он
+            // разрешался бы в это свойство, а не в тип (CS1061).
+            EventManager.RegisterClassHandler(
+                typeof(System.Windows.Controls.ToolTip),
+                System.Windows.Controls.ToolTip.OpenedEvent,
+                new RoutedEventHandler(OnToolTipOpened));
+            EventManager.RegisterClassHandler(
+                typeof(System.Windows.Controls.ToolTip),
+                System.Windows.Controls.ToolTip.ClosedEvent,
+                new RoutedEventHandler(OnToolTipClosed));
 
             // Действие «после запуска базы/конфигуратора» согласно глобальной настройке.
             _viewModel.AfterLaunchRequested += OnAfterLaunchRequested;
@@ -281,6 +306,27 @@ namespace Configuration_Management
             };
         }
 
+        /// <summary>
+        /// Класс-обработчик открытия <see cref="ToolTip"/> (issue #261). Запоминает открытую
+        /// подсказку в <see cref="_openToolTip"/>, чтобы её можно было закрыть по ESC
+        /// детерминированно, не полагаясь на обход визуального дерева окна.
+        /// </summary>
+        private void OnToolTipOpened(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToolTip tip)
+                _openToolTip = tip;
+        }
+
+        /// <summary>
+        /// Класс-обработчик закрытия <see cref="ToolTip"/> (issue #261). Сбрасывает ссылку на
+        /// открытую подсказку, если закрывается именно та, что записана в <see cref="_openToolTip"/>.
+        /// </summary>
+        private void OnToolTipClosed(object sender, RoutedEventArgs e)
+        {
+            if (ReferenceEquals(_openToolTip, sender))
+                _openToolTip = null;
+        }
+
         private DoubleAnimation? _exportBounceAnimation;
         private bool _exportAnimating;
 
@@ -436,6 +482,24 @@ namespace Configuration_Management
 
         public static string? GetColumnKey(DependencyObject obj) =>
             (string?)obj.GetValue(ColumnKeyProperty);
+
+        /// <summary>
+        /// Признак «порядок колонок уже применён к этой сетке строки/заголовка» (issue #255).
+        /// При Recycling-виртуализации экземпляр сетки переиспользуется под новые строки, и флаг
+        /// сохраняется: повторные Loaded не пересобирают колонки заново (на каждую материализацию
+        /// строки строились layout/массивы/List/HashSet и выполнялся обход детей — источник CPU
+        /// и мусора gen2 при прокрутке). Сбрасывается в <c>ApplyColumnOrder</c> при изменении
+        /// порядка колонок в настройках, после чего строки перестраиваются один раз.
+        /// </summary>
+        public static readonly DependencyProperty ColumnOrderAppliedProperty =
+            DependencyProperty.RegisterAttached(
+                "ColumnOrderApplied", typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
+
+        public static void SetColumnOrderApplied(DependencyObject obj, bool value) =>
+            obj.SetValue(ColumnOrderAppliedProperty, value);
+
+        public static bool GetColumnOrderApplied(DependencyObject obj) =>
+            (bool)obj.GetValue(ColumnOrderAppliedProperty);
 
 
 
