@@ -9,6 +9,59 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.13] — 2026-09-20
+
+### Исправления
+
+- **ESC закрывает открытую подсказку до сворачивания окна (#261) — перенос из Avalonia в WPF** —
+  на платформе пользователя (Windows/WPF) фикс, внесённый в `0.3.9.12` только для Avalonia,
+  не работал: первый ESC по-прежнему сворачивал главное окно, оставляя тултип висеть.
+  В WPF-ветку перенесён детерминированный подход: через `EventManager.RegisterClassHandler`
+  на тип `ToolTip` (`ToolTip.OpenedEvent`/`ToolTip.ClosedEvent`) отслеживается владелец открытого
+  тултипа, а `CloseOpenToolTips()` надёжно закрывает его установкой `IsOpen = false`, независимо
+  от того, лежит ли тултип в визуальном дереве окна или в оверлейном слое. Первый ESC теперь
+  детерминированно закрывает подсказку, повторный — сворачивает окно в трей. Avalonia-механизм
+  (`ToolTip.IsOpenProperty` + `ToolTip.SetIsOpen`) сохранён как есть.
+  Затронуты [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs).
+
+- **Проблемы построения списка баз (#255)** — устранены корневые причины рывков, «прыжков»
+  подсветки, изменения размера полосы прокрутки, перескока вниз у нижней папки, ложного
+  горизонтального скролла при запуске и роста памяти при длительной прокрутке:
+  - исключена по-строчная пересборка колонок (`ReorderGridColumns` выполняется только при
+    фактическом изменении порядка через attached-флаг «порядок применён», сбрасываемый в
+    `ApplyColumnOrder`);
+  - исправлен fallback `ReferenceRowHeight()` — вместо высоты вьюпорта (причина «прыжка вниз»)
+    используется стабильная высота одной строки;
+  - убран `UpdateLayout()` из горячего пути `ScrollSelectedIntoView`;
+  - закэширован `ScrollContentPresenter` (штатный захват в `OnApplyTemplate`, без полных обходов);
+  - минимальная ширина дерева учитывает только **видимые** колонки — исчезает ложная
+    горизонтальная полоса при запуске;
+  - снижена нагрузка при прокрутке (меньше `BindingExpression` на рецикл строки, меньше мусора gen2).
+  Затронуты [`MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs),
+  [`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs),
+  [`MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs),
+  [`MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs),
+  [`LeveledTreeView.cs`](Configuration%20Management/Controls/LeveledTreeView.cs) и их Avalonia-аналоги.
+
+- **Прокрутка списка после правки свойств (#252)** — исключены скачки списка после сохранения
+  («Да») и закрытия без сохранения («Нет») свойств базы:
+  - при открытии окна свойств снимается отложенная прокрутка (`DeferredScrollSelectedIntoView`),
+    которая перетирала восстановленную позицию;
+  - восстановление позиции при «Нет» выполняется отложенно (позже любых отложенных прокруток) —
+  паритет с Avalonia;
+  - добавлен guard «ничего не изменилось»: если группа и верхняя видимая строка после пересборки
+    не изменились, позиция не пересчитывается (`ScrollToVerticalOffset`/`BringIntoView` не вызываются).
+  Затронуты [`MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs),
+  [`MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs),
+  [`MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs) и их
+  Avalonia-аналоги.
+
+### Версия
+
+- **Версия поднята до `0.3.9.13`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.12] — 2026-09-19
 
 ### Исправления
