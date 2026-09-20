@@ -9,6 +9,31 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.15] — 2026-09-20
+
+### Исправления
+
+- **Прокрутка списка после правки свойств (#252)** — устранён двухфазный «скачок» списка баз:
+  восстановление выделения и позиции прокрутки объединено в один атомарный проход до отрисовки
+  кадра; исключён промежуточный `BringIntoView`, который уводил список «повыше» до возврата к
+  активной строке; при закрытии без сохранения («Нет») позиция возвращается раньше автоскролла
+  WPF; если группа и верхняя видимая строка не изменились — позиция не пересчитывается.
+  Затронуты [`MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs),
+  [`MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs),
+  [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs) и их Avalonia-аналоги.
+
+- **ESC и открытая подсказка (#261)** — первый ESC теперь детерминированно закрывает открытую
+  ToolTip, повторный — сворачивает окно в трей. ESC перехватывается глобально (в т.ч. когда фокус
+  во внешнем попапе подсказки); тултипы закрываются через владельца и присоединённое свойство
+  `IsOpen` (паритет с Avalonia); закрываются все открытые подсказки, а не только последняя.
+  Затронуты [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs) и их Avalonia-аналоги.
+
+### Версия
+
+- **Версия поднята до `0.3.9.15`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.14] — 2026-09-20
 
 ### Добавлено

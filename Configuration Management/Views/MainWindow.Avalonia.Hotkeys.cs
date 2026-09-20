@@ -1,6 +1,7 @@
 #if LINUX
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -483,21 +484,28 @@ namespace Configuration_Management
         {
             var closed = false;
 
-            // Основной путь: владелец открытого тултипа, записанный класс-обработчиком
-            // изменения ToolTip.IsOpenProperty (см. MainWindow.Avalonia.cs). Это надёжнее
-            // обхода визуального дерева, потому что открытый ToolTip рендерится попапом
-            // в оверлейном слое TopLevel, который не всегда входит в GetVisualChildren() окна,
-            // а ToolTip.GetIsOpen на владельце может не отражать фактически показанный попап.
-            if (_openToolTipOwner is not null && ToolTip.GetIsOpen(_openToolTipOwner))
+            // Основной путь: закрываем ВСЕ открытые подсказки через их владельцев, записанных
+            // класс-обработчиком изменения ToolTip.IsOpenProperty (см. MainWindow.Avalonia.cs).
+            // Это надёжнее обхода визуального дерева, потому что открытый ToolTip рендерится
+            // попапом в оверлейном слое TopLevel, который не всегда входит в GetVisualChildren()
+            // окна, а ToolTip.GetIsOpen на владельце может не отражать фактически показанный попап.
+            foreach (var owner in _openToolTipOwners.ToArray())
             {
-                ToolTip.SetIsOpen(_openToolTipOwner, false);
-                _openToolTipOwner = null;
-                closed = true;
+                if (ToolTip.GetIsOpen(owner))
+                {
+                    ToolTip.SetIsOpen(owner, false);
+                    closed = true;
+                }
+            }
+            if (closed)
+            {
+                _openToolTipOwners.Clear();
+                return true;
             }
 
             // Страховка по оверлейному слою TopLevel (там живут открытые попапы ToolTip) не
             // нужна: владелец любого открытого тултипа гарантированно записан в
-            // _openToolTipOwner класс-обработчиком ToolTip.IsOpenProperty выше, поэтому основной
+            // _openToolTipOwners класс-обработчиком ToolTip.IsOpenProperty выше, поэтому основной
             // путь уже покрывает и попапы оверлея. Отдельный обход OverlayLayer.Children через
             // PopupHost опущен: в Avalonia 11.3 этот тип internal, а логику закрытия дублировал
             // бы без выгоды.

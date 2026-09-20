@@ -38,13 +38,15 @@ namespace Configuration_Management
         private bool _forceClose;
 
         /// <summary>
-        /// Открытый ToolTip главного окна (issue #261). Записывается класс-обработчиком
-        /// <see cref="ToolTip.OpenedEvent"/>/<see cref="ToolTip.ClosedEvent"/>, поэтому не зависит
-        /// от того, где физически отрисован попап (в визуальном дереве окна или во внешнем
-        /// HWND/Popup) и надёжно закрывается по ESC даже тогда, когда старый обход дерева окна
-        /// владельца подсказки не находит.
+        /// Владельцы открытых ToolTip главного окна (issue #261) — элементы, к которым привязан
+        /// тултип. Записываются класс-обработчиком <see cref="ToolTip.OpenedEvent"/>/
+        /// <see cref="ToolTip.ClosedEvent"/>, поэтому не зависят от того, где физически отрисован
+        /// попап (в визуальном дереве окна или во внешнем HWND/Popup) и надёжно закрываются по ESC
+        /// даже тогда, когда старый обход дерева окна владельца подсказки не находит. Храним
+        /// коллекцию, а не одно поле, чтобы закрывались ВСЕ открытые подсказки, а не только
+        /// последняя (паритет с Avalonia-механизмом _openToolTipOwner + ToolTip.SetIsOpen).
         /// </summary>
-        private ToolTip? _openToolTip;
+        private readonly HashSet<DependencyObject> _openToolTips = new();
 
         /// <summary>
         /// Текущее состояние активности окна, по которому окрашивается шапка
@@ -144,6 +146,15 @@ namespace Configuration_Management
                 typeof(System.Windows.Controls.ToolTip),
                 System.Windows.Controls.ToolTip.ClosedEvent,
                 new RoutedEventHandler(OnToolTipClosed));
+
+            // Класс-обработчик Preview (туннелирование) на тип ToolTip (issue #261): ESC,
+            // приходящийся на открытую подсказку (когда фокус ввода оказался во внешнем
+            // попапе/HWND, куда Window_PreviewKeyDown главного окна может не дойти), закрывает
+            // именно подсказку, а не сворачивает окно в трей с «зависшим» тултипом.
+            EventManager.RegisterClassHandler(
+                typeof(System.Windows.Controls.ToolTip),
+                UIElement.PreviewKeyDownEvent,
+                new KeyEventHandler(OnToolTipPreviewKeyDown));
 
             // Действие «после запуска базы/конфигуратора» согласно глобальной настройке.
             _viewModel.AfterLaunchRequested += OnAfterLaunchRequested;
@@ -307,24 +318,53 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Класс-обработчик открытия <see cref="ToolTip"/> (issue #261). Запоминает открытую
-        /// подсказку в <see cref="_openToolTip"/>, чтобы её можно было закрыть по ESC
+        /// Класс-обработчик открытия <see cref="ToolTip"/> (issue #261). Запоминает владельцев
+        /// открытых подсказок в <see cref="_openToolTips"/>, чтобы их можно было закрыть по ESC
         /// детерминированно, не полагаясь на обход визуального дерева окна.
         /// </summary>
         private void OnToolTipOpened(object sender, RoutedEventArgs e)
         {
             if (sender is ToolTip tip)
-                _openToolTip = tip;
+            {
+                // Запоминаем владельца подсказки (элемент, к которому привязан ToolTip), а не сам
+                // объект ToolTip: закрытие через владельца детерминированно и покрывает все
+                // открытые подсказки, а не только последнюю (issue #261). Храним коллекцию.
+                var owner = tip.PlacementTarget ?? tip;
+                _openToolTips.Add(owner);
+            }
         }
 
         /// <summary>
-        /// Класс-обработчик закрытия <see cref="ToolTip"/> (issue #261). Сбрасывает ссылку на
-        /// открытую подсказку, если закрывается именно та, что записана в <see cref="_openToolTip"/>.
+        /// Класс-обработчик закрытия <see cref="ToolTip"/> (issue #261). Убирает владельца
+        /// закрывшейся подсказки из коллекции открытых.
         /// </summary>
         private void OnToolTipClosed(object sender, RoutedEventArgs e)
         {
-            if (ReferenceEquals(_openToolTip, sender))
-                _openToolTip = null;
+            if (sender is ToolTip tip)
+            {
+                var owner = tip.PlacementTarget ?? tip;
+                _openToolTips.Remove(owner);
+            }
+        }
+
+        /// <summary>
+        /// Класс-обработчик ESC на типе <see cref="ToolTip"/> (issue #261). Вызывается, когда
+        /// клавиша приходится на открытую подсказку (фокус во внешнем попапе/HWND попапа):
+        /// закрывает именно этот тултип и помечает событие обработанным, чтобы первый ESC
+        /// не сворачивал главное окно в трей.
+        /// </summary>
+        private void OnToolTipPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Escape || Keyboard.Modifiers != ModifierKeys.None)
+                return;
+
+            if (sender is ToolTip tip)
+            {
+                tip.IsOpen = false;
+                var owner = tip.PlacementTarget ?? tip;
+                _openToolTips.Remove(owner);
+                e.Handled = true;
+            }
         }
 
         private DoubleAnimation? _exportBounceAnimation;

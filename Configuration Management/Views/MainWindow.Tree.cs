@@ -213,16 +213,14 @@ namespace Configuration_Management
             if (MainTree is null || _viewModel is null)
                 return;
 
-            // Два прохода: первый — как только дерево перестроено (Loaded); второй — в самом
-            // конце очереди (ApplicationIdle), когда виртуализация уже достроила контейнеры и
-            // WPF завершил собственное восстановление фокуса после закрытия модального окна.
-            // Восстановление прокрутки (а она может двигать список) выполняем ТОЛЬКО на втором
-            // проходе: первый зарезервирован под выделение/фокус, иначе повторный BringIntoView
-            // затирал восстановленную позицию (issue #252).
-            Dispatcher.BeginInvoke(new Action(() => RevealAndSelectAfterRebuild(restoreScroll: false)),
-                System.Windows.Threading.DispatcherPriority.Loaded);
-            Dispatcher.BeginInvoke(new Action(() => RevealAndSelectAfterRebuild(restoreScroll: true)),
-                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            // Один атомарный проход на приоритете Render (до отрисовки следующего кадра):
+            // выделение, раскрытие предков и восстановление позиции прокрутки применяются
+            // в одном синхронном вызове, без промежуточной отрисовки между ними. Раньше это
+            // были два прохода (Loaded → ApplicationIdle): между «сдвигом к строке» (BringIntoView)
+            // и «возвратом позиции» успевал отрисоваться кадр, из-за чего список «пролистывался
+            // повыше», а потом возвращался к активной строке (issue #252).
+            Dispatcher.BeginInvoke(new Action(() => RevealAndSelectAfterRebuild()),
+                System.Windows.Threading.DispatcherPriority.Render);
         }
 
         /// <summary>
@@ -233,7 +231,7 @@ namespace Configuration_Management
         /// фокус. Цель читается в момент выполнения, поэтому порядок установки SelectedInfobase
         /// относительно пересборки не важен.
         /// </summary>
-        private void RevealAndSelectAfterRebuild(bool restoreScroll)
+        private void RevealAndSelectAfterRebuild()
         {
             if (MainTree is null || _viewModel is null)
                 return;
@@ -313,13 +311,13 @@ namespace Configuration_Management
                         return;
                 }
 
-                item.BringIntoView();
-
-                // Позицию прокрутки возвращаем последней: BringIntoView мог сдвинуть список к строке,
-                // а пользователь хочет остаться там, где был (например, после правки свойств базы,
-                // issue #252). Выполняем только на последнем (ApplicationIdle) проходе.
-                if (restoreScroll)
-                    RestoreTreeScrollAfterRebuild();
+                // Позицию прокрутки возвращаем в том же синхронном проходе, до отрисовки следующего
+                // кадра (issue #252). Промежуточный BringIntoView к цели не делаем: восстановление
+                // позиции (RestoreTreeScrollAfterRebuild) само приводит вьюпорт к сохранённому
+                // offset/якорю, а лишний сдвиг к строке давал двухфазный «скачок» списка «повыше» →
+                // к активной строке. Если группа и верхняя видимая строка не изменились —
+                // RestoreTreeScrollAfterRebuild вернёт управление, не тронув позицию вовсе.
+                RestoreTreeScrollAfterRebuild();
 
                 // Клавиатурный фокус возвращаем строке. Защищаем только поле поиска: после закрытия
                 // модального окна настроек WPF может временно держать фокус на каком-либо контроле,

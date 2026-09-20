@@ -517,20 +517,26 @@ namespace Configuration_Management
         {
             var closed = false;
 
-            // Основной путь: открытый ToolTip, записанный класс-обработчиком ToolTip.OpenedEvent
-            // (см. MainWindow.xaml.cs). Это надёжнее обхода визуального дерева, потому что
-            // показанный ToolTip рендерится внешним попапом/HWND и может не попадать в обход
-            // CloseToolTipsIn, а IsOpen на самом объекте подсказки закрывается детерминированно.
-            if (_openToolTip is { } tip && tip.IsOpen)
+            // Основной путь: закрываем ВСЕ открытые подсказки через их владельцев — элементы,
+            // к которым привязан ToolTip. Владельцы записываются класс-обработчиком
+            // ToolTip.OpenedEvent (см. MainWindow.xaml.cs), поэтому закрытие не зависит от того,
+            // где физически отрисован попап (во внешнем HWND/Popup вне визуального дерева окна).
+            // Закрытие через владельца детерминированно: даже если объект ToolTip у строковой
+            // подсказки создан сервисом, GetToolTip(владелец) возвращает его (issue #261).
+            foreach (var owner in _openToolTips.ToArray())
             {
-                tip.IsOpen = false;
-                _openToolTip = null;
+                if (TryCloseToolTip(owner))
+                    closed = true;
+            }
+            if (closed)
+            {
+                _openToolTips.Clear();
                 return true;
             }
 
             // Резервный путь: старый обход визуального дерева всех окон приложения и цепочки
             // визуальных родителей элемента под курсором/в фокусе. Оставляем для тултипов,
-            // которые не отразились в _openToolTip (например, открытых до регистрации
+            // которые не отразились в _openToolTips (например, открытых до регистрации
             // класс-обработчика), чтобы не потерять покрытие.
             foreach (Window window in Application.Current.Windows)
             {
@@ -589,7 +595,7 @@ namespace Configuration_Management
             {
                 for (var node = candidate; node is not null; node = VisualTreeHelper.GetParent(node))
                 {
-                    if (node is UIElement ui && TryCloseToolTip(ui))
+                    if (TryCloseToolTip(node))
                         closed = true;
                 }
             }
@@ -601,7 +607,7 @@ namespace Configuration_Management
         /// Закрывает открытую подсказку элемента, если таковая есть. Возвращает true,
         /// если элемент держал открытый ToolTip и тот был закрыт.
         /// </summary>
-        private static bool TryCloseToolTip(UIElement element)
+        private static bool TryCloseToolTip(DependencyObject element)
         {
             // GetToolTip возвращает объект ToolTip и для строковых подсказок
             // (ToolTip="..."), у него свойство IsOpen доступно на чтение и запись —

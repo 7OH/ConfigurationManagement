@@ -48,11 +48,12 @@ namespace Configuration_Management
         private TextBlock _syncMessage = null!;
         private LeveledTreeView _tree = null!;
 
-        // Владелец последнего открытого ToolTip (issue #261). Записывается класс-обработчиком
-        // изменения ToolTip.IsOpenProperty и не зависит от того, где физически отрисован попап
-        // (в визуальном дереве окна или в оверлейном слое TopLevel), поэтому надёжно закрывается
-        // по ESC даже тогда, когда старый обход дерева окна владельца не находит.
-        private Control? _openToolTipOwner;
+        // Владельцы открытых ToolTip (issue #261). Записываются класс-обработчиком изменения
+        // ToolTip.IsOpenProperty и не зависят от того, где физически отрисован попап (в визуальном
+        // дереве окна или в оверлейном слое TopLevel), поэтому надёжно закрываются по ESC даже
+        // тогда, когда старый обход дерева окна владельца не находит. Храним коллекцию, а не одно
+        // поле, чтобы закрывались ВСЕ открытые подсказки, а не только последняя.
+        private readonly HashSet<Control> _openToolTipOwners = new();
 
         // Поля empty-state (заглушка пустого списка / «ничего не найдено»).
         private Border _emptyState = null!;
@@ -191,16 +192,16 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Класс-обработчик изменения <see cref="ToolTip.IsOpenProperty"/>. Запоминает владельца
-        /// открытой подсказки в <see cref="_openToolTipOwner"/> (issue #261), чтобы её можно было
+        /// Класс-обработчик изменения <see cref="ToolTip.IsOpenProperty"/>. Запоминает владельцев
+        /// открытых подсказок в <see cref="_openToolTipOwners"/> (issue #261), чтобы их можно было
         /// закрыть по ESC детерминированно, не полагаясь на обход визуального дерева окна.
         /// </summary>
         private void OnToolTipIsOpenChanged(Control owner, AvaloniaPropertyChangedEventArgs e)
         {
             if (e.NewValue is true)
-                _openToolTipOwner = owner;
-            else if (ReferenceEquals(_openToolTipOwner, owner))
-                _openToolTipOwner = null;
+                _openToolTipOwners.Add(owner);
+            else
+                _openToolTipOwners.Remove(owner);
         }
 
         /// <summary>Шапка окна: полоса, подпись и кнопки, перекрашиваемые по активности.</summary>

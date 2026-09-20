@@ -101,9 +101,9 @@ namespace Configuration_Management
                 return;
             try
             {
-                // Раскрытие предков и layout должны устояться, иначе позиция «садится не туда»
-                // и сравнение верхней видимой строки (GetTopVisibleRowData) будет некорректным.
-                MainTree.UpdateLayout();
+                // Layout уже устоялся в вызывающем RevealAndSelectAfterRebuild (он вызывает
+                // MainTree.UpdateLayout перед поиском контейнера цели), поэтому повторная принудительная
+                // раскладка здесь не нужна и только добавляла работу в горячем пути (issue #252).
 
                 // Если выбранная база осталась в той же группе, ключевое состояние не изменилось —
                 // восстанавливаем точный offset, а не «якорную» строку: так после правки свойств
@@ -169,12 +169,14 @@ namespace Configuration_Management
         /// </summary>
         private void RestoreTreeScrollAfterCancel()
         {
-            // Откладываем восстановление до ApplicationIdle (issue #252): синхронный вызов здесь
-            // «проигрывал» отложенному DeferredScrollSelectedIntoView (priority Loaded), который
-            // исполнялся позже и перетирал восстановленную позицию. На ApplicationIdle любые
-            // отложенные прокрутки уже завершились, и позиция возвращается без конкуренции.
+            // Восстанавливаем позицию на приоритете Render (issue #252) — до отрисовки следующего
+            // кадра. При закрытии модального окна WPF сам подтягивает выбранную строку в видимую
+            // область (автоскролл): если откладывать восстановление до ApplicationIdle, сначала
+            // рисуется этот «прыжок», потом «возврат» — два видимых перемещения. На Render offset
+            // возвращается раньше, чем WPF успеет отрисовать скачок автоскролла. Зависших отложенных
+            // прокруток к этому моменту нет: RememberTreeScroll снимает их при открытии окна свойств.
             Dispatcher.BeginInvoke(new Action(RestoreTreeScrollAfterCancelCore),
-                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                System.Windows.Threading.DispatcherPriority.Render);
         }
 
         /// <summary>Непосредственное восстановление позиции после «Нет» (см. <see cref="RestoreTreeScrollAfterCancel"/>).</summary>
