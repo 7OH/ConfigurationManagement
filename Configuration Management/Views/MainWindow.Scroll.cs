@@ -29,6 +29,12 @@ namespace Configuration_Management
 
         /// <summary>Кэш внутреннего <see cref="ScrollViewer"/> дерева (issue #252).</summary>
         private ScrollViewer? _treeScrollViewer;
+        /// <summary>
+        /// Кэш внутреннего <see cref="ScrollContentPresenter"/> дерева (issue #255): полный обход
+        /// визуального дерева на каждый вызов при прокрутке добавлял лишнюю нагрузку. Сбрасывается
+        /// вместе с <see cref="_treeScrollViewer"/> при отсоединении дерева (Unloaded).
+        /// </summary>
+        private ScrollContentPresenter? _treeScrollContentPresenter;
         private bool _treeScrollHookAttached;
 
         // Guard от рекурсии при принудительном сбросе горизонтали дерева (issue #255).
@@ -65,6 +71,13 @@ namespace Configuration_Management
         /// </summary>
         private void RememberTreeScroll()
         {
+            // Перед открытием модального окна свойств снимаем отложенную прокрутку (issue #252):
+            // в очереди мог стоять DeferredScrollSelectedIntoView, поставленный кликом, которым
+            // открыли свойства. Если его не снять, он исполнится позже (priority Loaded) и перетрёт
+            // восстановленную при закрытии окна позицию — список «скачет» после «Нет».
+            _scrollQueued = false;
+            _scrollTargetData = null;
+
             var treeScroll = GetTreeScrollViewer();
             if (treeScroll is null)
                 return;
@@ -88,7 +101,8 @@ namespace Configuration_Management
                 return;
             try
             {
-                // Раскрытие предков и layout должны устояться, иначе позиция «садится не туда».
+                // Раскрытие предков и layout должны устояться, иначе позиция «садится не туда»
+                // и сравнение верхней видимой строки (GetTopVisibleRowData) будет некорректным.
                 MainTree.UpdateLayout();
 
                 // Если выбранная база осталась в той же группе, ключевое состояние не изменилось —
@@ -99,6 +113,18 @@ namespace Configuration_Management
                     : null;
                 var groupUnchanged = !string.IsNullOrEmpty(_treeScrollAnchorGroup)
                     && string.Equals(_treeScrollAnchorGroup, currentGroup, StringComparison.Ordinal);
+
+                // Guard «ничего ключевого не изменилось» (issue #252): если группа не сменилась И
+                // запомненная верхняя видимая строка осталась верхней после пересборки — позиция
+                // уже корректна, не позиционируем вовсе (требование пользователя: «если ничего
+                // ключевого не изменилось, просто не надо позиции пересчитывать»). Касается только
+                // прокрутки; выделение и фокус восстанавливаются отдельно в RevealAndSelectAfterRebuild.
+                if (groupUnchanged &&
+                    _treeScrollAnchorData is not null &&
+                    ReferenceEquals(GetTopVisibleRowData(), _treeScrollAnchorData))
+                {
+                    return;
+                }
 
                 if (groupUnchanged)
                 {
@@ -143,12 +169,24 @@ namespace Configuration_Management
         /// </summary>
         private void RestoreTreeScrollAfterCancel()
         {
+            // Откладываем восстановление до ApplicationIdle (issue #252): синхронный вызов здесь
+            // «проигрывал» отложенному DeferredScrollSelectedIntoView (priority Loaded), который
+            // исполнялся позже и перетирал восстановленную позицию. На ApplicationIdle любые
+            // отложенные прокрутки уже завершились, и позиция возвращается без конкуренции.
+            Dispatcher.BeginInvoke(new Action(RestoreTreeScrollAfterCancelCore),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
+
+        /// <summary>Непосредственное восстановление позиции после «Нет» (см. <see cref="RestoreTreeScrollAfterCancel"/>).</summary>
+        private void RestoreTreeScrollAfterCancelCore()
+        {
             var treeScroll = GetTreeScrollViewer();
             if (treeScroll is null)
                 return;
             try
             {
-                MainTree.UpdateLayout();
+                // Чистый restore-путь: принудительная раскладка не нужна, позиция возвращается
+                // точным offset без пересчёта ширины колонок (issue #252).
                 treeScroll.ScrollToVerticalOffset(_treeScrollOffset);
 
                 // Горизонталь дерева не используется — сбрасываем (как после пересборки).
@@ -180,7 +218,11 @@ namespace Configuration_Management
             if (!_treeScrollHookAttached)
             {
                 _treeScrollHookAttached = true;
-                MainTree.Unloaded += (_, _) => _treeScrollViewer = null;
+                MainTree.Unloaded += (_, _) =>
+                {
+                    _treeScrollViewer = null;
+                    _treeScrollContentPresenter = null;
+                };
             }
             if (_treeScrollViewer is not null)
                 return _treeScrollViewer;

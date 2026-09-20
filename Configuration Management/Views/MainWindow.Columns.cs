@@ -298,12 +298,27 @@ namespace Configuration_Management
         /// </summary>
         private void ApplyColumnOrder()
         {
+            // issue #255: изменение порядка колонок сбрасывает флаг «порядок применён» на всех
+            // найденных сетках, после чего существующие строки перестраиваются один раз (повторно
+            // применять в On*RowGrid_Loaded не придётся, т.к. флаг снова выставляется здесь же).
             if (HeaderGrid is not null)
+            {
+                SetColumnOrderApplied(HeaderGrid, false);
                 ReorderGridColumns(HeaderGrid, HeaderFirstDataColumn);
+                SetColumnOrderApplied(HeaderGrid, true);
+            }
             foreach (var grid in FindRowGrids(MainTree, RowGridMarker))
+            {
+                SetColumnOrderApplied(grid, false);
                 ReorderGridColumns(grid, RowFirstDataColumn);
+                SetColumnOrderApplied(grid, true);
+            }
             foreach (var grid in FindRowGrids(MainTree, GroupGridMarker))
+            {
+                SetColumnOrderApplied(grid, false);
                 ReorderGridColumns(grid, RowFirstDataColumn);
+                SetColumnOrderApplied(grid, true);
+            }
         }
 
         /// <summary>
@@ -322,7 +337,16 @@ namespace Configuration_Management
         {
             if (sender is not Grid grid)
                 return;
-            ReorderGridColumns(grid, RowFirstDataColumn);
+            // issue #255: при Recycling-виртуализации экземпляр сетки переиспользуется под новые
+            // строки, поэтому порядок колонок, однажды применённый, сохраняется до сброса флага
+            // в ApplyColumnOrder. Пропускаем ReorderGridColumns целиком для уже приведённых сеток,
+            // чтобы на каждую материализацию строки не строились layout/массивы/List/HashSet и не
+            // выполнялся обход детей (главный источник CPU и мусора gen2 при прокрутке списка).
+            if (!GetColumnOrderApplied(grid))
+            {
+                ReorderGridColumns(grid, RowFirstDataColumn);
+                SetColumnOrderApplied(grid, true);
+            }
             grid.Tag = RowGridMarker;
             ApplyRowCompact(grid);
             // Намеренно НЕ вызываем QueueHeaderAlign здесь: обработчик Loaded срабатывает на
@@ -341,7 +365,13 @@ namespace Configuration_Management
         {
             if (sender is not Grid grid)
                 return;
-            ReorderGridColumns(grid, RowFirstDataColumn);
+            // То же, что в OnInfobaseRowGrid_Loaded (issue #255): пропускаем пересборку колонок
+            // для сеток, к которым порядок уже применён (Recycling переиспользует экземпляр).
+            if (!GetColumnOrderApplied(grid))
+            {
+                ReorderGridColumns(grid, RowFirstDataColumn);
+                SetColumnOrderApplied(grid, true);
+            }
             grid.Tag = GroupGridMarker;
             ApplyRowCompact(grid);
         }
@@ -633,6 +663,13 @@ namespace Configuration_Management
             double total = 0;
             foreach (var d in defs)
             {
+                // Скрытая колонка получает нулевую абсолютную ширину (конвертер ColumnVis).
+                // Суммируем только видимые колонки (issue #255): иначе на старте, пока привязки
+                // ширин/видимости ещё не установились, сумма по всем определениям переоценивала
+                // реальную потребность и появлялся ложный горизонтальный скролл списка.
+                if (d.Width.IsAbsolute && d.Width.Value <= 0)
+                    continue;
+
                 if (ReferenceEquals(d, NameColumn))
                     total += d.Width.IsAbsolute ? d.Width.Value : NameColumnMinWidth;
                 else if (d.Width.IsAbsolute)
@@ -658,8 +695,18 @@ namespace Configuration_Management
         /// </summary>
         private ScrollContentPresenter? GetTreeScrollContentPresenter()
         {
+            // Кэш презентера рядом с _treeScrollViewer (issue #255): полный обход визуального
+            // дерева FindVisualChild на каждый вызов при прокрутке добавлял лишнюю нагрузку.
+            // Презентер находится во вложенном шаблоне внутреннего ScrollViewer дерева, поэтому
+            // захват в OnApplyTemplate самого TreeView (GetTemplateChild) его не достаёт — кэшируем
+            // здесь, в главном окне, и сбрасываем при Unloaded вместе с _treeScrollViewer.
+            if (_treeScrollContentPresenter is not null)
+                return _treeScrollContentPresenter;
             var treeScroll = GetTreeScrollViewer();
-            return treeScroll is null ? null : FindVisualChild<ScrollContentPresenter>(treeScroll);
+            _treeScrollContentPresenter = treeScroll is null
+                ? null
+                : FindVisualChild<ScrollContentPresenter>(treeScroll);
+            return _treeScrollContentPresenter;
         }
 
         /// <summary>
