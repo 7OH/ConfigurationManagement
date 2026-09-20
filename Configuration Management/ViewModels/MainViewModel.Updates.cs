@@ -1,4 +1,5 @@
 #if WINDOWS
+using System.Windows;
 using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
@@ -88,6 +89,8 @@ public partial class MainViewModel
     private void ExecuteShowActualReleases()
     {
         var win = new Configuration_Management.ActualReleasesWindow();
+        // Настоящая модальность: блокируем владельца, окно поверх и по центру (issue #264).
+        win.Owner = Application.Current.MainWindow;
         win.ShowDialog();
     }
 
@@ -104,6 +107,8 @@ public partial class MainViewModel
     public void OpenConfigTypesEdit()
     {
         var win = new Configuration_Management.ConfigTypesEditWindow();
+        // Настоящая модальность: блокируем владельца, окно поверх и по центру (issue #265).
+        win.Owner = Application.Current.MainWindow;
         win.ShowDialog();
     }
 }

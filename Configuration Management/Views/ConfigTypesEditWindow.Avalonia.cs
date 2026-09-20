@@ -122,13 +122,25 @@ namespace Configuration_Management
         private void AddRow(ConfigTypeItemViewModel row)
         {
             _rows.Add(row);
-            _rowsPanel.Children.Add(BuildRow(row));
+            var index = _rowsPanel.Children.Count;
+            _rowsPanel.Children.Add(BuildRow(row, index));
         }
 
         /// <summary>Строит визуальную строку таблицы конфигураций.</summary>
-        private Grid BuildRow(ConfigTypeItemViewModel row)
+        private Grid BuildRow(ConfigTypeItemViewModel row, int index)
         {
             var grid = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+
+            // Подсветка только нечётных строк (1-я, 3-я, 5-я…): индекс строки начинается с 0,
+            // поэтому нечётной позиции соответствует чётный индекс. Hover подсвечивает текущую строку
+            // (паритет с WPF RowStyle, см. ConfigTypesEditWindow.xaml — issue #265).
+            var oddRow = index % 2 == 0;
+            var bandBrush = oddRow ? (TryBrush("ItemHoverBrush") ?? Brushes.Transparent) : Brushes.Transparent;
+            var hoverBrush = TryBrush("ItemSelectedBrush") ?? Brushes.Transparent;
+            grid.Background = bandBrush;
+            grid.PointerEntered += (_, _) => grid.Background = hoverBrush;
+            grid.PointerExited += (_, _) => grid.Background = bandBrush;
+
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(3, GridUnitType.Star)));
@@ -224,7 +236,8 @@ namespace Configuration_Management
             _customTypes.Add(config);
             var row = new ConfigTypeItemViewModel(config, OnEditRow, OnDeleteRow);
             _rows.Add(row);
-            _rowsPanel.Children.Add(BuildRow(row));
+            var index = _rowsPanel.Children.Count;
+            _rowsPanel.Children.Add(BuildRow(row, index));
             OpenEditor(row, isNew: true);
         }
 
@@ -488,6 +501,13 @@ namespace Configuration_Management
             grid.Children.Add(MakeHeaderText(T("Updates.UrlCode"), 1));
             grid.Children.Add(MakeHeaderText(T("Updates.Editions"), 2));
             return grid;
+        }
+
+        private static IBrush? TryBrush(string key)
+        {
+            if (Application.Current is not { } app || !app.TryFindResource(key, out var found))
+                return null;
+            return found as IBrush;
         }
 
         private static TextBlock MakeHeaderText(string text, int column)

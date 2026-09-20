@@ -464,6 +464,17 @@ namespace Configuration_Management
         {
             var cell = new StackPanel { Margin = new Thickness(0, 2, 0, 2) };
 
+            // Подсветка только нечётных строк (1-я, 3-я, 5-я…): индекс строки начинается с 0,
+            // поэтому нечётной позиции соответствует чётный индекс. Hover подсвечивает текущую строку
+            // (паритет с WPF RowStyle, см. ActualReleasesWindow.xaml — issue #264).
+            var rowIndex = _rowsPanel.Children.Count;
+            var oddRow = rowIndex % 2 == 0;
+            var bandBrush = oddRow ? (TryBrush("ItemHoverBrush") ?? Brushes.Transparent) : Brushes.Transparent;
+            var hoverBrush = TryBrush("ItemSelectedBrush") ?? Brushes.Transparent;
+            cell.Background = bandBrush;
+            cell.PointerEntered += (_, _) => cell.Background = hoverBrush;
+            cell.PointerExited += (_, _) => cell.Background = bandBrush;
+
             // Верхняя строка: имя, версия, статус, кнопки.
             var top = new Grid { Margin = new Thickness(8, 0, 8, 0) };
             ApplyColumns(top);

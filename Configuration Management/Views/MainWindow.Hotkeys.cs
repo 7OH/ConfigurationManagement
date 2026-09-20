@@ -526,7 +526,12 @@ namespace Configuration_Management
             foreach (var owner in _openToolTips.ToArray())
             {
                 if (TryCloseToolTip(owner))
+                {
                     closed = true;
+                    // Подавляем повторное автоматическое открытие подсказки (issue #261):
+                    // иначе при наведённом курсоре ToolTipService тут же снова покажет её.
+                    SuppressToolTipOwner(owner);
+                }
             }
             if (closed)
             {
@@ -551,7 +556,7 @@ namespace Configuration_Management
             return closed;
         }
 
-        private static bool CloseToolTipsIn(DependencyObject root)
+        private bool CloseToolTipsIn(DependencyObject root)
         {
             var closed = false;
             var queue = new Queue<DependencyObject>();
@@ -567,7 +572,10 @@ namespace Configuration_Management
                     // (SetIsEnabled(false/true)) не всегда гасит уже показанный ToolTip —
                     // попап оставался висеть после ухода окна в трей (issue #261).
                     if (TryCloseToolTip(ui))
+                    {
                         closed = true;
+                        SuppressToolTipOwner(ui);
+                    }
                 }
 
                 for (var i = VisualTreeHelper.GetChildrenCount(node) - 1; i >= 0; i--)
@@ -582,7 +590,7 @@ namespace Configuration_Management
         /// <see cref="CloseToolTipsIn"/>, поэтому дополнительно дотягиваемся до «хозяина»
         /// подсказки по цепочке визуальных родителей от элемента под мышью/в фокусе.
         /// </summary>
-        private static bool CloseToolTipByMouseOrFocus()
+        private bool CloseToolTipByMouseOrFocus()
         {
             var closed = false;
             var candidates = new DependencyObject?[]
@@ -596,7 +604,10 @@ namespace Configuration_Management
                 for (var node = candidate; node is not null; node = VisualTreeHelper.GetParent(node))
                 {
                     if (TryCloseToolTip(node))
+                    {
                         closed = true;
+                        SuppressToolTipOwner(node);
+                    }
                 }
             }
 

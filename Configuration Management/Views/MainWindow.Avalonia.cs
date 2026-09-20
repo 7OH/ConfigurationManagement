@@ -55,6 +55,14 @@ namespace Configuration_Management
         // поле, чтобы закрывались ВСЕ открытые подсказки, а не только последняя.
         private readonly HashSet<Control> _openToolTipOwners = new();
 
+        // Подавленные после ESC владельцы подсказок (issue #261): пока владелец числится здесь
+        // и указатель над ним (или не вышел короткий интервал), повторное открытие его ToolTip
+        // блокируется обработчиком OnToolTipIsOpenChanged — тултип не «возвращается» при наведённом
+        // курсоре. Подавление снимается, когда курсор ушёл с владельца и окно подавления истекло.
+        private readonly HashSet<Control> _suppressedToolTipOwners = new();
+        private long _lastToolTipEscTick;
+        private const long ToolTipSuppressWindowMs = 800;
+
         // Поля empty-state (заглушка пустого списка / «ничего не найдено»).
         private Border _emptyState = null!;
         private Avalonia.Controls.Shapes.Path _emptyIcon = null!;
@@ -199,9 +207,45 @@ namespace Configuration_Management
         private void OnToolTipIsOpenChanged(Control owner, AvaloniaPropertyChangedEventArgs e)
         {
             if (e.NewValue is true)
+            {
+                // Вето на повторное открытие после ESC (issue #261): если владелец подавлен,
+                // сразу гасим показанную подсказку и не запоминаем её в открытых.
+                if (IsToolTipSuppressed(owner))
+                {
+                    ToolTip.SetIsOpen(owner, false);
+                    return;
+                }
                 _openToolTipOwners.Add(owner);
+            }
             else
+            {
                 _openToolTipOwners.Remove(owner);
+            }
+        }
+
+        /// <summary>
+        /// Заблокировано ли повторное открытие подсказки владельца после ESC (issue #261).
+        /// Пока указатель над владельцем (<see cref="Control.IsPointerOver"/>) или не вышел
+        /// короткий интервал — подавлено; как только курсор ушёл и окно истекло — подавление
+        /// снимается, и тултип снова работает как обычно.
+        /// </summary>
+        private bool IsToolTipSuppressed(Control owner)
+        {
+            if (!_suppressedToolTipOwners.Contains(owner))
+                return false;
+
+            if (Environment.TickCount64 - _lastToolTipEscTick < ToolTipSuppressWindowMs || owner.IsPointerOver)
+                return true;
+
+            _suppressedToolTipOwners.Remove(owner);
+            return false;
+        }
+
+        /// <summary>Подавляет повторное открытие подсказки владельца после закрытия по ESC (issue #261).</summary>
+        private void SuppressToolTipOwner(Control owner)
+        {
+            if (_suppressedToolTipOwners.Add(owner))
+                _lastToolTipEscTick = Environment.TickCount64;
         }
 
         /// <summary>Шапка окна: полоса, подпись и кнопки, перекрашиваемые по активности.</summary>

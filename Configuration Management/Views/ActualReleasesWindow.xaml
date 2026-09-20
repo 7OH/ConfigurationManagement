@@ -126,7 +126,36 @@
                       HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
                       CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
                       BorderThickness="0" Background="Transparent" GridLinesVisibility="None"
-                      RowHeight="40" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}">
+                      RowHeight="40" AlternationCount="2">
+                <!-- Вертикальное выравнивание содержимого ячеек по центру (issue #264). -->
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Padding" Value="0"/>
+                    </Style>
+                </DataGrid.CellStyle>
+                <!-- Подсветка только нечётных строк (1-я, 3-я, 5-я…): AlternationIndex начинается
+                     с 0, поэтому нечётным позициям строк соответствует индекс 0 (issue #264).
+                     Текущая строка подсвечивается и при наведении, и при клавиатурной навигации
+                     (SelectionMode="Single", текущая = выбранная). -->
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                        <Style.Triggers>
+                            <Trigger Property="ItemsControl.AlternationIndex" Value="0">
+                                <Setter Property="Background" Value="{DynamicResource ItemHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ItemSelectedBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ItemSelectedBrush}"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
                 <DataGrid.Columns>
                     <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Name}" Binding="{Binding Name}"/>
 

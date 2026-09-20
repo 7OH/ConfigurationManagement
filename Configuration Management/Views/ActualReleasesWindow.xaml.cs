@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -41,6 +42,19 @@ public partial class ActualReleasesWindow : Window
 
         BuildRows();
         _viewModel.RefreshCommands();
+
+        // Закрытие окна по Esc (issue #264): единообразно с Avalonia-базой ModalWindowBase.
+        PreviewKeyDown += OnWindow_PreviewKeyDown;
+    }
+
+    /// <summary>Закрывает окно по Esc без модификаторов (issue #264).</summary>
+    private void OnWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            e.Handled = true;
+            Close();
+        }
     }
 
     /// <summary>Формирует строки из отслеживаемых конфигураций (предопределённых и пользовательских).</summary>

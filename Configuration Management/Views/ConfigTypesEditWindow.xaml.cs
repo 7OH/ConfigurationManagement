@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -55,6 +56,19 @@ public partial class ConfigTypesEditWindow : Window
 
         RebuildRows();
         Closing += (_, _) => SaveCustomTypes();
+
+        // Закрытие окна по Esc (issue #265): единообразно с Avalonia-базой ModalWindowBase.
+        PreviewKeyDown += OnWindow_PreviewKeyDown;
+    }
+
+    /// <summary>Закрывает окно по Esc без модификаторов (issue #265).</summary>
+    private void OnWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            e.Handled = true;
+            Close();
+        }
     }
 
     private void LoadCustomTypes()

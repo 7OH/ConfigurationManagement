@@ -9,6 +9,36 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.16] — 2026-09-20
+
+### Исправления
+
+- **Окно «Список типовых конфигураций» (#265)** — закрытие окна по `Esc`;
+  вертикальное выравнивание текста в колонках по центру; подсветка только нечётных строк
+  (при наведении мышью и навигации курсором); окно стало по-настоящему модальным.
+  Реализовано в обеих версиях: **Windows/WPF** и **Linux/Avalonia**.
+  Затронуты [`ConfigTypesEditWindow.xaml.cs`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml.cs)
+  и его Avalonia-аналог [`ConfigTypesEditWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigTypesEditWindow.Avalonia.cs).
+
+- **Окно «Актуальные релизы» (#264)** — те же улучшения, что и для окна списка типовых
+  конфигураций: закрытие по `Esc`; вертикальное центрирование текста; подсветка только
+  нечётных строк; настоящая модальность окна. Обе платформы **WPF** и **Avalonia/Linux**.
+  Затронуты [`ActualReleasesWindow.xaml.cs`](Configuration%20Management/Views/ActualReleasesWindow.xaml.cs)
+  и его Avalonia-аналог [`ActualReleasesWindow.Avalonia.cs`](Configuration%20Management/Views/ActualReleasesWindow.Avalonia.cs).
+
+- **ESC и открытая подсказка (#261)** — надёжное детерминированное закрытие открытой ToolTip
+  по первому `ESC`; повторный `ESC` сворачивает окно в трей. Реализован механизм
+  «закрытие + подавление повторного открытия» (veto), который предотвращает возврат
+  подсказки при наведённом курсоре — устраняет рецидив, не исправленный предыдущими фиксами.
+  Обе платформы **WPF** и **Avalonia/Linux**.
+  Затронуты [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs) и их Avalonia-аналоги.
+
+### Версия
+
+- **Версия поднята до `0.3.9.16`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.15] — 2026-09-20
 
 ### Исправления

@@ -495,6 +495,9 @@ namespace Configuration_Management
                 {
                     ToolTip.SetIsOpen(owner, false);
                     closed = true;
+                    // Подавляем повторное автоматическое открытие подсказки (issue #261):
+                    // иначе при наведённом курсоре тултип тут же откроется снова.
+                    SuppressToolTipOwner(owner);
                 }
             }
             if (closed)
@@ -523,6 +526,7 @@ namespace Configuration_Management
                         {
                             ToolTip.SetIsOpen(control, false);
                             closed = true;
+                            SuppressToolTipOwner(control);
                         }
                     }
                 }
@@ -536,6 +540,7 @@ namespace Configuration_Management
                 {
                     ToolTip.SetIsOpen(control, false);
                     closed = true;
+                    SuppressToolTipOwner(control);
                 }
 
                 foreach (var child in node.GetVisualChildren())
