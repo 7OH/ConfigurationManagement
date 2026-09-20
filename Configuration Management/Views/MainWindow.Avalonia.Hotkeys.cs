@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using Configuration_Management.Controls;
+using Configuration_Management.Localization;
 using Configuration_Management.ViewModels;
 
 namespace Configuration_Management
@@ -52,6 +53,70 @@ namespace Configuration_Management
                     Command = new ViewModels.RelayCommand(_ => _vm.LaunchFavoriteByHotkey(slot))
                 });
             }
+
+            // Системные сочетания закладок ставятся ПЕРЕД пользовательскими, чтобы
+            // те их не перебивали (Avalonia останавливается на первой подошедшей привязке).
+
+            // Ctrl+Shift+P — поставить/снять закладку выбранной базы.
+            KeyBindings.Add(new KeyBinding
+            {
+                Gesture = new KeyGesture(Key.P, KeyModifiers.Control | KeyModifiers.Shift),
+                Command = new ViewModels.RelayCommand(_ => _vm.ToggleBookmarkForCurrent())
+            });
+
+            // Ctrl+Shift+D1..D9 — назначить явный номер закладки.
+            for (var number = 1; number <= 9; number++)
+            {
+                var slot = number;
+                KeyBindings.Add(new KeyBinding
+                {
+                    Gesture = new KeyGesture((Key)((int)Key.D0 + slot), KeyModifiers.Control | KeyModifiers.Shift),
+                    Command = new ViewModels.RelayCommand(_ => _vm.AssignBookmarkSlot(_vm.SelectedInfobase, slot))
+                });
+            }
+
+            // Ctrl+D1..D9 — перейти к закладке (раскрыть свёрнутую группу).
+            for (var number = 1; number <= 9; number++)
+            {
+                var slot = number;
+                KeyBindings.Add(new KeyBinding
+                {
+                    Gesture = new KeyGesture((Key)((int)Key.D0 + slot), KeyModifiers.Control),
+                    Command = new ViewModels.RelayCommand(_ => _vm.NavigateToBookmark(slot))
+                });
+            }
+
+            // Ctrl+Alt+X — очистить все закладки.
+            KeyBindings.Add(new KeyBinding
+            {
+                Gesture = new KeyGesture(Key.X, KeyModifiers.Control | KeyModifiers.Alt),
+                Command = new ViewModels.RelayCommand(_ => _vm.ClearAllBookmarks())
+            });
+
+            // Ctrl+Alt+D1..D9 — запустить Конфигуратор по закладке.
+            for (var number = 1; number <= 9; number++)
+            {
+                var slot = number;
+                KeyBindings.Add(new KeyBinding
+                {
+                    Gesture = new KeyGesture((Key)((int)Key.D0 + slot), KeyModifiers.Control | KeyModifiers.Alt),
+                    Command = new ViewModels.RelayCommand(_ => _vm.LaunchBookmark(slot, true))
+                });
+            }
+
+            // Alt+E — запустить все закладки.
+            KeyBindings.Add(new KeyBinding
+            {
+                Gesture = new KeyGesture(Key.E, KeyModifiers.Alt),
+                Command = new ViewModels.RelayCommand(_ => _vm.LaunchAllBookmarks())
+            });
+
+            // Ctrl+B — меню закладок.
+            KeyBindings.Add(new KeyBinding
+            {
+                Gesture = new KeyGesture(Key.B, KeyModifiers.Control),
+                Command = new ViewModels.RelayCommand(_ => ShowBookmarksMenu())
+            });
 
             // Delete в привязки не идёт: он правит текст, и в поле ввода
             // не должен удалять базу. Ему отдельный обработчик ниже.
@@ -170,6 +235,75 @@ namespace Configuration_Management
                 }
             }
 
+            // Закладки: установка, навигация, очистка и запуск Конфигуратора.
+            // Надёжный fallback для наборов цифр с Ctrl/Ctrl+Alt, которые могут
+            // перехватываться фокусом или системой.
+            var km = e.KeyModifiers;
+            if ((km & KeyModifiers.Control) != 0)
+            {
+                var shiftKm = (km & KeyModifiers.Shift) != 0;
+                var altKm = (km & KeyModifiers.Alt) != 0;
+
+                // Ctrl+Shift+P — поставить/снять закладку выбранной базы.
+                if (e.Key == Key.P && shiftKm && !altKm)
+                {
+                    _vm.ToggleBookmarkForCurrent();
+                    e.Handled = true;
+                    return;
+                }
+
+                // Ctrl+B — меню закладок.
+                if (e.Key == Key.B && !shiftKm && !altKm)
+                {
+                    ShowBookmarksMenu();
+                    e.Handled = true;
+                    return;
+                }
+
+                // Ctrl+Alt+X — очистить все закладки.
+                if (e.Key == Key.X && altKm && !shiftKm)
+                {
+                    _vm.ClearAllBookmarks();
+                    e.Handled = true;
+                    return;
+                }
+
+                bool isDigit = (e.Key >= Key.D1 && e.Key <= Key.D9)
+                    || (e.Key >= Key.NumPad1 && e.Key <= Key.NumPad9);
+                if (isDigit)
+                {
+                    int num = e.Key >= Key.NumPad1 && e.Key <= Key.NumPad9
+                        ? e.Key - Key.NumPad0
+                        : e.Key - Key.D0;
+                    if (shiftKm && !altKm)
+                    {
+                        _vm.AssignBookmarkSlot(_vm.SelectedInfobase, num);
+                        e.Handled = true;
+                        return;
+                    }
+                    if (altKm && !shiftKm)
+                    {
+                        _vm.LaunchBookmark(num, true);
+                        e.Handled = true;
+                        return;
+                    }
+                    if (!shiftKm && !altKm)
+                    {
+                        _vm.NavigateToBookmark(num);
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+
+            // Alt+E — запустить все закладки.
+            if (e.Key == Key.E && km == KeyModifiers.Alt)
+            {
+                _vm.LaunchAllBookmarks();
+                e.Handled = true;
+                return;
+            }
+
             // Esc при открытом диалоге закрывает сам диалог. Пока пользователь не
             // кликнул внутри диалога, событие приходит именно сюда: сфокусированной
             // остаётся кнопка главного окна, которой диалог и открыли, а клавиатурное
@@ -229,6 +363,61 @@ namespace Configuration_Management
             if (_vm.DeleteInfobaseCommand.CanExecute(null))
                 _vm.DeleteInfobaseCommand.Execute(null);
             e.Handled = true;
+        }
+
+        /// <summary>
+        /// Показывает контекстное меню закладок (Ctrl+B). Для каждой закладки —
+        /// запуск Предприятия/Конфигуратора, переход и снятие; внизу — «Очистить все».
+        /// </summary>
+        private void ShowBookmarksMenu()
+        {
+            if (_vm is not { } vm)
+                return;
+            var menu = new ContextMenu();
+            var bookmarks = vm.GetBookmarks();
+
+            if (bookmarks.Count == 0)
+            {
+                menu.Items.Add(new MenuItem { Header = LocalizationManager.T("Main.BookmarksNone"), IsEnabled = false });
+            }
+            else
+            {
+                foreach (var (number, ib) in bookmarks)
+                {
+                    var sub = new MenuItem { Header = string.Format(LocalizationManager.T("Main.BookmarksItem"), number, ib.Name) };
+                    sub.Items.Add(new MenuItem
+                    {
+                        Header = string.Format(LocalizationManager.T("Main.BookmarksEnterprise"), number),
+                        Command = new ViewModels.RelayCommand(_ => _vm.LaunchBookmark(number, false))
+                    });
+                    sub.Items.Add(new MenuItem
+                    {
+                        Header = string.Format(LocalizationManager.T("Main.BookmarksConfigurator"), number),
+                        Command = new ViewModels.RelayCommand(_ => _vm.LaunchBookmark(number, true))
+                    });
+                    sub.Items.Add(new MenuItem
+                    {
+                        Header = string.Format(LocalizationManager.T("Main.BookmarksNavigate"), number),
+                        Command = new ViewModels.RelayCommand(_ => _vm.NavigateToBookmark(number))
+                    });
+                    sub.Items.Add(new Separator());
+                    sub.Items.Add(new MenuItem
+                    {
+                        Header = LocalizationManager.T("Main.BookmarksRemove"),
+                        Command = new ViewModels.RelayCommand(_ => _vm.RemoveBookmark(ib))
+                    });
+                    menu.Items.Add(sub);
+                }
+                menu.Items.Add(new Separator());
+            }
+
+            menu.Items.Add(new MenuItem
+            {
+                Header = LocalizationManager.T("Main.BookmarksClearAll"),
+                Command = new ViewModels.RelayCommand(_ => _vm.ClearAllBookmarks())
+            });
+
+            menu.Open(this);
         }
 
         /// <summary>

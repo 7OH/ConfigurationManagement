@@ -451,6 +451,176 @@ public partial class MainViewModel : ViewModelBase
         Launch(_launchVm.LaunchCommand, LaunchKind.Enterprise);
     }
 
+    // ======================= Закладки (горячие клавиши 1–9) =======================
+
+    /// <summary>Ставит/снимает закладку для выбранной базы (Ctrl+Shift+P, Ctrl+щелчок).</summary>
+    public void ToggleBookmarkForCurrent()
+    {
+        if (SelectedInfobase is { } ib)
+            ToggleBookmark(ib);
+    }
+
+    /// <summary>Ставит/снимает закладку для указанной базы (Ctrl+щелчок по строке).</summary>
+    public void ToggleBookmark(Infobase ib)
+    {
+        if (_favoriteHotkeyIds.Contains(FavoriteKey(ib)))
+            RemoveBookmark(ib);
+        else
+            AssignNextBookmarkSlot(ib);
+    }
+
+    /// <summary>Назначает базе явный номер закладки 1..9 (Ctrl+Shift+N).</summary>
+    public void AssignBookmarkSlot(Infobase? ib, int number)
+    {
+        if (ib is null)
+            return;
+        ib.IsFavorite = true;
+        BookmarkSlotHelper.AssignSlot(_favoriteHotkeyIds, FavoriteKey(ib), number);
+        FinishBookmarkChange();
+    }
+
+    /// <summary>Назначает базе первый свободный слот закладки (Ctrl+Shift+P, Ctrl+щелчок).</summary>
+    private void AssignNextBookmarkSlot(Infobase ib)
+    {
+        ib.IsFavorite = true;
+        if (!BookmarkSlotHelper.AssignNextFreeSlot(_favoriteHotkeyIds, FavoriteKey(ib)))
+        {
+            _dialog.ShowInfo(
+                LocalizationManager.T("Main.BookmarksAllSlotsFull"),
+                LocalizationManager.T("Main.Bookmarks"));
+            return;
+        }
+        FinishBookmarkChange();
+    }
+
+    /// <summary>Снимает закладку с базы: номер уходит, избранность («звезда») сохраняется.</summary>
+    public void RemoveBookmark(Infobase? ib)
+    {
+        if (ib is null)
+            return;
+        BookmarkSlotHelper.RemoveFromSlot(_favoriteHotkeyIds, FavoriteKey(ib));
+        FinishBookmarkChange();
+    }
+
+    /// <summary>Очищает все закладки (Ctrl+Alt+X). Избранность баз сохраняется.</summary>
+    public void ClearAllBookmarks()
+    {
+        BookmarkSlotHelper.ClearAllSlots(_favoriteHotkeyIds);
+        FinishBookmarkChange();
+    }
+
+    /// <summary>
+    /// Завершает изменение состава закладок: пересчитывает слоты, обновляет список
+    /// при активном временном фильтре и сохраняет настройки вместе со списком баз.
+    /// </summary>
+    private void FinishBookmarkChange()
+    {
+        SyncFavoriteHotkeys();
+        if (IsFilterModeActive())
+            ApplyFilter();
+        SaveSilently();
+        SaveSettingsSilently();
+    }
+
+    /// <summary>
+    /// Переходит к базе по номеру закладки (Ctrl+N), раскрывая свёрнутую ветку группы,
+    /// после чего пересобирает дерево и выделяет базу.
+    /// </summary>
+    public void NavigateToBookmark(int number)
+    {
+        var key = BookmarkSlotHelper.FindKeyBySlot(_favoriteHotkeyIds, number);
+        if (key is null)
+            return;
+        var ib = FindByFavoriteKey(key);
+        if (ib is null)
+            return;
+
+        if (!string.IsNullOrEmpty(ib.Group))
+        {
+            foreach (var root in AllGroupNodes)
+            {
+                var node = FindNode(root, ib.Group);
+                if (node is null)
+                    continue;
+                var chain = new List<GroupNodeViewModel>();
+                for (var n = node; n is not null; n = n.Parent)
+                    chain.Add(n);
+                chain.Reverse();
+                foreach (var n in chain)
+                {
+                    n.SetExpandedSilent(true);
+                    n.NotifyIsExpanded();
+                    _collapsedGroups.Remove(n.NodeKey);
+                }
+                break;
+            }
+        }
+
+        SelectedInfobase = ib;
+        RebuildTree();
+    }
+
+    /// <summary>
+    /// Запускает базу по номеру закладки: Предприятие (Alt+N) или Конфигуратор (Ctrl+Alt+N).
+    /// Запуск идёт обычным путём окна (как LaunchFavoriteByHotkey), а не прямым лаунчером.
+    /// </summary>
+    public void LaunchBookmark(int number, bool configurator)
+    {
+        if (number < 1 || number > _favoriteHotkeyIds.Count)
+            return;
+
+        var ib = FindByFavoriteKey(_favoriteHotkeyIds[number - 1]);
+        if (ib is null)
+            return;
+
+        SelectedInfobase = ib;
+        _logger.Info(configurator
+            ? $"Запуск Конфигуратора избранной базы «{ib.Name}» по Ctrl+Alt+{number}"
+            : $"Запуск избранной базы «{ib.Name}» по Alt+{number}");
+        Launch(_launchVm.LaunchCommand, configurator ? LaunchKind.Configurator : LaunchKind.Enterprise);
+    }
+
+    /// <summary>
+    /// Запускает Предприятие для всех баз с закладками (Alt+E). Массовый запуск идёт
+    /// напрямую через лаунчер, как запуск из трея (LaunchFromTray), чтобы не таскать
+    /// выделение по каждой базе.
+    /// </summary>
+    public void LaunchAllBookmarks()
+    {
+        foreach (var key in BookmarkSlotHelper.GetAllKeys(_favoriteHotkeyIds))
+        {
+            var ib = FindByFavoriteKey(key);
+            if (ib is null)
+                continue;
+            var ok = _launcher.Launch(ib, Services.OneCLaunchMode.Enterprise);
+            if (ok)
+            {
+                ib.AddLaunchHistory("Enterprise", "bookmarks");
+                SaveSilently();
+                OnPropertyChanged(nameof(RecentInfobases));
+                _logger.Info($"Запущена избранная база «{ib.Name}» по Alt+E");
+            }
+            else
+            {
+                _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+E");
+            }
+        }
+        NotifyAfterLaunch();
+    }
+
+    /// <summary>Занятые слоты с базами в порядке нумерации (для меню Ctrl+B).</summary>
+    public IReadOnlyList<(int Number, Infobase Base)> GetBookmarks()
+    {
+        var result = new List<(int Number, Infobase Base)>();
+        for (var i = 0; i < _favoriteHotkeyIds.Count && i < 9; i++)
+        {
+            var ib = FindByFavoriteKey(_favoriteHotkeyIds[i]);
+            if (ib is not null)
+                result.Add((i + 1, ib));
+        }
+        return result;
+    }
+
     private void TogglePinFor(Infobase? infobase)
     {
         if (infobase is null)

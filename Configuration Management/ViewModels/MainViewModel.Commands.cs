@@ -668,6 +668,173 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    // ======================= Закладки (горячие клавиши 1–9) =======================
+
+    /// <summary>
+    /// Ставит/снимает закладку для выбранной базы (Ctrl+Shift+P, Ctrl+щелчок).
+    /// Если у базы уже есть номер — снимает его, иначе назначает первый свободный слот.
+    /// </summary>
+    public void ToggleBookmarkForCurrent()
+    {
+        if (SelectedInfobase is { } ib)
+            ToggleBookmark(ib);
+    }
+
+    /// <summary>Ставит/снимает закладку для указанной базы (Ctrl+щелчок по строке).</summary>
+    public void ToggleBookmark(Infobase ib)
+    {
+        if (GetFavoriteHotkeyNumber(ib) >= 1)
+            RemoveBookmark(ib);
+        else
+            AssignNextBookmarkSlot(ib);
+    }
+
+    /// <summary>
+    /// Назначает базе явный номер закладки 1..9 (Ctrl+Shift+N). При конфликте
+    /// занимающий слот ключ смещается; лимит — 9 слотов.
+    /// </summary>
+    public void AssignBookmarkSlot(Infobase? ib, int number)
+    {
+        if (ib is null)
+            return;
+        ib.IsFavorite = true;
+        BookmarkSlotHelper.AssignSlot(_favoriteHotkeyIds, FavoriteKey(ib), number);
+        SyncFavoriteHotkeys();
+        ScheduleSaveSettings();
+    }
+
+    /// <summary>Назначает базе первый свободный слот закладки (Ctrl+Shift+P, Ctrl+щелчок).</summary>
+    private void AssignNextBookmarkSlot(Infobase ib)
+    {
+        ib.IsFavorite = true;
+        if (!BookmarkSlotHelper.AssignNextFreeSlot(_favoriteHotkeyIds, FavoriteKey(ib)))
+        {
+            _dialogs.ShowInfo(
+                LocalizationManager.T("Main.BookmarksAllSlotsFull"),
+                LocalizationManager.T("Main.Bookmarks"));
+            return;
+        }
+        SyncFavoriteHotkeys();
+        ScheduleSaveSettings();
+    }
+
+    /// <summary>Снимает закладку с базы: номер уходит, избранность («звезда») сохраняется.</summary>
+    public void RemoveBookmark(Infobase? ib)
+    {
+        if (ib is null)
+            return;
+        BookmarkSlotHelper.RemoveFromSlot(_favoriteHotkeyIds, FavoriteKey(ib));
+        SyncFavoriteHotkeys();
+        ScheduleSaveSettings();
+    }
+
+    /// <summary>Очищает все закладки (Ctrl+Alt+X). Избранность баз сохраняется.</summary>
+    public void ClearAllBookmarks()
+    {
+        BookmarkSlotHelper.ClearAllSlots(_favoriteHotkeyIds);
+        SyncFavoriteHotkeys();
+        ScheduleSaveSettings();
+    }
+
+    /// <summary>
+    /// Переходит к базе по номеру закладки (Ctrl+N), раскрывая свёрнутую ветку группы,
+    /// чтобы контейнер строки был сгенерирован до установки выделения.
+    /// </summary>
+    public void NavigateToBookmark(int number)
+    {
+        var key = BookmarkSlotHelper.FindKeyBySlot(_favoriteHotkeyIds, number);
+        if (key is null)
+            return;
+        var ib = FindByFavoriteKey(key);
+        if (ib is null)
+            return;
+
+        if (!string.IsNullOrEmpty(ib.Group))
+        {
+            var node = FindGroupNodeByPath(ib.Group);
+            if (node is not null)
+            {
+                var chain = new List<GroupNodeViewModel>();
+                for (var n = node; n is not null; n = n.Parent)
+                    chain.Add(n);
+                chain.Reverse();
+                foreach (var n in chain)
+                {
+                    n.SetExpandedSilent(true);
+                    n.NotifyIsExpanded();
+                }
+            }
+        }
+
+        SelectedInfobase = ib;
+    }
+
+    /// <summary>
+    /// Запускает базу по номеру закладки: Предприятие (Alt+N) или Конфигуратор (Ctrl+Alt+N).
+    /// </summary>
+    public void LaunchBookmark(int number, bool configurator)
+    {
+        if (number < 1 || number > _favoriteHotkeyIds.Count)
+            return;
+        var ib = FindByFavoriteKey(_favoriteHotkeyIds[number - 1]);
+        if (ib is null)
+            return;
+
+        SelectedInfobase = ib;
+        var ok = _launcher.Launch(ib, configurator ? OneCLaunchMode.Configurator : OneCLaunchMode.Enterprise);
+        if (ok)
+        {
+            ib.LastLaunchDate = DateTime.Now;
+            ScheduleSave();
+            _logger.Info(configurator
+                ? $"Запущен Конфигуратор избранной базы «{ib.Name}» по Ctrl+Alt+{number}"
+                : $"Запущена избранная база «{ib.Name}» по Alt+{number}");
+            NotifyAfterLaunch();
+        }
+        else
+        {
+            _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» (номер {number})");
+            ShowLaunchFailed();
+        }
+    }
+
+    /// <summary>Запускает Предприятие для всех баз с закладками (Alt+E).</summary>
+    public void LaunchAllBookmarks()
+    {
+        foreach (var key in BookmarkSlotHelper.GetAllKeys(_favoriteHotkeyIds))
+        {
+            var ib = FindByFavoriteKey(key);
+            if (ib is null)
+                continue;
+            var ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise);
+            if (ok)
+            {
+                ib.LastLaunchDate = DateTime.Now;
+                ScheduleSave();
+                _logger.Info($"Запущена избранная база «{ib.Name}» по Alt+E");
+            }
+            else
+            {
+                _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+E");
+                ShowLaunchFailed();
+            }
+        }
+        NotifyAfterLaunch();
+    }
+
+    /// <summary>Занятые слоты с базами в порядке нумерации (для меню Ctrl+B).</summary>
+    public IReadOnlyList<(int Number, Infobase Base)> GetBookmarks()
+    {
+        var result = new List<(int Number, Infobase Base)>();
+        for (var i = 0; i < _favoriteHotkeyIds.Count && i < 9; i++)
+        {
+            var ib = FindByFavoriteKey(_favoriteHotkeyIds[i]);
+            if (ib is not null)
+                result.Add((i + 1, ib));
+        }
+        return result;
+    }
+
     /// <summary>Возвращает номер горячей клавиши (1–9) для базы или 0, если не назначен.</summary>
     public int GetFavoriteHotkeyNumber(Infobase infobase)
     {

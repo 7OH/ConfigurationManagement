@@ -412,6 +412,19 @@ namespace Configuration_Management
                     vm.LaunchEnterpriseCommand.Execute(null);
             };
 
+            // Ctrl+щелчок по телу строки — поставить/снять закладку (номер). Клики
+            // по кнопкам строки (звезда/булавка/действия) обрабатываются самими
+            // кнопками и сюда не всплывают, поэтому конфликта нет.
+            card.PointerPressed += (_, e) =>
+            {
+                if (_vm is not { } vm)
+                    return;
+                if ((e.KeyModifiers & KeyModifiers.Control) == 0)
+                    return;
+                vm.ToggleBookmark(ib);
+                e.Handled = true;
+            };
+
             return card;
         }
 

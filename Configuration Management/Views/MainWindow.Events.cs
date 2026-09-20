@@ -599,6 +599,16 @@ namespace Configuration_Management
             switch (treeViewItem.DataContext)
             {
                 case Infobase infobase:
+                    // Ctrl+щелчок по строке базы — поставить/снять закладку (номер).
+                    // Не конфликтует с множественным выделением: выбор здесь и так
+                    // полностью управляется методом ApplySelection.
+                    if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                    {
+                        _draggedData = null;
+                        _viewModel.ToggleBookmark(infobase);
+                        e.Handled = true;
+                        return;
+                    }
                     _draggedData = infobase;
                     ApplySelection(treeViewItem, infobase);
                     break;

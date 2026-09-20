@@ -182,28 +182,161 @@ namespace Configuration_Management
             || key == Key.Insert;
 
         /// <summary>
-        /// Регистрирует KeyBinding Alt+1…Alt+9 для быстрого запуска избранных баз.
+        /// Регистрирует системные биндинги закладок: Alt+1…Alt+9 (запуск Предприятия),
+        /// а также сочетания установки/навигации/очистки/запуска закладок.
+        /// Перед добавлением удаляются ВСЕ прежние биндинги этих же жестов (включая
+        /// пользовательские), чтобы системное сочетание гарантированно выигрывало.
         /// </summary>
         private void RegisterFavoriteHotkeys()
         {
-            // Удаляем предыдущие биндинги Alt+1…9
+            // Удаляем предыдущие системные биндинги закладок (и пользовательские,
+            // занявшие эти же жесты): см. IsBookmarkSystemBinding.
             var toRemove = InputBindings
                 .OfType<KeyBinding>()
-                .Where(kb => kb.Modifiers == ModifierKeys.Alt &&
-                             kb.Key >= Key.D1 && kb.Key <= Key.D9)
+                .Where(kb => IsBookmarkSystemBinding(kb.Modifiers, kb.Key))
                 .ToList();
             foreach (var kb in toRemove)
                 InputBindings.Remove(kb);
 
+            // Alt+1…Alt+9 — запуск Предприятия избранных баз.
             for (int i = 1; i <= 9; i++)
             {
                 int index = i;
-                var binding = new KeyBinding(
+                InputBindings.Add(new KeyBinding(
                     new ViewModels.RelayCommand(_ => _viewModel.LaunchFavoriteByHotkey(index)),
                     (Key)((int)Key.D0 + i),
-                    ModifierKeys.Alt);
-                InputBindings.Add(binding);
+                    ModifierKeys.Alt));
             }
+
+            // Ctrl+Shift+P — поставить/снять закладку выбранной базы.
+            InputBindings.Add(new KeyBinding(
+                new ViewModels.RelayCommand(_ => _viewModel.ToggleBookmarkForCurrent()),
+                Key.P, ModifierKeys.Control | ModifierKeys.Shift));
+
+            // Ctrl+Shift+D1..D9 — назначить явный номер закладки.
+            for (int i = 1; i <= 9; i++)
+            {
+                int number = i;
+                InputBindings.Add(new KeyBinding(
+                    new ViewModels.RelayCommand(_ => _viewModel.AssignBookmarkSlot(_viewModel.SelectedInfobase, number)),
+                    (Key)((int)Key.D0 + i),
+                    ModifierKeys.Control | ModifierKeys.Shift));
+            }
+
+            // Ctrl+D1..D9 — перейти к закладке (раскрыть свёрнутую группу).
+            for (int i = 1; i <= 9; i++)
+            {
+                int number = i;
+                InputBindings.Add(new KeyBinding(
+                    new ViewModels.RelayCommand(_ => _viewModel.NavigateToBookmark(number)),
+                    (Key)((int)Key.D0 + i),
+                    ModifierKeys.Control));
+            }
+
+            // Ctrl+Alt+X — очистить все закладки.
+            InputBindings.Add(new KeyBinding(
+                new ViewModels.RelayCommand(_ => _viewModel.ClearAllBookmarks()),
+                Key.X, ModifierKeys.Control | ModifierKeys.Alt));
+
+            // Ctrl+Alt+D1..D9 — запустить Конфигуратор по закладке.
+            for (int i = 1; i <= 9; i++)
+            {
+                int number = i;
+                InputBindings.Add(new KeyBinding(
+                    new ViewModels.RelayCommand(_ => _viewModel.LaunchBookmark(number, true)),
+                    (Key)((int)Key.D0 + i),
+                    ModifierKeys.Control | ModifierKeys.Alt));
+            }
+
+            // Alt+E — запустить все закладки.
+            InputBindings.Add(new KeyBinding(
+                new ViewModels.RelayCommand(_ => _viewModel.LaunchAllBookmarks()),
+                Key.E, ModifierKeys.Alt));
+
+            // Ctrl+B — меню закладок.
+            InputBindings.Add(new KeyBinding(
+                new ViewModels.RelayCommand(_ => ShowBookmarksMenu()),
+                Key.B, ModifierKeys.Control));
+        }
+
+        /// <summary>
+        /// Признак того, что жесты (модификаторы + клавиша) относятся к системным
+        /// сочетаниям закладок. Такие привязки удаляются перед повторной регистрацией,
+        /// чтобы пользовательские хоткеи не перебивали их.
+        /// </summary>
+        private static bool IsBookmarkSystemBinding(ModifierKeys mods, Key key)
+        {
+            if (key >= Key.D1 && key <= Key.D9)
+            {
+                return mods == ModifierKeys.Alt
+                    || mods == (ModifierKeys.Control | ModifierKeys.Shift)
+                    || mods == ModifierKeys.Control
+                    || mods == (ModifierKeys.Control | ModifierKeys.Alt);
+            }
+            if (mods == (ModifierKeys.Control | ModifierKeys.Shift) && key == Key.P)
+                return true;
+            if (mods == (ModifierKeys.Control | ModifierKeys.Alt) && key == Key.X)
+                return true;
+            if (mods == ModifierKeys.Alt && key == Key.E)
+                return true;
+            if (mods == ModifierKeys.Control && key == Key.B)
+                return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Показывает контекстное меню закладок (Ctrl+B) относительно позиции курсора.
+        /// Для каждой закладки — запуск Предприятия/Конфигуратора, переход и снятие;
+        /// внизу — «Очистить все».
+        /// </summary>
+        private void ShowBookmarksMenu()
+        {
+            var menu = new ContextMenu();
+            var bookmarks = _viewModel.GetBookmarks();
+
+            if (bookmarks.Count == 0)
+            {
+                menu.Items.Add(new MenuItem { Header = LocalizationManager.T("Main.BookmarksNone"), IsEnabled = false });
+            }
+            else
+            {
+                foreach (var (number, ib) in bookmarks)
+                {
+                    var sub = new MenuItem { Header = string.Format(LocalizationManager.T("Main.BookmarksItem"), number, ib.Name) };
+                    sub.Items.Add(new MenuItem
+                    {
+                        Header = string.Format(LocalizationManager.T("Main.BookmarksEnterprise"), number),
+                        Command = new ViewModels.RelayCommand(_ => _viewModel.LaunchBookmark(number, false))
+                    });
+                    sub.Items.Add(new MenuItem
+                    {
+                        Header = string.Format(LocalizationManager.T("Main.BookmarksConfigurator"), number),
+                        Command = new ViewModels.RelayCommand(_ => _viewModel.LaunchBookmark(number, true))
+                    });
+                    sub.Items.Add(new MenuItem
+                    {
+                        Header = string.Format(LocalizationManager.T("Main.BookmarksNavigate"), number),
+                        Command = new ViewModels.RelayCommand(_ => _viewModel.NavigateToBookmark(number))
+                    });
+                    sub.Items.Add(new Separator());
+                    sub.Items.Add(new MenuItem
+                    {
+                        Header = LocalizationManager.T("Main.BookmarksRemove"),
+                        Command = new ViewModels.RelayCommand(_ => _viewModel.RemoveBookmark(ib))
+                    });
+                    menu.Items.Add(sub);
+                }
+                menu.Items.Add(new Separator());
+            }
+
+            menu.Items.Add(new MenuItem
+            {
+                Header = LocalizationManager.T("Main.BookmarksClearAll"),
+                Command = new ViewModels.RelayCommand(_ => _viewModel.ClearAllBookmarks())
+            });
+
+            menu.Placement = PlacementMode.MousePoint;
+            menu.IsOpen = true;
         }
 
         /// <summary>
@@ -289,6 +422,75 @@ namespace Configuration_Management
                     e.Handled = true;
                     return;
                 }
+            }
+
+            // Закладки: установка, навигация, очистка и запуск Конфигуратора.
+            // Надёжный fallback для наборов цифр с Ctrl/Ctrl+Alt, которые могут
+            // перехватываться фокусом или системой.
+            var mods = Keyboard.Modifiers;
+            if ((mods & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                var shift = (mods & ModifierKeys.Shift) == ModifierKeys.Shift;
+                var alt = (mods & ModifierKeys.Alt) == ModifierKeys.Alt;
+
+                // Ctrl+Shift+P — поставить/снять закладку выбранной базы.
+                if (key == Key.P && shift && !alt)
+                {
+                    _viewModel.ToggleBookmarkForCurrent();
+                    e.Handled = true;
+                    return;
+                }
+
+                // Ctrl+B — меню закладок.
+                if (key == Key.B && !shift && !alt)
+                {
+                    ShowBookmarksMenu();
+                    e.Handled = true;
+                    return;
+                }
+
+                // Ctrl+Alt+X — очистить все закладки.
+                if (key == Key.X && alt && !shift)
+                {
+                    _viewModel.ClearAllBookmarks();
+                    e.Handled = true;
+                    return;
+                }
+
+                bool isDigit = (key >= Key.D1 && key <= Key.D9)
+                    || (key >= Key.NumPad1 && key <= Key.NumPad9);
+                if (isDigit)
+                {
+                    int num = key >= Key.NumPad1 && key <= Key.NumPad9
+                        ? key - Key.NumPad0
+                        : key - Key.D0;
+                    if (shift && !alt)
+                    {
+                        _viewModel.AssignBookmarkSlot(_viewModel.SelectedInfobase, num);
+                        e.Handled = true;
+                        return;
+                    }
+                    if (alt && !shift)
+                    {
+                        _viewModel.LaunchBookmark(num, true);
+                        e.Handled = true;
+                        return;
+                    }
+                    if (!shift && !alt)
+                    {
+                        _viewModel.NavigateToBookmark(num);
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+
+            // Alt+E — запустить все закладки.
+            if (key == Key.E && mods == ModifierKeys.Alt)
+            {
+                _viewModel.LaunchAllBookmarks();
+                e.Handled = true;
+                return;
             }
 
             if (Keyboard.Modifiers != ModifierKeys.Alt)

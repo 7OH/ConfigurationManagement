@@ -237,6 +237,16 @@
     "Main.NoSelection": "No selection",
     "Main.CurrentSessionHelp": "The Current session block sets the client mode and bitness only for the next launch of 1C:Enterprise, without changing the saved infobase settings.\n\n• Client mode: Auto / Ordinary (ordinary forms, RunModeOrdinaryApplication) / Thick (managed forms, /RunModeManagedApplication) / Thin.\n• Bitness: Auto / 32 / 64.\n• The selected values apply to the next launch; the infobase settings in properties remain unchanged.",
 
+    "Main.Bookmarks": "Bookmarks",
+    "Main.BookmarksAllSlotsFull": "All 9 bookmark slots are occupied. Free a slot: Ctrl+Alt+X clears all, Ctrl+click removes one.",
+    "Main.BookmarksNone": "No bookmarks",
+    "Main.BookmarksItem": "{0}. {1}",
+    "Main.BookmarksEnterprise": "Enterprise (Alt+{0})",
+    "Main.BookmarksConfigurator": "Configurator (Ctrl+Alt+{0})",
+    "Main.BookmarksNavigate": "Go to (Ctrl+{0})",
+    "Main.BookmarksRemove": "Remove bookmark",
+    "Main.BookmarksClearAll": "Clear all (Ctrl+Alt+X)",
+
     "Main.Ready": "Ready",
     "Main.StatusBase": "Base: {0} — {1}",
     "Main.StatusGroup": "Group: {0}",

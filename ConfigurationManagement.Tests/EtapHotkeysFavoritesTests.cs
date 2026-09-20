@@ -1,0 +1,186 @@
+using System.Collections.Generic;
+using Configuration_Management.Models;
+using Configuration_Management.ViewModels;
+using Xunit;
+
+namespace ConfigurationManagement.Tests;
+
+/// <summary>
+/// Тесты «Горячие клавиши для избранных» (закладки 1–9): отображение номера
+/// слота на модели, дефолты и нормализация настроек, а также чистая логика
+/// слотов (<see cref="BookmarkSlotHelper"/>), вынесенная из платформенных версий.
+/// Горячие клавиши напрямую не тестируются (среда Avalonia/WPF в тестах не гоняется).
+/// </summary>
+public sealed class EtapHotkeysFavoritesTests
+{
+    private static Infobase CreateInfobase(string id, string name) => new()
+    {
+        Id = id,
+        Name = name
+    };
+
+    // ---- Отображение номера закладки ----
+
+    [Theory]
+    [InlineData(0, "")]
+    [InlineData(1, "1")]
+    [InlineData(5, "5")]
+    [InlineData(9, "9")]
+    [InlineData(10, "")]
+    [InlineData(-1, "")]
+    public void FavoriteHotkeyDisplay_ValidatesRange(int number, string expected)
+    {
+        var ib = new Infobase { FavoriteHotkeyNumber = number };
+
+        Assert.Equal(expected, ib.FavoriteHotkeyDisplay);
+    }
+
+    // ---- Дефолты и нормализация настроек ----
+
+    [Fact]
+    public void AppSettings_FavoriteHotkeyIds_DefaultIsEmpty()
+    {
+        var settings = new AppSettings();
+
+        Assert.NotNull(settings.FavoriteHotkeyIds);
+        Assert.Empty(settings.FavoriteHotkeyIds);
+    }
+
+    [Fact]
+    public void AppSettings_NormalizeForLoad_ReplacesNullFavoriteHotkeyIdsWithEmptyList()
+    {
+        var settings = new AppSettings { FavoriteHotkeyIds = null! };
+
+        settings.NormalizeForLoad();
+
+        Assert.NotNull(settings.FavoriteHotkeyIds);
+        Assert.Empty(settings.FavoriteHotkeyIds);
+    }
+
+    // ---- Стабильный ключ базы ----
+
+    [Fact]
+    public void FavoriteKey_PrefersIdOverNameFallback()
+    {
+        var withId = CreateInfobase("base-1", "Бухгалтерия");
+        var withoutId = CreateInfobase("", "ЗУП");
+
+        Assert.Equal("base-1", BookmarkSlotHelper.FavoriteKey(withId));
+        Assert.Equal("name:ЗУП", BookmarkSlotHelper.FavoriteKey(withoutId));
+    }
+
+    // ---- Явный слот ----
+
+    [Fact]
+    public void AssignSlot_PlacesKeyAtRequestedNumber()
+    {
+        var keys = new List<string> { "a", "b", "c" };
+
+        BookmarkSlotHelper.AssignSlot(keys, "x", 2);
+
+        Assert.Equal(new[] { "a", "x", "b", "c" }, keys);
+    }
+
+    [Fact]
+    public void AssignSlot_OutOfRange_DoesNothing()
+    {
+        var keys = new List<string> { "a" };
+
+        var ok = BookmarkSlotHelper.AssignSlot(keys, "b", 0);
+        Assert.False(ok);
+        var ok9 = BookmarkSlotHelper.AssignSlot(keys, "b", 10);
+        Assert.False(ok9);
+        Assert.Equal(new[] { "a" }, keys);
+    }
+
+    [Fact]
+    public void AssignSlot_CapsAtNineSlots()
+    {
+        var keys = new List<string> { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+
+        // 10-й элемент переполняет лимит — последний слот освобождается.
+        BookmarkSlotHelper.AssignSlot(keys, "10", 5);
+
+        Assert.Equal(9, keys.Count);
+    }
+
+    // ---- Следующий свободный слот ----
+
+    [Fact]
+    public void AssignNextFreeSlot_TakesFirstFreePosition()
+    {
+        var keys = new List<string> { "a", "c" };
+
+        var ok = BookmarkSlotHelper.AssignNextFreeSlot(keys, "b");
+
+        Assert.True(ok);
+        Assert.Equal(new[] { "a", "c", "b" }, keys);
+    }
+
+    [Fact]
+    public void AssignNextFreeSlot_DuplicateIsNoop()
+    {
+        var keys = new List<string> { "a" };
+
+        var ok = BookmarkSlotHelper.AssignNextFreeSlot(keys, "a");
+
+        Assert.True(ok);
+        Assert.Equal(new[] { "a" }, keys);
+    }
+
+    [Fact]
+    public void AssignNextFreeSlot_FailsWhenAllNineOccupied()
+    {
+        var keys = new List<string> { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+
+        var ok = BookmarkSlotHelper.AssignNextFreeSlot(keys, "10");
+
+        Assert.False(ok);
+        Assert.Equal(9, keys.Count);
+    }
+
+    // ---- Снятие и очистка ----
+
+    [Fact]
+    public void RemoveFromSlot_RemovesKeyAndCompacts()
+    {
+        var keys = new List<string> { "a", "b", "c" };
+
+        var ok = BookmarkSlotHelper.RemoveFromSlot(keys, "b");
+
+        Assert.True(ok);
+        Assert.Equal(new[] { "a", "c" }, keys);
+    }
+
+    [Fact]
+    public void RemoveFromSlot_MissingKeyReturnsFalse()
+    {
+        var keys = new List<string> { "a" };
+
+        Assert.False(BookmarkSlotHelper.RemoveFromSlot(keys, "zzz"));
+    }
+
+    [Fact]
+    public void ClearAllSlots_EmptiesList()
+    {
+        var keys = new List<string> { "a", "b" };
+
+        BookmarkSlotHelper.ClearAllSlots(keys);
+
+        Assert.Empty(keys);
+    }
+
+    // ---- Поиск по номеру ----
+
+    [Theory]
+    [InlineData(1, "a")]
+    [InlineData(3, "c")]
+    [InlineData(0, null)]
+    [InlineData(5, null)]
+    public void FindKeyBySlot_ReturnsKeyOrNull(int number, string? expected)
+    {
+        var keys = new List<string> { "a", "b", "c" };
+
+        Assert.Equal(expected, BookmarkSlotHelper.FindKeyBySlot(keys, number));
+    }
+}

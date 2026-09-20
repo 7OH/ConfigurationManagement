@@ -237,6 +237,16 @@
     "Main.NoSelection": "Нет выбора",
     "Main.CurrentSessionHelp": "Блок «Текущая сессия» задаёт режим клиента и разрядность только для следующего запуска 1С:Предприятие, не изменяя сохранённые настройки базы.\n\n• Режим клиента: Авто / Обычный (обычные формы, RunModeOrdinaryApplication) / Толстый (управляемые формы, /RunModeManagedApplication) / Тонкий.\n• Разрядность: Авто / 32 / 64.\n• Выбранные значения применяются к очередному запуску; настройки базы в свойствах остаются прежними.",
 
+    "Main.Bookmarks": "Закладки",
+    "Main.BookmarksAllSlotsFull": "Все 9 слотов закладок заняты. Освободите слот: Ctrl+Alt+X очистит все, Ctrl+щелчок — одну.",
+    "Main.BookmarksNone": "Нет закладок",
+    "Main.BookmarksItem": "{0}. {1}",
+    "Main.BookmarksEnterprise": "Предприятие (Alt+{0})",
+    "Main.BookmarksConfigurator": "Конфигуратор (Ctrl+Alt+{0})",
+    "Main.BookmarksNavigate": "Перейти (Ctrl+{0})",
+    "Main.BookmarksRemove": "Снять закладку",
+    "Main.BookmarksClearAll": "Очистить все (Ctrl+Alt+X)",
+
     "Main.Ready": "Готово",
     "Main.StatusBase": "База: {0} — {1}",
     "Main.StatusGroup": "Группа: {0}",

@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.14] — 2026-09-20
+
+### Добавлено
+
+- **Горячие клавиши для избранных (закладки баз 1–9)** — полноценный набор горячих клавиш для
+  работы с закладками (избранные базы со назначенным слотом), обе платформы (**Windows/WPF** и
+  **Linux/Avalonia**):
+  - **Колонка закладок в списке баз** — бейдж с номером слота (`1`…`9`) у избранных баз,
+    до 9 закладок; номер хранится в настройках (`FavoriteHotkeyIds`) и переживает перезапуск;
+    общая логика вынесена в новый [`BookmarkSlotHelper.cs`](Configuration%20Management/ViewModels/BookmarkSlotHelper.cs).
+  - **Установка**: `Ctrl+щелчок` по строке, `Ctrl+Shift+P`, `Ctrl+Shift+[1..9]` (конкретный слот),
+    меню `Ctrl+B`.
+  - **Перемещение**: `Ctrl+[1..9]` — переход к закладке с раскрытием свёрнутой группы;
+    меню `Ctrl+B`.
+  - **Очистка**: `Ctrl+щелчок` (снять), `Ctrl+Alt+X` (все), удаление конкретной закладки.
+  - **Запуск**: `Alt+<номер>` — «1С:Предприятие», `Ctrl+Alt+<номер>` — «Конфигуратор»,
+    `Alt+E` — все базы с закладками.
+  - Локализация ru/en и тесты: [`ru.json`](Configuration%20Management/Localization/Languages/ru.json),
+    [`en.json`](Configuration%20Management/Localization/Languages/en.json),
+    [`EtapHotkeysFavoritesTests.cs`](ConfigurationManagement.Tests/EtapHotkeysFavoritesTests.cs).
+
+### Версия
+
+- **Версия поднята до `0.3.9.14`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.13] — 2026-09-20
 
 ### Исправления
