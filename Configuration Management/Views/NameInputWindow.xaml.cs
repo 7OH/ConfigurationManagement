@@ -26,8 +26,13 @@ namespace Configuration_Management
             NameBox.Text = initialText;
             Loaded += (_, _) =>
             {
-                NameBox.Focus();
-                NameBox.SelectAll();
+                // Фокус ставим отложенно, после полного показа окна: синхронная
+                // установка в Loaded слетает до отрисовки модального диалога.
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    NameBox.Focus();
+                    NameBox.SelectAll();
+                }));
             };
         }
 

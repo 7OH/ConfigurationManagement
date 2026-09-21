@@ -47,6 +47,10 @@ namespace Configuration_Management
             var useSystemTitleBar = ResolveUseSystemTitleBar();
             SystemDecorations = useSystemTitleBar ? SystemDecorations.Full : SystemDecorations.None;
 
+            // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное меню:
+            // при клике в другое окно/приложение открытый тултип исчезает, а не «висит» поверх.
+            Deactivated += (_, _) => CloseOpenToolTips();
+
             // На X11 без композитора (или в виртуализации на программном рендере) любое
             // «прозрачное» окно заставляет оконный менеджер непрерывно перерисовывать фон,
             // что проявляется как «зависание» и высокая нагрузка CPU (~36%, issue #153).
@@ -461,8 +465,14 @@ namespace Configuration_Management
             var glass = new Border
             {
                 CornerRadius = new CornerRadius(UiMetrics.RadiusLg),
-                ClipToBounds = true
+                ClipToBounds = true,
+                // Видимая рамка окна (issue #273): даже без системных теней/эффектов
+                // (терминал, виртуализация) окно остаётся различимым, а не сливается
+                // с фоном рабочего стола за ним.
+                BorderThickness = new Thickness(1)
             };
+            // Цвет рамки берём из темы — адаптируется к светлой/тёмной теме и схеме.
+            ThemeBrushes.Bind(glass, Border.BorderBrushProperty, "BorderColorBrush");
             ApplyGlassBackground(glass);
             _glassRoot = glass;
 

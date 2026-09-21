@@ -303,7 +303,8 @@ public partial class MainViewModel : ViewModelBase
             return false;
 
         if (_activeTagFilterSet.Count > 0
-            && !infobase.Tags.Any(t => _activeTagFilterSet.Contains(t)))
+            && !_activeTagFilterSet.All(t =>
+                infobase.Tags.Any(bt => string.Equals(bt, t, StringComparison.OrdinalIgnoreCase))))
             return false;
 
         var filter = SearchText?.Trim() ?? string.Empty;

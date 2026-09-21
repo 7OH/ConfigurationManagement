@@ -417,9 +417,11 @@ public partial class MainViewModel : ViewModelBase
 
         foreach (var infobase in source)
         {
-            // Несколько тегов: база подходит, если есть хотя бы один из выбранных (OR).
+            // Несколько тегов: база подходит, если содержит все выбранные (AND),
+            // сравнение без учёта регистра (синхронизировано с Avalonia).
             if (hasTags
-                && !infobase.Tags.Any(t => _activeTagFilterSet.Contains(t)))
+                && !_activeTagFilterSet.All(t =>
+                    infobase.Tags.Any(bt => string.Equals(bt, t, StringComparison.OrdinalIgnoreCase))))
                 continue;
 
             // Поиск по имени/описанию/пути/серверу работает вместе с тегами (AND).

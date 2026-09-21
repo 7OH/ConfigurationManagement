@@ -2,6 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 
 namespace Configuration_Management
 {
@@ -37,8 +38,13 @@ namespace Configuration_Management
 
             Opened += (_, _) =>
             {
-                _nameBox.Focus();
-                _nameBox.SelectAll();
+                // Фокус ставим отложенно (после полного показа и активации окна):
+                // синхронная установка в Opened слетает до отрисовки модального диалога.
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _nameBox.Focus();
+                    _nameBox.SelectAll();
+                });
             };
         }
 
