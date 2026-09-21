@@ -133,6 +133,8 @@
                 <DataGrid.Resources>
                     <Style x:Key="CenteredCellText" TargetType="TextBlock">
                         <Setter Property="VerticalAlignment" Value="Center"/>
+                        <!-- Горизонтальные отступы текста от краёв ячейки (issue #266). -->
+                        <Setter Property="Margin" Value="8,0,8,0"/>
                     </Style>
                 </DataGrid.Resources>
                 <DataGrid.CellStyle>
@@ -171,7 +173,7 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding LatestVersion}" VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis">
+                                           TextTrimming="CharacterEllipsis" Margin="8,0,8,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
@@ -192,12 +194,13 @@
                                         Binding="{Binding Status, Converter={StaticResource StatusConv}}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>
 
-                    <DataGridTemplateColumn Width="*" Header="{loc:Loc Updates.Url}">
+                    <!-- Заголовок сокращён до «Ссылка» (issue #267): полный текст
+                         «Ссылка на каталог релизов» не влазил в шапку колонки. -->
+                    <DataGridTemplateColumn Width="*" Header="{loc:Loc Updates.UrlShort}">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Url}" VerticalAlignment="Center" FontSize="11"
-                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="8,0,8,0"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

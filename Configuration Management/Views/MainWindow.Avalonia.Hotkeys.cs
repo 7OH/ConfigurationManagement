@@ -322,11 +322,12 @@ namespace Configuration_Management
                 return;
             }
 
-            // Сначала закрываем открытую подсказку главного окна (issue #261): первый ESC
-            // прячет тултип, а не уводит окно в трей. Иначе окно сворачивается, а подсказка
-            // остаётся «висеть». После закрытия модального диалога (ветка выше) не трогаем.
+            // Сначала закрываем открытую подсказку и пользовательские Popup/оверлеи главного окна
+            // (issue #261): первый ESC прячет элемент, а не уводит окно в трей. Иначе окно
+            // сворачивается, а всплывающий элемент остаётся «висеть». После закрытия модального
+            // диалога (ветка выше) не трогаем.
             if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None
-                && CloseOpenToolTips())
+                && (CloseOpenToolTips() || CloseOpenPopups()))
             {
                 e.Handled = true;
                 return;
@@ -546,6 +547,30 @@ namespace Configuration_Management
                 foreach (var child in node.GetVisualChildren())
                     CloseIn(child);
             }
+        }
+
+        /// <summary>
+        /// Закрывает пользовательские всплывающие элементы (Popup) главного окна, которые не
+        /// являются ни стандартным <see cref="Avalonia.Controls.ToolTip"/>, ни
+        /// <see cref="Avalonia.Controls.ContextMenu"/> (issue #261). На скриншотах 7OH таких
+        /// элементов два; после фикса контекстных меню в 0.3.9.17 они оставались открытыми по ESC,
+        /// из-за чего окно уходило в трей, а попап «висел». Обходим визуальное дерево окна и гасим
+        /// открытые пользовательские Popup. ToolTip и ContextMenu рендерятся в оверлейном слое
+        /// (вне визуального дерева окна), поэтому этот путь их не задевает (тултипы закрываются в
+        /// <see cref="CloseOpenToolTips"/>). Возвращает true, если был закрыт хотя бы один Popup.
+        /// </summary>
+        private bool CloseOpenPopups()
+        {
+            var closed = false;
+            foreach (var node in this.GetVisualDescendants())
+            {
+                if (node is Avalonia.Controls.Primitives.Popup { IsOpen: true } popup)
+                {
+                    popup.IsOpen = false;
+                    closed = true;
+                }
+            }
+            return closed;
         }
 
         private void AddHotkey(string? gesture, System.Windows.Input.ICommand? command)

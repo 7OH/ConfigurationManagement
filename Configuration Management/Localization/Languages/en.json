@@ -1781,6 +1781,7 @@
     "Updates.BrowseFolder": "Browse…",
     "Updates.StartCheck": "Start check",
     "Updates.Url": "Release catalog URL",
+    "Updates.UrlShort": "Link",
     "Updates.EditionRed": "Rev",
     "Updates.EditionSubRed": "Subrev",
     "Updates.UrlOverride": "Overridden URL",

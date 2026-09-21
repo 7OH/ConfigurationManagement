@@ -133,6 +133,8 @@
                 <DataGrid.Resources>
                     <Style x:Key="CenteredCellText" TargetType="TextBlock">
                         <Setter Property="VerticalAlignment" Value="Center"/>
+                        <!-- Горизонтальные отступы текста от краёв ячейки (issue #266). -->
+                        <Setter Property="Margin" Value="8,0,8,0"/>
                     </Style>
                 </DataGrid.Resources>
                 <DataGrid.CellStyle>

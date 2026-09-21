@@ -1781,6 +1781,7 @@
     "Updates.BrowseFolder": "Обзор…",
     "Updates.StartCheck": "Начать проверку",
     "Updates.Url": "Ссылка на каталог релизов",
+    "Updates.UrlShort": "Ссылка",
     "Updates.EditionRed": "Ред",
     "Updates.EditionSubRed": "Подред",
     "Updates.UrlOverride": "Переопределённая ссылка",

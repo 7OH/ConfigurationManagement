@@ -9,6 +9,36 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.18] — 2026-09-21
+
+### Исправления
+
+- **Окно «Актуальные релизы» (#267)** — заголовок колонки ссылки сокращён до «Ссылка»;
+  текст ссылки стал читаемым при выделении строки; при копировании строки теперь
+  копируется полная ссылка на каталог релизов. Обе платформы **Windows/WPF** и
+  **Linux/Avalonia**.
+  Затронуты [`ActualReleasesWindow.xaml`](Configuration%20Management/Views/ActualReleasesWindow.xaml)
+  и его Avalonia-аналог [`ActualReleasesWindow.Avalonia.cs`](Configuration%20Management/Views/ActualReleasesWindow.Avalonia.cs).
+
+- **Отступы в текстовых ячейках (#266)** — добавлены горизонтальные отступы слева и
+  справа в текстовые ячейки окон «Типовые конфигурации» и «Актуальные релизы», чтобы
+  текст не начинался вплотную от границы ячейки. Обе платформы **WPF** и **Avalonia/Linux**.
+  Затронуты [`ConfigTypesEditWindow.xaml`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml),
+  [`ActualReleasesWindow.xaml`](Configuration%20Management/Views/ActualReleasesWindow.xaml)
+  и их Avalonia-аналоги.
+
+- **ESC и открытая подсказка (#261)** — исправлено поведение клавиши `ESC`: первый
+  `ESC` закрывает открытый попап/оверлей главного окна, повторный `ESC` сворачивает
+  главное окно в трей. Главное окно больше не сворачивается, пока открыт один из
+  всплывающих элементов. Обе платформы **WPF** и **Avalonia/Linux**.
+  Затронуты [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs) и их Avalonia-аналоги.
+
+### Версия
+
+- **Версия поднята до `0.3.9.18`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.17] — 2026-09-21
 
 ### Исправления

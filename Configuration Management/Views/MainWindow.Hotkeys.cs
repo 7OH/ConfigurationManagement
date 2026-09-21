@@ -395,12 +395,12 @@ namespace Configuration_Management
                 if (Keyboard.FocusedElement is TextBox { Name: "InlineTagBox" })
                     return;
 
-                // Сначала закрываем открытую подсказку и открытые контекстные меню (issue #261):
-                // первый ESC прячет тултип/меню, а не сворачивает/закрывает окно. Иначе главное окно
-                // уходит в трей, а элемент остаётся «висеть». После закрытия меню события сюда не
-                // доходят (меню обрабатывает ESC само класс-обработчиком OnContextMenuPreviewKeyDown),
-                // поэтому повторный ESC уже уводит окно в трей.
-                if (CloseOpenToolTips() || CloseOpenContextMenus())
+                // Сначала закрываем открытую подсказку, открытые контекстные меню и пользовательские
+                // Popup/оверлеи (issue #261): первый ESC прячет элемент, а не сворачивает/закрывает
+                // окно. Иначе главное окно уходит в трей, а элемент остаётся «висеть». После закрытия
+                // меню события сюда не доходят (меню обрабатывает ESC само класс-обработчиком
+                // OnContextMenuPreviewKeyDown), поэтому повторный ESC уже уводит окно в трей.
+                if (CloseOpenToolTips() || CloseOpenContextMenus() || CloseOpenPopups())
                 {
                     e.Handled = true;
                     return;
@@ -611,6 +611,46 @@ namespace Configuration_Management
             if (closed)
                 _openContextMenus.Clear();
             return closed;
+        }
+
+        /// <summary>
+        /// Закрывает пользовательские всплывающие элементы (Popup) главного окна, которые не являются
+        /// ни стандартными <see cref="System.Windows.Controls.ToolTip"/>, ни <see cref="ContextMenu"/>
+        /// (issue #261). Именно такие пользовательские Popup-контейнеры/оверлеи (на скриншотах 7OH —
+        /// два всплывающих элемента) оставались открытыми по ESC после фикса контекстных меню в
+        /// 0.3.9.17: окно сворачивалось в трей, а попап «висел». Возвращает true, если был закрыт
+        /// хотя бы один открытый Popup. Обход ведём по всем окнам приложения, чтобы не зависеть от
+        /// того, где физически размещён Popup (в визуальном дереве окна или во внешнем HWND/Popup).
+        /// </summary>
+        private bool CloseOpenPopups()
+        {
+            var closed = false;
+            foreach (Window window in Application.Current.Windows)
+            {
+                if (ClosePopupsIn(window))
+                    closed = true;
+            }
+            return closed;
+        }
+
+        /// <summary>Закрывает все открытые <see cref="System.Windows.Controls.Primitives.Popup"/> в поддереве.</summary>
+        private static bool ClosePopupsIn(DependencyObject root)
+        {
+            var any = false;
+            var queue = new Queue<DependencyObject>();
+            queue.Enqueue(root);
+            while (queue.Count > 0)
+            {
+                var node = queue.Dequeue();
+                if (node is System.Windows.Controls.Primitives.Popup { IsOpen: true } popup)
+                {
+                    popup.IsOpen = false;
+                    any = true;
+                }
+                for (var i = VisualTreeHelper.GetChildrenCount(node) - 1; i >= 0; i--)
+                    queue.Enqueue(VisualTreeHelper.GetChild(node, i));
+            }
+            return any;
         }
 
         private bool CloseToolTipsIn(DependencyObject root)

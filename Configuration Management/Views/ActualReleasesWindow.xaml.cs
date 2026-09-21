@@ -45,6 +45,11 @@ public partial class ActualReleasesWindow : Window
 
         // Закрытие окна по Esc (issue #264): единообразно с Avalonia-базой ModalWindowBase.
         PreviewKeyDown += OnWindow_PreviewKeyDown;
+
+        // Копирование строки по Ctrl+C включает значение ссылки (issue #267): иначе при
+        // штатном копировании DataGrid ссылка не попадает в буфер, хотя интуитивно хочется
+        // скопировать значение ячейки.
+        RowsGrid.PreviewKeyDown += OnRowsGrid_PreviewKeyDown;
     }
 
     /// <summary>Закрывает окно по Esc без модификаторов (issue #264).</summary>
@@ -55,6 +60,25 @@ public partial class ActualReleasesWindow : Window
             e.Handled = true;
             Close();
         }
+    }
+
+    /// <summary>
+    /// Копирует выделенную строку в буфер обмена, включая значение колонки «Ссылка»
+    /// (issue #267). Колонка ссылки — шаблонная (TextBlock с обрезанием текста), поэтому
+    /// штатное копирование DataGrid могло не включать её; здесь явно формируем строку
+    /// с полным значением Url.
+    /// </summary>
+    private void OnRowsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.C || Keyboard.Modifiers != ModifierKeys.Control
+            || RowsGrid.SelectedItem is not ActualReleaseRowViewModel row)
+            return;
+
+        var statusConv = new UpdateStatusToTextConverter();
+        var status = statusConv.Convert(row.Status, typeof(string), null, CultureInfo.CurrentCulture) as string ?? string.Empty;
+        var line = $"{row.Name}\t{row.LatestVersion}\t{status}\t{row.Url}";
+        Clipboard.SetText(line);
+        e.Handled = true;
     }
 
     /// <summary>Формирует строки из отслеживаемых конфигураций (предопределённых и пользовательских).</summary>
