@@ -395,10 +395,12 @@ namespace Configuration_Management
                 if (Keyboard.FocusedElement is TextBox { Name: "InlineTagBox" })
                     return;
 
-                // Сначала закрываем открытую подсказку (issue #261): первый ESC прячет
-                // тултип, а не сворачивает/закрывает окно. Иначе главное окно уходит
-                // в трей, а подсказка остаётся «висеть».
-                if (CloseOpenToolTips())
+                // Сначала закрываем открытую подсказку и открытые контекстные меню (issue #261):
+                // первый ESC прячет тултип/меню, а не сворачивает/закрывает окно. Иначе главное окно
+                // уходит в трей, а элемент остаётся «висеть». После закрытия меню события сюда не
+                // доходят (меню обрабатывает ESC само класс-обработчиком OnContextMenuPreviewKeyDown),
+                // поэтому повторный ESC уже уводит окно в трей.
+                if (CloseOpenToolTips() || CloseOpenContextMenus())
                 {
                     e.Handled = true;
                     return;
@@ -553,6 +555,61 @@ namespace Configuration_Management
             // HWND/Popup), поэтому до «хозяина» подсказки добираемся и по курсору/фокусу.
             closed |= CloseToolTipByMouseOrFocus();
 
+            return closed;
+        }
+
+        /// <summary>Открытые контекстные меню главного окна (issue #261).</summary>
+        private readonly HashSet<ContextMenu> _openContextMenus = new();
+
+        private void OnContextMenuOpened(object sender, RoutedEventArgs e)
+        {
+            if (sender is ContextMenu menu)
+                _openContextMenus.Add(menu);
+        }
+
+        private void OnContextMenuClosed(object sender, RoutedEventArgs e)
+        {
+            if (sender is ContextMenu menu)
+                _openContextMenus.Remove(menu);
+        }
+
+        /// <summary>
+        /// Закрывает контекстное меню по ESC (issue #261). Класс-обработчик Preview на тип
+        /// ContextMenu: срабатывает, когда фокус ввода находится внутри открытого меню (попап меню
+        /// живёт во внешнем HWND/Popup, куда Window_PreviewKeyDown главного окна не доходит). Прячем
+        /// меню и помечаем событие обработанным, чтобы тот же ESC не увёл окно в трей.
+        /// </summary>
+        private void OnContextMenuPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None
+                && sender is ContextMenu { IsOpen: true } menu)
+            {
+                menu.IsOpen = false;
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
+        /// Закрывает все открытые контекстные меню главного окна (issue #261). Используется при
+        /// нажатии ESC: первый ESC должен закрыть открытое меню (меню запуска/выбора клиента, меню
+        /// «Утилиты», контекстные меню строк и заголовков), а не сворачивать окно в трей. Возвращает
+        /// true, если было закрыто хотя бы одно меню. Закрытие через владельца детерминированно —
+        /// меню записываются класс-обработчиками Opened/Closed (см. MainWindow.xaml.cs) независимо
+        /// от того, как они были показаны.
+        /// </summary>
+        private bool CloseOpenContextMenus()
+        {
+            var closed = false;
+            foreach (var menu in _openContextMenus.ToArray())
+            {
+                if (menu.IsOpen)
+                {
+                    menu.IsOpen = false;
+                    closed = true;
+                }
+            }
+            if (closed)
+                _openContextMenus.Clear();
             return closed;
         }
 

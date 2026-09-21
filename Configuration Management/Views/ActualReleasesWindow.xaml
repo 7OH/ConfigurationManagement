@@ -127,7 +127,14 @@
                       CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
                       BorderThickness="0" Background="Transparent" GridLinesVisibility="None"
                       RowHeight="40" AlternationCount="2">
-                <!-- Вертикальное выравнивание содержимого ячеек по центру (issue #264). -->
+                <!-- Вертикальное выравнивание содержимого ячеек по центру (issue #264).
+                     Для DataGridTextColumn центрирование задаётся через ElementStyle на самой колонке
+                     (стиль TextBlock), т.к. VerticalContentAlignment на DataGridCell на текст колонки не действует. -->
+                <DataGrid.Resources>
+                    <Style x:Key="CenteredCellText" TargetType="TextBlock">
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                    </Style>
+                </DataGrid.Resources>
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell">
                         <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -157,7 +164,8 @@
                     </Style>
                 </DataGrid.RowStyle>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Name}" Binding="{Binding Name}"/>
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Name}" Binding="{Binding Name}"
+                                        ElementStyle="{StaticResource CenteredCellText}"/>
 
                     <DataGridTemplateColumn Width="*" Header="{loc:Loc Updates.LatestVersion}">
                         <DataGridTemplateColumn.CellTemplate>
@@ -181,7 +189,8 @@
                     </DataGridTemplateColumn>
 
                     <DataGridTextColumn Width="*" Header="{loc:Loc Updates.Status}"
-                                        Binding="{Binding Status, Converter={StaticResource StatusConv}}"/>
+                                        Binding="{Binding Status, Converter={StaticResource StatusConv}}"
+                                        ElementStyle="{StaticResource CenteredCellText}"/>
 
                     <DataGridTemplateColumn Width="*" Header="{loc:Loc Updates.Url}">
                         <DataGridTemplateColumn.CellTemplate>

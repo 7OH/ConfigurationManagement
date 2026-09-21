@@ -180,6 +180,32 @@ namespace Configuration_Management
                 System.Windows.Controls.ToolTipService.ToolTipOpeningEvent,
                 new ToolTipEventHandler(OnToolTipOpening));
 
+            // Отслеживаем открытые контекстные меню главного окна (issue #261). Те два элемента,
+            // которые «не закрываются по ESC» (выпадающие меню запуска/выбора клиента
+            // EnterpriseMenuButton/ConfiguratorMenuButton, LaunchWithParams, меню «Утилиты»,
+            // контекстные меню строк и заголовков колонок), являются ContextMenu, а не стандартным
+            // ToolTip. Класс-обработчики Opened/Closed записывают открытые меню независимо от того,
+            // как они показаны — через присоединённый ContextMenu на элементе или программно
+            // (IsOpen = true / ShowBookmarksMenu). Первый ESC закрывает открытое меню, а не
+            // сворачивает окно в трей; второй ESC уже уводит окно в трей (инвариант #261).
+            EventManager.RegisterClassHandler(
+                typeof(ContextMenu),
+                ContextMenu.OpenedEvent,
+                new RoutedEventHandler(OnContextMenuOpened));
+            EventManager.RegisterClassHandler(
+                typeof(ContextMenu),
+                ContextMenu.ClosedEvent,
+                new RoutedEventHandler(OnContextMenuClosed));
+
+            // Класс-обработчик Preview (туннелирование) на тип ContextMenu (issue #261): ESC,
+            // приходящийся на открытое меню (фокус во внешнем попапе меню, куда
+            // Window_PreviewKeyDown главного окна не доходит), закрывает само меню и помечает
+            // событие обработанным, чтобы тот же ESC не увёл окно в трей.
+            EventManager.RegisterClassHandler(
+                typeof(ContextMenu),
+                UIElement.PreviewKeyDownEvent,
+                new KeyEventHandler(OnContextMenuPreviewKeyDown));
+
             // Действие «после запуска базы/конфигуратора» согласно глобальной настройке.
             _viewModel.AfterLaunchRequested += OnAfterLaunchRequested;
 

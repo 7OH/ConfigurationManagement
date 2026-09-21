@@ -9,6 +9,37 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.17] — 2026-09-21
+
+### Исправления
+
+- **Окно «Список типовых конфигураций» (#265)** — исправлено вертикальное центрирование текста
+  в колонках `Name`, `UrlCode`, `Editions`: в WPF текст внутри `DataGridTextColumn` выводится
+  отдельным `TextBlock`, на который не действует `VerticalContentAlignment` ячейки, поэтому
+  центрирование задаётся через `ElementStyle` на самой колонке. Обе платформы **Windows/WPF** и
+  **Linux/Avalonia**.
+  Затронут [`ConfigTypesEditWindow.xaml`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml)
+  и его Avalonia-аналог [`ConfigTypesEditWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigTypesEditWindow.Avalonia.cs).
+
+- **Окно «Актуальные релизы» (#264)** — исправлено вертикальное центрирование текста в колонках:
+  применён тот же подход, что и для окна списка типовых конфигураций (`ElementStyle`
+  с `VerticalAlignment="Center"` для текстовых колонок). Обе платформы **WPF** и **Avalonia/Linux**.
+  Затронут [`ActualReleasesWindow.xaml`](Configuration%20Management/Views/ActualReleasesWindow.xaml)
+  и его Avalonia-аналог [`ActualReleasesWindow.Avalonia.cs`](Configuration%20Management/Views/ActualReleasesWindow.Avalonia.cs).
+
+- **ESC и открытая подсказка (#261)** — теперь по клавише `ESC` закрываются все контекстные меню
+  главного окна: отслеживаются открытые `ContextMenu` (через `MenuOpened`/`MenuClosed` на WPF и
+  `Opened`/`Closed` на Avalonia) и закрываются по первому `ESC`; повторный `ESC` сворачивает окно
+  в трей. Стандартные `ToolTip` по-прежнему закрываются сами и не являются предметом issue.
+  Обе платформы **WPF** и **Avalonia/Linux**.
+  Затронуты [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs) и их Avalonia-аналоги.
+
+### Версия
+
+- **Версия поднята до `0.3.9.17`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.16] — 2026-09-20
 
 ### Исправления

@@ -127,7 +127,14 @@
                       CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
                       BorderThickness="0" Background="Transparent" GridLinesVisibility="None"
                       RowHeight="36" AlternationCount="2">
-                <!-- Вертикальное выравнивание содержимого ячеек по центру (issue #265). -->
+                <!-- Вертикальное выравнивание содержимого ячеек по центру (issue #265).
+                     Для DataGridTextColumn центрирование задаётся через ElementStyle на самой колонке
+                     (стиль TextBlock), т.к. VerticalContentAlignment на DataGridCell на текст колонки не действует. -->
+                <DataGrid.Resources>
+                    <Style x:Key="CenteredCellText" TargetType="TextBlock">
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                    </Style>
+                </DataGrid.Resources>
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell">
                         <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -157,9 +164,12 @@
                     </Style>
                 </DataGrid.RowStyle>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Name}" Binding="{Binding Name}"/>
-                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.UrlCode}" Binding="{Binding UrlCode}"/>
-                    <DataGridTextColumn Width="*" Header="{loc:Loc Updates.Editions}" Binding="{Binding EditionsSummary}"/>
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Name}" Binding="{Binding Name}"
+                                        ElementStyle="{StaticResource CenteredCellText}"/>
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.UrlCode}" Binding="{Binding UrlCode}"
+                                        ElementStyle="{StaticResource CenteredCellText}"/>
+                    <DataGridTextColumn Width="*" Header="{loc:Loc Updates.Editions}" Binding="{Binding EditionsSummary}"
+                                        ElementStyle="{StaticResource CenteredCellText}"/>
 
                     <!-- Признак предопределённой -->
                     <DataGridTemplateColumn Width="40">

@@ -168,6 +168,21 @@ namespace Configuration_Management
             // а не сворачивает окно в трей с «зависшим» тултипом.
             ToolTip.IsOpenProperty.Changed.AddClassHandler<Control>(OnToolTipIsOpenChanged);
 
+            // Отслеживаем открытые контекстные меню главного окна (issue #261). Те два элемента,
+            // которые «не закрываются по ESC» (выпадающие меню запуска/выбора клиента, меню
+            // «Утилиты», контекстные меню строк и заголовков), являются ContextMenu, а не стандартным
+            // ToolTip. Класс-обработчик KeyDown закрывает открытое меню по ESC, когда фокус внутри
+            // меню; Handled = true не даёт тому же ESC увести окно в трей. Первый ESC закрывает меню,
+            // второй ESC — уже сворачивает окно в трей (инвариант issue #261).
+            ContextMenu.KeyDownEvent.AddClassHandler<ContextMenu>((menu, e) =>
+            {
+                if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+                {
+                    menu.Close();
+                    e.Handled = true;
+                }
+            });
+
             // Шапка окна реагирует на активность: акцентная заливка у активного окна,
             // цвет карточки у неактивного (MainWindow.xaml.cs:78-79).
             Activated += (_, _) => ApplyTitleBarAppearance(true);
