@@ -56,6 +56,9 @@ namespace Configuration_Management
             SyncScheduleTimePicker.Text = s.ScheduleTime;
             IbasesBackupEnabledCheck.IsChecked = _viewModel.IbasesBackupEnabled;
             IbasesBackupKeepCountBox.Text = _viewModel.IbasesBackupKeepCount.ToString();
+            // «Сохранять после правки» (issue #269): показываем текущее значение.
+            if (IbasesSaveAfterEditCheck != null)
+                IbasesSaveAfterEditCheck.IsChecked = _viewModel.IbasesSaveAfterEdit;
 
             UpdateSyncControls();
         }
@@ -86,6 +89,12 @@ namespace Configuration_Management
                 (s.Mode == IbasesSyncMode.Import || s.Mode == IbasesSyncMode.Both);
             SyncExportButton.IsEnabled = enabled &&
                 (s.Mode == IbasesSyncMode.Export || s.Mode == IbasesSyncMode.Both);
+
+            // «Сохранять после правки» (issue #269): доступно только в режимах с сохранением
+            // (Export/Both), т.к. только там есть что записывать в ibases.v8i.
+            if (IbasesSaveAfterEditCheck != null)
+                IbasesSaveAfterEditCheck.IsEnabled = enabled &&
+                    (s.Mode == IbasesSyncMode.Export || s.Mode == IbasesSyncMode.Both);
 
             // Текстовый статус строится бизнес-логикой модели.
             SyncStatusText.Text = s.BuildStatusText();

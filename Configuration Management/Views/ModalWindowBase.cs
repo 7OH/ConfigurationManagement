@@ -639,11 +639,60 @@ namespace Configuration_Management
         {
             if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && !e.Handled)
             {
+                // Первый ESC закрывает открытые всплывающие подсказки (issue #270), а не само окно.
+                // Раньше в модальных окнах (в первую очередь в настройках) ESC закрывал всё окно
+                // целиком, хотя подсказок там могло быть открыто больше двух. Здесь — общий путь
+                // для всех диалогов: сначала прячем тултипы, повторный ESC уже закрывает окно.
+                // Инвариант «сначала подсказка, потом окно» тот же, что в issue #261 для главного окна.
+                if (CloseOpenToolTips())
+                {
+                    e.Handled = true;
+                    return;
+                }
                 CloseAsCancel();
                 e.Handled = true;
                 return;
             }
             base.OnKeyDown(e);
+        }
+
+        /// <summary>
+        /// Закрывает открытые всплывающие подсказки (ToolTip) в пределах этого диалога
+        /// (issue #270). Используется при нажатии ESC: первый ESC должен скрыть подсказку,
+        /// а не закрывать окно. Возвращает true, если была закрыта хотя бы одна подсказка.
+        /// Владельцы тултипов лежат в визуальном дереве окна, а сам попап рендерится в
+        /// оверлейном слое TopLevel, поэтому обходим дерево окна и гасим открытые тултипы
+        /// через присоединённое свойство ToolTip.IsOpenProperty.
+        /// </summary>
+        private bool CloseOpenToolTips()
+        {
+            var closed = false;
+
+            foreach (var node in this.GetVisualDescendants())
+            {
+                if (node is Control control && ToolTip.GetIsOpen(control))
+                {
+                    ToolTip.SetIsOpen(control, false);
+                    closed = true;
+                }
+            }
+
+            // Резервный путь: владелец открытой подсказки может оказаться вне обхода, если
+            // фокус ушёл внутрь внешнего попапа. Дотягиваемся до владельца по цепочке
+            // визуальных родителей сфокусированного элемента.
+            if (!closed && FocusManager?.GetFocusedElement() is Visual focused)
+            {
+                for (var n = focused; n is not null; n = n.GetVisualParent())
+                {
+                    if (n is Control c && ToolTip.GetIsOpen(c))
+                    {
+                        ToolTip.SetIsOpen(c, false);
+                        closed = true;
+                    }
+                }
+            }
+
+            return closed;
         }
 
         /// <summary>

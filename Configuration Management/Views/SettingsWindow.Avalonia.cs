@@ -1803,6 +1803,25 @@ namespace Configuration_Management
                 _viewModel.ShowInfo(string.Format(LocalizationManager.T("Settings.ImportedOk"), imported.Name));
             });
 
+            // Автогенерация схемы из одного базового цвета (issue #271): пользователь выбирает
+            // цвет (по умолчанию — текущий акцент), обе палитры строятся автоматически.
+            SchemeButton("Settings.GenerateScheme", "Settings.GenerateSchemeTooltip", () =>
+            {
+                var baseColor = editedScheme.PaletteValue(previewDark, "AccentColor");
+                var picker = new ColorPickerWindow(baseColor);
+                if (!picker.ShowDialogSync(this))
+                    return;
+
+                var generated = ColorScheme.GenerateFromColor(picker.Result);
+                editedScheme.LightColors.Clear();
+                foreach (var (key, value) in generated.LightColors)
+                    editedScheme.LightColors[key] = value;
+                editedScheme.DarkColors.Clear();
+                foreach (var (key, value) in generated.DarkColors)
+                    editedScheme.DarkColors[key] = value;
+                RefreshColors();
+            });
+
             // Кнопки создаются после первого ReloadSchemes, поэтому доступность
             // для встроенной темы выставляется здесь, а не только по смене выбора.
             UpdateSchemeButtons();
@@ -2444,6 +2463,11 @@ namespace Configuration_Management
             syncButtons.Children.Add(exportButton);
             bases.Children.Add(syncButtons);
 
+            // «Сохранять после правки» (issue #269). Объявляем здесь, чтобы локальная функция
+            // UpdateSyncControls могла управлять его доступностью (замыкание), а сам элемент
+            // добавляем в bases ниже, рядом с блоком резервных копий.
+            CheckBox? saveAfterEditCheck = null;
+
             // Доступность и статус пересчитываются на каждое изменение блока,
             // как это делает UpdateSyncControls в версии для Windows: при
             // отключённой синхронизации поля и кнопки гаснут, а не молча
@@ -2467,6 +2491,9 @@ namespace Configuration_Management
                 scheduleLabel.IsEnabled = scheduleBox.IsEnabled;
                 importButton.IsEnabled = enabled && mode is IbasesSyncMode.Import or IbasesSyncMode.Both;
                 exportButton.IsEnabled = enabled && mode is IbasesSyncMode.Export or IbasesSyncMode.Both;
+                // «Сохранять после правки» (issue #269): доступно только в режимах с сохранением.
+                if (saveAfterEditCheck is not null)
+                    saveAfterEditCheck.IsEnabled = enabled && mode is IbasesSyncMode.Export or IbasesSyncMode.Both;
                 syncStatus.Text = BuildSyncStatus(mode, fileBox.Text, trigger, intervalBox.Text, scheduleBox.Text);
             }
 
@@ -2485,6 +2512,17 @@ namespace Configuration_Management
                 IsChecked = _viewModel.IbasesBackupEnabled
             };
             bases.Children.Add(backupCheck);
+
+            // «Сохранять после правки» (issue #269): записывать изменения в ibases.v8i сразу.
+            saveAfterEditCheck = new CheckBox
+            {
+                Content = LocalizationManager.T("Settings.Ibases.SaveAfterEdit"),
+                IsChecked = _viewModel.IbasesSaveAfterEdit,
+                Margin = new Thickness(0, 6, 0, 0)
+            };
+            ToolTip.SetTip(saveAfterEditCheck, LocalizationManager.T("Settings.Ibases.SaveAfterEditTooltip"));
+            bases.Children.Add(saveAfterEditCheck);
+
             var keepRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             keepRow.Children.Add(new TextBlock { Text = LocalizationManager.T("Settings.Ibases.BackupKeepCount"), VerticalAlignment = VerticalAlignment.Center });
             var keepBox = new TextBox { Text = _viewModel.IbasesBackupKeepCount.ToString(), Width = 80 }.Styled(ControlThemes.ModernTextBox);
@@ -2986,7 +3024,8 @@ namespace Configuration_Management
                     int.TryParse(intervalBox.Text, out var interval) && interval > 0 ? interval : 30,
                     scheduleBox.Text?.Trim() ?? string.Empty,
                     backupCheck.IsChecked == true,
-                    int.TryParse(keepBox.Text, out var keep) && keep > 0 ? keep : 5);
+                    int.TryParse(keepBox.Text, out var keep) && keep > 0 ? keep : 5,
+                    saveAfterEditCheck?.IsChecked == true);
 
                 _viewModel.ApplyProfileBackupSettings(profileDirBox.Text, profileRestoreCheck.IsChecked == true);
 

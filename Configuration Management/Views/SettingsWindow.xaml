@@ -906,6 +906,17 @@
                                             </StackPanel>
                                         </Button>
                                     </WrapPanel>
+                                    <!-- Автогенерация схемы из одного базового цвета (issue #271). -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <Button Style="{DynamicResource SecondaryButton}" Padding="10,6"
+                                                Click="OnGenerateSchemeFromColor_Click"
+                                                ToolTip="{loc:Loc Settings.GenerateSchemeTooltip}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon Kind="Palette" Width="16" Height="16" Foreground="#14B8A6" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{loc:Loc Settings.GenerateScheme}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
                                 </StackPanel>
                             </GroupBox>
 
@@ -1591,6 +1602,13 @@
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
+
+                                <!-- «Сохранять после правки» (issue #269): записывать изменения в ibases.v8i
+                                     сразу после правки свойств базы. Доступно только при Export/Both. -->
+                                <CheckBox x:Name="IbasesSaveAfterEditCheck"
+                                          Content="{loc:Loc Settings.Ibases.SaveAfterEdit}"
+                                          IsChecked="True" Margin="0,8,0,6"
+                                          ToolTip="{loc:Loc Settings.Ibases.SaveAfterEditTooltip}"/>
 
                                 <Separator Margin="0,12,0,12"/>
 

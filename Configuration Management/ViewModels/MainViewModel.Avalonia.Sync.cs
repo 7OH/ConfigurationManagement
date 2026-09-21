@@ -22,10 +22,11 @@ public partial class MainViewModel : ViewModelBase
     public string IbasesSyncScheduleTime => _settings.IbasesSyncScheduleTime;
     public bool IbasesBackupEnabled => _settings.IbasesBackupEnabled;
     public int IbasesBackupKeepCount => _settings.IbasesBackupKeepCount;
+    public bool IbasesSaveAfterEdit => _settings.IbasesSaveAfterEdit;
 
     /// <summary>Применяет настройки синхронизации с файлом списка баз платформы.</summary>
     public void ApplyIbasesSyncSettings(IbasesSyncMode mode, string filePath, IbasesSyncTrigger trigger,
-        int intervalMinutes, string scheduleTime, bool backupEnabled, int backupKeepCount)
+        int intervalMinutes, string scheduleTime, bool backupEnabled, int backupKeepCount, bool saveAfterEdit = true)
     {
         _settings.IbasesSyncMode = mode;
         _settings.IbasesSyncFilePath = filePath ?? string.Empty;
@@ -34,6 +35,7 @@ public partial class MainViewModel : ViewModelBase
         _settings.IbasesSyncScheduleTime = scheduleTime ?? string.Empty;
         _settings.IbasesBackupEnabled = backupEnabled;
         _settings.IbasesBackupKeepCount = backupKeepCount > 0 ? backupKeepCount : 5;
+        _settings.IbasesSaveAfterEdit = saveAfterEdit;
 
         SaveSettingsSilently();
         RestartAutoSync();
@@ -426,6 +428,11 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void ExportToIbasesAfterLocalChange()
     {
+        // «Сохранять после правки» (issue #269): выгрузка сразу выполняется только при
+        // включённой настройке; момент автоматической синхронизации при этом не затрагивается.
+        if (!_settings.IbasesSaveAfterEdit)
+            return;
+
         if (_settings.IbasesSyncMode is not (IbasesSyncMode.Export or IbasesSyncMode.Both))
             return;
 

@@ -751,11 +751,7 @@
                         </StackPanel>
                     </GroupBox.Header>
                     <StackPanel>
-                    <TextBlock Text="{loc:Loc Connection.DefaultLaunchModeLabel}" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
-                    <ComboBox x:Name="DefaultLaunchModeCombo" Width="220" HorizontalAlignment="Left" Margin="0,0,0,8"
-                              SelectionChanged="OnDefaultLaunchModeCombo_SelectionChanged"/>
-
-                    <TextBlock Text="{loc:Loc Connection.DblClickActionLabel}" FontWeight="SemiBold" FontSize="12" Margin="0,8,0,4"/>
+                    <TextBlock Text="{loc:Loc Connection.DblClickActionLabel}" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
                     <ComboBox x:Name="DoubleClickActionCombo" Width="220" HorizontalAlignment="Left" Margin="0,0,0,4"
                               SelectionChanged="OnDoubleClickActionCombo_SelectionChanged"/>
 

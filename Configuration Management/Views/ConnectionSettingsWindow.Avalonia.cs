@@ -783,43 +783,10 @@ namespace Configuration_Management
 
         private Control BuildLaunchTab()
         {
-            // Режим запуска базы по умолчанию при двойном клике (issue #201):
-            // пусто — автоматически (1С:Предприятие), либо явно Конфигуратор.
-            var defaultModeLabel = new TextBlock
-            {
-                Text = LocalizationManager.T("Connection.DefaultLaunchModeLabel"),
-                FontSize = 12,
-                FontWeight = FontWeight.SemiBold,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            var defaultModeBox = new ComboBox
-            {
-                Width = 220,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 10)
-            };
-            defaultModeBox.ItemsSource = new[]
-            {
-                LocalizationManager.T("Connection.DefaultLaunchAuto"),
-                LocalizationManager.T("Connection.DefaultLaunchEnterprise"),
-                LocalizationManager.T("Connection.DefaultLaunchConfigurator")
-            };
-            defaultModeBox.SelectedIndex = _viewModel.DefaultLaunchMode switch
-            {
-                "Enterprise" => 1,
-                "Configurator" => 2,
-                _ => 0
-            };
-            defaultModeBox.SelectionChanged += (_, _) =>
-            {
-                _viewModel.DefaultLaunchMode = defaultModeBox.SelectedIndex switch
-                {
-                    1 => "Enterprise",
-                    2 => "Configurator",
-                    _ => ""
-                };
-            };
-
+            // #268: две настройки запуска («Режим запуска по умолчанию» и «Действие по двойному
+            // клику») сведены к одной — «Действие по двойному клику». Режим запуска по умолчанию
+            // на запуск не влиял (двойной клик использует ResolveDoubleClickAction), поэтому его
+            // комбобокс убран из окна свойств базы.
             // Действие по двойному щелчку (функция №28 StartManager): пусто — использовать
             // глобальную настройку, либо индивидуальное значение для этой базы.
             var dblLabel = new TextBlock
@@ -884,8 +851,6 @@ namespace Configuration_Management
             {
                 Children =
                 {
-                    defaultModeLabel,
-                    defaultModeBox,
                     dblLabel,
                     dblBox,
                     extLabel,

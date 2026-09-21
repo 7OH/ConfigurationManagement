@@ -291,6 +291,147 @@ public class ColorScheme
         ["ScrollThumbPressedBrush"] = "#6B80A0"
     };
 
+    /// <summary>
+    /// Строит цветовую схему (пару светлой и тёмной палитр) автоматически из одного
+    /// базового цвета (issue #271). Базовый цвет становится акцентным; остальные ключи
+    /// выводятся HSL-трансформациями (сдвиг светлости/насыщенности), сохраняя оттенок.
+    /// Результат пригоден для ручной правки в редакторе перед сохранением.
+    /// </summary>
+    public static ColorScheme GenerateFromColor(string baseHex)
+    {
+        var (r, g, b) = ParseRgb(baseHex);
+        RgbToHsl(r, g, b, out var h, out var s, out _);
+
+        var scheme = new ColorScheme { Name = "Scheme.FromColor" };
+        scheme.LightColors = BuildGeneratedPalette(h, s, dark: false);
+        scheme.DarkColors = BuildGeneratedPalette(h, s, dark: true);
+        return scheme;
+    }
+
+    private static Dictionary<string, string> BuildGeneratedPalette(double h, double s, bool dark)
+    {
+        string C(double lightness, double saturationFactor = 1.0)
+            => HslToHex(h, Math.Clamp(s * saturationFactor, 0.08, 1.0), Math.Clamp(lightness, 0.0, 1.0));
+
+        if (dark)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["AccentColor"] = C(0.55, 0.9),
+                ["AccentHoverColor"] = C(0.60, 0.9),
+                ["AccentPressedColor"] = C(0.45, 0.9),
+                ["SidebarColor"] = C(0.12, 0.35),
+                ["SidebarHoverColor"] = C(0.18, 0.40),
+                ["SidebarSelectedColor"] = C(0.55, 0.9),
+                ["ContentBackgroundColor"] = C(0.12, 0.40),
+                ["CardBackgroundColor"] = C(0.18, 0.40),
+                ["BorderColor"] = C(0.28, 0.35),
+                ["TextPrimaryColor"] = "#F1F5F9",
+                ["TextSecondaryColor"] = C(0.80, 0.30),
+                ["TextOnAccentColor"] = "#000000",
+                ["ButtonTextColor"] = "#000000",
+                ["FavoriteColor"] = C(0.60, 0.90),
+                ["FolderColor"] = C(0.60, 0.80),
+                ["FavoriteFolderColor"] = C(0.60, 0.60),
+                ["ItemHoverColor"] = C(0.25, 0.40),
+                ["ItemSelectedColor"] = C(0.30, 0.50),
+                ["AvatarBackgroundColor"] = C(0.30, 0.50),
+                ["AvatarTextColor"] = C(0.55, 0.90),
+                ["SecondaryButtonBackgroundColor"] = C(0.90, 0.50),
+                ["SecondaryButtonHoverColor"] = C(0.85, 0.60),
+                ["SecondaryButtonPressedColor"] = C(0.80, 0.65),
+                ["TreeHoverColor"] = C(0.25, 0.40),
+                ["TreeSelectedColor"] = C(0.40, 0.50),
+                ["ScrollTrackBrush"] = C(0.14, 0.40),
+                ["ScrollThumbBrush"] = C(0.32, 0.35),
+                ["ScrollThumbHoverBrush"] = C(0.40, 0.35),
+                ["ScrollThumbPressedBrush"] = C(0.48, 0.35)
+            };
+        }
+
+        return new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["AccentColor"] = C(0.50, 0.85),
+            ["AccentHoverColor"] = C(0.44, 0.85),
+            ["AccentPressedColor"] = C(0.38, 0.85),
+            ["SidebarColor"] = C(0.16, 0.45),
+            ["SidebarHoverColor"] = C(0.22, 0.45),
+            ["SidebarSelectedColor"] = C(0.52, 0.90),
+            ["ContentBackgroundColor"] = C(0.93, 0.35),
+            ["CardBackgroundColor"] = C(0.99, 0.15),
+            ["BorderColor"] = C(0.88, 0.30),
+            ["TextPrimaryColor"] = "#000000",
+            ["TextSecondaryColor"] = C(0.45, 0.40),
+            ["TextOnAccentColor"] = "#FFFFFF",
+            ["ButtonTextColor"] = "#000000",
+            ["FavoriteColor"] = C(0.50, 0.90),
+            ["FolderColor"] = C(0.50, 0.80),
+            ["FavoriteFolderColor"] = C(0.55, 0.60),
+            ["ItemHoverColor"] = C(0.94, 0.50),
+            ["ItemSelectedColor"] = C(0.88, 0.60),
+            ["AvatarBackgroundColor"] = C(0.94, 0.50),
+            ["AvatarTextColor"] = C(0.35, 0.70),
+            ["SecondaryButtonBackgroundColor"] = C(0.94, 0.50),
+            ["SecondaryButtonHoverColor"] = C(0.88, 0.60),
+            ["SecondaryButtonPressedColor"] = C(0.82, 0.65),
+            ["TreeHoverColor"] = C(0.96, 0.40),
+            ["TreeSelectedColor"] = C(0.84, 0.65),
+            ["ScrollTrackBrush"] = C(0.91, 0.30),
+            ["ScrollThumbBrush"] = C(0.75, 0.30),
+            ["ScrollThumbHoverBrush"] = C(0.68, 0.30),
+            ["ScrollThumbPressedBrush"] = C(0.60, 0.30)
+        };
+    }
+
+    private static (byte R, byte G, byte B) ParseRgb(string hex)
+    {
+        hex = (hex ?? string.Empty).Trim().TrimStart('#');
+        if (hex.Length == 6 && byte.TryParse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture, out var rr)
+            && byte.TryParse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture, out var gg)
+            && byte.TryParse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture, out var bb))
+            return (rr, gg, bb);
+        return (253, 191, 0); // запасной жёлтый акцент
+    }
+
+    private static void RgbToHsl(byte r, byte g, byte b, out double h, out double s, out double l)
+    {
+        double rd = r / 255.0, gd = g / 255.0, bd = b / 255.0;
+        double max = Math.Max(rd, Math.Max(gd, bd)), min = Math.Min(rd, Math.Min(gd, bd));
+        l = (max + min) / 2.0;
+        if (Math.Abs(max - min) < 1e-9)
+        {
+            h = 0; s = 0;
+            return;
+        }
+        double d = max - min;
+        s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
+        if (Math.Abs(max - rd) < 1e-9) h = (gd - bd) / d + (gd < bd ? 6 : 0);
+        else if (Math.Abs(max - gd) < 1e-9) h = (bd - rd) / d + 2;
+        else h = (rd - gd) / d + 4;
+        h /= 6.0;
+    }
+
+    private static string HslToHex(double h, double s, double l)
+    {
+        double q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+        double p = 2.0 * l - q;
+        byte To(double t)
+        {
+            t = ((t % 1.0) + 1.0) % 1.0;
+            double v;
+            if (t < 1.0 / 6.0) v = p + (q - p) * 6.0 * t;
+            else if (t < 0.5) v = q;
+            else if (t < 2.0 / 3.0) v = p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+            else v = p;
+            return (byte)Math.Round(v * 255.0);
+        }
+        byte r = To(h + 1.0 / 3.0), g = To(h), b = To(h - 1.0 / 3.0);
+        return $"#{r:X2}{g:X2}{b:X2}";
+    }
+
     // ---- Сериализация схемы в JSON ----
 
     /// <summary>Сериализует схему в JSON-строку (пишутся только <see cref="Name"/> и обе палитры).</summary>

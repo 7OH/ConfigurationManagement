@@ -194,6 +194,29 @@ namespace Configuration_Management
             _viewModel.PreviewColorScheme(_settings.CurrentColorScheme);
         }
 
+        /// <summary>
+        /// Автогенерация цветовой схемы из одного базового цвета (issue #271): пользователь
+        /// выбирает цвет (по умолчанию — текущий акцент), обе палитры (светлая и тёмная)
+        /// строятся автоматически и подставляются в редактор для правки перед сохранением.
+        /// </summary>
+        private void OnGenerateSchemeFromColor_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings is null)
+                return;
+
+            var baseColor = _settings.CurrentColorScheme.PaletteValue(
+                _settings.EditingDarkPalette, "AccentColor");
+
+            var picker = new ColorPickerWindow(baseColor) { Owner = this };
+            if (picker.ShowDialog() == true)
+            {
+                _settings.ApplyGeneratedScheme(picker.Result);
+                RefreshColorItems();
+                RefreshSchemePreview();
+                UpdatePaletteButton();
+            }
+        }
+
         /// <summary>Открывает диалог выбора цвета для отдельного элемента схемы.</summary>
         private void OnColorPick_Click(object sender, RoutedEventArgs e)
         {

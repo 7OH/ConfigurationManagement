@@ -89,42 +89,11 @@ namespace Configuration_Management
             };
             LocalizationManager.Instance.LanguageChanged += (_, _) => UpdateOsArchitectureHint();
             UpdateOsArchitectureHint();
-            InitDefaultLaunchModeCombo();
+            // #268: две настройки запуска («Режим запуска по умолчанию» и «Действие по двойному
+            // клику») сведены к одной — «Действие по двойному клику». Режим запуска по умолчанию
+            // на запуск не влиял (двойной клик использует ResolveDoubleClickAction), поэтому его
+            // комбобокс убран из окна свойств базы.
             InitDoubleClickActionCombo();
-        }
-
-        /// <summary>
-        /// Заполняет комбобокс «Режим запуска по умолчанию» (issue #201) и выставляет
-        /// текущее значение базы.
-        /// </summary>
-        private void InitDefaultLaunchModeCombo()
-        {
-            if (DefaultLaunchModeCombo is null || _viewModel is null) return;
-            DefaultLaunchModeCombo.ItemsSource = new[]
-            {
-                LocalizationManager.T("Connection.DefaultLaunchAuto"),
-                LocalizationManager.T("Connection.DefaultLaunchEnterprise"),
-                LocalizationManager.T("Connection.DefaultLaunchConfigurator")
-            };
-            DefaultLaunchModeCombo.SelectedIndex = _viewModel.DefaultLaunchMode switch
-            {
-                "Enterprise" => 1,
-                "Configurator" => 2,
-                _ => 0
-            };
-        }
-
-        /// <summary>Обработчик смены «режима запуска по умолчанию»: пишет каноническое значение в ViewModel.</summary>
-        private void OnDefaultLaunchModeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-        {
-            if (_viewModel is null || sender is not System.Windows.Controls.ComboBox combo)
-                return;
-            _viewModel.DefaultLaunchMode = combo.SelectedIndex switch
-            {
-                1 => "Enterprise",
-                2 => "Configurator",
-                _ => ""
-            };
         }
 
         /// <summary>

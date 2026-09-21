@@ -448,6 +448,8 @@
     "Settings.ExportThemeTooltip": "Export the current theme to a JSON file",
     "Settings.ImportTheme": "Import…",
     "Settings.ImportThemeTooltip": "Import a theme from a JSON file",
+    "Settings.GenerateScheme": "Create scheme from color…",
+    "Settings.GenerateSchemeTooltip": "Automatically build light and dark palettes from a single chosen color",
     "Settings.Colors.Description": "Change the colors of the selected theme. Apply applies immediately (preview), Save saves the settings.",
 
     "Hotkey.Tooltip": "Set cursor and press a key combination. Backspace/Delete — reset, Esc — cancel.",
@@ -532,6 +534,8 @@
     "Settings.Ibases.BackupNote": "Copies are saved next to the file: ibases.v8i.bak_yyyyMMdd_HHmmss",
     "Settings.Ibases.Restore": "Restore from the latest copy",
     "Settings.Ibases.RestoreTooltip": "Restore ibases.v8i from the latest backup",
+    "Settings.Ibases.SaveAfterEdit": "Save after editing",
+    "Settings.Ibases.SaveAfterEditTooltip": "Write base property changes to ibases.v8i right away after editing (available in Export or Both mode)",
 
     "Settings.Bases.Description": "Export and load of the base list, template directories and other operations.",
     "Settings.Bases.TemplateDirsHint": "Like in the 1C starter. Empty list — paths from 1C settings and %PUBLIC%\\Documents\\1C\\1cv8\\tmplts.",

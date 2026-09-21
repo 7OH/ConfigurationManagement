@@ -174,6 +174,26 @@ public sealed class SettingsViewModel
         MarkCurrentDirty();
     }
 
+    /// <summary>
+    /// Генерирует обе палитры (светлую и тёмную) текущей схемы из одного базового цвета
+    /// (issue #271) и помечает схему изменённой. Заменяет редактируемые цвета, но не имя
+    /// схемы — результат можно править в редакторе перед сохранением.
+    /// </summary>
+    public void ApplyGeneratedScheme(string baseHex)
+    {
+        var generated = ColorScheme.GenerateFromColor(baseHex);
+
+        CurrentColorScheme.LightColors.Clear();
+        foreach (var (key, value) in generated.LightColors)
+            CurrentColorScheme.LightColors[key] = value;
+
+        CurrentColorScheme.DarkColors.Clear();
+        foreach (var (key, value) in generated.DarkColors)
+            CurrentColorScheme.DarkColors[key] = value;
+
+        MarkCurrentDirty();
+    }
+
     /// <summary>Помечает текущую схему как изменённую (будет сохранена при «ОК»).</summary>
     public void MarkCurrentDirty()
     {
@@ -293,6 +313,9 @@ public sealed class SettingsViewModel
 
         /// <summary>Время синхронизации по расписанию (HH:mm).</summary>
         public string ScheduleTime { get; set; } = "09:00";
+
+        /// <summary>«Сохранять после правки» (issue #269): записывать изменения в ibases.v8i сразу.</summary>
+        public bool SaveAfterEdit { get; set; } = true;
 
         /// <summary>true, если синхронизация включена (режим не «Нет»).</summary>
         public bool IsEnabled => Mode != IbasesSyncMode.None;

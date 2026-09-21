@@ -1,8 +1,10 @@
 #if WINDOWS
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
@@ -159,6 +161,12 @@ namespace Configuration_Management
                 ScreenshotDirectoryBox.Text = viewModel.ScreenshotSaveDirectory;
             if (HotkeyScreenshotBox != null)
                 HotkeyScreenshotBox.Value = viewModel.ScreenshotHotkey;
+
+            // ESC сначала закрывает открытые всплывающие подсказки, а только потом окно (issue #270).
+            // Раньше первый ESC в настройках закрывал всё окно целиком, хотя подсказок там могло
+            // быть открыто больше двух. Preview перехватывает клавишу до того, как её обработает
+            // кнопка «Отмена» (IsCancel); если подсказки были закрыты — окно на этом ESC не закроется.
+            PreviewKeyDown += OnSettingsPreviewKeyDown;
         }
 
         /// <summary>
@@ -378,7 +386,8 @@ namespace Configuration_Management
             var scheduleTime = SyncScheduleTimePicker.Text?.Trim() ?? string.Empty;
             _viewModel.ApplyIbasesSyncSettings(s.Mode, filePath, s.Trigger, interval, scheduleTime,
                 IbasesBackupEnabledCheck.IsChecked ?? true,
-                int.TryParse(IbasesBackupKeepCountBox.Text, out var keep) && keep > 0 ? keep : 5);
+                int.TryParse(IbasesBackupKeepCountBox.Text, out var keep) && keep > 0 ? keep : 5,
+                IbasesSaveAfterEditCheck?.IsChecked ?? true);
 
             // Сохраняем настройки резервного копирования профиля.
             _viewModel.ApplyProfileBackupSettings(_profileDirBox.Text, _profileRestoreCheck.IsChecked == true);
@@ -731,6 +740,69 @@ namespace Configuration_Management
                 PlatformVersionService.ParseVariant(variant, out _, out var architecture);
                 return architecture == "64" ? 1 : 0;
             }
+        }
+
+        /// <summary>
+        /// Preview-обработчик ESC в окне настроек (issue #270): первый ESC закрывает открытые
+        /// всплывающие подсказки, а не всё окно целиком. Если подсказка была закрыта — событие
+        /// помечается обработанным, и на этом же ESC кнопка «Отмена» (IsCancel) окно не закроет;
+        /// повторный ESC уже закрывает окно как обычно. Инвариант «сначала подсказка, потом окно»
+        /// тот же, что у главного окна (issue #261).
+        /// </summary>
+        private void OnSettingsPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape &&
+                Keyboard.Modifiers == ModifierKeys.None &&
+                CloseToolTipsIn(this))
+            {
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>Закрывает все открытые <see cref="System.Windows.Controls.ToolTip"/> в поддереве.</summary>
+        private static bool CloseToolTipsIn(DependencyObject root)
+        {
+            var closed = false;
+            var queue = new Queue<DependencyObject>();
+            queue.Enqueue(root);
+            while (queue.Count > 0)
+            {
+                var node = queue.Dequeue();
+
+                if (node is UIElement ui && TryCloseToolTip(ui))
+                    closed = true;
+
+                for (var i = VisualTreeHelper.GetChildrenCount(node) - 1; i >= 0; i--)
+                    queue.Enqueue(VisualTreeHelper.GetChild(node, i));
+            }
+            return closed;
+        }
+
+        /// <summary>
+        /// Закрывает открытую подсказку элемента, если таковая есть. Возвращает true,
+        /// если элемент держал открытый ToolTip и тот был закрыт (issue #261/#270).
+        /// </summary>
+        private static bool TryCloseToolTip(DependencyObject element)
+        {
+            // GetToolTip возвращает объект ToolTip и для строковых подсказок (ToolTip="..."),
+            // у него свойство IsOpen доступно на чтение и запись — это надёжный способ погасить
+            // уже показанный попап.
+            if (System.Windows.Controls.ToolTipService.GetToolTip(element) is System.Windows.Controls.ToolTip tip && tip.IsOpen)
+            {
+                tip.IsOpen = false;
+                return true;
+            }
+
+            // Страховка для случая, когда строка ещё не обёрнута в ToolTip, но подсказка уже
+            // показана сервисом: снимаем её через отключение/включение тултипа.
+            if (System.Windows.Controls.ToolTipService.GetIsOpen(element))
+            {
+                System.Windows.Controls.ToolTipService.SetIsEnabled(element, false);
+                System.Windows.Controls.ToolTipService.SetIsEnabled(element, true);
+                return true;
+            }
+
+            return false;
         }
     }
 }

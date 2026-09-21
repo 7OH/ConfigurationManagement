@@ -448,6 +448,8 @@
     "Settings.ExportThemeTooltip": "Выгрузить текущую тему в JSON-файл",
     "Settings.ImportTheme": "Загрузить…",
     "Settings.ImportThemeTooltip": "Загрузить тему из JSON-файла",
+    "Settings.GenerateScheme": "Создать схему из цвета…",
+    "Settings.GenerateSchemeTooltip": "Автоматически построить светлую и тёмную палитры из одного выбранного цвета",
     "Settings.Colors.Description": "Измените цвета выбранной темы. «Применить» — сразу применить (предпросмотр), «Сохранить» — сохранить настройки.",
 
     "Hotkey.Tooltip": "Установите курсор и нажмите сочетание клавиш. Backspace/Delete — сбросить, Esc — отмена.",
@@ -532,6 +534,8 @@
     "Settings.Ibases.BackupNote": "Копии сохраняются рядом с файлом: ibases.v8i.bak_yyyyMMdd_HHmmss",
     "Settings.Ibases.Restore": "Восстановить из последней копии",
     "Settings.Ibases.RestoreTooltip": "Восстановить ibases.v8i из последней резервной копии",
+    "Settings.Ibases.SaveAfterEdit": "Сохранять после правки",
+    "Settings.Ibases.SaveAfterEditTooltip": "Сразу записывать изменения свойств базы в ibases.v8i после правки (доступно при режиме «Только выгрузка» или «Двусторонняя»)",
 
     "Settings.Bases.Description": "Экспорт и загрузка списка баз, каталоги шаблонов и другие операции.",
     "Settings.Bases.TemplateDirsHint": "Как в стартере 1С. Пустой список — пути из настроек 1С и %PUBLIC%\\Documents\\1C\\1cv8\\tmplts.",

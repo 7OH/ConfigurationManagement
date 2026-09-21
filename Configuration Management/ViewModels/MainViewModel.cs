@@ -128,6 +128,8 @@ public partial class MainViewModel : ViewModelBase
     private string _ibasesSyncScheduleTime = "09:00";
     private bool _ibasesBackupEnabled = true;
     private int _ibasesBackupKeepCount = 5;
+    // «Сохранять после правки» (issue #269): записывать изменения в ibases.v8i сразу после правки.
+    private bool _ibasesSaveAfterEdit = true;
     private bool _addTimestampToExportFileName = true;
     private string _exportTimestampFormat = "yyyyMMdd_HHmmss";
     private string _syncMessage = string.Empty;
@@ -350,6 +352,7 @@ public partial class MainViewModel : ViewModelBase
         _ibasesSyncScheduleTime = settings.IbasesSyncScheduleTime;
         _ibasesBackupEnabled = settings.IbasesBackupEnabled;
         _ibasesBackupKeepCount = settings.IbasesBackupKeepCount > 0 ? settings.IbasesBackupKeepCount : 5;
+        _ibasesSaveAfterEdit = settings.IbasesSaveAfterEdit;
         _profileBackupDirectory = settings.ProfileBackupDirectory ?? string.Empty;
         _profileRestoreOnStartup = settings.ProfileRestoreOnStartup;
         _addTimestampToExportFileName = settings.AddTimestampToExportFileName;
@@ -1087,6 +1090,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Число хранимых резервных копий ibases.v8i.</summary>
     public int IbasesBackupKeepCount => _ibasesBackupKeepCount;
 
+    /// <summary>«Сохранять после правки» (issue #269): записывать изменения в ibases.v8i сразу.</summary>
+    public bool IbasesSaveAfterEdit => _ibasesSaveAfterEdit;
+
     /// <summary>
     /// Добавлять дату-время к имени файла при выгрузке (экспорт списка баз в JSON,
     /// выгрузка ИБ в .dt, выгрузка конфигурации в .cf).
@@ -1179,7 +1185,7 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public void ApplyIbasesSyncSettings(IbasesSyncMode mode, string filePath,
         IbasesSyncTrigger trigger, int intervalMinutes, string scheduleTime,
-        bool backupEnabled = true, int backupKeepCount = 5)
+        bool backupEnabled = true, int backupKeepCount = 5, bool saveAfterEdit = true)
     {
         _ibasesSyncMode = mode;
         _ibasesSyncFilePath = filePath ?? string.Empty;
@@ -1188,6 +1194,7 @@ public partial class MainViewModel : ViewModelBase
         _ibasesSyncScheduleTime = scheduleTime ?? string.Empty;
         _ibasesBackupEnabled = backupEnabled;
         _ibasesBackupKeepCount = backupKeepCount > 0 ? backupKeepCount : 5;
+        _ibasesSaveAfterEdit = saveAfterEdit;
         SaveSettings();
         RestartAutoSync();
     }
@@ -1272,6 +1279,11 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void ExportToIbasesAfterLocalChange()
     {
+        // «Сохранять после правки» (issue #269): выгрузка сразу выполняется только при
+        // включённой настройке; момент автоматической синхронизации при этом не затрагивается.
+        if (!_ibasesSaveAfterEdit)
+            return;
+
         if (_ibasesSyncMode is not (IbasesSyncMode.Export or IbasesSyncMode.Both))
             return;
 

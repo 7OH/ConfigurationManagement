@@ -43,6 +43,10 @@ public partial class ActualReleasesWindow : Window
         BuildRows();
         _viewModel.RefreshCommands();
 
+        // Колонка прогресса скрыта, пока нет активной проверки/загрузки (issue #267).
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        UpdateProgressColumnVisibility();
+
         // Закрытие окна по Esc (issue #264): единообразно с Avalonia-базой ModalWindowBase.
         PreviewKeyDown += OnWindow_PreviewKeyDown;
 
@@ -98,12 +102,12 @@ public partial class ActualReleasesWindow : Window
                 var editions = config.Editions;
                 if (editions.Count == 0)
                 {
-                    _viewModel.Rows.Add(new ActualReleaseRowViewModel(config, null, OnCheckRow, OnDownloadRow));
+                    AddRow(new ActualReleaseRowViewModel(config, null, OnCheckRow, OnDownloadRow));
                 }
                 else
                 {
                     foreach (var edition in editions)
-                        _viewModel.Rows.Add(new ActualReleaseRowViewModel(config, edition, OnCheckRow, OnDownloadRow));
+                        AddRow(new ActualReleaseRowViewModel(config, edition, OnCheckRow, OnDownloadRow));
                 }
             }
         }
@@ -111,6 +115,39 @@ public partial class ActualReleasesWindow : Window
         {
             _logger.Error("Ошибка построения списка отслеживаемых конфигураций", ex);
         }
+    }
+
+    /// <summary>Добавляет строку и следит за её состоянием, чтобы скрывать/показывать
+    /// колонку прогресса (issue #267), пока нет ни одной активной операции.</summary>
+    private void AddRow(ActualReleaseRowViewModel row)
+    {
+        row.PropertyChanged += OnRowPropertyChanged;
+        _viewModel.Rows.Add(row);
+    }
+
+    /// <summary>Реакция на изменение состояния пакетной проверки (видимость колонки прогресса).</summary>
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ActualReleasesViewModel.IsCheckingAll))
+            UpdateProgressColumnVisibility();
+    }
+
+    /// <summary>Реакция на начало/конец проверки или загрузки строки (видимость колонки прогресса).</summary>
+    private void OnRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ActualReleaseRowViewModel.IsChecking)
+            || e.PropertyName == nameof(ActualReleaseRowViewModel.IsDownloading))
+            UpdateProgressColumnVisibility();
+    }
+
+    /// <summary>Показывает колонку прогресса, только когда есть активная операция (issue #267).</summary>
+    private void UpdateProgressColumnVisibility()
+    {
+        if (ProgressColumn is null)
+            return;
+        var active = _viewModel.IsCheckingAll
+            || _viewModel.Rows.Any(r => r.IsChecking || r.IsDownloading);
+        ProgressColumn.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Выполняет точечную проверку одной строки.</summary>

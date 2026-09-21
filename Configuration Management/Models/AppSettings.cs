@@ -179,6 +179,13 @@ public class AppSettings
     public string IbasesSyncScheduleTime { get; set; } = "09:00";
 
     /// <summary>
+    /// «Сохранять после правки» (issue #269): записывать изменения свойств базы в ibases.v8i
+    /// сразу после правки, если режим синхронизации подразумевает сохранение (Export/Both).
+    /// Опция доступна только при Export/Both и не влияет на «Момент синхронизации».
+    /// </summary>
+    public bool IbasesSaveAfterEdit { get; set; } = true;
+
+    /// <summary>
     /// Создавать резервную копию файла ibases.v8i перед синхронизацией (экспортом/записью).
     /// </summary>
     public bool IbasesBackupEnabled { get; set; } = true;

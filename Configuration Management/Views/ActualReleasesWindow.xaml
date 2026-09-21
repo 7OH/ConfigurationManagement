@@ -205,7 +205,11 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Width="130">
+                    <!-- Колонка прогресса проверки/скачивания (issue #267): «странная пустая
+                         колонка» — она всегда была видима, даже когда нет ни одной операции.
+                         По умолчанию скрыта; показывается, когда идёт проверка или загрузка
+                         хотя бы одной строки (см. UpdateProgressColumnVisibility). -->
+                    <DataGridTemplateColumn x:Name="ProgressColumn" Width="130">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel VerticalAlignment="Center">

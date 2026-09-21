@@ -9,6 +9,55 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.19] — 2026-09-21
+
+### Исправления
+
+- **Закрытие подсказок в модальных окнах (#270)** — поведение клавиши `ESC` из #261
+  распространено на подсказки (`ToolTip`) не только главного окна: первый `ESC` закрывает
+  открытые тултипы в модальных окнах (`ModalWindowBase`) и в окне настроек, повторный `ESC`
+  закрывает само окно. Инвариант «сначала подсказка, потом окно» соблюдается как в #261.
+  Обе платформы **Windows/WPF** и **Linux/Avalonia**.
+  Затронуты [`ModalWindowBase.cs`](Configuration%20Management/Views/ModalWindowBase.cs),
+  [`SettingsWindow.xaml.cs`](Configuration%20Management/Views/SettingsWindow.xaml.cs)
+  и их Avalonia-аналоги.
+
+- **Синхронизация при сохранении (#269)** — добавлена настройка «Сохранять после правки»
+  во вкладке `ibases.v8i` (доступна при режиме синхронизации `Export`/`Both`, не влияет на
+  «Момент синхронизации»): при правке свойств базы запись в `ibases.v8i` выполняется сразу,
+  если реально есть изменения, которые нужно сохранить.
+  Обе платформы **WPF** и **Avalonia/Linux**.
+  Затронуты [`AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs),
+  [`SettingsWindow.Sync.cs`](Configuration%20Management/Views/SettingsWindow.Sync.cs),
+  сервис экспорта `ibases.v8i` и их Avalonia-аналоги.
+
+- **Режим запуска по умолчанию (#268)** — две настройки запуска в свойствах базы сведены
+  к одной: «Действие по двойному клику». Убран дублирующий комбобокс «Режим запуска по
+  умолчанию», оставлено единое действие («Автоматически» — наследование глобальной настройки,
+  либо явное действие для конкретной базы). Старые сохранённые значения мигрируются.
+  Обе платформы **Windows/WPF** и **Linux/Avalonia**.
+  Затронуты [`ConnectionSettingsWindow.xaml`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml)
+  и его Avalonia-аналог.
+
+- **Окно «Актуальные релизы» (#267)** — колонка прогресса (пустая колонка непонятного
+  назначения) скрыта, пока нет активных операций проверки/скачивания.
+  Обе платформы **Windows/WPF** и **Linux/Avalonia**.
+  Затронуты [`ActualReleasesWindow.xaml`](Configuration%20Management/Views/ActualReleasesWindow.xaml)
+  и его Avalonia-аналог [`ActualReleasesWindow.Avalonia.cs`](Configuration%20Management/Views/ActualReleasesWindow.Avalonia.cs).
+
+- **Цветовая схема одной кнопкой (#271)** — добавлена кнопка «Создать схему из цвета…»:
+  автогенерация пары светлой и тёмной палитр из одного базового цвета (с предпросмотром
+  и правкой до сохранения).
+  Обе платформы **WPF** и **Avalonia/Linux**.
+  Затронуты [`SettingsWindow.Schemes.cs`](Configuration%20Management/Views/SettingsWindow.Schemes.cs),
+  генератор схем [`ColorSchemeGenerator.cs`](Configuration%20Management/Models/ColorSchemeGenerator.cs)
+  и их Avalonia-аналоги.
+
+### Версия
+
+- **Версия поднята до `0.3.9.19`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.18] — 2026-09-21
 
 ### Исправления
