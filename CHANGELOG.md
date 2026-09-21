@@ -9,6 +9,41 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.21] — 2026-09-21
+
+### Исправления
+
+- **Дубли после синхронизации (#278)** — синхронизация `ibases.v8i` сопоставляет базы по
+  `ID` 1С (основной критерий), а по имени — как fallback. При переименовании базы и
+  ручном восстановлении файла дубль с тем же `ID` больше не создаётся: запись обновляется
+  на месте и переименовывается по `ID`. Обе платформы **Windows/WPF** и **Linux/Avalonia**
+  (общий сервис). Затронуты
+  [`IbasesV8iExporter.cs`](Configuration%20Management/Services/IbasesV8iExporter.cs)
+  и [`IbasesV8iImporter.cs`](Configuration%20Management/Services/IbasesV8iImporter.cs).
+
+- **Потери при сохранении v8i (#277)** — экспорт в `ibases.v8i` стал «без потерь»:
+  неизвестные ключи секции (`OrderInList`, `OrderInTree`, `External`, `WA`,
+  `DisableLocalSpeechToText` и пользовательские) сохраняются при разборе и перезаписи
+  файла в исходном порядке; правка одной базы не удаляет ключи соседних секций.
+  Обе платформы **Windows/WPF** и **Linux/Avalonia** (общий сервис). Затронут
+  [`IbasesV8iExporter.cs`](Configuration%20Management/Services/IbasesV8iExporter.cs).
+
+- **Закрытие подсказок 2 (#270)** — надёжное отслеживание владельцев открытых подсказок
+  в окне настроек через класс-обработчик изменения `ToolTip.IsOpenProperty` (аналог
+  Avalonia). Первый `ESC` закрывает тултип, а не всё окно; повторный — окно.
+  Обе платформы **Windows/WPF** и **Linux/Avalonia**. Затронут
+  [`SettingsWindow.xaml.cs`](Configuration%20Management/Views/SettingsWindow.xaml.cs).
+
+- **Подсказки и фокус окна (#275)** — в главном окне Windows/WPF открытые подсказки
+  скрываются при потере фокуса окна (`Deactivated` вызывает `CloseOpenToolTips()`),
+  подсказка не «висит» поверх другого приложения. Обе платформы **Windows/WPF** и
+  **Linux/Avalonia**. Затронут [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs).
+
+### Версия
+
+- **Версия поднята до `0.3.9.21`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.20] — 2026-09-21
 
 ### Исправления

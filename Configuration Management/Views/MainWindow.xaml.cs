@@ -102,7 +102,15 @@ namespace Configuration_Management
             // Шапка главного окна реагирует на активность: при активном окне заливается
             // акцентным цветом темы, при неактивном — цветом карточки (см. UpdateTitleBarAppearance).
             Activated += (_, _) => { _isActive = true; UpdateTitleBarAppearance(true); };
-            Deactivated += (_, _) => { _isActive = false; UpdateTitleBarAppearance(false); };
+            Deactivated += (_, _) =>
+            {
+                _isActive = false;
+                UpdateTitleBarAppearance(false);
+                // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное
+                // меню: при клике в другое окно/приложение открытый тултип исчезает,
+                // а не «висит» поверх браузера.
+                CloseOpenToolTips();
+            };
 
             // «Стеклянный» полупрозрачный фон окна: подложка берётся из текущего цвета
             // темы (светлая/тёмная и любые схемы) и пересчитывается при смене темы.

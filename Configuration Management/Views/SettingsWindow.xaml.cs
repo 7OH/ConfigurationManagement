@@ -206,6 +206,16 @@ namespace Configuration_Management
                 System.Windows.Controls.ToolTip.ClosedEvent,
                 new RoutedEventHandler(OnToolTipClosed));
 
+            // Надёжное отслеживание владельцев открытых подсказок через изменение
+            // присоединённого свойства ToolTip.IsOpenProperty (issue #270): срабатывает
+            // независимо от того, как задана подсказка (строка/объект) и где физически
+            // отрисован попап (в визуальном дереве окна или во внешнем HWND/Popup), как и в
+            // Avalonia (MainWindow.Avalonia.cs: ToolTip.IsOpenProperty.Changed.AddClassHandler).
+            System.ComponentModel.DependencyPropertyDescriptor
+                .FromProperty(System.Windows.Controls.ToolTip.IsOpenProperty,
+                              typeof(System.Windows.Controls.ToolTip))
+                ?.AddValueChanged(typeof(System.Windows.Controls.ToolTip), OnToolTipIsOpenGlobalChanged);
+
             // Класс-обработчик Preview (туннелирование) на тип ToolTip (issue #270): ESC,
             // приходящийся на открытую подсказку (фокус во внешнем попапе/HWND), закрывает
             // именно подсказку, а не всё окно настроек.
@@ -934,6 +944,24 @@ namespace Configuration_Management
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Глобальный обработчик изменения <see cref="ToolTip.IsOpenProperty"/> (issue #270):
+        /// ведёт <see cref="_openToolTips"/> по фактическому состоянию свойства, покрывая
+        /// подсказки, не попавшие в <see cref="OnToolTipOpened"/> (например, строковые
+        /// ToolTip="..."), и гарантирует, что первый ESC закрывает тултип, а не всё окно.
+        /// </summary>
+        private void OnToolTipIsOpenGlobalChanged(object? sender, EventArgs e)
+        {
+            if (sender is System.Windows.Controls.ToolTip tip)
+            {
+                var owner = tip.PlacementTarget ?? tip;
+                if (tip.IsOpen)
+                    _openToolTips.Add(owner);
+                else
+                    _openToolTips.Remove(owner);
+            }
         }
 
         /// <summary>Класс-обработчик открытия <see cref="ToolTip"/> (issue #270): запоминает владельца.</summary>

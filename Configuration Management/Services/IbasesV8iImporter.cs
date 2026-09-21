@@ -81,7 +81,17 @@ public static class IbasesV8iImporter
                 continue;
             }
 
-            var existing = infobases.FirstOrDefault(b =>
+            // Сначала сопоставляем по ID 1С (issue #278): в приложении база может быть
+            // переименована, а в файле (после восстановления) храниться под старым именем
+            // с тем же ID. По имени — только как fallback.
+            Infobase? existing = null;
+            if (!string.IsNullOrWhiteSpace(entry.Id))
+            {
+                existing = infobases.FirstOrDefault(b =>
+                    !string.IsNullOrWhiteSpace(b.Id)
+                    && string.Equals(b.Id.Trim(), entry.Id.Trim(), StringComparison.OrdinalIgnoreCase));
+            }
+            existing ??= infobases.FirstOrDefault(b =>
                 string.Equals(b.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
 
             if (existing is null)

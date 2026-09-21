@@ -48,14 +48,18 @@ public static class IbasesV8iExporter
         // которых нет в приложении.
         var entries = File.Exists(filePath) ? Parse(filePath) : new List<IbaseEntry>();
 
-        // Существующие базы по имени (для обновления на месте).
+        // Существующие базы по имени и по ID 1С (для обновления на месте). Матчинг по ID —
+        // основной (issue #278): база может быть переименована в приложении, а в файле
+        // (после восстановления) храниться под старым именем с тем же ID. По имени — fallback.
         var existingByName = new Dictionary<string, IbaseEntry>(StringComparer.OrdinalIgnoreCase);
+        var existingById = new Dictionary<string, IbaseEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries)
         {
-            if (!entry.IsGroup && !string.IsNullOrWhiteSpace(entry.Name))
-            {
-                existingByName[entry.Name] = entry;
-            }
+            if (entry.IsGroup || string.IsNullOrWhiteSpace(entry.Name))
+                continue;
+            existingByName[entry.Name] = entry;
+            if (!string.IsNullOrWhiteSpace(entry.Id))
+                existingById[entry.Id.Trim()] = entry;
         }
 
         // Записываем базы приложения.
@@ -66,22 +70,18 @@ public static class IbasesV8iExporter
 
             var entry = ToEntry(infobase, groupList);
 
-            if (existingByName.TryGetValue(infobase.Name, out var existing))
+            var existing = FindMatchingEntry(entry, existingByName, existingById);
+            if (existing is not null)
             {
                 // Обновляем существующую запись файла, сохраняя её позицию и прочие ключи.
-                existing.Connect = entry.Connect;
-                existing.Group = entry.Group;
-                existing.Id = entry.Id;
-                existing.Version = entry.Version;
-                existing.AdditionalParameters = entry.AdditionalParameters;
-                existing.App = entry.App;
-                existing.DefaultApp = entry.DefaultApp;
-                existing.Enabled = true;
+                ApplyEntryUpdate(existing, entry, existingByName);
                 result.Updated++;
             }
             else
             {
-                existingByName[infobase.Name] = entry;
+                existingByName[entry.Name] = entry;
+                if (!string.IsNullOrWhiteSpace(entry.Id))
+                    existingById[entry.Id.Trim()] = entry;
                 entries.Add(entry);
                 result.Added++;
             }
@@ -184,12 +184,17 @@ public static class IbasesV8iExporter
         // чтобы добавить только выбранные базы и не затирать потенциально чужие данные.
         var entries = File.Exists(filePath) ? Parse(filePath) : new List<IbaseEntry>();
 
-        // Существующие базы по имени (для обновления на месте).
+        // Существующие базы по имени и по ID 1С (для обновления на месте). Матчинг по ID —
+        // основной (issue #278), по имени — fallback.
         var existingByName = new Dictionary<string, IbaseEntry>(StringComparer.OrdinalIgnoreCase);
+        var existingById = new Dictionary<string, IbaseEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries)
         {
-            if (!entry.IsGroup && !string.IsNullOrWhiteSpace(entry.Name))
-                existingByName[entry.Name] = entry;
+            if (entry.IsGroup || string.IsNullOrWhiteSpace(entry.Name))
+                continue;
+            existingByName[entry.Name] = entry;
+            if (!string.IsNullOrWhiteSpace(entry.Id))
+                existingById[entry.Id.Trim()] = entry;
         }
 
         var written = 0;
@@ -200,21 +205,17 @@ public static class IbasesV8iExporter
 
             var entry = ToEntry(infobase, groupList);
 
-            if (existingByName.TryGetValue(infobase.Name, out var existing))
+            var existing = FindMatchingEntry(entry, existingByName, existingById);
+            if (existing is not null)
             {
                 // Обновляем существующую запись файла, сохраняя её позицию.
-                existing.Connect = entry.Connect;
-                existing.Group = entry.Group;
-                existing.Id = entry.Id;
-                existing.Version = entry.Version;
-                existing.AdditionalParameters = entry.AdditionalParameters;
-                existing.App = entry.App;
-                existing.DefaultApp = entry.DefaultApp;
-                existing.Enabled = true;
+                ApplyEntryUpdate(existing, entry, existingByName);
             }
             else
             {
-                existingByName[infobase.Name] = entry;
+                existingByName[entry.Name] = entry;
+                if (!string.IsNullOrWhiteSpace(entry.Id))
+                    existingById[entry.Id.Trim()] = entry;
                 entries.Add(entry);
             }
 
@@ -240,6 +241,54 @@ public static class IbasesV8iExporter
 
         File.WriteAllText(filePath, sb.ToString(), Encoding.Default);
         return written;
+    }
+
+    /// <summary>
+    /// Ищет существующую запись файла для обновления. Основной матчинг — по ID 1С
+    /// (регистронезависимо, см. issue #278): база может быть переименована в приложении,
+    /// а в файле (после восстановления) храниться под старым именем с тем же ID. Если ID
+    /// не заполнен или совпадение по ID не найдено, используется fallback по имени.
+    /// </summary>
+    private static IbaseEntry? FindMatchingEntry(
+        IbaseEntry entry,
+        Dictionary<string, IbaseEntry> existingByName,
+        Dictionary<string, IbaseEntry> existingById)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.Id)
+            && existingById.TryGetValue(entry.Id.Trim(), out var byId))
+            return byId;
+        if (existingByName.TryGetValue(entry.Name, out var byName))
+            return byName;
+        return null;
+    }
+
+    /// <summary>
+    /// Переносит значения из новой записи в существующую, сохраняя позицию и неизвестные
+    /// ключи (<see cref="IbaseEntry.ExtraKeys"/>) последней (issue #277). При смене имени
+    /// базы (матчинг по ID, issue #278) переименовывает секцию в файле и обновляет индекс
+    /// по имени, чтобы не создавался дубль со старым именем.
+    /// </summary>
+    private static void ApplyEntryUpdate(
+        IbaseEntry existing,
+        IbaseEntry entry,
+        Dictionary<string, IbaseEntry> existingByName)
+    {
+        existing.Connect = entry.Connect;
+        existing.Group = entry.Group;
+        existing.Id = entry.Id;
+        existing.Version = entry.Version;
+        existing.AdditionalParameters = entry.AdditionalParameters;
+        existing.App = entry.App;
+        existing.DefaultApp = entry.DefaultApp;
+        existing.Enabled = true;
+
+        if (string.Equals(existing.Name, entry.Name, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (!string.IsNullOrWhiteSpace(existing.Name))
+            existingByName.Remove(existing.Name);
+        existing.Name = entry.Name;
+        existingByName[entry.Name] = existing;
     }
 
     /// <summary>
@@ -606,6 +655,14 @@ public static class IbasesV8iExporter
         {
             sb.Append("AdditionalParameters=").AppendLine(entry.AdditionalParameters);
         }
+
+        // Сохраняем неизвестные ключи секции (в т.ч. OrderInList, OrderInTree, External,
+        // WA, DisableLocalSpeechToText и пользовательские) в исходном порядке — без потерь
+        // (issue #277).
+        foreach (var extra in entry.ExtraKeys)
+        {
+            sb.Append(extra.Key).Append('=').AppendLine(extra.Value);
+        }
     }
 
     /// <summary>
@@ -665,6 +722,11 @@ public static class IbasesV8iExporter
                 case "AdditionalParameters":
                     current.AdditionalParameters = value;
                     break;
+                default:
+                    // Неизвестный ключ — сохраняем «как есть» для lossless round-trip
+                    // (issue #277), чтобы экспорт не терял пользовательские данные.
+                    current.ExtraKeys.Add(new KeyValuePair<string, string>(key, value));
+                    break;
             }
         }
 
@@ -685,6 +747,13 @@ public static class IbasesV8iExporter
         public string DefaultApp { get; set; } = string.Empty;
         public string Version { get; set; } = string.Empty;
         public string AdditionalParameters { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Неизвестные ключи секции (не распознанные <see cref="Parse"/>) в исходном
+        /// порядке. Сохраняются при перезаписи файла, чтобы экспорт не терял
+        /// пользовательские данные (issue #277).
+        /// </summary>
+        public List<KeyValuePair<string, string>> ExtraKeys { get; } = new();
 
         public bool IsGroup => string.IsNullOrWhiteSpace(Connect);
     }
