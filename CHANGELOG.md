@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.26] — 2026-09-22
+
+### Исправления
+
+- **ESC закрывал окно вместо тултипа (#270) и потеря фокуса не прятала подсказку (#275)** —
+  первопричина: для строковых подсказок (`ToolTip="..."`) WPF показывает внутренний общий ToolTip,
+  но `ToolTipService.GetToolTip(владелец)` возвращает строку, а `GetIsOpen` на владельце — `false`
+  (сервис выставляет `IsOpenProperty` на самом тултипе), поэтому старый `TryCloseToolTip` не находил
+  открытую подсказку: первый ESC уходил в кнопку IsCancel/в трей, а `Deactivated` не мог закрыть
+  тултип. Механизм централизован в общем хелпере
+  [`ToolTipCloser.cs`](Configuration%20Management/Views/ToolTipCloser.cs) (раньше использовался только
+  диалогами, теперь — также главным окном и окном настроек): отслеживаются сами ToolTip-инстансы
+  (закрытие `IsOpen = false` работает и для объектовых, и для строковых подсказок); добавлен
+  глобальный класс-обработчик `UIElement.PreviewKeyDownEvent` (`handledEventsToo`) — первый ESC
+  гарантированно закрывает тултипы в любом окне/попапе до срабатывания IsCancel; добавлена подписка
+  на `Application.Deactivated` — подсказки прячутся при потере фокуса приложением целиком. Резервный
+  путь закрытия по `ToolTipService.GetIsOpen` использует отложенное восстановление `SetIsEnabled(true)`
+  через `Dispatcher` (синхронное включение мгновенно переоткрыло бы подсказку). **Windows/WPF**.
+  Затронуты
+  [`ToolTipCloser.cs`](Configuration%20Management/Views/ToolTipCloser.cs),
+  [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs),
+  [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs)
+  и [`SettingsWindow.xaml.cs`](Configuration%20Management/Views/SettingsWindow.xaml.cs).
+  **Linux/Avalonia**: механизм закрытия (`ToolTip.SetIsOpen(владелец)`) не зависит от типа
+  содержимого подсказки — отдельный фикс не требуется, выполнена ручная верификация сценариев
+  ESC и потери фокуса для строковых тултипов.
+
+### Версия
+
+- **Версия поднята до `0.3.9.26`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.25] — 2026-09-22
 
 ### Новые возможности

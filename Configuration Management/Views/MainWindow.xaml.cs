@@ -38,32 +38,6 @@ namespace Configuration_Management
         private bool _forceClose;
 
         /// <summary>
-        /// Владельцы открытых ToolTip главного окна (issue #261) — элементы, к которым привязан
-        /// тултип. Записываются класс-обработчиком <see cref="ToolTip.OpenedEvent"/>/
-        /// <see cref="ToolTip.ClosedEvent"/>, поэтому не зависят от того, где физически отрисован
-        /// попап (в визуальном дереве окна или во внешнем HWND/Popup) и надёжно закрываются по ESC
-        /// даже тогда, когда старый обход дерева окна владельца подсказки не находит. Храним
-        /// коллекцию, а не одно поле, чтобы закрывались ВСЕ открытые подсказки, а не только
-        /// последняя (паритет с Avalonia-механизмом _openToolTipOwner + ToolTip.SetIsOpen).
-        /// </summary>
-        private readonly HashSet<DependencyObject> _openToolTips = new();
-
-        /// <summary>
-        /// Владельцы подсказок, подавленных после закрытия по ESC (issue #261). Пока владелец
-        /// числится здесь, повторное автоматическое открытие его ToolTip вето-обработчиком
-        /// <see cref="ToolTipService.ToolTipOpeningEvent"/> блокируется — подсказка не «возвращается»
-        /// при наведённом курсоре. Подавление снимается, когда курсор ушёл с владельца и истёк
-        /// короткий интервал после ESC (см. <see cref="OnToolTipOpening"/>).
-        /// </summary>
-        private readonly HashSet<DependencyObject> _suppressedToolTipOwners = new();
-
-        /// <summary>Момент последнего закрытия подсказки по ESC (Environment.TickCount64).</summary>
-        private long _lastToolTipEscTick;
-
-        /// <summary>Окно подавления повторного открытия подсказки после ESC (мс).</summary>
-        private const long ToolTipSuppressWindowMs = 800;
-
-        /// <summary>
         /// Текущее состояние активности окна, по которому окрашивается шапка
         /// (акцент при активном, цвет карточки при неактивном). Хранится отдельным
         /// флагом, чтобы не зависеть от временного значения <see cref="Window.IsActive"/>
@@ -108,8 +82,9 @@ namespace Configuration_Management
                 UpdateTitleBarAppearance(false);
                 // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное
                 // меню: при клике в другое окно/приложение открытый тултип исчезает,
-                // а не «висит» поверх браузера.
-                CloseOpenToolTips();
+                // а не «висит» поверх браузера. Общий механизм ToolTipCloser дополнительно
+                // вешает Application.Deactivated — покрытие всех окон приложения.
+                ToolTipCloser.CloseAll();
             };
 
             // «Стеклянный» полупрозрачный фон окна: подложка берётся из текущего цвета
@@ -154,39 +129,12 @@ namespace Configuration_Management
             _viewModel = viewModel ?? new ViewModels.MainViewModel();
             DataContext = _viewModel;
 
-            // Отслеживаем открытый ToolTip глобально (issue #261): класс-обработчик на тип ToolTip
-            // срабатывает для любой открытой подсказки независимо от того, лежит ли её владелец в
-            // визуальном дереве окна или во внешнем попапе/HWND. Так первый ESC гарантированно
-            // закрывает подсказку, а не сворачивает окно в трей с «зависшим» тултипом.
-            // Тип квалифицируем полностью: внутри Window идентификатор ToolTip затенён унаследованным
-            // свойством FrameworkElement.ToolTip (object), и в выражении ToolTip.OpenedEvent он
-            // разрешался бы в это свойство, а не в тип (CS1061).
-            EventManager.RegisterClassHandler(
-                typeof(System.Windows.Controls.ToolTip),
-                System.Windows.Controls.ToolTip.OpenedEvent,
-                new RoutedEventHandler(OnToolTipOpened));
-            EventManager.RegisterClassHandler(
-                typeof(System.Windows.Controls.ToolTip),
-                System.Windows.Controls.ToolTip.ClosedEvent,
-                new RoutedEventHandler(OnToolTipClosed));
-
-            // Класс-обработчик Preview (туннелирование) на тип ToolTip (issue #261): ESC,
-            // приходящийся на открытую подсказку (когда фокус ввода оказался во внешнем
-            // попапе/HWND, куда Window_PreviewKeyDown главного окна может не дойти), закрывает
-            // именно подсказку, а не сворачивает окно в трей с «зависшим» тултипом.
-            EventManager.RegisterClassHandler(
-                typeof(System.Windows.Controls.ToolTip),
-                UIElement.PreviewKeyDownEvent,
-                new KeyEventHandler(OnToolTipPreviewKeyDown));
-
-            // Класс-обработчик вето на открытие (issue #261): после закрытия по ESC подавленные
-            // владельцы не должны автоматически показывать тултип снова, пока указатель над ними.
-            // Раньше тултип после первого ESC тут же «возвращался», т.к. курсор оставался над
-            // элементом (кнопка «стартер») и ToolTipService снова открывал подсказку.
-            EventManager.RegisterClassHandler(
-                typeof(FrameworkElement),
-                System.Windows.Controls.ToolTipService.ToolTipOpeningEvent,
-                new ToolTipEventHandler(OnToolTipOpening));
+            // Отслеживание открытых ToolTip и перехват ESC перенесены в общий механизм
+            // ToolTipCloser (issues #270/#275): он отслеживает сами инстансы ToolTip (в т.ч.
+            // внутренние для строковых подсказок ToolTip="..."), закрывает их по первому ESC
+            // глобально (класс-обработчик UIElement.PreviewKeyDownEvent) и при потере фокуса
+            // приложением (Application.Deactivated). Регистрация идемпотентна.
+            ToolTipCloser.Register();
 
             // Отслеживаем открытые контекстные меню главного окна (issue #261). Те два элемента,
             // которые «не закрываются по ESC» (выпадающие меню запуска/выбора клиента
@@ -375,98 +323,6 @@ namespace Configuration_Management
             };
         }
 
-        /// <summary>
-        /// Класс-обработчик открытия <see cref="ToolTip"/> (issue #261). Запоминает владельцев
-        /// открытых подсказок в <see cref="_openToolTips"/>, чтобы их можно было закрыть по ESC
-        /// детерминированно, не полагаясь на обход визуального дерева окна.
-        /// </summary>
-        private void OnToolTipOpened(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToolTip tip)
-            {
-                // Запоминаем владельца подсказки (элемент, к которому привязан ToolTip), а не сам
-                // объект ToolTip: закрытие через владельца детерминированно и покрывает все
-                // открытые подсказки, а не только последнюю (issue #261). Храним коллекцию.
-                var owner = tip.PlacementTarget ?? tip;
-                _openToolTips.Add(owner);
-            }
-        }
-
-        /// <summary>
-        /// Класс-обработчик закрытия <see cref="ToolTip"/> (issue #261). Убирает владельца
-        /// закрывшейся подсказки из коллекции открытых.
-        /// </summary>
-        private void OnToolTipClosed(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToolTip tip)
-            {
-                var owner = tip.PlacementTarget ?? tip;
-                _openToolTips.Remove(owner);
-            }
-        }
-
-        /// <summary>
-        /// Класс-обработчик вето на повторное открытие подсказки (issue #261). Вызывается до
-        /// показа тултипа владельца. Если владелец подавлен после ESC и указатель всё ещё над ним
-        /// (или не вышел короткий интервал) — событие помечается обработанным, показ отменяется.
-        /// Как только курсор ушёл с владельца и окно подавления истекло — подавление снимается,
-        /// и тултип снова работает как обычно.
-        /// </summary>
-        private void OnToolTipOpening(object sender, ToolTipEventArgs e)
-        {
-            if (_suppressedToolTipOwners.Count == 0 || sender is not DependencyObject owner)
-                return;
-            if (!_suppressedToolTipOwners.Contains(owner))
-                return;
-
-            if (Environment.TickCount64 - _lastToolTipEscTick < ToolTipSuppressWindowMs || IsPointerOver(owner))
-            {
-                e.Handled = true;
-                return;
-            }
-
-            _suppressedToolTipOwners.Remove(owner);
-        }
-
-        /// <summary>Подавляет повторное открытие подсказки владельца после закрытия по ESC (issue #261).</summary>
-        private void SuppressToolTipOwner(DependencyObject owner)
-        {
-            _suppressedToolTipOwners.Add(owner);
-            _lastToolTipEscTick = Environment.TickCount64;
-        }
-
-        /// <summary>Находится ли указатель мыши над элементом или его потомком (issue #261).</summary>
-        private static bool IsPointerOver(DependencyObject owner)
-        {
-            for (var node = Mouse.DirectlyOver as DependencyObject; node is not null; node = VisualTreeHelper.GetParent(node))
-            {
-                if (ReferenceEquals(node, owner))
-                    return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Класс-обработчик ESC на типе <see cref="ToolTip"/> (issue #261). Вызывается, когда
-        /// клавиша приходится на открытую подсказку (фокус во внешнем попапе/HWND попапа):
-        /// закрывает именно этот тултип и помечает событие обработанным, чтобы первый ESC
-        /// не сворачивал главное окно в трей.
-        /// </summary>
-        private void OnToolTipPreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key != Key.Escape || Keyboard.Modifiers != ModifierKeys.None)
-                return;
-
-            if (sender is ToolTip tip)
-            {
-                tip.IsOpen = false;
-                var owner = tip.PlacementTarget ?? tip;
-                _openToolTips.Remove(owner);
-                // Закрываем и одновременно подавляем повторное открытие (issue #261).
-                SuppressToolTipOwner(owner);
-                e.Handled = true;
-            }
-        }
 
         private DoubleAnimation? _exportBounceAnimation;
         private bool _exportAnimating;
