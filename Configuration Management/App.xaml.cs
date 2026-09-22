@@ -15,6 +15,7 @@ namespace Configuration_Management
     public partial class App : Application
     {
         private static Mutex? _instanceMutex;
+        private static bool _ownsInstanceMutex;
         private static EventWaitHandle? _activateEvent;
         private static CancellationTokenSource? _activateCts;
         private const string MutexName = "Global\\ConfigurationManagement_1C_SingleInstance";
@@ -171,6 +172,12 @@ namespace Configuration_Management
                 if (!settings.AllowMultipleInstances)
                 {
                     _instanceMutex = new Mutex(true, MutexName, out var createdNew);
+                    // Владение мутексом получает только экземпляр, создавший его (createdNew == true).
+                    // Повторный запуск владение не получает, поэтому ReleaseMutex() в OnExit допустим
+                    // только при нашем владении: иначе он бросает ApplicationException
+                    // «Object synchronization method was called from an unsynchronized block of code»,
+                    // и под отладчиком с остановкой на исключениях это выглядит как падение.
+                    _ownsInstanceMutex = createdNew;
                     if (!createdNew)
                     {
                         // Уже запущен другой экземпляр — просим его показать окно (в т.ч. из трея) и выходим.
@@ -399,7 +406,12 @@ namespace Configuration_Management
 
             try
             {
-                _instanceMutex?.ReleaseMutex();
+                // ReleaseMutex корректен только для экземпляра, владеющего мутексом:
+                // повторный запуск (createdNew == false) владение не получает, и вызов
+                // на чужом мутексе бросает ApplicationException. При закрытии процесса
+                // ОС освобождает мутекс автоматически, поэтому пропуск здесь безопасен.
+                if (_ownsInstanceMutex)
+                    _instanceMutex?.ReleaseMutex();
                 _instanceMutex?.Dispose();
             }
             catch

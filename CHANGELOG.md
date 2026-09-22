@@ -9,6 +9,23 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.22] — 2026-09-22
+
+### Исправления
+
+- **Краш при повторном запуске (#279)** — при повторном запуске приложения выход
+  выполнялся с ошибкой: `ReleaseMutex()` в `OnExit` вызывался на мутексе, которым
+  экземпляр не владеет (`ApplicationException` «Object synchronization method was called
+  from an unsynchronized block of code»). Добавлено поле `_ownsInstanceMutex = createdNew`;
+  `ReleaseMutex()` вызывается только при владении мутексом, иначе мутекс освобождается
+  ОС при закрытии процесса. **Windows/WPF**. Затронут
+  [`App.xaml.cs`](Configuration%20Management/App.xaml.cs).
+
+### Версия
+
+- **Версия поднята до `0.3.9.22`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.21] — 2026-09-21
 
 ### Исправления
