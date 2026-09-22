@@ -17,6 +17,7 @@ using Avalonia.Styling;
 using Configuration_Management.Controls;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 using Configuration_Management.Themes;
 using Configuration_Management.ViewModels;
 
@@ -1574,6 +1575,42 @@ namespace Configuration_Management
 
             menu.Items.Add(MenuAction("AppLock.LockTitle", _vm.LockAppCommand, _vm.HotkeyLockApp, "IconExitToApp", "#8B5CF6"));
             menu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
+
+            // Обслуживание списка и приложения (issue #279): удаление отсутствующих
+            // файловых баз, завершение процессов платформы и проверка обновлений самого
+            // приложения. В WPF те же пункты в том же порядке.
+            menu.Items.Add(new Separator());
+
+            var removeMissingItem = new MenuItem { Header = LocalizationManager.T("Settings.Bases.RemoveMissing") };
+            removeMissingItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            removeMissingItem.Icon = MenuIcon("IconFolderRemove", "#EF4444");
+            removeMissingItem.Click += (_, _) => _vm.RemoveMissingFileBases();
+            menu.Items.Add(removeMissingItem);
+
+            var killProcessesItem = new MenuItem { Header = LocalizationManager.T("Settings.Bases.KillProcesses") };
+            killProcessesItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            killProcessesItem.Icon = MenuIcon("IconClose", "#F59E0B");
+            killProcessesItem.Click += (_, _) => _vm.KillOneCProcesses();
+            menu.Items.Add(killProcessesItem);
+
+            menu.Items.Add(new Separator());
+
+            var checkUpdatesItem = new MenuItem { Header = LocalizationManager.T("Settings.About.CheckForUpdates") };
+            checkUpdatesItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            checkUpdatesItem.Icon = MenuIcon("IconCloudDownload", "#14B8A6");
+            checkUpdatesItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var updateService = AppServices.GetRequiredService<UpdateService>();
+                    await updateService.CheckForUpdatesManualAsync();
+                }
+                catch
+                {
+                    // Внутренние ошибки уже показаны в UpdateService; здесь только страхуемся.
+                }
+            };
+            menu.Items.Add(checkUpdatesItem);
 
             return menu;
         }

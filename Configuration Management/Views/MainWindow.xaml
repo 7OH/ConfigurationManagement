@@ -600,14 +600,19 @@
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
+                                        <Separator/>
+                                        <MenuItem Header="{loc:Loc Settings.Bases.RemoveMissing}" Command="{Binding RemoveMissingFileBasesCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="FolderRemove" Width="16" Height="16" Foreground="#EF4444"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:Loc Settings.Bases.KillProcesses}" Command="{Binding KillOneCProcessesCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="CloseNetwork" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <Separator/>
+                                        <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                        </MenuItem>
                                     </ContextMenu>
                                 </Button.ContextMenu>
-                            </Button>
-                            <!-- «Актуальные релизы» — глобальная команда (Alt+F9), вынесена из
-                                 контекстного меню базы на общую панель (issue #262). -->
-                            <Button Command="{Binding ShowActualReleasesCommand}" Style="{DynamicResource IconButton}"
-                                    Margin="0,0,2,0" ToolTip="{loc:Loc Main.ActualReleasesTooltip}">
-                                <materialDesign:PackIcon Kind="CloudDownload" Width="18" Height="18" Foreground="#14B8A6"/>
                             </Button>
                             <!-- «Настройки»: тема, компактный режим, настройки, справка -->
                             <Button x:Name="ThemeToggleButton" Click="OnToggleTheme_Click"

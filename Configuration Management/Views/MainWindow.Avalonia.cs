@@ -590,13 +590,8 @@ namespace Configuration_Management
             utilitiesBtn.Click += (_, _) => utilitiesMenu.Open(utilitiesBtn);
             panel.Children.Add(utilitiesBtn);
 
-            // «Актуальные релизы» — глобальная команда (Alt+F9), вынесена из контекстного
-            // меню базы на общую панель (issue #262).
-            var releasesBtn = TopBarIconButton("IconCloudDownload",
-                LocalizationManager.T("Updates.ActualReleasesTitle"), "#14B8A6");
-            releasesBtn.Bind(Button.CommandProperty, new Binding("ShowActualReleasesCommand"));
-            panel.Children.Add(releasesBtn);
-
+            // «Актуальные релизы» перенесены в подменю «Утилиты» (issue #279), отдельная
+            // кнопка на панели не нужна — в меню команда уже есть (пункт первый).
             panel.Children.Add(CommandPanelSeparator());
 
             // «Настройки»: тема, компактный режим, окно настроек и справка.

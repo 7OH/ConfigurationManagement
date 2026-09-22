@@ -1,5 +1,6 @@
 #if WINDOWS
 using System.Windows;
+using Configuration_Management.Services;
 
 namespace Configuration_Management;
 
@@ -18,6 +19,24 @@ public partial class MainWindow
 
     private void OnConfigTypesEditMenuClick(object sender, RoutedEventArgs e)
         => _viewModel.OpenConfigTypesEdit();
+
+    /// <summary>
+    /// Ручная проверка обновлений приложения из подменю «Утилиты» верхней панели (issue #279).
+    /// Та же проверка, что во вкладке «О программе»: сообщает явный результат (актуальная
+    /// версия / ошибка / доступно обновление) через UpdateService.
+    /// </summary>
+    private async void OnCheckForUpdatesMenuClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var updateService = AppServices.GetRequiredService<UpdateService>();
+            await updateService.CheckForUpdatesManualAsync();
+        }
+        catch
+        {
+            // Внутренние ошибки уже показаны в UpdateService; здесь только страхуемся.
+        }
+    }
 
     /// <summary>
     /// Открывает выпадающее меню «Утилиты» верхней панели по клику на её кнопке (issue #262):
