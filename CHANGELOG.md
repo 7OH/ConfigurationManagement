@@ -9,6 +9,52 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.23] — 2026-09-22
+
+### Исправления
+
+- **Краш окна настроек (#270)** — окно «Настройки» падало при открытии: вызов
+  `DependencyPropertyDescriptor.FromProperty(ToolTip.IsOpenProperty, typeof(ToolTip))
+  ?.AddValueChanged(typeof(ToolTip), ...)` передавал в `AddValueChanged` тип вместо
+  экземпляра `DependencyObject` (`InvalidCastException`, совпадает со стеком пользователя:
+  `MS.Internal.ComponentModel.DependencyObjectPropertyDescriptor.FromObj →
+  AddValueChanged → SettingsWindow..ctor → MainViewModel.OpenSettings`). Крашащий блок и
+  ставший мёртвым обработчик `OnToolTipIsOpenGlobalChanged` удалены; отслеживание открытых
+  подсказок продолжает работать через класс-обработчики `ToolTip.OpenedEvent`/`ClosedEvent`.
+  **Windows/WPF**. Затронут
+  [`SettingsWindow.xaml.cs`](Configuration%20Management/Views/SettingsWindow.xaml.cs).
+
+- **ESC в окне свойств базы (#270)** — в окне свойств базы (`AddEditWindow`) не было
+  механизма закрытия всплывающих подсказок: первый `ESC` при открытой подсказке закрывал
+  всё окно (кнопка «Отмена» `IsCancel`). Добавлен тот же механизм, что и в окне настроек:
+  общий хелпер `ToolTipCloser` (класс-обработчики `ToolTip.OpenedEvent`/`ClosedEvent`,
+  вето-обработчик `ToolTipOpeningEvent` с подавлением повторного открытия, резервный обход
+  визуального дерева), `PreviewKeyDown` по `ESC` — первый закрывает тултипы и помечает
+  событие обработанным, повторный закрывает окно, — и закрытие подсказок при потере фокуса
+  (`Deactivated`, issue #275). Минимум механизма подключён также к окнам подключения
+  (`ConnectionSettingsWindow`) и создания ИБ (`CreateInfobaseWindow`); поведение остальных
+  диалогов не менялось. **Windows/WPF**. Затронуты
+  [`ToolTipCloser.cs`](Configuration%20Management/Views/ToolTipCloser.cs),
+  [`AddEditWindow.xaml.cs`](Configuration%20Management/Views/AddEditWindow.xaml.cs),
+  [`ConnectionSettingsWindow.xaml.cs`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml.cs)
+  и [`CreateInfobaseWindow.xaml.cs`](Configuration%20Management/Views/CreateInfobaseWindow.xaml.cs).
+
+- **Зависание процесса при выходе (#270)** — процесс оставался «висеть» после «Выход».
+  Диагностика: упавшее при открытии настроек окно-«зомби» (конструктор упал после попадания
+  окна в `Application.Windows`) держало процесс живым при `ShutdownMode.OnLastWindowClose` —
+  режим считал последнее окно открытым и не запускал завершение. После устранения краша
+  конструктора основная причина уходит; дополнительно добавлены страховки: обработчик
+  `DispatcherUnhandledException` закрывает непоказанные «зомби»-окна, `OnExit` закрывает
+  оставшиеся окна, а `Program.Main` после остановки WPF-цикла гарантированно завершает
+  процесс (`Environment.Exit`). Сценарий «закрытие в трей» (`CloseToTray`) не менялся.
+  **Windows/WPF**. Затронуты [`App.xaml.cs`](Configuration%20Management/App.xaml.cs)
+  и [`Program.cs`](Configuration%20Management/Program.cs).
+
+### Версия
+
+- **Версия поднята до `0.3.9.23`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.22] — 2026-09-22
 
 ### Исправления

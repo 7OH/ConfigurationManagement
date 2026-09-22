@@ -37,6 +37,11 @@ namespace Configuration_Management
                 var title = TOr("App.Fatal.Interface", "Ошибка интерфейса");
                 LogFatal(title, args.Exception);
                 ShowFatalError(title, args.Exception);
+                // Убираем «окна-зомби» после сбоя конструктора (issue #270): окно, упавшее во
+                // время создания, уже успело попасть в Application.Windows, но никогда не было
+                // показано; при ShutdownMode.OnLastWindowClose такое окно держит процесс живым
+                // после «Выход» — приложение не завершается.
+                RemoveBrokenWindows();
                 args.Handled = true;
             };
             AppDomain.CurrentDomain.UnhandledException += (_, args) =>
@@ -383,6 +388,13 @@ namespace Configuration_Management
                 // ignore
             }
 
+            // Страховка от «зависшего» процесса при выходе (issue #270): закрываем окна,
+            // оставшиеся открытыми к моменту завершения (например, «зомби» после сбоя
+            // конструктора диалога). В штатном сценарии ShutdownMode.OnLastWindowClose
+            // запускает завершение по закрытию последнего окна, и к OnExit все окна уже
+            // закрыты; здесь это дополнительная гарантия для нештатных путей.
+            CloseRemainingWindows();
+
             try
             {
                 var logger = AppServices.GetRequiredService<IAppLogger>();
@@ -420,6 +432,81 @@ namespace Configuration_Management
             }
 
             base.OnExit(e);
+        }
+
+        /// <summary>
+        /// Закрывает окна, созданные, но так и не показанные (сбой конструктора, issue #270).
+        /// Такое окно числится в <see cref="Application.Windows"/>, и при
+        /// <see cref="ShutdownMode.OnLastWindowClose"/> приложение после «Выход» не завершается:
+        /// режим считает последнее окно открытым. Показанные окна (в т.ч. скрытые в трей) имеют
+        /// <c>IsLoaded == true</c> и не затрагиваются, поэтому сценарий «закрытие в трей» не
+        /// ломается.
+        /// </summary>
+        private static void RemoveBrokenWindows()
+        {
+            try
+            {
+                var app = Current;
+                if (app is null || app.Windows.Count == 0)
+                    return;
+
+                for (var i = app.Windows.Count - 1; i >= 0; i--)
+                {
+                    var window = app.Windows[i];
+                    if (window is null || window.IsLoaded)
+                        continue;
+
+                    try
+                    {
+                        window.Close();
+                    }
+                    catch
+                    {
+                        // Окно в полуразобранном состоянии: Close может отказать, но попытка
+                        // снять его из списка окон не должна маскировать исходную ошибку.
+                    }
+                }
+            }
+            catch
+            {
+                // Очистка не должна маскировать исходную ошибку.
+            }
+        }
+
+        /// <summary>
+        /// Закрывает все оставшиеся окна приложения (issue #270). Используется в
+        /// <see cref="OnExit"/> как страховка от «зависшего» процесса: закрытое окно удаляется
+        /// из <see cref="Application.Windows"/>, и ничего не держит процесс после завершения.
+        /// </summary>
+        private static void CloseRemainingWindows()
+        {
+            try
+            {
+                var app = Current;
+                if (app is null || app.Windows.Count == 0)
+                    return;
+
+                for (var i = app.Windows.Count - 1; i >= 0; i--)
+                {
+                    var window = app.Windows[i];
+                    if (window is null)
+                        continue;
+
+                    try
+                    {
+                        window.Close();
+                    }
+                    catch
+                    {
+                        // ignore — окно могло быть уже закрыто или находиться в неопределённом
+                        // состоянии; это страховочный путь.
+                    }
+                }
+            }
+            catch
+            {
+                // ignore
+            }
         }
 
         /// <summary>

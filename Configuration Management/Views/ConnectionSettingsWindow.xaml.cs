@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -46,6 +47,14 @@ namespace Configuration_Management
             _customLaunchParameters = customLaunchParameters ?? Array.Empty<string>();
             _onCustomLaunchParametersChanged = onCustomLaunchParametersChanged;
             InitializeComponent();
+
+            // ESC сначала закрывает открытые всплывающие подсказки, а только потом окно (issue #270).
+            ToolTipCloser.Register();
+            PreviewKeyDown += OnToolTipEscPreviewKeyDown;
+
+            // Подсказки скрываются при потере фокуса окна (issue #275).
+            Deactivated += (_, _) => ToolTipCloser.CloseAll();
+
             Loaded += (_, _) =>
             {
                 SyncPasswordBoxFromViewModel();
@@ -94,6 +103,20 @@ namespace Configuration_Management
             // на запуск не влиял (двойной клик использует ResolveDoubleClickAction), поэтому его
             // комбобокс убран из окна свойств базы.
             InitDoubleClickActionCombo();
+        }
+
+        /// <summary>
+        /// Preview-обработчик ESC (issue #270): первый ESC закрывает открытые всплывающие
+        /// подсказки и помечает событие обработанным, повторный ESC закрывает окно как обычно.
+        /// </summary>
+        private void OnToolTipEscPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape &&
+                Keyboard.Modifiers == ModifierKeys.None &&
+                ToolTipCloser.CloseAll())
+            {
+                e.Handled = true;
+            }
         }
 
         /// <summary>

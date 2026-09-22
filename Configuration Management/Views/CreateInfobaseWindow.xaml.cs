@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -44,6 +45,13 @@ namespace Configuration_Management
             _selectedGroupPath = defaultGroupPath ?? string.Empty;
             InitializeComponent();
 
+            // ESC сначала закрывает открытые всплывающие подсказки, а только потом окно (issue #270).
+            ToolTipCloser.Register();
+            PreviewKeyDown += OnToolTipEscPreviewKeyDown;
+
+            // Подсказки скрываются при потере фокуса окна (issue #275).
+            Deactivated += (_, _) => ToolTipCloser.CloseAll();
+
             Title = fromTemplate
                 ? LocalizationManager.T("CreateInfobase.TitleFromTemplate")
                 : LocalizationManager.T("CreateInfobase.TitleEmpty");
@@ -62,6 +70,20 @@ namespace Configuration_Management
 
             if (fromTemplate)
                 LoadInstalledTemplates();
+        }
+
+        /// <summary>
+        /// Preview-обработчик ESC (issue #270): первый ESC закрывает открытые всплывающие
+        /// подсказки и помечает событие обработанным, повторный ESC закрывает окно как обычно.
+        /// </summary>
+        private void OnToolTipEscPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape &&
+                Keyboard.Modifiers == ModifierKeys.None &&
+                ToolTipCloser.CloseAll())
+            {
+                e.Handled = true;
+            }
         }
 
         private List<string> _platforms = new();

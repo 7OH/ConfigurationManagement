@@ -55,7 +55,14 @@ namespace Configuration_Management
 
             var app = new App();
             app.InitializeComponent();
-            return app.Run();
+            var exitCode = app.Run();
+            // Гарантированное завершение процесса (issue #270): обычный возврат из Main после
+            // остановки WPF-цикла может не завершить процесс, если остались незакрытые потоки
+            // или таймеры. К этому моменту WPF уже отработал OnExit (ComReadHost.Shutdown,
+            // освобождение мутекса, запись в лог), поэтому Environment.Exit — безопасный
+            // финальный шаг, не позволяющий процессу «висеть» после выхода.
+            Environment.Exit(exitCode);
+            return 0;
         }
     }
 }

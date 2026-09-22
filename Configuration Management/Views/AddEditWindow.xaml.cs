@@ -1,6 +1,7 @@
 #if WINDOWS
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace Configuration_Management
 {
@@ -16,6 +17,34 @@ namespace Configuration_Management
         public AddEditWindow()
         {
             InitializeComponent();
+
+            // ESC сначала закрывает открытые всплывающие подсказки, а только потом окно (issue #270).
+            // Раньше первый ESC в окне свойств базы закрывал всё окно целиком (кнопка «Отмена»
+            // IsCancel), хотя подсказка могла быть открыта. Preview перехватывает клавишу до того,
+            // как её обработает IsCancel-кнопка; если тултипы были закрыты — окно на этом ESC не
+            // закроется, повторный ESC уже закрывает окно как обычно (инвариант «сначала подсказка,
+            // потом окно» — тот же, что у главного окна и окна настроек, issue #261/#270).
+            ToolTipCloser.Register();
+            PreviewKeyDown += OnToolTipEscPreviewKeyDown;
+
+            // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное меню:
+            // при клике в другое окно/приложение открытый тултип исчезает, а не «висит» поверх.
+            Deactivated += (_, _) => ToolTipCloser.CloseAll();
+        }
+
+        /// <summary>
+        /// Preview-обработчик ESC (issue #270): первый ESC закрывает открытые всплывающие
+        /// подсказки и помечает событие обработанным — кнопка «Отмена» (IsCancel) окно на этом
+        /// ESC не закроет; повторный ESC закрывает окно как обычно.
+        /// </summary>
+        private void OnToolTipEscPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape &&
+                Keyboard.Modifiers == ModifierKeys.None &&
+                ToolTipCloser.CloseAll())
+            {
+                e.Handled = true;
+            }
         }
 
         /// <summary>
