@@ -421,6 +421,13 @@ public static class IbasesV8iImporter
             if (existing is null)
             {
                 var id = ResolveGroupIdFromFile(groupEntries, pathSoFar, segment) ?? Guid.NewGuid().ToString();
+                // Идентификатор из файла может совпасть с Id уже существующей группы коллекции,
+                // живущей под другим полным путём (поиск по пути её не нашёл). Дубль Id ломает
+                // построение дерева (узлы группируются по Id через словарь) и привязку потомков,
+                // поэтому при коллизии назначаем свежий Guid вместо повторного использования Id
+                // (issue #280).
+                if (GroupExistsById(groups, id))
+                    id = Guid.NewGuid().ToString();
                 existing = new Group
                 {
                     Name = segment,

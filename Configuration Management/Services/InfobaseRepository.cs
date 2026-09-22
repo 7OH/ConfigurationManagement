@@ -241,9 +241,19 @@ public class InfobaseRepository : IInfobaseRepository
 
     /// <summary>
     /// Сохраняет список групп в файл.
+    /// Перед записью список всегда нормализуется (см. <see cref="NormalizeGroups"/>):
+    /// устраняются дубликаты Id, пустым Id назначаются новые, разрываются циклические
+    /// ссылки на родителя. Это страховка от попадания на диск «второй» группы с тем же Id
+    /// и битого ParentId (issue #280) из любого пути вызова — не только из загрузки.
+    /// Если список уже корректен — идентификаторы групп не меняются. Нормализация мутирует
+    /// переданный список in-place; поскольку вызовы передают те же объекты, что лежат в
+    /// рабочей коллекции групп (WPF передаёт копию списка, но с теми же ссылками на Group),
+    /// исправленное состояние остаётся и в памяти, и дерево групп после пересборки строится
+    /// по согласованным данным.
     /// </summary>
     public void SaveGroups(List<Group> groups)
     {
+        NormalizeGroups(groups);
         WriteAtomic(GroupsPath, JsonSerializer.Serialize(groups, JsonOptions));
     }
 
@@ -317,6 +327,8 @@ public class InfobaseRepository : IInfobaseRepository
 
     public async Task SaveGroupsAsync(List<Group> groups, CancellationToken cancellationToken = default)
     {
+        // Та же защитная нормализация, что и в SaveGroups (issue #280).
+        NormalizeGroups(groups);
         var json = JsonSerializer.Serialize(groups, JsonOptions);
         await WriteAtomicAsync(GroupsPath, json, cancellationToken).ConfigureAwait(false);
     }
