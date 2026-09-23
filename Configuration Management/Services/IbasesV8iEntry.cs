@@ -42,6 +42,14 @@ internal sealed class IbaseEntry
     /// <summary>Строка подключения (Connect).</summary>
     public string Connect { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Оригинальная строка подключения Connect из файла (до любых изменений). Заполняется
+    /// при разборе (<see cref="Parse"/>) и используется при обновлении записи, чтобы сохранить
+    /// состав параметров исходного Connect: Usr/Pwd пишутся только если они БЫЛИ в исходном
+    /// файле (issue #277).
+    /// </summary>
+    public string OriginalConnect { get; set; } = string.Empty;
+
     /// <summary>Путь родительской группы в формате стартера (Folder).</summary>
     public string Group { get; set; } = string.Empty;
 
@@ -85,6 +93,33 @@ internal sealed class IbaseEntry
     /// Группа — это секция без строки подключения (Connect).
     /// </summary>
     public bool IsGroup => string.IsNullOrWhiteSpace(Connect);
+
+    /// <summary>
+    /// Возвращает true, если в секции есть строка с указанным ключом (регистронезависимо).
+    /// Используется для правил «минимальных изменений» файла: нейтральные ключи
+    /// App/DefaultApp не дописываются, если их не было в секции (issue #277).
+    /// </summary>
+    public bool HasKey(string key)
+    {
+        return TryGetLine(key) is not null;
+    }
+
+    /// <summary>
+    /// Возвращает строку секции с указанным ключом (регистронезависимо) или null,
+    /// если такого ключа в секции нет.
+    /// </summary>
+    public IbaseSectionLine? TryGetLine(string key)
+    {
+        foreach (var line in Lines)
+        {
+            if (line.Key is not null
+                && string.Equals(line.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return line;
+            }
+        }
+        return null;
+    }
 
     /// <summary>
     /// Разбирает файл ibases.v8i на список записей. Используется и экспортёром
@@ -135,6 +170,7 @@ internal sealed class IbaseEntry
             {
                 case "Connect":
                     current.Connect = value;
+                    current.OriginalConnect = value;
                     break;
                 case "Folder":
                     current.Group = value;
@@ -193,8 +229,9 @@ internal sealed class IbaseEntry
     /// порядок строк: значения управляемых ключей обновляются на своих местах, удаляются
     /// строки ключей, чьи значения стали пустыми (и Enable при включённой записи),
     /// отсутствующие управляемые ключи добавляются в каноническом порядке в конец.
-    /// Все прочие строки (пустые, неизвестные, пользовательские ключи) переносятся
-    /// дословно (issue #277).
+    /// Нейтральный режим запуска (App/DefaultApp=Auto) не дописывается, если ключа
+    /// не было в секции (issue #277). Все прочие строки (пустые, неизвестные,
+    /// пользовательские ключи) переносятся дословно.
     /// </summary>
     public void WriteBodyTo(StringBuilder sb)
     {
@@ -233,8 +270,147 @@ internal sealed class IbaseEntry
                 continue;
             if (!TryGetManagedValue(key, out var value, out var omit) || omit || string.IsNullOrEmpty(value))
                 continue;
+            // Нейтральный режим запуска «Auto» не дописывается, если ключа App/DefaultApp
+            // не было в секции (issue #277): файл сохраняется с минимальными изменениями.
+            // Если ключ был — его значение обновляется на своём месте в первом проходе
+            // (даже на «Auto»).
+            if (IsNeutralLaunchKey(key, value))
+                continue;
             sb.Append(key).Append('=').AppendLine(value);
         }
+    }
+
+    /// <summary>
+    /// Возвращает true, если ключ App/DefaultApp имеет нейтральное значение «Auto»
+    /// (режим запуска по умолчанию). Такой ключ НЕ дописывается в секцию, если его там
+    /// не было (issue #277); если ключ был — его значение обновляется в любом случае.
+    /// </summary>
+    private static bool IsNeutralLaunchKey(string key, string value)
+    {
+        if (!string.Equals(key, "App", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(key, "DefaultApp", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        return string.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Объединяет новую строку подключения с составом параметров исходной (issue #277):
+    /// если ЦЕЛЬ подключения не изменилась (Srvr+Ref / File / WS — регистронезависимо),
+    /// то Usr/Pwd включаются ТОЛЬКО если они БЫЛИ в исходном Connect (значения — актуальные
+    /// из новой строки), а прочие параметры пересобираются в каноническом виде. Если цель
+    /// изменилась (сервер/база/файл/веб-адрес) или исходного Connect нет — возвращается
+    /// новая строка целиком (с Usr/Pwd при наличии в приложении).
+    /// </summary>
+    internal static string MergeConnect(string originalConnect, string newConnect)
+    {
+        if (string.IsNullOrWhiteSpace(originalConnect))
+            return newConnect;
+
+        if (!SameConnectionTarget(originalConnect, newConnect))
+            return newConnect;
+
+        // Цель не изменилась — сохраняем присутствие Usr/Pwd из исходного Connect.
+        var hadUsr = IndexOfParameter(originalConnect, "Usr") >= 0;
+        var hadPwd = IndexOfParameter(originalConnect, "Pwd") >= 0;
+        if (hadUsr && hadPwd)
+            return newConnect;
+
+        var result = newConnect;
+        if (!hadPwd)
+            result = RemoveParameter(result, "Pwd");
+        if (!hadUsr)
+            result = RemoveParameter(result, "Usr");
+        return result;
+    }
+
+    /// <summary>
+    /// Сравнивает «цель» двух строк подключения без учёта Usr/Pwd и прочих параметров:
+    /// для файлового режима — путь File, для веб-режима — адрес WS, для клиент-серверного —
+    /// сервер (host:port) и имя базы Ref. Регистр не учитывается.
+    /// </summary>
+    private static bool SameConnectionTarget(string a, string b)
+    {
+        var fileA = ExtractQuoted(a, "File");
+        var fileB = ExtractQuoted(b, "File");
+        if (fileA != null || fileB != null)
+        {
+            return fileA != null && fileB != null
+                && string.Equals(fileA.Trim(), fileB.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        var wsA = ExtractQuoted(a, "WS");
+        var wsB = ExtractQuoted(b, "WS");
+        if (wsA != null || wsB != null)
+        {
+            return wsA != null && wsB != null
+                && string.Equals(wsA.Trim(), wsB.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Клиент-серверный режим: Srvr (host:port) + Ref.
+        var serverA = new ConnectionSettings();
+        ConnectionSettings.ParseServerAndPort(ExtractQuoted(a, "Srvr"), serverA);
+        var serverB = new ConnectionSettings();
+        ConnectionSettings.ParseServerAndPort(ExtractQuoted(b, "Srvr"), serverB);
+
+        if (!string.Equals(
+                (serverA.Server ?? string.Empty).Trim(),
+                (serverB.Server ?? string.Empty).Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        if (serverA.Port != serverB.Port)
+            return false;
+        return string.Equals(
+            (ExtractQuoted(a, "Ref") ?? string.Empty).Trim(),
+            (ExtractQuoted(b, "Ref") ?? string.Empty).Trim(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Удаляет параметр с указанным ключом из строки подключения (регистронезависимо),
+    /// сохраняя корректные разделители «;». Если параметра нет — возвращает строку как есть.
+    /// </summary>
+    private static string RemoveParameter(string connect, string key)
+    {
+        var idx = IndexOfParameter(connect, key);
+        if (idx < 0)
+            return connect;
+
+        var start = idx;
+        if (start > 0 && connect[start - 1] == ';')
+            start--; // включаем предшествующий разделитель
+
+        var end = connect.IndexOf(';', idx);
+        if (end < 0)
+        {
+            end = connect.Length;
+        }
+        else if (start == idx)
+        {
+            end++; // параметр первый в строке — убираем и его завершающий разделитель
+        }
+
+        return connect.Remove(start, end - start);
+    }
+
+    /// <summary>
+    /// Ищет позицию начала параметра «Key=» в строке подключения (регистронезависимо).
+    /// Параметр должен начинаться с начала строки или сразу после «;».
+    /// </summary>
+    private static int IndexOfParameter(string connect, string key)
+    {
+        var marker = key + "=";
+        var idx = connect.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        while (idx >= 0)
+        {
+            if (idx == 0 || connect[idx - 1] == ';')
+                return idx;
+            idx = connect.IndexOf(marker, idx + marker.Length, StringComparison.OrdinalIgnoreCase);
+        }
+        return -1;
     }
 
     /// <summary>Канонический порядок управляемых ключей для новых записей.</summary>

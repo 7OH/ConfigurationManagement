@@ -523,7 +523,9 @@ public sealed class IbasesV8iExporterTests
                         content.IndexOf("[Base2]", StringComparison.Ordinal));
 
             // У Base1 изменилась только строка Connect (на своём месте), остальные строки
-            // (в т.ч. пользовательский ключ Custom) сохранены; новые ключи дописаны в конец.
+            // (в т.ч. пользовательский ключ Custom) сохранены. Нейтральные ключи режима
+            // запуска (App/DefaultApp=Auto) не дописываются, если их не было в секции
+            // (issue #277).
             var base1 = GetSectionLines(content, "Base1");
             Assert.Equal(new[]
             {
@@ -532,9 +534,7 @@ public sealed class IbasesV8iExporterTests
                 "OrderInList=1",
                 "Connect=File=\"C:\\new\";",
                 "Version=8.3.27.1688",
-                "Custom=Value",
-                "App=Auto",
-                "DefaultApp=Auto"
+                "Custom=Value"
             }, base1);
 
             // Строка Connect обновлена между OrderInList и Version (не перенесена в конец).
@@ -598,7 +598,8 @@ public sealed class IbasesV8iExporterTests
             Assert.True(content.IndexOf("[Alpha]", StringComparison.Ordinal) <
                         content.IndexOf("[Bravo]", StringComparison.Ordinal));
 
-            // Пустая строка внутри секции Alpha сохранилась между Connect и Custom.
+            // Пустая строка внутри секции Alpha сохранилась между Connect и Custom;
+            // нейтральные ключи режима запуска не дописываются (issue #277).
             var alpha = GetSectionLines(content, "Alpha");
             Assert.Equal(new[]
             {
@@ -606,15 +607,328 @@ public sealed class IbasesV8iExporterTests
                 "ID=a1",
                 "Connect=File=\"C:\\alpha\";",
                 "",
-                "Custom=KeepMe",
-                "App=Auto",
-                "DefaultApp=Auto"
+                "Custom=KeepMe"
             }, alpha);
 
             // Между секциями — ровно одна пустая строка (разделитель).
             Assert.True(content.Contains(
-                "DefaultApp=Auto" + Environment.NewLine + Environment.NewLine + "[Bravo]",
+                "Custom=KeepMe" + Environment.NewLine + Environment.NewLine + "[Bravo]",
                 StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_UpdateWithoutDefaultApp_DoesNotAddNeutralAuto()
+    {
+        // Сценарий issue #277: в секции нет ключей App/DefaultApp, режим запуска в
+        // приложении нейтральный («Автоматический»), а в исходном Connect нет Usr/Pwd —
+        // экспорт не должен дописывать ни DefaultApp=Auto/App=Auto, ни Usr/Pwd.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Database]
+                ID=db-id
+                Connect=Srvr="localhost:51541";Ref="GamesScorer51";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new()
+                {
+                    Id = "db-id",
+                    Name = "Database",
+                    LaunchMode = "Автоматический",
+                    Connection = new ConnectionSettings
+                    {
+                        Type = ConnectionType.ClientServer,
+                        Server = "localhost",
+                        Port = 51541,
+                        DatabaseName = "GamesScorer51",
+                        User = "admin",
+                        Password = "123"
+                    }
+                }
+            };
+
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+
+            var section = GetSection(content, "Database");
+            Assert.DoesNotContain("DefaultApp=", section);
+            Assert.DoesNotContain("App=", section);
+            Assert.DoesNotContain("Usr=", section);
+            Assert.DoesNotContain("Pwd=", section);
+            Assert.Contains("Connect=Srvr=\"localhost:51541\";Ref=\"GamesScorer51\";", section);
+
+            // Повторный экспорт не должен менять файл (идемпотентность).
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            Assert.Equal(content, File.ReadAllText(filePath, Encoding.Default));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_UpdateWithExistingDefaultApp_UpdatesValueInPlace()
+    {
+        // Сценарий issue #277: если ключ DefaultApp/App БЫЛ в секции, его значение
+        // обновляется на своём месте — даже на нейтральное «Auto» (правило только
+        // про «не дописывать отсутствующий нейтральный ключ»).
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Database]
+                ID=db-id
+                Connect=File="C:\database";
+                App=ThinClient
+                DefaultApp=ThinClient
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new()
+                {
+                    Id = "db-id",
+                    Name = "Database",
+                    LaunchMode = "Тонкий клиент",
+                    Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\database" }
+                }
+            };
+
+            // Тот же режим, что и в файле, — значения остаются на своих местах.
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var lines = GetSectionLines(File.ReadAllText(filePath, Encoding.Default), "Database");
+            Assert.Equal(new[]
+            {
+                "[Database]",
+                "ID=db-id",
+                "Connect=File=\"C:\\database\";",
+                "App=ThinClient",
+                "DefaultApp=ThinClient"
+            }, lines);
+
+            // Нейтральный режим в приложении при НАЛИЧИИ ключа в секции обновляет
+            // значение на «Auto» (ключ не удаляется и не пропускается).
+            infobases[0].LaunchMode = "Автоматический";
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var lines2 = GetSectionLines(File.ReadAllText(filePath, Encoding.Default), "Database");
+            Assert.Equal(new[]
+            {
+                "[Database]",
+                "ID=db-id",
+                "Connect=File=\"C:\\database\";",
+                "App=Auto",
+                "DefaultApp=Auto"
+            }, lines2);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_UpdateConnect_WithoutUsrPwd_PreservesComposition()
+    {
+        // Сценарий issue #277: цель подключения не изменилась, а в исходном Connect
+        // Usr/Pwd не было — экспорт не должен дописывать их, даже когда в приложении
+        // сохранены логин и пароль.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Database]
+                ID=db-id
+                Connect=Srvr="localhost:51541";Ref="GamesScorer51";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new()
+                {
+                    Id = "db-id",
+                    Name = "Database",
+                    Connection = new ConnectionSettings
+                    {
+                        Type = ConnectionType.ClientServer,
+                        Server = "localhost",
+                        Port = 51541,
+                        DatabaseName = "GamesScorer51",
+                        User = "admin",
+                        Password = "123"
+                    }
+                }
+            };
+
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+
+            var section = GetSection(content, "Database");
+            Assert.Contains("Connect=Srvr=\"localhost:51541\";Ref=\"GamesScorer51\";", section);
+            Assert.DoesNotContain("Usr=", section);
+            Assert.DoesNotContain("Pwd=", section);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_UpdateConnect_WithUsrPwd_RefreshesActualValues()
+    {
+        // Сценарий issue #277: Usr/Pwd БЫЛИ в исходном Connect — при неизменной цели
+        // они остаются и обновляются актуальными значениями из приложения.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Database]
+                ID=db-id
+                Connect=Srvr="localhost:51541";Ref="GamesScorer51";Usr="old";Pwd="oldpass";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new()
+                {
+                    Id = "db-id",
+                    Name = "Database",
+                    Connection = new ConnectionSettings
+                    {
+                        Type = ConnectionType.ClientServer,
+                        Server = "localhost",
+                        Port = 51541,
+                        DatabaseName = "GamesScorer51",
+                        User = "admin",
+                        Password = "123"
+                    }
+                }
+            };
+
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+
+            var section = GetSection(content, "Database");
+            Assert.Contains("Connect=Srvr=\"localhost:51541\";Ref=\"GamesScorer51\";Usr=\"admin\";Pwd=\"123\";", section);
+
+            // Повторный экспорт не должен менять файл (идемпотентность).
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            Assert.Equal(content, File.ReadAllText(filePath, Encoding.Default));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_UpdateConnect_TargetChanged_RebuildsFully()
+    {
+        // Сценарий issue #277: цель подключения изменилась (сервер/база или файл) —
+        // Connect пересобирается целиком, включая Usr/Pwd из приложения.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Database]
+                ID=db-id
+                Connect=Srvr="old-server";Ref="OldBase";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new()
+                {
+                    Id = "db-id",
+                    Name = "Database",
+                    Connection = new ConnectionSettings
+                    {
+                        Type = ConnectionType.ClientServer,
+                        Server = "new-server",
+                        Port = 51541,
+                        DatabaseName = "NewBase",
+                        User = "admin",
+                        Password = "123"
+                    }
+                }
+            };
+
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+            var section = GetSection(content, "Database");
+            Assert.Contains("Connect=Srvr=\"new-server:51541\";Ref=\"NewBase\";Usr=\"admin\";Pwd=\"123\";", section);
+
+            // Изменение файлового пути — тоже пересборка цели подключения.
+            infobases[0].Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\new" };
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var section2 = GetSection(File.ReadAllText(filePath, Encoding.Default), "Database");
+            Assert.Contains("Connect=File=\"C:\\new\";", section2);
+            Assert.DoesNotContain("Srvr=", section2);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_AddNewInfobase_NeutralMode_OmitsAppAndDefaultApp()
+    {
+        // Сценарий issue #277: новая база (её не было в файле) с нейтральным режимом
+        // запуска не получает App/DefaultApp=Auto; Connect строится как раньше.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Existing]
+                ID=existing-id
+                Connect=File="C:\existing";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new()
+                {
+                    Id = "existing-id",
+                    Name = "Existing",
+                    Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\existing" }
+                },
+                new()
+                {
+                    Id = "new-id",
+                    Name = "NewBase",
+                    LaunchMode = "Автоматический",
+                    Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\new" }
+                }
+            };
+
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+
+            var lines = GetSectionLines(content, "NewBase");
+            Assert.Equal(new[]
+            {
+                "[NewBase]",
+                "ID=new-id",
+                "Connect=File=\"C:\\new\";"
+            }, lines);
+            Assert.DoesNotContain("App=", content);
+            Assert.DoesNotContain("DefaultApp=", content);
         }
         finally
         {

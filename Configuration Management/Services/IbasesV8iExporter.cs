@@ -280,15 +280,18 @@ public static class IbasesV8iExporter
     /// Переносит значения из новой записи в существующую, сохраняя позицию секции и
     /// исходный порядок строк (включая пустые строки и неизвестные ключи, хранящиеся в
     /// <see cref="IbaseEntry.Lines"/>) — обновление значений происходит при записи на своих
-    /// местах (issue #277). При смене имени базы (матчинг по ID, issue #278) переименовывает
-    /// секцию в файле и обновляет индекс по имени, чтобы не создавался дубль со старым именем.
+    /// местах (issue #277). Connect сохраняет состав параметров исходной строки файла
+    /// (<see cref="IbaseEntry.MergeConnect"/>): Usr/Pwd дописываются только если они были
+    /// в исходном Connect; полная пересборка Connect — только при изменении цели подключения.
+    /// При смене имени базы (матчинг по ID, issue #278) переименовывает секцию в файле
+    /// и обновляет индекс по имени, чтобы не создавался дубль со старым именем.
     /// </summary>
     private static void ApplyEntryUpdate(
         IbaseEntry existing,
         IbaseEntry entry,
         Dictionary<string, IbaseEntry> existingByName)
     {
-        existing.Connect = entry.Connect;
+        existing.Connect = IbaseEntry.MergeConnect(existing.OriginalConnect, entry.Connect);
         existing.Group = entry.Group;
         existing.Id = entry.Id;
         existing.Version = entry.Version;
