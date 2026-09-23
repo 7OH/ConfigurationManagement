@@ -457,23 +457,32 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Собственная кнопка управления окном (свернуть/развернуть/закрыть).
-        /// Значок строится из StreamGeometry; цвет значка и hover-подложка следуют
-        /// теме через ThemeBrushes (как у PanelButton/SegmentButton). Иконка разворота
-        /// переключается между «квадрат» и «два квадрата» по состоянию окна.
+        /// Собственная кнопка управления окном (свернуть/развернуть/закрыть) в духе
+        /// macOS/VSCode: круглая подложка при наведении/нажатии, плавные переходы цвета
+        /// и масштаба (UiMetrics.AddBrushTransition / AddScaleTransition), выразительные
+        /// значки Segoe Fluent-стиля. Цвета подложки и значка следуют теме через
+        /// ThemeBrushes (как у PanelButton/SegmentButton). Иконка разворота переключается
+        /// между «квадрат» и «два квадрата» по состоянию окна.
         /// </summary>
         private sealed class WindowControlButton : Button
         {
-            // Контуры по разметке WPF (MainWindow.xaml:205-231): черта, квадрат,
-            // два квадрата и крест в координатном поле 13 на 13. Черта рисуется
-            // заливкой, остальные три обводкой толщиной 1.2.
-            private const string MinimizeData = "M0,5.5 L11,5.5 L11,6.5 L0,6.5 Z";
-            private const string MaximizeData = "M1,1 H12 V12 H1 Z";
-            private const string RestoreData = "M3,1 H9 V7 H3 Z M1,3 H7 V9 H1 Z";
-            private const string CloseData = "M1,1 L12,12 M12,1 L1,12";
+            // Контуры по разметке WPF (MainWindow.xaml:205-231) в координатном поле
+            // 14 на 14: черта, скруглённые квадрат/два квадрата и крест. Все значки
+            // рисуются обводкой с округлёнными концами/углами.
+            private const string MinimizeData = "M3,7 L11,7";
+            private const string MaximizeData =
+                "M1.5,2.5 A1,1 0 0 1 2.5,1.5 H11.5 A1,1 0 0 1 12.5,2.5 V11.5 A1,1 0 0 1 11.5,12.5 H2.5 A1,1 0 0 1 1.5,11.5 Z";
+            private const string RestoreData =
+                "M0.5,4.5 A1,1 0 0 1 1.5,3.5 H7.5 A1,1 0 0 1 8.5,4.5 V10.5 A1,1 0 0 1 7.5,11.5 H1.5 A1,1 0 0 1 0.5,10.5 Z M4.5,1.5 A1,1 0 0 1 5.5,0.5 H11.5 A1,1 0 0 1 12.5,1.5 V7.5 A1,1 0 0 1 11.5,8.5 H5.5 A1,1 0 0 1 4.5,7.5 Z";
+            private const string CloseData = "M3.5,3.5 L10.5,10.5 M10.5,3.5 L3.5,10.5";
 
-            /// <summary>Толщина обводки значков окна (MainWindow.xaml:216, 221, 231).</summary>
-            private const double GlyphStrokeThickness = 1.2;
+            /// <summary>Толщина обводки квадратов (черта — 2.0, крест — 1.7).</summary>
+            private const double GlyphStrokeThickness = 1.6;
+            private const double MinimizeStrokeThickness = 2.0;
+            private const double CloseStrokeThickness = 1.7;
+
+            /// <summary>Диаметр круглой подложки кнопки.</summary>
+            private const double CircleDiameter = 30;
 
             private readonly MainWindow _window;
             private readonly WindowControlKind _kind;
@@ -485,14 +494,22 @@ namespace Configuration_Management
             private IBrush _restGlyphBrush = Brushes.Transparent;
             private IBrush _hoverGlyphBrush = Brushes.Transparent;
             private IBrush _accentGlyphBrush = Brushes.Transparent;
+            private IBrush _accentBrush = Brushes.Transparent;
             private bool _hovered;
             private bool _pressed;
+            private bool _focused;
             private bool _onAccent;
 
+            // Части шаблона: задаются при его применении, до этого null (ApplyState
+            // вызывается и из конструктора, поэтому все обращения защищены проверкой).
+            private ScaleTransform? _circleScale;
+            private ScaleTransform? _glyphScale;
+            private Border? _focusRing;
+
             // Красная подложка кнопки «закрыть» (классический алый), не зависит от темы:
-            // наведение — алый, нажатие — чуть темнее. Значок на ней всегда белый.
+            // наведение — алый, нажатие — темнее. Значок на ней всегда белый.
             private static readonly IBrush CloseHoverBrush = new SolidColorBrush(Color.Parse("#E81123"));
-            private static readonly IBrush ClosePressedBrush = new SolidColorBrush(Color.Parse("#C50F1F"));
+            private static readonly IBrush ClosePressedBrush = new SolidColorBrush(Color.Parse("#B91C1C"));
 
             public WindowControlButton(MainWindow window, WindowControlKind kind)
             {
@@ -506,41 +523,84 @@ namespace Configuration_Management
                 VerticalContentAlignment = VerticalAlignment.Center;
                 Cursor = new Cursor(StandardCursorType.Hand);
 
-                // Кастомный шаблон: скруглённый Border + ContentPresenter (без Fluent-хрома).
+                // Кастомный шаблон: круглая подложка + ContentPresenter (без Fluent-хрома).
+                // Цвет подложки меняется плавно через BrushTransition, а тактильные
+                // отклики масштаба — через DoubleTransition на ScaleTransform.
                 Theme = new ControlTheme(typeof(Button))
                 {
                     Setters =
                     {
                         new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<WindowControlButton>((_, _) =>
                         {
-                            // Углы прямые: в шапке кнопки окна идут встык, как в разметке
-                            // (App.xaml:90, CornerRadius="0").
-                            var border = new Border { CornerRadius = new CornerRadius(0) };
-                            border[!Border.BackgroundProperty] = new TemplateBinding(TemplatedControl.BackgroundProperty);
-                            border[!Border.BorderBrushProperty] = new TemplateBinding(TemplatedControl.BorderBrushProperty);
-                            border[!Border.PaddingProperty] = new TemplateBinding(TemplatedControl.PaddingProperty);
+                            var diameter = UiMetrics.Scaled(CircleDiameter);
+
+                            var circle = new Border
+                            {
+                                Width = diameter,
+                                Height = diameter,
+                                CornerRadius = new CornerRadius(diameter / 2),
+                                HorizontalAlignment = HorizontalAlignment.Center,
+                                VerticalAlignment = VerticalAlignment.Center
+                            };
+                            circle[!Border.BackgroundProperty] = new TemplateBinding(TemplatedControl.BackgroundProperty);
+                            UiMetrics.AddBrushTransition(circle, background: true, border: false);
+
+                            _circleScale = new ScaleTransform();
+                            circle.RenderTransform = _circleScale;
+                            UiMetrics.AddScaleTransition(_circleScale, 90);
+
+                            // Кольцо фокуса: тонкая акцентная обводка вокруг круга
+                            // для клавиатурной навигации (как у PanelButton).
+                            _focusRing = new Border
+                            {
+                                Width = diameter,
+                                Height = diameter,
+                                CornerRadius = new CornerRadius(diameter / 2),
+                                BorderThickness = new Thickness(1.5),
+                                BorderBrush = Brushes.Transparent,
+                                HorizontalAlignment = HorizontalAlignment.Center,
+                                VerticalAlignment = VerticalAlignment.Center,
+                                IsHitTestVisible = false
+                            };
+                            UiMetrics.AddBrushTransition(_focusRing, background: false, border: true);
+
                             var presenter = new ContentPresenter();
                             presenter[!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty);
                             presenter[!ContentPresenter.HorizontalContentAlignmentProperty] = new TemplateBinding(ContentControl.HorizontalContentAlignmentProperty);
                             presenter[!ContentPresenter.VerticalContentAlignmentProperty] = new TemplateBinding(ContentControl.VerticalContentAlignmentProperty);
-                            border.Child = presenter;
-                            return border;
+                            presenter.HorizontalAlignment = HorizontalAlignment.Center;
+                            presenter.VerticalAlignment = VerticalAlignment.Center;
+
+                            _glyphScale = new ScaleTransform();
+                            presenter.RenderTransform = _glyphScale;
+                            UiMetrics.AddScaleTransition(_glyphScale, 110);
+
+                            var root = new Grid();
+                            root.Children.Add(circle);
+                            root.Children.Add(_focusRing);
+                            root.Children.Add(presenter);
+                            return root;
                         }))
                     }
                 };
 
-                // Черта «свернуть» у автора 11 на 11, квадрат и крест 13 на 13
-                // (MainWindow.xaml:207, 214, 229).
-                var glyphSize = _kind == WindowControlKind.Minimize ? 11.0 : 13.0;
+                // Значок в координатном поле 14 на 14 (как в MainWindow.xaml:205-231):
+                // черта толще квадратов, крест чуть толще, концы скруглены.
                 _glyph = new Avalonia.Controls.Shapes.Path
                 {
-                    Width = UiMetrics.Scaled(glyphSize),
-                    Height = UiMetrics.Scaled(glyphSize),
+                    Width = UiMetrics.Scaled(14),
+                    Height = UiMetrics.Scaled(14),
                     Stretch = Stretch.Uniform,
+                    StrokeThickness = _kind switch
+                    {
+                        WindowControlKind.Minimize => MinimizeStrokeThickness,
+                        WindowControlKind.Close => CloseStrokeThickness,
+                        _ => GlyphStrokeThickness
+                    },
+                    StrokeLineCap = PenLineCap.Round,
+                    StrokeJoin = PenLineJoin.Round,
                     Data = BuildGeometry()
                 };
-                if (_kind != WindowControlKind.Minimize)
-                    _glyph.StrokeThickness = GlyphStrokeThickness;
                 Content = _glyph;
 
                 // Цвет значка и hover-подложка следуют теме. Кисть значка не привязывается
@@ -554,6 +614,7 @@ namespace Configuration_Management
                 ThemeBrushes.Observe(this, "ButtonTextBrush", b => { _accentGlyphBrush = b; ApplyState(); });
                 ThemeBrushes.Observe(this, "ItemHoverBrush", b => { _hoverBg = b; ApplyState(); });
                 ThemeBrushes.Observe(this, "AccentPressedBrush", b => { _pressedBg = b; ApplyState(); });
+                ThemeBrushes.Observe(this, "AccentBrush", b => { _accentBrush = b; ApplyState(); });
 
                 PointerEntered += (_, _) => { _hovered = true; ApplyState(); };
                 PointerExited += (_, _) => { _hovered = false; _pressed = false; ApplyState(); };
@@ -561,6 +622,7 @@ namespace Configuration_Management
                 PointerReleased += (_, _) => { _pressed = false; ApplyState(); };
                 PointerCaptureLost += (_, _) => { _pressed = false; ApplyState(); };
                 this.GetObservable(IsEnabledProperty).Subscribe(new BoolObserver(_ => ApplyState()));
+                this.GetObservable(IsKeyboardFocusWithinProperty).Subscribe(new BoolObserver(v => { _focused = v; ApplyState(); }));
 
                 // Иконка разворота зависит от состояния окна: квадрат / два квадрата.
                 if (_kind == WindowControlKind.Maximize)
@@ -592,6 +654,7 @@ namespace Configuration_Management
                     Opacity = 0.55;
                     Background = Brushes.Transparent;
                     BorderBrush = Brushes.Transparent;
+                    ApplyFeedback(disabled: true);
                     return;
                 }
 
@@ -601,7 +664,10 @@ namespace Configuration_Management
                 // В покое значок приглушён, на акцентной шапке красится цветом подписи
                 // на акценте, а под курсором и то и другое уступает основному цвету
                 // текста, как триггер IsMouseOver в шаблоне автора (App.xaml:94-97).
+                // На акцентной шапке hover-цвет остаётся светлым (ButtonTextBrush),
+                // иначе тёмный значок потерялся бы на акцентной заливке.
                 var restBrush = _onAccent ? _accentGlyphBrush : _restGlyphBrush;
+                var hoverBrush = _onAccent ? _accentGlyphBrush : _hoverGlyphBrush;
 
                 if (_kind == WindowControlKind.Close)
                 {
@@ -613,18 +679,40 @@ namespace Configuration_Management
                 else
                 {
                     Background = _pressed ? _pressedBg : (_hovered ? _hoverBg : Brushes.Transparent);
-                    SetGlyphBrush(_hovered || _pressed ? _hoverGlyphBrush : restBrush);
+                    SetGlyphBrush(_hovered || _pressed ? hoverBrush : restBrush);
+                }
+
+                // Кольцо фокуса: акцентная обводка на обычных темах, светлая — на акцентной шапке.
+                if (_focusRing is not null)
+                    _focusRing.BorderBrush = _focused ? (_onAccent ? _accentGlyphBrush : _accentBrush) : Brushes.Transparent;
+
+                ApplyFeedback(disabled: false);
+            }
+
+            /// <summary>
+            /// Тактильные отклики масштабом: лёгкое увеличение значка при наведении,
+            /// «пружинное» сжатие круга и значка при нажатии. Плавность обеспечивают
+            /// Transitions (AddScaleTransition); при выключенных анимациях значения
+            /// применяются сразу.
+            /// </summary>
+            private void ApplyFeedback(bool disabled)
+            {
+                if (_circleScale is not null)
+                {
+                    var c = disabled || _pressed ? 0.9 : 1.0;
+                    _circleScale.ScaleX = c;
+                    _circleScale.ScaleY = c;
+                }
+                if (_glyphScale is not null)
+                {
+                    var g = disabled ? 1.0 : _pressed ? 0.92 : _hovered ? 1.08 : 1.0;
+                    _glyphScale.ScaleX = g;
+                    _glyphScale.ScaleY = g;
                 }
             }
 
-            /// <summary>Черта «свернуть» залита, квадрат и крест обведены.</summary>
-            private void SetGlyphBrush(IBrush brush)
-            {
-                if (_kind == WindowControlKind.Minimize)
-                    _glyph.Fill = brush;
-                else
-                    _glyph.Stroke = brush;
-            }
+            /// <summary>Все значки окон рисуются обводкой с округлёнными концами.</summary>
+            private void SetGlyphBrush(IBrush brush) => _glyph.Stroke = brush;
 
             /// <summary>
             /// Шапка активного окна залита акцентом, и значок на ней читается только

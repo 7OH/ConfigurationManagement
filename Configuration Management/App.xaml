@@ -71,9 +71,18 @@
 
             <!-- ===================== Собственные кнопки управления окном =====================
                  Общие для всех окон: главное окно и диалоговые окна (WindowChromeHelper)
-                 переиспользуют эти стили. Цвет значка и hover-подложка берутся из активной
-                 темы через DynamicResource (TextSecondaryBrush / ItemHoverBrush /
-                 AccentPressedBrush), поэтому корректно переключаются между темами. -->
+                 переиспользуют эти стили. Круглая подложка, плавные переходы цвета/масштаба
+                 и выразительные значки в духе macOS/VSCode.
+                 Кисти подложки (hover/press/кольцо фокуса) задаются вложенными свойствами
+                 WindowChromeHelper.HoverBrush / PressedBrush / FocusBrush — акцентные
+                 варианты и кнопка «закрыть» переопределяют только их. Примечание: TemplateBinding
+                 допустим только в свойствах элементов шаблона, но НЕ в триггерных Setter'ах
+                 (WPF бросает «Тип Expression не является допустимым значением для Style»),
+                 поэтому цвет значка при наведении в шаблонах задаётся обычным DynamicResource:
+                 у базовой кнопки — основной цвет текста, у «закрыть» — белый.
+                 Цвет заливки анимируется прозрачностью слоёв, поэтому кисти можно брать
+                 DynamicResource'ом из темы: значения не «замораживаются» в анимациях и
+                 корректно обновляются при смене схемы. -->
             <Style x:Key="WindowControlButton" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
@@ -83,23 +92,87 @@
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="ToolTipService.InitialShowDelay" Value="400"/>
+                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="{DynamicResource ItemHoverBrush}"/>
+                <Setter Property="local:WindowChromeHelper.PressedBrush" Value="{DynamicResource AccentPressedBrush}"/>
+                <Setter Property="local:WindowChromeHelper.FocusBrush" Value="{DynamicResource AccentBrush}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                    BorderThickness="0" CornerRadius="0">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
+                            <Grid>
+                                <!-- Круглая подложка: слой под курсором, слой нажатия и кольцо
+                                     фокуса. Прозрачность слоёв анимируется триггерами (плавная
+                                     заливка), масштаб круга даёт тактильный отклик нажатия. -->
+                                <Grid x:Name="circleRoot" Width="30" Height="30"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Grid.RenderTransform>
+                                        <ScaleTransform x:Name="circleScale" CenterX="15" CenterY="15"/>
+                                    </Grid.RenderTransform>
+                                    <Border x:Name="hoverLayer" CornerRadius="15"
+                                            Background="{TemplateBinding local:WindowChromeHelper.HoverBrush}" Opacity="0"/>
+                                    <Border x:Name="pressLayer" CornerRadius="15"
+                                            Background="{TemplateBinding local:WindowChromeHelper.PressedBrush}" Opacity="0"/>
+                                    <Border x:Name="focusRing" CornerRadius="15" BorderThickness="1.5" Opacity="0"
+                                            BorderBrush="{TemplateBinding local:WindowChromeHelper.FocusBrush}"/>
+                                </Grid>
+                                <!-- Значок: лёгкое увеличение при наведении, «пружинное»
+                                     сжатие при нажатии. -->
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <ContentPresenter.RenderTransform>
+                                        <ScaleTransform x:Name="glyphScale" CenterX="7" CenterY="7"/>
+                                    </ContentPresenter.RenderTransform>
+                                </ContentPresenter>
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource ItemHoverBrush}"/>
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="hoverLayer" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1.08" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1.08" Duration="0:0:0.12"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="hoverLayer" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.12"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
                                     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="pressLayer" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleY" To="0.9" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="0.92" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="0.92" Duration="0:0:0.08"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="pressLayer" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.1"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="focusRing" Property="Opacity" Value="1"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="bd" Property="Opacity" Value="0.4"/>
+                                    <Setter Property="Opacity" Value="0.4"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -109,35 +182,96 @@
 
             <!-- Варианты кнопок для акцентной шапки (активное главное окно / заголовок
                  диалогов): базовый цвет значка ButtonTextBrush (читается на акцентном фоне),
-                 а hover/pressed-состояния наследуются из базового шаблона. Задаём цвет именно
-                 сеттером стиля (BasedOn), а не локальным значением: локальное значение в WPF
-                 имеет приоритет над шаблонными триггерами и «ломало» бы белое выделение
-                 кнопки «закрыть» при наведении. -->
+                 подложка круга — полупрозрачный белый вместо тематического ItemHoverBrush. -->
             <Style x:Key="WindowControlButtonOnAccent" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
                 <Setter Property="Foreground" Value="{DynamicResource ButtonTextBrush}"/>
+                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="#33FFFFFF"/>
+                <Setter Property="local:WindowChromeHelper.PressedBrush" Value="#4DFFFFFF"/>
+                <Setter Property="local:WindowChromeHelper.FocusBrush" Value="#80FFFFFF"/>
             </Style>
 
-            <!-- Кнопка «закрыть» окна: как WindowControlButton, но с красной подложкой
-                 при наведении/нажатии (классический алый) и белым значком на ней. -->
+            <!-- Кнопка «закрыть» окна: как WindowControlButton (та же круглая подложка),
+                 но с красным выделением при наведении/нажатии (классический алый) и белым
+                 значком на нём. Значок «белый при наведении» задан отдельным шаблоном —
+                 в триггерном Setter'е нельзя ссылаться на attached-свойство (Expression
+                 недопустим), поэтому шаблон дублируется с одним изменением. -->
             <Style x:Key="WindowControlCloseButton" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
+                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="#E81123"/>
+                <Setter Property="local:WindowChromeHelper.PressedBrush" Value="#B91C1C"/>
+                <Setter Property="local:WindowChromeHelper.FocusBrush" Value="#E81123"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                    BorderThickness="0" CornerRadius="0">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
+                            <Grid>
+                                <Grid x:Name="circleRoot" Width="30" Height="30"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Grid.RenderTransform>
+                                        <ScaleTransform x:Name="circleScale" CenterX="15" CenterY="15"/>
+                                    </Grid.RenderTransform>
+                                    <Border x:Name="hoverLayer" CornerRadius="15"
+                                            Background="{TemplateBinding local:WindowChromeHelper.HoverBrush}" Opacity="0"/>
+                                    <Border x:Name="pressLayer" CornerRadius="15"
+                                            Background="{TemplateBinding local:WindowChromeHelper.PressedBrush}" Opacity="0"/>
+                                    <Border x:Name="focusRing" CornerRadius="15" BorderThickness="1.5" Opacity="0"
+                                            BorderBrush="{TemplateBinding local:WindowChromeHelper.FocusBrush}"/>
+                                </Grid>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <ContentPresenter.RenderTransform>
+                                        <ScaleTransform x:Name="glyphScale" CenterX="7" CenterY="7"/>
+                                    </ContentPresenter.RenderTransform>
+                                </ContentPresenter>
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="bd" Property="Background" Value="#E81123"/>
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="hoverLayer" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1.08" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1.08" Duration="0:0:0.12"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="hoverLayer" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.12"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
                                     <Setter Property="Foreground" Value="White"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="bd" Property="Background" Value="#C50F1F"/>
-                                    <Setter Property="Foreground" Value="White"/>
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="pressLayer" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleY" To="0.9" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="0.92" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="0.92" Duration="0:0:0.08"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="pressLayer" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.1"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="focusRing" Property="Opacity" Value="1"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="bd" Property="Opacity" Value="0.4"/>
+                                    <Setter Property="Opacity" Value="0.4"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -146,8 +280,8 @@
             </Style>
 
             <!-- Вариант кнопки «закрыть» для акцентной шапки: базовый цвет значка
-                 ButtonTextBrush (читается на акцентном фоне), hover/pressed-состояния
-                 наследуются из базового шаблона. -->
+                 ButtonTextBrush (читается на акцентном фоне), красная подложка
+                 при наведении/нажатии наследуется из базового стиля. -->
             <Style x:Key="WindowControlCloseButtonOnAccent" TargetType="Button" BasedOn="{StaticResource WindowControlCloseButton}">
                 <Setter Property="Foreground" Value="{DynamicResource ButtonTextBrush}"/>
             </Style>

@@ -55,6 +55,32 @@ namespace Configuration_Management
         private static bool IsApplied(DependencyObject d) => (bool)d.GetValue(AppliedProperty);
         private static void MarkApplied(DependencyObject d) => d.SetValue(AppliedProperty, true);
 
+        // ---- Вложенные свойства собственных кнопок управления окном (App.xaml) ----
+        // Круглая «подложка» кнопок: шаблон WindowControlButton рисует три наложенных
+        // круга (hover/press/фокус) и подставляет их кисти из этих свойств. Смена цвета
+        // при наведении/нажатии анимируется прозрачностью слоёв, поэтому сами кисти
+        // можно спокойно брать DynamicResource'ом из темы — переключение схемы не
+        // «замораживает» значения в анимациях. Акцентные варианты стилей переопределяют
+        // только эти свойства, не дублируя шаблон.
+        public static readonly DependencyProperty HoverBrushProperty =
+            DependencyProperty.RegisterAttached(
+                "HoverBrush", typeof(Brush), typeof(WindowChromeHelper), new PropertyMetadata(null));
+        public static void SetHoverBrush(DependencyObject element, Brush value) => element.SetValue(HoverBrushProperty, value);
+        public static Brush GetHoverBrush(DependencyObject element) => (Brush)element.GetValue(HoverBrushProperty);
+
+        public static readonly DependencyProperty PressedBrushProperty =
+            DependencyProperty.RegisterAttached(
+                "PressedBrush", typeof(Brush), typeof(WindowChromeHelper), new PropertyMetadata(null));
+        public static void SetPressedBrush(DependencyObject element, Brush value) => element.SetValue(PressedBrushProperty, value);
+        public static Brush GetPressedBrush(DependencyObject element) => (Brush)element.GetValue(PressedBrushProperty);
+
+        /// <summary>Кисть кольца фокуса вокруг круга (акцентная в обычных темах, светлая на акцентной шапке).</summary>
+        public static readonly DependencyProperty FocusBrushProperty =
+            DependencyProperty.RegisterAttached(
+                "FocusBrush", typeof(Brush), typeof(WindowChromeHelper), new PropertyMetadata(null));
+        public static void SetFocusBrush(DependencyObject element, Brush value) => element.SetValue(FocusBrushProperty, value);
+        public static Brush GetFocusBrush(DependencyObject element) => (Brush)element.GetValue(FocusBrushProperty);
+
         [DllImport("dwmapi.dll", PreserveSig = true)]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 
@@ -317,13 +343,17 @@ namespace Configuration_Management
             var style = (Style?)window.TryFindResource("WindowControlCloseButtonOnAccent")
                         ?? (Style?)window.TryFindResource("WindowControlCloseButton");
 
+            // Значок креста в координатном поле 14 на 14 (как в MainWindow.xaml):
+            // округлённые концы и толщина 1.7 — выразительнее прежней тонкой обводки.
             var path = new Path
             {
-                Width = 13,
-                Height = 13,
+                Width = 14,
+                Height = 14,
                 Stretch = Stretch.Uniform,
-                StrokeThickness = 1.2,
-                Data = Geometry.Parse("M1,1 L12,12 M12,1 L1,12")
+                StrokeThickness = 1.7,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                Data = Geometry.Parse("M3.5,3.5 L10.5,10.5 M10.5,3.5 L3.5,10.5")
             };
             var button = new Button
             {

@@ -1098,17 +1098,20 @@ namespace Configuration_Management
         private enum DialogWindowControlKind { Minimize, Close }
 
         /// <summary>
-        /// Собственная кнопка управления окном диалога (свернуть/закрыть). Значок
-        /// строится из StreamGeometry; цвет значка и hover-подложка следуют теме через
-        /// ThemeBrushes. У кнопки «закрыть» красная подложка при наведении/нажатии
+        /// Собственная кнопка управления окном диалога (свернуть/закрыть) в духе
+        /// macOS/VSCode: круглая подложка, плавные переходы цвета и масштаба, значок
+        /// Segoe Fluent-стиля. У кнопки «закрыть» красная подложка при наведении/нажатии
         /// и белый значок, как у главного окна.
         /// </summary>
         private sealed class DialogWindowControlButton : Button
         {
-            // Контуры в координатном поле 24 на 24 (как ресурсы Icons.axaml).
-            private const string MinimizeData = "M6,11.5H18V13H6Z";
-            private const string CloseData =
-                "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z";
+            // Контуры в координатном поле 14 на 14 (как в разметке главного окна):
+            // черта и крест с округлёнными концами.
+            private const string MinimizeData = "M3,7 L11,7";
+            private const string CloseData = "M3.5,3.5 L10.5,10.5 M10.5,3.5 L3.5,10.5";
+
+            /// <summary>Диаметр круглой подложки кнопки диалога.</summary>
+            private const double CircleDiameter = 26;
 
             private readonly DialogWindowControlKind _kind;
             private readonly Avalonia.Controls.Shapes.Path _glyph;
@@ -1116,13 +1119,21 @@ namespace Configuration_Management
             private IBrush _hoverBg = Brushes.Transparent;
             private IBrush _pressedBg = Brushes.Transparent;
             private IBrush _baseGlyphBrush = Brushes.Transparent;
+            private IBrush _accentBrush = Brushes.Transparent;
             private bool _hovered;
             private bool _pressed;
+            private bool _focused;
+
+            // Части шаблона: задаются при его применении, до этого null (ApplyState
+            // вызывается и из конструктора, поэтому обращения защищены проверкой).
+            private ScaleTransform? _circleScale;
+            private ScaleTransform? _glyphScale;
+            private Border? _focusRing;
 
             // Красная подложка кнопки «закрыть» (классический алый), не зависит от темы:
-            // наведение — алый, нажатие — чуть темнее. Значок на ней всегда белый.
+            // наведение — алый, нажатие — темнее. Значок на ней всегда белый.
             private static readonly IBrush CloseHoverBrush = new SolidColorBrush(Color.Parse("#E81123"));
-            private static readonly IBrush ClosePressedBrush = new SolidColorBrush(Color.Parse("#C50F1F"));
+            private static readonly IBrush ClosePressedBrush = new SolidColorBrush(Color.Parse("#B91C1C"));
 
             public DialogWindowControlButton(DialogWindowControlKind kind)
             {
@@ -1135,31 +1146,74 @@ namespace Configuration_Management
                 VerticalContentAlignment = VerticalAlignment.Center;
                 Cursor = new Cursor(StandardCursorType.Hand);
 
-                // Кастомный шаблон: скруглённый Border + ContentPresenter (без Fluent-хрома).
+                // Кастомный шаблон: круглая подложка + ContentPresenter (без Fluent-хрома).
+                // Цвет подложки меняется плавно через BrushTransition, тактильные
+                // отклики масштаба — через DoubleTransition на ScaleTransform.
                 Theme = new ControlTheme(typeof(Button))
                 {
                     Setters =
                     {
                         new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<DialogWindowControlButton>((_, _) =>
                         {
-                            var border = new Border { CornerRadius = new CornerRadius(UiMetrics.RadiusSm) };
-                            border[!Border.BackgroundProperty] = new TemplateBinding(TemplatedControl.BackgroundProperty);
-                            border[!Border.BorderBrushProperty] = new TemplateBinding(TemplatedControl.BorderBrushProperty);
+                            var diameter = UiMetrics.Scaled(CircleDiameter);
+
+                            var circle = new Border
+                            {
+                                Width = diameter,
+                                Height = diameter,
+                                CornerRadius = new CornerRadius(diameter / 2),
+                                HorizontalAlignment = HorizontalAlignment.Center,
+                                VerticalAlignment = VerticalAlignment.Center
+                            };
+                            circle[!Border.BackgroundProperty] = new TemplateBinding(TemplatedControl.BackgroundProperty);
+                            UiMetrics.AddBrushTransition(circle, background: true, border: false);
+
+                            _circleScale = new ScaleTransform();
+                            circle.RenderTransform = _circleScale;
+                            UiMetrics.AddScaleTransition(_circleScale, 90);
+
+                            // Кольцо фокуса: тонкая акцентная обводка вокруг круга.
+                            _focusRing = new Border
+                            {
+                                Width = diameter,
+                                Height = diameter,
+                                CornerRadius = new CornerRadius(diameter / 2),
+                                BorderThickness = new Thickness(1.5),
+                                BorderBrush = Brushes.Transparent,
+                                HorizontalAlignment = HorizontalAlignment.Center,
+                                VerticalAlignment = VerticalAlignment.Center,
+                                IsHitTestVisible = false
+                            };
+                            UiMetrics.AddBrushTransition(_focusRing, background: false, border: true);
+
                             var presenter = new ContentPresenter();
                             presenter[!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty);
                             presenter[!ContentPresenter.HorizontalContentAlignmentProperty] = new TemplateBinding(ContentControl.HorizontalContentAlignmentProperty);
                             presenter[!ContentPresenter.VerticalContentAlignmentProperty] = new TemplateBinding(ContentControl.VerticalContentAlignmentProperty);
-                            border.Child = presenter;
-                            return border;
+                            presenter.HorizontalAlignment = HorizontalAlignment.Center;
+                            presenter.VerticalAlignment = VerticalAlignment.Center;
+
+                            _glyphScale = new ScaleTransform();
+                            presenter.RenderTransform = _glyphScale;
+                            UiMetrics.AddScaleTransition(_glyphScale, 110);
+
+                            var root = new Grid();
+                            root.Children.Add(circle);
+                            root.Children.Add(_focusRing);
+                            root.Children.Add(presenter);
+                            return root;
                         }))
                     }
                 };
 
                 _glyph = new Avalonia.Controls.Shapes.Path
                 {
-                    Width = UiMetrics.Scaled(16),
-                    Height = UiMetrics.Scaled(16),
+                    Width = UiMetrics.Scaled(14),
+                    Height = UiMetrics.Scaled(14),
                     Stretch = Stretch.Uniform,
+                    StrokeThickness = _kind == DialogWindowControlKind.Close ? 1.7 : 2.0,
+                    StrokeLineCap = PenLineCap.Round,
+                    StrokeJoin = PenLineJoin.Round,
                     Data = StreamGeometry.Parse(_kind == DialogWindowControlKind.Close ? CloseData : MinimizeData)
                 };
                 Content = _glyph;
@@ -1170,9 +1224,10 @@ namespace Configuration_Management
                 if (_kind == DialogWindowControlKind.Close)
                     ThemeBrushes.Observe(this, "TextPrimaryColorBrush", b => { _baseGlyphBrush = b; ApplyState(); });
                 else
-                    ThemeBrushes.Bind(_glyph, Avalonia.Controls.Shapes.Path.FillProperty, "TextPrimaryColorBrush");
+                    ThemeBrushes.Bind(_glyph, Avalonia.Controls.Shapes.Path.StrokeProperty, "TextPrimaryColorBrush");
                 ThemeBrushes.Observe(this, "ItemHoverBrush", b => { _hoverBg = b; ApplyState(); });
                 ThemeBrushes.Observe(this, "AccentPressedBrush", b => { _pressedBg = b; ApplyState(); });
+                ThemeBrushes.Observe(this, "AccentBrush", b => { _accentBrush = b; ApplyState(); });
 
                 PointerEntered += (_, _) => { _hovered = true; ApplyState(); };
                 PointerExited += (_, _) => { _hovered = false; _pressed = false; ApplyState(); };
@@ -1180,6 +1235,7 @@ namespace Configuration_Management
                 PointerReleased += (_, _) => { _pressed = false; ApplyState(); };
                 PointerCaptureLost += (_, _) => { _pressed = false; ApplyState(); };
                 this.GetObservable(IsEnabledProperty).Subscribe(new BoolObserver(_ => ApplyState()));
+                this.GetObservable(IsKeyboardFocusWithinProperty).Subscribe(new BoolObserver(v => { _focused = v; ApplyState(); }));
 
                 ApplyState();
             }
@@ -1191,6 +1247,7 @@ namespace Configuration_Management
                     Opacity = 0.55;
                     Background = Brushes.Transparent;
                     BorderBrush = Brushes.Transparent;
+                    ApplyFeedback(disabled: true);
                     return;
                 }
 
@@ -1202,11 +1259,37 @@ namespace Configuration_Management
                     // Кнопка «закрыть»: красная подложка при наведении/нажатии, значок — белый.
                     var redActive = _pressed || _hovered;
                     Background = _pressed ? ClosePressedBrush : (_hovered ? CloseHoverBrush : Brushes.Transparent);
-                    _glyph.Fill = redActive ? Brushes.White : _baseGlyphBrush;
+                    _glyph.Stroke = redActive ? Brushes.White : _baseGlyphBrush;
                 }
                 else
                 {
                     Background = _pressed ? _pressedBg : (_hovered ? _hoverBg : Brushes.Transparent);
+                }
+
+                // Кольцо фокуса: акцентная обводка для клавиатурной навигации.
+                if (_focusRing is not null)
+                    _focusRing.BorderBrush = _focused ? _accentBrush : Brushes.Transparent;
+
+                ApplyFeedback(disabled: false);
+            }
+
+            /// <summary>
+            /// Тактильные отклики масштабом: лёгкое увеличение значка при наведении,
+            /// «пружинное» сжатие круга и значка при нажатии (см. WindowControlButton).
+            /// </summary>
+            private void ApplyFeedback(bool disabled)
+            {
+                if (_circleScale is not null)
+                {
+                    var c = disabled || _pressed ? 0.9 : 1.0;
+                    _circleScale.ScaleX = c;
+                    _circleScale.ScaleY = c;
+                }
+                if (_glyphScale is not null)
+                {
+                    var g = disabled ? 1.0 : _pressed ? 0.92 : _hovered ? 1.08 : 1.0;
+                    _glyphScale.ScaleX = g;
+                    _glyphScale.ScaleY = g;
                 }
             }
         }

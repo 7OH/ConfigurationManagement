@@ -190,6 +190,28 @@ namespace Configuration_Management.Controls
         }
 
         /// <summary>
+        /// Добавляет плавный переход масштаба к ScaleTransform (hover/press-отклик
+        /// кнопок управления окном и иконок). См. AddBrushTransition: на программном
+        /// рендере/в виртуализации плавность отключается (issue #153).
+        /// </summary>
+        public static void AddScaleTransition(ScaleTransform target, double durationMs = 100)
+        {
+            if (LinuxRendering.DisableAnimations)
+                return;
+            target.Transitions ??= new Transitions();
+            target.Transitions.Add(new DoubleTransition
+            {
+                Property = ScaleTransform.ScaleXProperty,
+                Duration = TimeSpan.FromMilliseconds(durationMs)
+            });
+            target.Transitions.Add(new DoubleTransition
+            {
+                Property = ScaleTransform.ScaleYProperty,
+                Duration = TimeSpan.FromMilliseconds(durationMs)
+            });
+        }
+
+        /// <summary>
         /// Наблюдатель, который по значению ресурса-кисти строит мягкую полупрозрачную тень
         /// и применяет её к целевому Border.
         /// </summary>
