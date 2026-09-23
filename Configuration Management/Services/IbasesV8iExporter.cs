@@ -163,10 +163,13 @@ public static class IbasesV8iExporter
             $"групп-секций в файле: [{string.Join("; ", canonicalGroupPaths)}]");
 
         // Сериализуем полный список записей, сохраняя порядок секций файла.
+        // Пустая строка-разделитель между секциями не добавляется (issue #277):
+        // тело каждой секции заканчивается переводом строки, поэтому следующая
+        // секция начинается сразу после последней строки предыдущей.
         var sb = new StringBuilder();
-        for (var i = 0; i < entries.Count; i++)
+        foreach (var entry in entries)
         {
-            WriteEntry(sb, entries[i], i == 0);
+            WriteEntry(sb, entry);
         }
 
         var dir = Path.GetDirectoryName(filePath);
@@ -242,9 +245,9 @@ public static class IbasesV8iExporter
         entries = NormalizeAndDedupeGroupSections(entries, groupList);
 
         var sb = new StringBuilder();
-        for (var i = 0; i < entries.Count; i++)
+        foreach (var entry in entries)
         {
-            WriteEntry(sb, entries[i], i == 0);
+            WriteEntry(sb, entry);
         }
 
         var dir = Path.GetDirectoryName(filePath);
@@ -634,18 +637,14 @@ public static class IbasesV8iExporter
     /// порядок строк секции: значения управляемых ключей обновляются на своих местах,
     /// отсутствующие добавляются в каноническом порядке в конец, а пустые строки и
     /// неизвестные ключи переносятся дословно (<see cref="IbaseEntry.WriteBodyTo"/>,
-    /// issue #277).
+    /// issue #277). Пустая строка-разделитель между секциями НЕ вставляется (issue #277):
+    /// тело секции заканчивается переводом строки, поэтому следующая секция начинается
+    /// сразу после последней строки предыдущей — как это делает стартер 1С.
     /// </summary>
     /// <param name="sb">Приёмник текста.</param>
     /// <param name="entry">Запись файла.</param>
-    /// <param name="isFirst">true для первой записи файла (разделитель не нужен).</param>
-    private static void WriteEntry(StringBuilder sb, IbaseEntry entry, bool isFirst)
+    private static void WriteEntry(StringBuilder sb, IbaseEntry entry)
     {
-        if (!isFirst)
-        {
-            sb.AppendLine();
-        }
-
         sb.Append('[').Append(entry.Name).AppendLine("]");
         entry.WriteBodyTo(sb);
     }

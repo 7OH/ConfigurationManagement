@@ -557,8 +557,9 @@ public sealed class IbasesV8iExporterTests
     [Fact]
     public void Export_PreservesSectionOrderAndBlankLines()
     {
-        // Сценарий issue #277: порядок секций файла и пустые строки (внутри секции и
-        // между секциями) должны сохраняться при пересохранении.
+        // Сценарий issue #277: порядок секций файла и пустые строки ВНУТРИ секции
+        // сохраняются при пересохранении; пустая строка-разделитель между секциями
+        // больше не добавляется (стартер 1С удаляет её при старте).
         var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
         try
         {
@@ -610,10 +611,14 @@ public sealed class IbasesV8iExporterTests
                 "Custom=KeepMe"
             }, alpha);
 
-            // Между секциями — ровно одна пустая строка (разделитель).
+            // Между секциями пустая строка-разделитель не добавляется (issue #277):
+            // следующая секция начинается сразу после последней строки предыдущей.
             Assert.True(content.Contains(
-                "Custom=KeepMe" + Environment.NewLine + Environment.NewLine + "[Bravo]",
+                "Custom=KeepMe" + Environment.NewLine + "[Bravo]",
                 StringComparison.Ordinal));
+            Assert.DoesNotContain(
+                "Custom=KeepMe" + Environment.NewLine + Environment.NewLine + "[Bravo]",
+                content);
         }
         finally
         {
@@ -929,6 +934,183 @@ public sealed class IbasesV8iExporterTests
             }, lines);
             Assert.DoesNotContain("App=", content);
             Assert.DoesNotContain("DefaultApp=", content);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_NoBlankLinesBetweenSections_RemainsWithoutBlankLines()
+    {
+        // Сценарий issue #277: файл, в котором секции идут подряд без пустых строк,
+        // при экспорте не должен получать пустые строки-разделители между секциями.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Alpha]
+                ID=a1
+                Connect=File="C:\alpha";
+                [Bravo]
+                ID=b1
+                Connect=File="C:\bravo";
+                [Gamma]
+                ID=g1
+                Connect=File="C:\gamma";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new() { Id = "a1", Name = "Alpha", Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\alpha" } },
+                new() { Id = "b1", Name = "Bravo", Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\bravo" } },
+                new() { Id = "g1", Name = "Gamma", Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\gamma" } }
+            };
+
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+
+            // Пустых строк нет нигде (ни внутри секций, ни между ними).
+            Assert.DoesNotContain(Environment.NewLine + Environment.NewLine, content);
+
+            // Порядок секций сохранён.
+            Assert.True(content.IndexOf("[Alpha]", StringComparison.Ordinal) <
+                        content.IndexOf("[Bravo]", StringComparison.Ordinal));
+            Assert.True(content.IndexOf("[Bravo]", StringComparison.Ordinal) <
+                        content.IndexOf("[Gamma]", StringComparison.Ordinal));
+
+            // Повторный экспорт не должен менять файл (идемпотентность).
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            Assert.Equal(content, File.ReadAllText(filePath, Encoding.Default));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_AddNewInfobase_NoBlankLineBeforeNewSection()
+    {
+        // Сценарий issue #277: новая база дописывается в конец файла сразу после
+        // последней строки предыдущей секции — без пустой строки-разделителя.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Existing]
+                ID=existing-id
+                Connect=File="C:\existing";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new() { Id = "existing-id", Name = "Existing", Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\existing" } },
+                new() { Id = "new-id", Name = "NewBase", Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\new" } }
+            };
+
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+
+            // Новая секция идёт сразу после последней строки существующей, без пустой строки.
+            Assert.Contains("Connect=File=\"C:\\existing\";" + Environment.NewLine + "[NewBase]", content);
+            Assert.DoesNotContain(Environment.NewLine + Environment.NewLine, content);
+
+            // Повторный экспорт не должен менять файл (идемпотентность).
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            Assert.Equal(content, File.ReadAllText(filePath, Encoding.Default));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void AddInfobasesToFile_AppendsNewSection_WithoutBlankLine()
+    {
+        // Сценарий issue #277 на пути AddInfobasesToFile: новая база дописывается в конец
+        // без пустой строки перед секцией, чужие записи файла сохраняются.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Existing]
+                ID=existing-id
+                Connect=File="C:\existing";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new() { Id = "new-id", Name = "NewBase", Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\new" } }
+            };
+
+            IbasesV8iExporter.AddInfobasesToFile(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+
+            // Существующая запись сохранена, новая дописана без пустой строки-разделителя.
+            Assert.Contains("[Existing]", content);
+            Assert.Contains("Connect=File=\"C:\\existing\";" + Environment.NewLine + "[NewBase]", content);
+            Assert.DoesNotContain(Environment.NewLine + Environment.NewLine, content);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_PreservesBlankLinesInsideSection_DropsSectionSeparators()
+    {
+        // Сценарий issue #277: пустая строка ВНУТРИ секции сохраняется дословно, а
+        // пустые строки-разделители между секциями не восстанавливаются (стартер 1С
+        // удаляет их при старте).
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Alpha]
+                ID=a1
+                Connect=File="C:\alpha";
+
+                Custom=KeepMe
+
+                [Bravo]
+                ID=b1
+                Connect=File="C:\bravo";
+                """, Encoding.Default);
+
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new() { Id = "a1", Name = "Alpha", Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\alpha" } },
+                new() { Id = "b1", Name = "Bravo", Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\bravo" } }
+            };
+
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            var content = File.ReadAllText(filePath, Encoding.Default);
+
+            // Пустая строка внутри секции Alpha сохранена дословно.
+            var alpha = GetSectionLines(content, "Alpha");
+            Assert.Equal(new[]
+            {
+                "[Alpha]",
+                "ID=a1",
+                "Connect=File=\"C:\\alpha\";",
+                "",
+                "Custom=KeepMe"
+            }, alpha);
+
+            // Пустой строки-разделителя между секциями нет.
+            Assert.Contains("Custom=KeepMe" + Environment.NewLine + "[Bravo]", content);
+
+            // Повторный экспорт не должен менять файл (идемпотентность).
+            IbasesV8iExporter.Export(filePath, infobases, groups);
+            Assert.Equal(content, File.ReadAllText(filePath, Encoding.Default));
         }
         finally
         {
