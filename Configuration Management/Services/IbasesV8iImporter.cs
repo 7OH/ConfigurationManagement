@@ -32,7 +32,8 @@ public static class IbasesV8iImporter
 {
     /// <summary>
     /// Считывает список баз из файла ibases.v8i, добавляет новые базы в коллекцию,
-    /// обновляет существующие (по совпадению имени) и создаёт недостающие группы.
+    /// обновляет существующие (по совпадению ID 1С, иначе — по имени) и создаёт
+    /// недостающие группы.
     /// </summary>
     /// <param name="filePath">Путь к файлу ibases.v8i.</param>
     /// <param name="infobases">Коллекция баз, в которую выполняется импорт.</param>
@@ -45,7 +46,7 @@ public static class IbasesV8iImporter
         if (!File.Exists(filePath))
             return result;
 
-        var entries = Parse(filePath);
+        var entries = IbaseEntry.Parse(filePath);
 
         // В штатном ibases.v8i Folder — абсолютный путь с ведущим «/» и прямыми
         // слешами. Старые ошибочные варианты и ссылки по имени тоже нормализуем.
@@ -102,13 +103,18 @@ public static class IbasesV8iImporter
             }
             else
             {
-                // Существующая база — обновляем настройки подключения, группу, ID базы 1С,
+                // Существующая база — обновляем настройки подключения, группу, имя, ID базы 1С,
                 // версию платформы и режим запуска. Логин/пароль из приложения сохраняем,
                 // если в файле они пустые (ibases.v8i часто не хранит пароль).
                 var imported = entry.ToInfobase();
                 var prevUser = existing.Connection?.User ?? string.Empty;
                 var prevPassword = existing.Connection?.Password ?? string.Empty;
                 var prevAuth = existing.Connection?.AuthenticationMode ?? AuthenticationMode.Prompt;
+
+                // Имя возвращаем из файла (issue #278): после ручного восстановления ibases.v8i
+                // база в приложении должна снова называться как в файле — «информация приезжает
+                // обратно». База уже сопоставлена по ID выше, поэтому переименование не создаёт дубль.
+                existing.Name = entry.Name;
 
                 existing.Connection = imported.Connection;
                 if (string.IsNullOrWhiteSpace(existing.Connection.User) && !string.IsNullOrWhiteSpace(prevUser))
@@ -644,7 +650,7 @@ public static class IbasesV8iImporter
             return 0;
 
         var result = new IbasesImportResult();
-        EnsureGroups(Parse(filePath), groups, result);
+        EnsureGroups(IbaseEntry.Parse(filePath), groups, result);
         return result.GroupsCreated;
     }
 
@@ -661,7 +667,7 @@ public static class IbasesV8iImporter
         if (!File.Exists(filePath))
             return new List<Infobase>();
 
-        return Parse(filePath)
+        return IbaseEntry.Parse(filePath)
             .Where(e => !e.IsGroup && e.Enabled)
             .Select(e => e.ToInfobase())
             .ToList();
@@ -725,7 +731,7 @@ public static class IbasesV8iImporter
         if (filePath is null)
             return null;
 
-        var entries = Parse(filePath);
+        var entries = IbaseEntry.Parse(filePath);
 
         // 1. Поиск по имени базы.
         if (!string.IsNullOrWhiteSpace(name))
@@ -771,92 +777,14 @@ public static class IbasesV8iImporter
     }
 
     /// <summary>
-    /// Разбирает файл ibases.v8i на список записей баз.
-    /// </summary>
-    private static List<IbaseEntry> Parse(string filePath)
-    {
-        var entries = new List<IbaseEntry>();
-        IbaseEntry? current = null;
-
-        foreach (var rawLine in File.ReadAllLines(filePath, Encoding.Default))
-        {
-            var line = rawLine.Trim();
-            if (line.Length == 0)
-                continue;
-
-            // Секция базы: [Имя базы]
-            if (line.StartsWith("[") && line.EndsWith("]"))
-            {
-                current = new IbaseEntry { Name = line.Substring(1, line.Length - 2).Trim() };
-                entries.Add(current);
-                continue;
-            }
-
-            if (current is null)
-                continue;
-
-            var eqIndex = line.IndexOf('=');
-            if (eqIndex < 0)
-                continue;
-
-            var key = line.Substring(0, eqIndex).Trim();
-            var value = line.Substring(eqIndex + 1).Trim();
-
-            switch (key)
-            {
-                case "Connect":
-                    current.Connect = value;
-                    break;
-                case "Folder":
-                    current.Group = value;
-                    break;
-                case "Enable":
-                    current.Enabled = ParseBool(value);
-                    break;
-                case "ID":
-                    current.Id = value;
-                    break;
-                case "App":
-                    current.App = value;
-                    break;
-                case "DefaultApp":
-                    current.DefaultApp = value;
-                    break;
-                case "Version":
-                    current.Version = value;
-                    break;
-                case "Locale":
-                    current.Locale = value;
-                    break;
-                case "External":
-                    current.External = ParseBool(value);
-                    break;
-                case "ClientConnectionSpeed":
-                    current.ClientConnectionSpeed = value;
-                    break;
-                case "AdditionalParameters":
-                    current.AdditionalParameters = value;
-                    break;
-            }
-        }
-
-        return entries;
-    }
-
-    private static bool ParseBool(string value)
-    {
-        return value.Trim() switch
-        {
-            "1" => true,
-            "0" => false,
-            _ => bool.TryParse(value, out var b) && b
-        };
-    }
-
-    /// <summary>
     /// Нормализует путь группы: обрезает пробелы вокруг разделителей "/" и "\",
     /// но сохраняет иерархию пути.
     /// </summary>
+    /// <remarks>
+    /// Разбор файла ibases.v8i выполняется общей реализацией <see cref="IbaseEntry.Parse"/>,
+    /// используемой и экспортёром, и импортёром, — ни один из путей не теряет ключи
+    /// и исходный порядок строк секций (issue #277).
+    /// </remarks>
     private static string NormalizeGroupPath(string group)
     {
         var segments = SplitGroupPath(group);
@@ -883,238 +811,4 @@ public static class IbasesV8iImporter
         }
     }
 
-    /// <summary>
-    /// Внутреннее представление записи базы из файла ibases.v8i.
-    /// </summary>
-    private sealed class IbaseEntry
-    {
-        public string Name { get; set; } = string.Empty;
-        public string Connect { get; set; } = string.Empty;
-        public string Group { get; set; } = string.Empty;
-        public bool Enabled { get; set; } = true;
-        public string Id { get; set; } = string.Empty;
-
-        /// <summary>Режим запуска из файла ibases.v8i (Auto, ThinClient, ThickClient, WebClient).</summary>
-        public string App { get; set; } = string.Empty;
-
-        /// <summary>Режим запуска по умолчанию из файла ibases.v8i (DefaultApp).</summary>
-        public string DefaultApp { get; set; } = string.Empty;
-
-        /// <summary>Версия платформы 1С.</summary>
-        public string Version { get; set; } = string.Empty;
-
-        /// <summary>Локаль базы.</summary>
-        public string Locale { get; set; } = string.Empty;
-
-        /// <summary>Признак внешней базы.</summary>
-        public bool External { get; set; }
-
-        /// <summary>Скорость соединения клиента (Normal, Fast, Slow).</summary>
-        public string ClientConnectionSpeed { get; set; } = string.Empty;
-
-        /// <summary>Дополнительные параметры подключения (AdditionalParameters).</summary>
-        public string AdditionalParameters { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Признак того, что запись является группой, а не базой.
-        /// Группа — это секция без строки подключения (Connect).
-        /// </summary>
-        public bool IsGroup => string.IsNullOrWhiteSpace(Connect);
-
-        /// <summary>
-        /// Преобразует запись в модель Infobase, разбирая строку подключения.
-        /// Версия очищается от суффикса разрядности «(32)/(64)», а разрядность
-        /// сохраняется в отдельное поле Architecture.
-        /// </summary>
-        public Infobase ToInfobase()
-        {
-            var connection = ParseConnection(Connect);
-
-            var version = Version;
-            var architecture = string.Empty;
-            var end = Version.LastIndexOf(')');
-            var start = Version.LastIndexOf('(');
-            if (end >= 0 && start >= 0 && start < end)
-            {
-                var arch = Version.Substring(start + 1, end - start - 1).Trim();
-                if (arch == "32" || arch == "64")
-                {
-                    architecture = arch;
-                    var clean = Version.Substring(0, start).Trim();
-                    if (!string.IsNullOrWhiteSpace(clean))
-                        version = clean;
-                }
-            }
-
-            return new Infobase
-            {
-                Name = Name,
-                Group = NormalizeGroupPath(Group),
-                Connection = connection,
-                PlatformVersion = version,
-                Architecture = architecture,
-                LaunchMode = MapLaunchMode(App, DefaultApp),
-                LaunchParameters = AdditionalParameters,
-                Description = string.Empty,
-                Id = Id
-            };
-        }
-
-        /// <summary>
-        /// Преобразует значения ключей App и DefaultApp из ibases.v8i в режим запуска приложения.
-        /// Приоритет отдаётся явно заданному значению App. Если App не задан или равен Auto,
-        /// используется режим запуска по умолчанию (DefaultApp). Признак WA (доступность
-        /// веб-клиента) не влияет на режим запуска.
-        /// </summary>
-        private static string MapLaunchMode(string app, string defaultApp)
-        {
-            // Явно заданный режим запуска имеет приоритет.
-            var mapped = MapSingleLaunchMode(app);
-            if (mapped != null)
-                return mapped;
-
-            // App не задан или равен Auto — используем режим запуска по умолчанию (DefaultApp).
-            mapped = MapSingleLaunchMode(defaultApp);
-            if (mapped != null)
-                return mapped;
-
-            return "Автоматический";
-        }
-
-        /// <summary>
-        /// Сопоставляет одно значение ключа App/DefaultApp из ibases.v8i каноническому
-        /// русскому режиму запуска. Возвращает null, если значение не распознано
-        /// (пусто, Auto или иное) — в этом случае применяется режим по умолчанию.
-        /// Канонические значения используются для хранения и сравнения и НЕ локализуются.
-        /// </summary>
-        private static string? MapSingleLaunchMode(string value)
-        {
-            return value.Trim().ToLowerInvariant() switch
-            {
-                "thinclient" => "Тонкий клиент",
-                "thickclient" => "Толстый клиент",
-                "webclient" => "Веб-клиент",
-                _ => null
-            };
-        }
-
-        /// <summary>
-        /// Разбирает строку подключения 1С вида:
-        /// File="C:\path"  или  Srvr="server";Ref="base";Usr="user";Pwd="pass"
-        /// </summary>
-        private static ConnectionSettings ParseConnection(string connect)
-        {
-            var settings = new ConnectionSettings();
-
-            if (string.IsNullOrWhiteSpace(connect))
-                return settings;
-
-            // Файловый режим.
-            var fileMatch = ExtractQuoted(connect, "File");
-            if (fileMatch != null)
-            {
-                settings.Type = ConnectionType.File;
-                settings.FilePath = fileMatch;
-                return settings;
-            }
-
-            // Клиент-серверный / веб-режим.
-            var wsMatch = ExtractQuoted(connect, "WS");
-            if (wsMatch != null)
-            {
-                settings.Type = ConnectionType.WebServer;
-                settings.WebUrl = wsMatch;
-                return settings;
-            }
-
-            settings.Type = ConnectionType.ClientServer;
-            // Srvr может быть «host» или «host:port» — порт выносим в отдельное поле.
-            ConnectionSettings.ParseServerAndPort(ExtractQuoted(connect, "Srvr"), settings);
-            settings.DatabaseName = ExtractQuoted(connect, "Ref") ?? string.Empty;
-            settings.User = ExtractQuoted(connect, "Usr") ?? string.Empty;
-            settings.Password = ExtractQuoted(connect, "Pwd") ?? string.Empty;
-            // Не сбрасываем режим аутентификации в Windows только из-за пустого Usr:
-            // в ibases.v8i логин часто отсутствует, а вход запрашивается платформой.
-            if (!string.IsNullOrEmpty(settings.User))
-                settings.AuthenticationMode = AuthenticationMode.Credentials;
-            else
-                settings.AuthenticationMode = AuthenticationMode.Prompt;
-
-            return settings;
-        }
-
-        /// <summary>
-        /// Извлекает значение параметра из строки подключения.
-        /// Например, для "Srvr=\"server\"" вернёт "server".
-        /// Поддерживает пробелы вокруг знака "=" и значения без кавычек.
-        /// </summary>
-        private static string? ExtractQuoted(string source, string key)
-        {
-            // Ищем ключ с возможными пробелами вокруг знака "=".
-            var marker = key + "=";
-            var idx = source.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-            if (idx < 0)
-            {
-                // Пробуем вариант с пробелом перед "=" (например, "Srv = \"server\"").
-                var spacedMarker = key + " =";
-                idx = source.IndexOf(spacedMarker, StringComparison.OrdinalIgnoreCase);
-                if (idx < 0)
-                    return null;
-                idx += spacedMarker.Length - 1; // указываем на "="
-            }
-            else
-            {
-                idx += marker.Length - 1; // указываем на "="
-            }
-
-            var start = idx + 1; // сразу после "="
-            if (start >= source.Length)
-                return null;
-
-            // Пропускаем пробелы.
-            while (start < source.Length && source[start] == ' ')
-                start++;
-
-            if (start >= source.Length)
-                return null;
-
-            // Значение в кавычках. Удвоенная кавычка («""») внутри значения — это экранированная
-            // кавычка (симметрично записи экспортёром); одиночная кавычка закрывает значение.
-            if (source[start] == '"')
-            {
-                var sb = new System.Text.StringBuilder();
-                var i = start + 1;
-                while (i < source.Length)
-                {
-                    if (source[i] == '"')
-                    {
-                        // Удвоенная кавычка — экранированная кавычка внутри значения.
-                        if (i + 1 < source.Length && source[i + 1] == '"')
-                        {
-                            sb.Append('"');
-                            i += 2;
-                            continue;
-                        }
-                        // Одиночная кавычка закрывает значение.
-                        break;
-                    }
-                    sb.Append(source[i]);
-                    i++;
-                }
-
-                // Дошли до конца строки, не встретив закрывающей кавычки.
-                if (i >= source.Length)
-                    return null;
-
-                return sb.ToString();
-            }
-
-            // Значение без кавычек — до точки с запятой или конца строки.
-            var valueEnd = source.IndexOf(';', start);
-            if (valueEnd < 0)
-                valueEnd = source.Length;
-
-            return source.Substring(start, valueEnd - start).Trim();
-        }
-    }
 }

@@ -46,7 +46,7 @@ public static class IbasesV8iExporter
 
         // Существующие записи файла. Читаем файл, чтобы не затирать данные,
         // которых нет в приложении.
-        var entries = File.Exists(filePath) ? Parse(filePath) : new List<IbaseEntry>();
+        var entries = File.Exists(filePath) ? IbaseEntry.Parse(filePath) : new List<IbaseEntry>();
 
         // Существующие базы по имени и по ID 1С (для обновления на месте). Матчинг по ID —
         // основной (issue #278): база может быть переименована в приложении, а в файле
@@ -92,6 +92,14 @@ public static class IbasesV8iExporter
         var appNames = new HashSet<string>(
             infobaseList.Where(b => !string.IsNullOrWhiteSpace(b.Name)).Select(b => b.Name),
             StringComparer.OrdinalIgnoreCase);
+        // ID 1С баз приложения — дополнительный критерий сохранения записи: секцию файла,
+        // чей ID присутствует в приложении, НЕ удаляем, даже если её имя не совпадает ни с
+        // одним именем базы приложения (база могла быть переименована в приложении, а запись
+        // в файле после ручного восстановления остаться под старым именем с тем же ID,
+        // issue #278). Запись, обновлённая по ID на предыдущем шаге, уже переименована.
+        var appIds = new HashSet<string>(
+            infobaseList.Where(b => !string.IsNullOrWhiteSpace(b.Id)).Select(b => b.Id.Trim()),
+            StringComparer.OrdinalIgnoreCase);
         var kept = new List<IbaseEntry>(entries.Count);
         foreach (var entry in entries)
         {
@@ -102,6 +110,12 @@ public static class IbasesV8iExporter
             }
             if (appNames.Contains(entry.Name))
             {
+                kept.Add(entry);
+                continue;
+            }
+            if (!string.IsNullOrWhiteSpace(entry.Id) && appIds.Contains(entry.Id.Trim()))
+            {
+                // Запись совпала с базой приложения по ID — сохраняем (имя может отличаться).
                 kept.Add(entry);
                 continue;
             }
@@ -148,11 +162,11 @@ public static class IbasesV8iExporter
             $"устранено дубликатов групп-секций {groupDupesRemoved}, " +
             $"групп-секций в файле: [{string.Join("; ", canonicalGroupPaths)}]");
 
-        // Сериализуем полный список записей.
+        // Сериализуем полный список записей, сохраняя порядок секций файла.
         var sb = new StringBuilder();
-        foreach (var entry in entries)
+        for (var i = 0; i < entries.Count; i++)
         {
-            WriteEntry(sb, entry);
+            WriteEntry(sb, entries[i], i == 0);
         }
 
         var dir = Path.GetDirectoryName(filePath);
@@ -182,7 +196,7 @@ public static class IbasesV8iExporter
 
         // Существующие записи файла. Если файла нет — начинаем с пустого списка,
         // чтобы добавить только выбранные базы и не затирать потенциально чужие данные.
-        var entries = File.Exists(filePath) ? Parse(filePath) : new List<IbaseEntry>();
+        var entries = File.Exists(filePath) ? IbaseEntry.Parse(filePath) : new List<IbaseEntry>();
 
         // Существующие базы по имени и по ID 1С (для обновления на месте). Матчинг по ID —
         // основной (issue #278), по имени — fallback.
@@ -228,9 +242,9 @@ public static class IbasesV8iExporter
         entries = NormalizeAndDedupeGroupSections(entries, groupList);
 
         var sb = new StringBuilder();
-        foreach (var entry in entries)
+        for (var i = 0; i < entries.Count; i++)
         {
-            WriteEntry(sb, entry);
+            WriteEntry(sb, entries[i], i == 0);
         }
 
         var dir = Path.GetDirectoryName(filePath);
@@ -263,10 +277,11 @@ public static class IbasesV8iExporter
     }
 
     /// <summary>
-    /// Переносит значения из новой записи в существующую, сохраняя позицию и неизвестные
-    /// ключи (<see cref="IbaseEntry.ExtraKeys"/>) последней (issue #277). При смене имени
-    /// базы (матчинг по ID, issue #278) переименовывает секцию в файле и обновляет индекс
-    /// по имени, чтобы не создавался дубль со старым именем.
+    /// Переносит значения из новой записи в существующую, сохраняя позицию секции и
+    /// исходный порядок строк (включая пустые строки и неизвестные ключи, хранящиеся в
+    /// <see cref="IbaseEntry.Lines"/>) — обновление значений происходит при записи на своих
+    /// местах (issue #277). При смене имени базы (матчинг по ID, issue #278) переименовывает
+    /// секцию в файле и обновляет индекс по имени, чтобы не создавался дубль со старым именем.
     /// </summary>
     private static void ApplyEntryUpdate(
         IbaseEntry existing,
@@ -612,149 +627,23 @@ public static class IbasesV8iExporter
     }
 
     /// <summary>
-    /// Записывает запись в StringBuilder в формате секции ibases.v8i.
+    /// Записывает запись в StringBuilder в формате секции ibases.v8i, сохраняя исходный
+    /// порядок строк секции: значения управляемых ключей обновляются на своих местах,
+    /// отсутствующие добавляются в каноническом порядке в конец, а пустые строки и
+    /// неизвестные ключи переносятся дословно (<see cref="IbaseEntry.WriteBodyTo"/>,
+    /// issue #277).
     /// </summary>
-    private static void WriteEntry(StringBuilder sb, IbaseEntry entry)
+    /// <param name="sb">Приёмник текста.</param>
+    /// <param name="entry">Запись файла.</param>
+    /// <param name="isFirst">true для первой записи файла (разделитель не нужен).</param>
+    private static void WriteEntry(StringBuilder sb, IbaseEntry entry, bool isFirst)
     {
-        if (sb.Length > 0)
+        if (!isFirst)
         {
             sb.AppendLine();
         }
 
         sb.Append('[').Append(entry.Name).AppendLine("]");
-
-        if (!string.IsNullOrWhiteSpace(entry.Id))
-        {
-            sb.Append("ID=").AppendLine(entry.Id);
-        }
-        if (!entry.Enabled)
-        {
-            sb.Append("Enable=0").AppendLine();
-        }
-        if (!string.IsNullOrWhiteSpace(entry.Group))
-        {
-            sb.Append("Folder=").AppendLine(entry.Group);
-        }
-        if (!string.IsNullOrWhiteSpace(entry.Connect))
-        {
-            sb.Append("Connect=").AppendLine(entry.Connect);
-        }
-        if (!string.IsNullOrWhiteSpace(entry.App))
-        {
-            sb.Append("App=").AppendLine(entry.App);
-        }
-        if (!string.IsNullOrWhiteSpace(entry.DefaultApp))
-        {
-            sb.Append("DefaultApp=").AppendLine(entry.DefaultApp);
-        }
-        if (!string.IsNullOrWhiteSpace(entry.Version))
-        {
-            sb.Append("Version=").AppendLine(entry.Version);
-        }
-        if (!string.IsNullOrWhiteSpace(entry.AdditionalParameters))
-        {
-            sb.Append("AdditionalParameters=").AppendLine(entry.AdditionalParameters);
-        }
-
-        // Сохраняем неизвестные ключи секции (в т.ч. OrderInList, OrderInTree, External,
-        // WA, DisableLocalSpeechToText и пользовательские) в исходном порядке — без потерь
-        // (issue #277).
-        foreach (var extra in entry.ExtraKeys)
-        {
-            sb.Append(extra.Key).Append('=').AppendLine(extra.Value);
-        }
-    }
-
-    /// <summary>
-    /// Разбирает файл ibases.v8i на список записей (используется для чтения существующего файла).
-    /// </summary>
-    private static List<IbaseEntry> Parse(string filePath)
-    {
-        var entries = new List<IbaseEntry>();
-        IbaseEntry? current = null;
-
-        foreach (var rawLine in File.ReadAllLines(filePath, Encoding.Default))
-        {
-            var line = rawLine.Trim();
-            if (line.Length == 0)
-                continue;
-
-            if (line.StartsWith("[") && line.EndsWith("]"))
-            {
-                current = new IbaseEntry { Name = line.Substring(1, line.Length - 2).Trim() };
-                entries.Add(current);
-                continue;
-            }
-
-            if (current is null)
-                continue;
-
-            var eqIndex = line.IndexOf('=');
-            if (eqIndex < 0)
-                continue;
-
-            var key = line.Substring(0, eqIndex).Trim();
-            var value = line.Substring(eqIndex + 1).Trim();
-
-            switch (key)
-            {
-                case "Connect":
-                    current.Connect = value;
-                    break;
-                case "Folder":
-                    current.Group = value;
-                    break;
-                case "Enable":
-                    current.Enabled = value.Trim() != "0";
-                    break;
-                case "ID":
-                    current.Id = value;
-                    break;
-                case "App":
-                    current.App = value;
-                    break;
-                case "DefaultApp":
-                    current.DefaultApp = value;
-                    break;
-                case "Version":
-                    current.Version = value;
-                    break;
-                case "AdditionalParameters":
-                    current.AdditionalParameters = value;
-                    break;
-                default:
-                    // Неизвестный ключ — сохраняем «как есть» для lossless round-trip
-                    // (issue #277), чтобы экспорт не терял пользовательские данные.
-                    current.ExtraKeys.Add(new KeyValuePair<string, string>(key, value));
-                    break;
-            }
-        }
-
-        return entries;
-    }
-
-    /// <summary>
-    /// Внутреннее представление записи базы из файла ibases.v8i.
-    /// </summary>
-    private sealed class IbaseEntry
-    {
-        public string Name { get; set; } = string.Empty;
-        public string Connect { get; set; } = string.Empty;
-        public string Group { get; set; } = string.Empty;
-        public bool Enabled { get; set; } = true;
-        public string Id { get; set; } = string.Empty;
-        public string App { get; set; } = string.Empty;
-        public string DefaultApp { get; set; } = string.Empty;
-        public string Version { get; set; } = string.Empty;
-        public string AdditionalParameters { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Неизвестные ключи секции (не распознанные <see cref="Parse"/>) в исходном
-        /// порядке. Сохраняются при перезаписи файла, чтобы экспорт не терял
-        /// пользовательские данные (issue #277).
-        /// </summary>
-        public List<KeyValuePair<string, string>> ExtraKeys { get; } = new();
-
-        public bool IsGroup => string.IsNullOrWhiteSpace(Connect);
+        entry.WriteBodyTo(sb);
     }
 }
