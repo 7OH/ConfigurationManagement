@@ -155,6 +155,12 @@ namespace Configuration_Management
             Loaded += OnWindowLoaded;
             KeyDown += OnWindowKeyDown;
 
+            // Регистрируем общий механизм закрытия подсказок (issue #270): глобальный реестр
+            // открытых тултипов/пользовательских Popup/ContextMenu для всех окон Avalonia,
+            // единый диагностический трейс CM_TOOLTIP_TRACE. Регистрация идемпотентна —
+            // повторные вызовы из диалогов (ModalWindowBase) безопасны.
+            ToolTipCloserAvalonia.Register();
+
             // ESC закрывает открытую подсказку (issue #261). Обрабатываем его на фазе
             // туннелирования (Preview): к моменту всплывающей фазы ToolTip.GetIsOpen на
             // элементе может быть уже сброшен (таймер показа/оверлейный попап), и открытая
@@ -188,10 +194,13 @@ namespace Configuration_Management
             Activated += (_, _) => ApplyTitleBarAppearance(true);
             // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное меню:
             // при клике в другое окно/приложение открытый тултип исчезает, а не «висит» поверх.
+            // Закрытие идёт через общий механизм ToolTipCloserAvalonia.CloseAll (issue #270) —
+            // единая точка с общим трейсом для главного окна и диалогов.
             Deactivated += (_, _) =>
             {
                 ApplyTitleBarAppearance(false);
-                CloseOpenToolTips();
+                ToolTipCloserAvalonia.TraceLog("MainWindow.Deactivated: окно потеряло фокус");
+                ToolTipCloserAvalonia.CloseAll();
             };
 
             // Геометрия обычного состояния запоминается на ходу: у Avalonia нет

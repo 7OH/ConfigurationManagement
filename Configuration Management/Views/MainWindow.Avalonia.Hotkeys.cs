@@ -196,14 +196,20 @@ namespace Configuration_Management
         /// Срабатывает раньше всплывающего <see cref="OnWindowKeyDown"/>, пока на элементе
         /// ещё стоит ToolTip.GetIsOpen == true. Если подсказка закрыта — событие помечается
         /// обработанным, и окно на этом же ESC в трей не уходит (второй ESC уже сворачивает).
+        /// Основной путь — общий механизм <see cref="ToolTipCloserAvalonia.CloseAll"/> (issue
+        /// #270, единый реестр и трейс для всех окон); собственные
+        /// <see cref="CloseOpenToolTips"/>/<see cref="CloseOpenPopups"/> оставлены резервом.
         /// </summary>
         private void OnPreviewKeyDownCloseToolTips(object? sender, KeyEventArgs e)
         {
             if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None)
                 return;
 
-            if (CloseOpenToolTips())
+            if (ToolTipCloserAvalonia.CloseAll() || CloseOpenToolTips() || CloseOpenPopups())
+            {
+                ToolTipCloserAvalonia.TraceLog("MainWindow.OnPreviewKeyDownCloseToolTips: первый ESC закрыл подсказки");
                 e.Handled = true;
+            }
         }
 
         private void OnWindowKeyDown(object? sender, KeyEventArgs e)
@@ -325,9 +331,11 @@ namespace Configuration_Management
             // Сначала закрываем открытую подсказку и пользовательские Popup/оверлеи главного окна
             // (issue #261): первый ESC прячет элемент, а не уводит окно в трей. Иначе окно
             // сворачивается, а всплывающий элемент остаётся «висеть». После закрытия модального
-            // диалога (ветка выше) не трогаем.
+            // диалога (ветка выше) не трогаем. Основной путь — общий механизм
+            // ToolTipCloserAvalonia.CloseAll (issue #270); собственные CloseOpenToolTips/
+            // CloseOpenPopups оставлены резервом для совместимости с текущим поведением.
             if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None
-                && (CloseOpenToolTips() || CloseOpenPopups()))
+                && (ToolTipCloserAvalonia.CloseAll() || CloseOpenToolTips() || CloseOpenPopups()))
             {
                 e.Handled = true;
                 return;

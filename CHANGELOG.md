@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.33] — 2026-09-23
+
+### Исправления
+
+- **На Linux подсказки теперь закрываются по ESC во всех окнах, а не только в главном (#270)** —
+  в диалогах (SettingsWindow, ConnectionSettingsWindow и др.) первый ESC закрывал сам диалог,
+  даже если под ним была открыта всплывающая подсказка; пользовательские Popup (HelpLink) и
+  контекстные меню в диалогах по ESC не закрывались вовсе. Причина: главное окно отслеживало
+  владельцев открытых подсказок глобально, а диалоги полагались только на обход своего
+  визуального дерева. Исправление:
+  1. **Общий механизм для Avalonia** — новый
+     [`ToolTipCloserAvalonia.cs`](Configuration%20Management/Views/ToolTipCloserAvalonia.cs):
+     открытые тултипы, пользовательские Popup и контекстные меню отслеживаются глобально
+     (класс-обработчики изменения `IsOpen`) во всех окнах приложения. Первый ESC в любом окне
+     закрывает подсказку/попап/меню и помечает событие обработанным, повторный ESC закрывает окно.
+  2. **Диалоги** ([`ModalWindowBase.cs`](Configuration%20Management/Views/ModalWindowBase.cs)):
+     ESC перехватывается на туннельной фазе (как в главном окне) — до дочерних контролов и кнопки
+     IsCancel; `Deactivated` и `OnKeyDown` переведены на общий механизм; повторное открытие подсказки
+     после ESC подавляется.
+  3. **Диагностический трейс `CM_TOOLTIP_TRACE=1` теперь работает и на Linux**: лог
+     `cm_tooltip_trace.log` пишется в каталог временных файлов (`/tmp`, учитывается `TMPDIR`) тем же
+     форматом, что и в Windows-версии. Запуск: `CM_TOOLTIP_TRACE=1 ./ConfigurationManagement`.
+  Затронуты также [`MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs)
+  и [`MainWindow.Avalonia.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Hotkeys.cs)
+  (главное окно переведено на общий реестр, собственные методы остались резервом).
+
+### Версия
+
+- **Версия поднята до `0.3.9.33`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в
+  [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.32] — 2026-09-23
 
 ### Исправления

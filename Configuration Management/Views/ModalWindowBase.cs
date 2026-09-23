@@ -47,9 +47,27 @@ namespace Configuration_Management
             var useSystemTitleBar = ResolveUseSystemTitleBar();
             SystemDecorations = useSystemTitleBar ? SystemDecorations.Full : SystemDecorations.None;
 
+            // Регистрируем общий механизм закрытия подсказок (issue #270): глобальный реестр
+            // открытых тултипов/пользовательских Popup/ContextMenu для всех окон Avalonia.
+            // Регистрация идемпотентна — повторные вызовы из других окон безопасны.
+            ToolTipCloserAvalonia.Register();
+
             // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное меню:
             // при клике в другое окно/приложение открытый тултип исчезает, а не «висит» поверх.
-            Deactivated += (_, _) => CloseOpenToolTips();
+            // Закрытие идёт через общий механизм ToolTipCloserAvalonia.CloseAll (issue #270):
+            // он закрывает тултипы во ВСЕХ окнах приложения, а не только в этом диалоге.
+            Deactivated += (_, _) =>
+            {
+                ToolTipCloserAvalonia.TraceLog($"ModalWindowBase.Deactivated: окно {GetType().Name} потеряло фокус");
+                ToolTipCloserAvalonia.CloseAll();
+            };
+
+            // Первый ESC в диалоге закрывает подсказки на туннельной фазе (Preview), ДО того,
+            // как клавиша дойдёт до дочерних контролов и кнопки IsCancel (issue #270): так же,
+            // как в главном окне (MainWindow.Avalonia.cs). К моменту всплывающей фазы
+            // ToolTip.GetIsOpen на элементе может быть уже сброшен (таймер показа/оверлейный
+            // попап), и открытая подсказка не обнаружится — тогда первый ESC закрыл бы диалог.
+            AddHandler(InputElement.KeyDownEvent, OnPreviewKeyDownCloseToolTips, RoutingStrategies.Tunnel);
 
             // На X11 без композитора (или в виртуализации на программном рендере) любое
             // «прозрачное» окно заставляет оконный менеджер непрерывно перерисовывать фон,
@@ -645,6 +663,26 @@ namespace Configuration_Management
         /// диалог не должно. Закрытие равносильно нажатию «Отмена»: положительный
         /// результат (<see cref="DialogResult"/>) не выставляется.
         /// </summary>
+        /// <summary>
+        /// Туннельный (Preview) обработчик ESC в диалоге (issue #270). Срабатывает раньше
+        /// всплывающего <see cref="OnKeyDown"/> и до дочерних контролов/кнопки IsCancel: первый
+        /// ESC закрывает открытые подсказки/пользовательские Popup/контекстные меню через общий
+        /// механизм <see cref="ToolTipCloserAvalonia.CloseAll"/> и помечает событие обработанным —
+        /// сам диалог на этом ESC не закрывается. Если открытых элементов нет — событие не
+        /// трогаем, и второй ESC штатно закрывает диалог через <see cref="OnKeyDown"/>.
+        /// </summary>
+        private void OnPreviewKeyDownCloseToolTips(object? sender, KeyEventArgs e)
+        {
+            if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None)
+                return;
+
+            if (ToolTipCloserAvalonia.CloseAll())
+            {
+                ToolTipCloserAvalonia.TraceLog($"ModalWindowBase.OnPreviewKeyDownCloseToolTips: первый ESC закрыл подсказки, окно {GetType().Name}");
+                e.Handled = true;
+            }
+        }
+
         protected override void OnKeyDown(KeyEventArgs e)
         {
             if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && !e.Handled)
@@ -652,10 +690,14 @@ namespace Configuration_Management
                 // Первый ESC закрывает открытые всплывающие подсказки (issue #270), а не само окно.
                 // Раньше в модальных окнах (в первую очередь в настройках) ESC закрывал всё окно
                 // целиком, хотя подсказок там могло быть открыто больше двух. Здесь — общий путь
-                // для всех диалогов: сначала прячем тултипы, повторный ESC уже закрывает окно.
-                // Инвариант «сначала подсказка, потом окно» тот же, что в issue #261 для главного окна.
-                if (CloseOpenToolTips())
+                // для всех диалогов через ToolTipCloserAvalonia.CloseAll: сначала прячем тултипы
+                // (и пользовательские Popup/контекстные меню), повторный ESC уже закрывает окно.
+                // Инвариант «сначала подсказка, потом окно» тот же, что в issue #261 для главного
+                // окна. На туннельной фазе (OnPreviewKeyDownCloseToolTips) подсказки уже закрыты,
+                // поэтому сюда обычно приходит только повторный ESC.
+                if (ToolTipCloserAvalonia.CloseAll())
                 {
+                    ToolTipCloserAvalonia.TraceLog($"ModalWindowBase.OnKeyDown: ESC закрыл подсказки в окне {GetType().Name}");
                     e.Handled = true;
                     return;
                 }
@@ -664,45 +706,6 @@ namespace Configuration_Management
                 return;
             }
             base.OnKeyDown(e);
-        }
-
-        /// <summary>
-        /// Закрывает открытые всплывающие подсказки (ToolTip) в пределах этого диалога
-        /// (issue #270). Используется при нажатии ESC: первый ESC должен скрыть подсказку,
-        /// а не закрывать окно. Возвращает true, если была закрыта хотя бы одна подсказка.
-        /// Владельцы тултипов лежат в визуальном дереве окна, а сам попап рендерится в
-        /// оверлейном слое TopLevel, поэтому обходим дерево окна и гасим открытые тултипы
-        /// через присоединённое свойство ToolTip.IsOpenProperty.
-        /// </summary>
-        private bool CloseOpenToolTips()
-        {
-            var closed = false;
-
-            foreach (var node in this.GetVisualDescendants())
-            {
-                if (node is Control control && ToolTip.GetIsOpen(control))
-                {
-                    ToolTip.SetIsOpen(control, false);
-                    closed = true;
-                }
-            }
-
-            // Резервный путь: владелец открытой подсказки может оказаться вне обхода, если
-            // фокус ушёл внутрь внешнего попапа. Дотягиваемся до владельца по цепочке
-            // визуальных родителей сфокусированного элемента.
-            if (!closed && FocusManager?.GetFocusedElement() is Visual focused)
-            {
-                for (var n = focused; n is not null; n = n.GetVisualParent())
-                {
-                    if (n is Control c && ToolTip.GetIsOpen(c))
-                    {
-                        ToolTip.SetIsOpen(c, false);
-                        closed = true;
-                    }
-                }
-            }
-
-            return closed;
         }
 
         /// <summary>
