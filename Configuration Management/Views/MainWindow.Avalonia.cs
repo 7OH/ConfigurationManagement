@@ -587,7 +587,9 @@ namespace Configuration_Management
             var utilitiesMenu = BuildUtilitiesMenu();
             var utilitiesBtn = new Button
             {
-                Content = ThemedIconAndText("IconWrench",
+                // Отдельная иконка (Apps-сетка), чтобы не путать с «Конфигуратором»
+                // (гаечный ключ IconWrench) — issue #282.
+                Content = ThemedIconAndText("IconApps",
                     LocalizationManager.T("Main.Utilities"), "TextSecondaryColorBrush",
                     UiMetrics.ScaledFont(13), centered: false),
                 Padding = new Thickness(UiMetrics.ButtonPadH, UiMetrics.ButtonPadV),

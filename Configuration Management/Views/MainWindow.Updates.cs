@@ -44,11 +44,16 @@ public partial class MainWindow
     /// </summary>
     private void OnUtilitiesMenuButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement fe && fe.ContextMenu is { } menu)
-        {
-            menu.PlacementTarget = fe;
-            menu.IsOpen = true;
-        }
+        // Тот же паттерн, что и у остальных меню верхней панели (OnEnterpriseMenuClick,
+        // OnConfiguratorMenuClick, OnClearCacheMenuClick): раскрываем меню под кнопкой
+        // (PlacementMode.Bottom) и передаём DataContext окна, чтобы Command/InputGestureText
+        // пунктов резолвились, а меню позиционировалось и рендерилось как в Linux (issue #282).
+        if (sender is not System.Windows.Controls.Button btn || btn.ContextMenu is null)
+            return;
+        btn.ContextMenu.PlacementTarget = btn;
+        btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        btn.ContextMenu.DataContext = DataContext;
+        btn.ContextMenu.IsOpen = true;
     }
 }
 #endif

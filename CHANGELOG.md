@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.35] — 2026-09-23
+
+### Исправления
+
+- **Подменю «Утилиты» на верхней панели в Windows теперь показывает текст пунктов, как в Linux (#282)** —
+  обработчик открытия меню приводится к единому паттерну остальных меню панели
+  ([`OnEnterpriseMenuClick`](Configuration%20Management/Views/MainWindow.Events.cs) и др.): меню
+  раскрывается под кнопкой (`PlacementMode.Bottom`) и получает `DataContext` окна, благодаря чему
+  заголовки, команды и подписи горячих клавиш пунктов резолвятся и отображаются корректно.
+  1. **Открытие меню исправлено** в
+     [`OnUtilitiesMenuButton_Click`](Configuration%20Management/Views/MainWindow.Updates.cs):
+     `PlacementTarget`, `Placement = PlacementMode.Bottom`, `DataContext = DataContext` окна, `IsOpen = true`.
+  2. **Отдельная иконка кнопки «Утилиты»** — вместо гаечного ключа (`Wrench`), совпадавшего с иконкой
+     «Конфигуратора», выбрана иконка-сетка `Apps`: [`MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml)
+     (Windows/WPF, `PackIcon Kind="Apps"`) и [`MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs)
+     (Linux/Avalonia, `IconApps` из [`Icons.axaml`](Configuration%20Management/Themes/Icons.axaml)). Иконка
+     «Конфигуратора» (`Wrench`) не изменена.
+  3. **Значок пункта «Проверка обновлений»** в подменю «Утилиты» заменён на такой же, как у кнопки проверки
+     обновлений в окне настроек возле версии: `Update`/`#3B82F6` вместо `CloudDownload`/`#14B8A6` — на обеих
+     платформах ([`MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml),
+     [`MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs)).
+
+### Версия
+
+- **Версия поднята до `0.3.9.35`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в
+  [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.34] — 2026-09-23
 
 ### Исправления

@@ -597,7 +597,9 @@
                             <Button x:Name="UtilitiesButton" Click="OnUtilitiesMenuButton_Click"
                                     Style="{DynamicResource IconButton}" Margin="0,0,2,0"
                                     ToolTip="{loc:Loc Main.UtilitiesTooltip}">
-                                <materialDesign:PackIcon Kind="Wrench" Width="18" Height="18"
+                                <!-- Отдельная иконка (Apps-сетка), чтобы не путать с «Конфигуратором»
+                                     (гаечный ключ Wrench) — issue #282. -->
+                                <materialDesign:PackIcon Kind="Apps" Width="18" Height="18"
                                     Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <Button.ContextMenu>
                                     <ContextMenu Style="{DynamicResource ModernContextMenu}">
@@ -614,7 +616,7 @@
                                         </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
                                         </MenuItem>
                                     </ContextMenu>
                                 </Button.ContextMenu>

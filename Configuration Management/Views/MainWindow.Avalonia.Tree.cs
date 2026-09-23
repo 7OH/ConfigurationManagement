@@ -1597,7 +1597,8 @@ namespace Configuration_Management
 
             var checkUpdatesItem = new MenuItem { Header = LocalizationManager.T("Settings.About.CheckForUpdates") };
             checkUpdatesItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            checkUpdatesItem.Icon = MenuIcon("IconCloudDownload", "#14B8A6");
+            // Значок как у кнопки проверки обновлений в окне настроек (возле версии): Update/#3B82F6 (issue #282).
+            checkUpdatesItem.Icon = MenuIcon("IconUpdate", "#3B82F6");
             checkUpdatesItem.Click += async (_, _) =>
             {
                 try
