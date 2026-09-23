@@ -130,6 +130,9 @@ public partial class MainViewModel : ViewModelBase
     private int _ibasesBackupKeepCount = 5;
     // «Сохранять после правки» (issue #269): записывать изменения в ibases.v8i сразу после правки.
     private bool _ibasesSaveAfterEdit = true;
+    // Момент последней успешной выгрузки приложения в ibases.v8i (UTC, issue #278): в двустороннем
+    // режиме по нему определяется внешнее изменение файла (см. IbasesSyncOrderResolver).
+    private DateTime _ibasesLastSyncExportUtc;
     private bool _addTimestampToExportFileName = true;
     private string _exportTimestampFormat = "yyyyMMdd_HHmmss";
     private string _syncMessage = string.Empty;
@@ -353,6 +356,7 @@ public partial class MainViewModel : ViewModelBase
         _ibasesBackupEnabled = settings.IbasesBackupEnabled;
         _ibasesBackupKeepCount = settings.IbasesBackupKeepCount > 0 ? settings.IbasesBackupKeepCount : 5;
         _ibasesSaveAfterEdit = settings.IbasesSaveAfterEdit;
+        _ibasesLastSyncExportUtc = settings.IbasesLastSyncExportUtc;
         _profileBackupDirectory = settings.ProfileBackupDirectory ?? string.Empty;
         _profileRestoreOnStartup = settings.ProfileRestoreOnStartup;
         _addTimestampToExportFileName = settings.AddTimestampToExportFileName;
@@ -1300,6 +1304,9 @@ public partial class MainViewModel : ViewModelBase
             }
 
             var result = _ibasesSync.Export(filePath, Infobases, Groups);
+            // Метка последней выгрузки обновляется только после успешного экспорта (issue #278).
+            _ibasesLastSyncExportUtc = DateTime.UtcNow;
+            SaveSettings();
             var text = BuildSyncMessage(LocalizationManager.T("Sync.PrefixExported"), result);
             if (!string.IsNullOrEmpty(text))
                 SyncMessage = $"{DateTime.Now:HH:mm:ss} — {text}";
@@ -1332,8 +1339,8 @@ public partial class MainViewModel : ViewModelBase
 
         var message = string.Empty;
 
-        // В двустороннем режиме сначала выгрузка (удаления из приложения попадают в файл),
-        // затем загрузка (удаления из стартера 1С убираются из приложения).
+        // Порядок операций в двустороннем режиме выбирается по датам (issue #278),
+        // см. блок ниже; сами операции разделены: отказ одной не отменяет другую.
         void DoExport()
         {
             try
@@ -1353,6 +1360,9 @@ public partial class MainViewModel : ViewModelBase
                 }
 
                 var result = _ibasesSync.Export(filePath, Infobases, Groups);
+                // Метка последней выгрузки обновляется только после успешного экспорта (issue #278).
+                _ibasesLastSyncExportUtc = DateTime.UtcNow;
+                SaveSettings();
                 var exportText = BuildSyncMessage(LocalizationManager.T("Sync.PrefixExported"), result);
                 if (!string.IsNullOrEmpty(exportText))
                 {
@@ -1395,15 +1405,27 @@ public partial class MainViewModel : ViewModelBase
             }
         }
 
-        if (_ibasesSyncMode == IbasesSyncMode.Both)
+        // В двустороннем режиме порядок зависит от того, менялся ли файл внешне после
+        // последней выгрузки приложения (issue #278):
+        // - файл новее метки (например, ручное восстановление) или метки ещё нет
+        //   (первый запуск) — сначала ЗАГРУЗКА из файла, затем выгрузка: имя базы
+        //   возвращается из файла и обратно в файл не записывается;
+        // - иначе — прежний порядок: выгрузка (удаления из приложения попадают в файл),
+        //   затем загрузка (удаления из стартера 1С убираются из приложения).
+        var importFirst = _ibasesSyncMode == IbasesSyncMode.Both
+            && IbasesSyncOrderResolver.ShouldImportFirst(
+                File.Exists(filePath) ? File.GetLastWriteTimeUtc(filePath) : DateTime.MinValue,
+                _ibasesLastSyncExportUtc);
+
+        if (importFirst)
         {
-            if (exportPerformed) DoExport();
             if (importPerformed) DoImport();
+            if (exportPerformed) DoExport();
         }
         else
         {
-            if (importPerformed) DoImport();
             if (exportPerformed) DoExport();
+            if (importPerformed) DoImport();
         }
 
         if (!string.IsNullOrEmpty(message))

@@ -451,6 +451,9 @@ public partial class MainViewModel : ViewModelBase
             }
 
             _sync.Export(filePath, _allInfobases, _groups);
+            // Метка последней выгрузки обновляется только после успешного экспорта (issue #278).
+            _settings.IbasesLastSyncExportUtc = DateTime.UtcNow;
+            SaveSettingsSilently();
             _logger.Info($"Список баз выгружен в {filePath}");
         }
         catch (Exception ex)
@@ -566,7 +569,8 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>
     /// Синхронизация без диалогов: для запуска по расписанию и при старте.
-    /// В двустороннем режиме сначала выгрузка, затем загрузка, как в WPF-версии.
+    /// В двустороннем режиме порядок выбирается по датам (issue #278): если файл менялся
+    /// внешне после последней выгрузки приложения, сначала загрузка, затем выгрузка.
     /// </summary>
     private void SynchronizeSilently()
     {
@@ -584,11 +588,32 @@ public partial class MainViewModel : ViewModelBase
 
         // Выгрузка и загрузка разделены: отказ одной не должен отменять другую,
         // как это устроено в WPF-версии.
-        if (_settings.IbasesSyncMode is IbasesSyncMode.Export or IbasesSyncMode.Both)
-            done |= ExportToIbases(filePath);
+        //
+        // В двустороннем режиме порядок зависит от того, менялся ли файл внешне после
+        // последней выгрузки приложения (issue #278): если файл новее метки (например,
+        // ручное восстановление) или метки ещё нет (первый запуск) — сначала ЗАГРУЗКА
+        // из файла, затем выгрузка: имя базы возвращается из файла и обратно в файл
+        // не записывается; иначе — прежний порядок: выгрузка, затем загрузка.
+        var importFirst = _settings.IbasesSyncMode == IbasesSyncMode.Both
+            && IbasesSyncOrderResolver.ShouldImportFirst(
+                System.IO.File.Exists(filePath)
+                    ? System.IO.File.GetLastWriteTimeUtc(filePath)
+                    : DateTime.MinValue,
+                _settings.IbasesLastSyncExportUtc);
 
-        if (_settings.IbasesSyncMode is IbasesSyncMode.Import or IbasesSyncMode.Both)
+        if (importFirst)
+        {
             done |= ImportFromIbases(filePath);
+            done |= ExportToIbases(filePath);
+        }
+        else
+        {
+            if (_settings.IbasesSyncMode is IbasesSyncMode.Export or IbasesSyncMode.Both)
+                done |= ExportToIbases(filePath);
+
+            if (_settings.IbasesSyncMode is IbasesSyncMode.Import or IbasesSyncMode.Both)
+                done |= ImportFromIbases(filePath);
+        }
 
         SyncMessage = done
             ? LocalizationManager.T("Sync.Completed")
@@ -624,6 +649,9 @@ public partial class MainViewModel : ViewModelBase
             }
 
             _sync.Export(filePath, _allInfobases, _groups);
+            // Метка последней выгрузки обновляется только после успешного экспорта (issue #278).
+            _settings.IbasesLastSyncExportUtc = DateTime.UtcNow;
+            SaveSettingsSilently();
             _logger.Info($"{logPrefix} в {filePath}");
             return true;
         }

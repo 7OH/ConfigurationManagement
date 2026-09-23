@@ -197,6 +197,8 @@ namespace Configuration_Management
             try
             {
                 IbasesV8iExporter.Export(filePath, _viewModel.Infobases, _viewModel.Groups);
+                // Прямой экспорт в обход ViewModel: отмечаем момент последней выгрузки (issue #278).
+                _viewModel.MarkIbasesLastSyncExport();
                 _dialogs.ShowInfo(LocalizationManager.T("Settings.Ibases.ExportOk"),
                     LocalizationManager.T("Settings.Ibases.ExportTitle"));
             }

@@ -195,6 +195,15 @@ public class AppSettings
     /// </summary>
     public int IbasesBackupKeepCount { get; set; } = 5;
 
+    /// <summary>
+    /// Момент последней успешной выгрузки приложения в ibases.v8i (UTC, issue #278).
+    /// В двустороннем режиме синхронизации (Both) по этой метке определяется внешнее
+    /// изменение файла: если файл менялся позже нашей последней выгрузки (например,
+    /// ручное восстановление), сначала выполняется загрузка из файла, затем выгрузка.
+    /// По умолчанию default(DateTime) — выгрузка ещё не выполнялась (первый запуск).
+    /// </summary>
+    public DateTime IbasesLastSyncExportUtc { get; set; }
+
     /// <summary>Ширина колонки «Название» в списке баз (0 — по умолчанию).</summary>
     public double NameColumnWidth { get; set; }
 

@@ -209,12 +209,27 @@ public partial class MainViewModel : ViewModelBase
                 catch { /* не блокируем экспорт */ }
             }
             _ibasesSync.Export(filePath, Infobases, Groups);
+            // Метка последней выгрузки обновляется только после успешного экспорта (issue #278).
+            _ibasesLastSyncExportUtc = DateTime.UtcNow;
+            SaveSettings();
             return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Отмечает момент последней успешной выгрузки приложения в ibases.v8i (issue #278).
+    /// Вызывается из окна настроек, где кнопка «Выгрузить» пишет файл напрямую через
+    /// IbasesV8iExporter (без ExportToIbases). По этой метке двусторонняя синхронизация
+    /// определяет, менялся ли файл внешне после нашей последней записи.
+    /// </summary>
+    public void MarkIbasesLastSyncExport()
+    {
+        _ibasesLastSyncExportUtc = DateTime.UtcNow;
+        SaveSettings();
     }
 
     /// <summary>

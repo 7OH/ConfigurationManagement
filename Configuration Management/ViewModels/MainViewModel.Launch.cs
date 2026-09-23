@@ -530,6 +530,7 @@ public partial class MainViewModel : ViewModelBase
             IbasesSyncScheduleTime = _ibasesSyncScheduleTime,
             IbasesBackupEnabled = _ibasesBackupEnabled,
             IbasesBackupKeepCount = _ibasesBackupKeepCount,
+            IbasesLastSyncExportUtc = _ibasesLastSyncExportUtc,
             AddTimestampToExportFileName = _addTimestampToExportFileName,
             ExportTimestampFormat = _exportTimestampFormat,
             CloseToTray = _closeToTray,

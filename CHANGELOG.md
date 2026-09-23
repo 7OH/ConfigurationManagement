@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.31] — 2026-09-23
+
+### Исправления
+
+- **В двустороннем режиме синхронизации при внешнем изменении `ibases.v8i` загрузка теперь выполняется первой (#278)** —
+  раньше синхронизация «в обе стороны» всегда шла «сначала выгрузка, потом загрузка»: после ручного
+  восстановления файла выгрузка первой сопоставляла запись по ID 1С, переименовывала её обратно в имя
+  из приложения (« 2») и записывала в файл, а загрузка читала уже перезаписанный файл — поэтому имя
+  оставалось и в приложении, и в списке баз. Исправление:
+  1. **Приложение запоминает момент своей последней выгрузки** в ibases.v8i
+     (`IbasesLastSyncExportUtc` в [`AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs));
+     метка обновляется при любой успешной выгрузке: автосинхронизация, кнопка «Выгрузить»,
+     «Сохранять после правки».
+  2. **В двустороннем режиме порядок выбирается по датам** (хелпер
+     [`IbasesSyncOrderResolver.cs`](Configuration%20Management/Services/IbasesSyncOrderResolver.cs)):
+     если файл менялся позже последней выгрузки приложения (например, вы восстановили его вручную)
+     или метки ещё нет (первый запуск) — сначала выполняется ЗАГРУЗКА из файла, затем выгрузка:
+     имя базы возвращается из файла и обратно в файл не записывается. Если файл не менялся —
+     порядок прежний (выгрузка, затем загрузка).
+  Затронуты [`MainViewModel.cs`](Configuration%20Management/ViewModels/MainViewModel.cs),
+  [`MainViewModel.Sync.cs`](Configuration%20Management/ViewModels/MainViewModel.Sync.cs),
+  [`MainViewModel.Avalonia.Sync.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Sync.cs)
+  и новые тесты [`IbasesSyncOrderResolverTests.cs`](ConfigurationManagement.Tests/IbasesSyncOrderResolverTests.cs)
+  (файл новее метки → загрузка первой; файл старше/равен метке → выгрузка первой; метка не задана →
+  загрузка первой).
+
+### Версия
+
+- **Версия поднята до `0.3.9.31`** во всех четырёх полях `<Version>`, `<AssemblyVersion>`,
+  `<FileVersion>`, `<InformationalVersion>` в
+  [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+
 ## [0.3.9.30] — 2026-09-23
 
 ### Исправления
