@@ -343,6 +343,18 @@ namespace Configuration_Management
             overlay.ZIndex = 1000;
             grid.Children.Add(overlay);
 
+            // Оверлей блокировки приложения поверх всего, включая индикатор загрузки
+            // (issue #294): пока MainViewModel.IsAppLocked, клиентская область закрыта
+            // им — клик открывает окно ввода пароля, клавиатура гасится в
+            // OnWindowKeyDown, а KeyBindings снимаются до разблокировки. Пересобирается
+            // вместе с содержимым (смена языка/компактного режима), привязка ставится
+            // заново при каждой сборке.
+            var appLockOverlay = BuildAppLockOverlay();
+            Grid.SetRow(appLockOverlay, 0);
+            Grid.SetRowSpan(appLockOverlay, grid.RowDefinitions.Count);
+            appLockOverlay.ZIndex = 1100;
+            grid.Children.Add(appLockOverlay);
+
             // Без системной рамки изменение размера рисуем сами: невидимые зоны
             // по краям и углам окна перехватывают нажатие и вызывают BeginResizeDrag.
             // При системной рамке размер меняет сама система, зоны не нужны.
@@ -1474,6 +1486,16 @@ namespace Configuration_Management
                     if (e.PropertyName == nameof(MainViewModel.ShowPinnedButton)
                         || e.PropertyName == nameof(MainViewModel.ShowFavoritesButton))
                         QueueColumnHeaderRefresh();
+                    // Блокировка приложения (issue #294): на время блокировки KeyBindings
+                    // снимаются — привязки окна проверяются раньше обработчиков клавиатуры
+                    // и запустили бы команды, минуя оверлей блокировки. При разблокировке
+                    // хоткеи назначаются заново (RegisterHotkeys сам очищает список).
+                    if (e.PropertyName == nameof(MainViewModel.IsAppLocked))
+                    {
+                        KeyBindings.Clear();
+                        if (!_vm.IsAppLocked)
+                            RegisterHotkeys();
+                    }
                     // Переключатель тегов в списке живёт в панели команд,
                     // а его настройка меняется и из окна настроек.
                     if (e.PropertyName == nameof(MainViewModel.ShowTags))
@@ -1662,6 +1684,85 @@ namespace Configuration_Management
                 _emptyGroupsToggle.IsChecked = _vm.ShowEmptyGroups;
             if (_compactToggle is not null)
                 _compactToggle.IsChecked = _vm.CompactMode;
+        }
+
+        /// <summary>
+        /// Оверлей блокировки приложения (issue #294): затемняет клиентскую область,
+        /// перехватывает мышь — клик открывает окно ввода пароля — и виден, пока
+        /// <see cref="MainViewModel.IsAppLocked"/>. Блокировка снимается только верным
+        /// паролем: закрытие окна ввода блокировку не снимает.
+        /// </summary>
+        private Control BuildAppLockOverlay()
+        {
+            var panel = new Panel
+            {
+                Background = new SolidColorBrush(Color.Parse("#C0101018")),
+                IsHitTestVisible = true
+            };
+            panel.Bind(Visual.IsVisibleProperty,
+                new Binding(nameof(MainViewModel.IsAppLocked)) { Source = _vm });
+            panel.PointerPressed += (_, e) =>
+            {
+                e.Handled = true;
+                _vm?.ShowAppUnlockDialog();
+            };
+
+            var icon = IconHelper.MakeIcon("IconExitToApp", 34, out _);
+            icon.HorizontalAlignment = HorizontalAlignment.Center;
+
+            var title = new TextBlock
+            {
+                Text = LocalizationManager.T("AppLock.OverlayTitle"),
+                FontSize = 15,
+                FontWeight = FontWeight.SemiBold,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            ThemeBrushes.Bind(title, TextBlock.ForegroundProperty, "TextPrimaryBrush");
+
+            var hint = new TextBlock
+            {
+                Text = LocalizationManager.T("AppLock.OverlayHint"),
+                FontSize = 13,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 16)
+            };
+            ThemeBrushes.Bind(hint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+
+            var button = new Button
+            {
+                MinWidth = 160,
+                MinHeight = 36,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Content = LocalizationManager.T("AppLock.Unlock")
+            }.Styled(Themes.ControlThemes.ModernButton);
+            button.Click += (_, e) =>
+            {
+                e.Handled = true;
+                _vm?.ShowAppUnlockDialog();
+            };
+
+            var stack = new StackPanel { Spacing = 0 };
+            stack.Children.Add(icon);
+            stack.Children.Add(title);
+            stack.Children.Add(hint);
+            stack.Children.Add(button);
+
+            var card = new Border
+            {
+                CornerRadius = new CornerRadius(UiMetrics.RadiusLg),
+                Padding = new Thickness(32, 26),
+                MinWidth = 340,
+                MaxWidth = 520,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = stack
+            };
+            ThemeBrushes.Bind(card, Border.BackgroundProperty, "CardBackgroundBrush");
+            panel.Children.Add(card);
+            return panel;
         }
 
         /// <summary>

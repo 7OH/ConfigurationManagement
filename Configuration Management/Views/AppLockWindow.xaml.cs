@@ -23,6 +23,13 @@ namespace Configuration_Management
         /// <summary>true, если блокировка снята (введён верный пароль).</summary>
         public bool Unlocked { get; private set; }
 
+        /// <summary>
+        /// Введён верный пароль — владелец снимает блокировку (issue #294).
+        /// Закрытие окна без пароля блокировку НЕ снимает: интерфейс остаётся
+        /// закрытым оверлеем и окно ввода можно открыть повторно.
+        /// </summary>
+        public event EventHandler? UnlockSucceeded;
+
         public AppLockWindow(MainViewModel vm, bool setupMode = false)
         {
             InitializeComponent();
@@ -53,24 +60,23 @@ namespace Configuration_Management
                 PasswordBox1.Visibility = Visibility.Visible;
                 ConfirmLabel.Visibility = Visibility.Collapsed;
                 PasswordBox2.Visibility = Visibility.Collapsed;
-                // В режиме разблокировки «Отмена» недоступна: снять блокировку
-                // можно только верным паролем (issue #294).
-                CancelButton.Visibility = Visibility.Collapsed;
+                // «Отмена» снова доступна: закрытие окна не снимает блокировку,
+                // интерфейс остаётся закрытым оверлеем до верного пароля (issue #294).
+                CancelButton.Visibility = Visibility.Visible;
             }
 
-            // В режиме разблокировки окно нельзя закрыть ни крестиком, ни Alt+F4,
-            // ни системным меню: пока блокировка активна, интерфейс недоступен (issue #294).
-            Closing += (_, e) =>
-            {
-                if (!_setupMode && !Unlocked)
-                    e.Cancel = true;
-            };
+            // В режиме разблокировки окно закрываемое: снять блокировку можно только
+            // верным паролем, но само окно не мешает видеть заблокированный интерфейс,
+            // и его можно временно убрать — блокировка при этом остаётся (issue #294).
 
             Loaded += (_, _) =>
             {
                 // Фокус на первое (видимое) поле пароля: при установке — «Новый пароль»,
-                // при разблокировке — единственное поле ввода.
+                // при разблокировке — единственное поле ввода. Пост с низким приоритетом
+                // страхует фокус, снятый активацией окна при показе (issue #294).
                 PasswordBox1.Focus();
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                    new Action(() => PasswordBox1.Focus()));
             };
         }
 
@@ -101,7 +107,11 @@ namespace Configuration_Management
             if (_vm.VerifyAppLockPassword(entered))
             {
                 Unlocked = true;
-                DialogResult = true;
+                UnlockSucceeded?.Invoke(this, EventArgs.Empty);
+                // Окно разблокировки показывается немодально (Show), поэтому DialogResult
+                // нельзя трогать: WPF бросает InvalidOperationException для немодальных
+                // окон. Закрываем окно обычным Close() (issue #294).
+                Close();
             }
             else
             {

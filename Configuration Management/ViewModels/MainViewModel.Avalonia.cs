@@ -83,6 +83,19 @@ public partial class MainViewModel : ViewModelBase
     private string _loadingMessage = string.Empty;
 
     /// <summary>
+    /// Приложение заблокировано паролем (функция №19 StartManager, issue #294).
+    /// Состояние живёт только в рамках сеанса: пока оно активно, главное окно закрыто
+    /// оверлеем блокировки, ввод перехватывается, а окно разблокировки можно закрыть —
+    /// блокировка при этом не снимается. В настройки не сохраняется.
+    /// </summary>
+    public bool IsAppLocked
+    {
+        get => _isAppLocked;
+        private set => SetProperty(ref _isAppLocked, value);
+    }
+    private bool _isAppLocked;
+
+    /// <summary>
     /// Настраиваемый шаблон имени COM-коннектора 1С (issue #175).
     /// Пустая строка — стандартные ProgID V85/V83/V82/V81.COMConnector; иначе шаблон
     /// разворачивается по версии платформы каждой базы (плейсхолдеры %V12%/%V3%/%V4%)

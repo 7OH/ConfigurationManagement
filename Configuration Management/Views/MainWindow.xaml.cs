@@ -809,6 +809,23 @@ namespace Configuration_Management
         // ===================== Собственные кнопки управления окном (без системной рамки) =====================
 
         /// <summary>
+        /// Клик по оверлею блокировки приложения (issue #294): открывает окно ввода пароля.
+        /// Сам оверлей закрывает клиентскую область, поэтому остальной ввод в окно не проходит.
+        /// </summary>
+        private void OnAppLockOverlay_Click(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            _viewModel.ShowAppUnlockDialog();
+        }
+
+        /// <summary>Кнопка «Разблокировать» на оверлее блокировки (issue #294).</summary>
+        private void OnAppLockOverlay_ButtonClick(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            _viewModel.ShowAppUnlockDialog();
+        }
+
+        /// <summary>
         /// Перетаскивание окна за фон верхней панели (окно без системной рамки, WindowChrome
         /// с <c>CaptionHeight=0</c>). Двойной клик по пустой области переключает разворот.
         /// Нажатия на интерактивных элементах (кнопки, поля, вкладки) перехватываются ими

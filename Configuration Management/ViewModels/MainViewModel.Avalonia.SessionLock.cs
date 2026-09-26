@@ -52,16 +52,47 @@ public partial class MainViewModel
                 return;
         }
 
-        // Цикл разблокировки: интерфейс остаётся недоступным, пока не введён верный
-        // пароль. Кнопка «Отмена», крестик и Esc в режиме разблокировки недоступны
-        // (AppLockWindow), поэтому окно закрывается только по верному паролю (issue #294).
-        while (true)
+        LockNow();
+    }
+
+    /// <summary>
+    /// Включает блокировку приложения (issue #294): состояние <see cref="IsAppLocked"/>
+    /// закрывает главное окно оверлеем, поверх открывается закрываемое окно ввода пароля.
+    /// Закрытие окна ввода блокировку не снимает — блокировка держится до верного пароля.
+    /// Повторный вызов при активной блокировке просто показывает окно ввода пароля.
+    /// </summary>
+    public void LockNow()
+    {
+        if (!HasAppLockPassword)
+            return;
+
+        IsAppLocked = true;
+        ShowAppUnlockDialog();
+    }
+
+    /// <summary>Снимает блокировку приложения (после верного пароля, issue #294).</summary>
+    public void UnlockApp() => IsAppLocked = false;
+
+    private Configuration_Management.AppLockWindow? _unlockWindow;
+
+    /// <summary>
+    /// Показывает окно ввода пароля в немодальном режиме с владельцем — главное окно
+    /// остаётся недоступным из-за оверлея и перехвата ввода (issue #294). Повторный
+    /// вызов активирует уже открытое окно, а не создаёт новое.
+    /// </summary>
+    public void ShowAppUnlockDialog()
+    {
+        if (_unlockWindow != null)
         {
-            var unlockWin = new Configuration_Management.AppLockWindow(this, setupMode: false);
-            unlockWin.ShowDialogSync(OwnerWindow());
-            if (unlockWin.Unlocked)
-                return;
+            _unlockWindow.Activate();
+            return;
         }
+
+        var win = new Configuration_Management.AppLockWindow(this, setupMode: false);
+        _unlockWindow = win;
+        win.UnlockSucceeded += (_, _) => UnlockApp();
+        win.Closed += (_, _) => _unlockWindow = null;
+        win.Show(OwnerWindow());
     }
 
     /// <summary>Пароль блокировки приложения (PBKDF2-хэш) из настроек.</summary>

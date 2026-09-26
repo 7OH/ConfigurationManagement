@@ -350,6 +350,16 @@ namespace Configuration_Management
         {
             var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
+            // Блокировка приложения (issue #294): пока активна, клавиатура главного окна
+            // не работает — любое нажатие лишь открывает окно ввода пароля. Окно блокировки
+            // ввода — отдельное окно, его клавиатура сюда не попадает.
+            if (_viewModel.IsAppLocked)
+            {
+                _viewModel.ShowAppUnlockDialog();
+                e.Handled = true;
+                return;
+            }
+
             // Ctrl+Shift++ / Ctrl+Shift+- — «развернуть все» / «свернуть все» (issue #160).
             // Обрабатываем на этапе Preview (туннелирование): событие доходит сюда раньше,
             // чем до вложенных элементов и чем оцениваются InputBindings (фаза всплытия),

@@ -220,6 +220,16 @@ namespace Configuration_Management
             if (e.Handled || _vm is null)
                 return;
 
+            // Блокировка приложения (issue #294): клавиатура главного окна гасится,
+            // любое нажатие лишь открывает окно ввода пароля. Окно ввода — отдельное
+            // окно, его клавиатура сюда не попадает.
+            if (_vm.IsAppLocked)
+            {
+                _vm.ShowAppUnlockDialog();
+                e.Handled = true;
+                return;
+            }
+
             // Ctrl+Shift++ / Ctrl+Shift+- — «развернуть все» / «свернуть все» (issue #160).
             // Дублируем назначенные в RegisterHotkeys KeyBindings надёжным явным разбором:
             // KeyBinding/KeyGesture на части раскладок и при разном состоянии фокуса

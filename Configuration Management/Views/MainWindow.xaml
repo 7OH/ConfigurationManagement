@@ -2994,6 +2994,44 @@
             </Border>
         </Grid>
 
+        <!-- ===================== Оверлей блокировки приложения (issue #294) ========== -->
+        <!-- Пока IsAppLocked, клиентская область закрыта оверлеем: ввод в список и панели
+             заблокирован, клик по оверлею открывает окно ввода пароля. Окно разблокировки
+             можно закрыть — блокировка снимается только верным паролем. -->
+        <Grid Grid.RowSpan="100" Panel.ZIndex="1500"
+              Background="#C0101018"
+              Visibility="{Binding IsAppLocked, Converter={StaticResource BoolToVis}}"
+              MouseLeftButtonDown="OnAppLockOverlay_Click">
+            <Border Background="{DynamicResource CardBackgroundBrush}"
+                    CornerRadius="10" Padding="32,26"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MinWidth="340" MaxWidth="520">
+                <StackPanel>
+                    <materialDesign:PackIcon Kind="Lock" Width="34" Height="34"
+                                             Foreground="{DynamicResource AccentBrush}"
+                                             HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                    <TextBlock Text="{loc:Loc AppLock.OverlayTitle}"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,8" TextWrapping="Wrap"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc AppLock.OverlayHint}"
+                               FontSize="13"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,16" TextWrapping="Wrap"
+                               HorizontalAlignment="Center"/>
+                    <Button HorizontalAlignment="Center" MinWidth="160" MinHeight="36"
+                            Style="{StaticResource ModernButton}"
+                            Click="OnAppLockOverlay_ButtonClick">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🔓" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Loc AppLock.Unlock}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <!-- Видимая рамка окна (issue #273): даже при отключённых системных эффектах/тенях
              (терминал, виртуализация) окно остаётся различимым, а не сливается с фоном.
              Перекрывает всё окно (RowSpan/высокий ZIndex), но не перехватывает мышь. -->

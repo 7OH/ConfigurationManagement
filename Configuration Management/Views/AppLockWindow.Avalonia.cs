@@ -27,8 +27,15 @@ public sealed class AppLockWindow : ModalWindowBase
     private readonly TextBlock _pwd1Label = new();
     private readonly TextBlock _pwd2Label = new();
 
-    /// <summary>true, если блокировка снята (введён верный пароль).</summary>
-    public bool Unlocked { get; private set; }
+        /// <summary>true, если блокировка снята (введён верный пароль).</summary>
+        public bool Unlocked { get; private set; }
+
+        /// <summary>
+        /// Введён верный пароль — владелец снимает блокировку (issue #294).
+        /// Закрытие окна без пароля блокировку НЕ снимает: интерфейс остаётся
+        /// закрытым оверлеем и окно ввода можно открыть повторно.
+        /// </summary>
+        public event EventHandler? UnlockSucceeded;
 
     public AppLockWindow(MainViewModel vm, bool setupMode = false)
     {
@@ -62,22 +69,24 @@ public sealed class AppLockWindow : ModalWindowBase
             _pwd1.IsVisible = true;
             _pwd2Label.IsVisible = false;
             _pwd2.IsVisible = false;
-            // «Отмена» недоступна: снять блокировку можно только верным паролем (issue #294).
-            _cancelButton.IsVisible = false;
+            // «Отмена» снова доступна: закрытие окна не снимает блокировку,
+            // интерфейс остаётся закрытым оверлеем до верного пароля (issue #294).
+            _cancelButton.IsVisible = true;
             UnlockField = _pwd1;
         }
 
-        // В режиме разблокировки окно нельзя закрыть ни крестиком, ни системным меню:
-        // пока блокировка активна, интерфейс недоступен (issue #294).
-        Closing += (_, e) =>
-        {
-            if (!_setupMode && !Unlocked)
-                e.Cancel = true;
-        };
+        // В режиме разблокировки окно закрываемое: снять блокировку можно только
+        // верным паролем, но само окно не мешает видеть заблокированный интерфейс,
+        // и его можно временно убрать — блокировка при этом остаётся (issue #294).
 
         // Фокус на первое (видимое) поле пароля при открытии окна (issue #294):
         // в режиме установки — «Новый пароль», при разблокировке — единственное поле.
-        Opened += (_, _) => _pwd1.Focus();
+        // Пост после показа страхует фокус, снятый активацией окна (issue #294).
+        Opened += (_, _) =>
+        {
+            _pwd1.Focus();
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => _pwd1.Focus());
+        };
     }
 
     private static string T(string key) => LocalizationManager.T(key);
@@ -170,6 +179,7 @@ public sealed class AppLockWindow : ModalWindowBase
         if (_vm.VerifyAppLockPassword(entered))
         {
             Unlocked = true;
+            UnlockSucceeded?.Invoke(this, EventArgs.Empty);
             Close();
         }
         else

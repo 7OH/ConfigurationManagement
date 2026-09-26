@@ -9,6 +9,41 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.71] — 2026-09-26
+
+### Исправлено
+
+- **«Блокировка приложения» снова действительно блокирует (#294)** — раньше команда при
+  заданном пароле сразу открывала модальное окно разблокировки, которое нельзя было закрыть
+  без ввода пароля: блокировать было нечего, а после ввода пароля ничего не блокировалось,
+  и «разблокировка» теряла смысл. Теперь блокировка — постоянное состояние сеанса:
+  - [`ViewModels/MainViewModel.cs`](Configuration%20Management/ViewModels/MainViewModel.cs)
+    и [`ViewModels/MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs):
+    состояние `IsAppLocked` (в рамках сеанса, в настройки не сохраняется);
+  - `MainViewModel.SessionLock.cs` / `MainViewModel.Avalonia.SessionLock.cs`: «Блокировка
+    приложения» при заданном пароле включает блокировку (`LockNow`): главное окно закрывается
+    оверлеем «Приложение заблокировано», поверх открывается окно ввода пароля; повторный вызов
+    просто показывает окно ввода; `UnlockApp` снимает блокировку после верного пароля;
+  - [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml) и
+    [`Views/MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs):
+    оверлей блокировки поверх содержимого главного окна — клик по нему (или любое нажатие
+    клавиши, `Window_PreviewKeyDown`) открывает окно ввода пароля, остальной ввод в окно
+    не проходит;
+  - [`Views/AppLockWindow.xaml.cs`](Configuration%20Management/Views/AppLockWindow.xaml.cs) и
+    [`Views/AppLockWindow.Avalonia.cs`](Configuration%20Management/Views/AppLockWindow.Avalonia.cs):
+    окно разблокировки снова закрываемое (крестик, «Отмена», Esc) — закрытие **не снимает**
+    блокировку, оверлей и запрет ввода остаются; после верного пароля — событие
+    `UnlockSucceeded` и разблокировка;
+  - фокус в поле пароля ставится надёжно: сразу при открытии и повторно постом диспетчера
+    с низким приоритетом после показа окна (обе платформы).
+
+### Версия
+
+- **Версия приложения обновлена до `0.3.9.71`** во всех четырёх полях: `<Version>`,
+  `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в
+  [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+  Весь набор тестов проходит.
+
 ## [0.3.9.70] — 2026-09-26
 
 ### Исправлено
