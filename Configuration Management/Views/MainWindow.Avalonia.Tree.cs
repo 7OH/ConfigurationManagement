@@ -34,6 +34,10 @@ namespace Configuration_Management
         {
             if (item is GroupNodeViewModel group)
                 return BuildGroupRow(group);
+            // Обёртка строки в узле «Закреплённые»: строим карточку по реальной базе,
+            // вся логика строки (кнопки, подписки, команды) привязана к ней (issue #301).
+            if (item is PinnedInfobaseItem pinned)
+                return BuildInfobaseRow(pinned.Base);
             if (item is Infobase ib)
                 return BuildInfobaseRow(ib);
             return new TextBlock { Text = item?.ToString() ?? string.Empty };

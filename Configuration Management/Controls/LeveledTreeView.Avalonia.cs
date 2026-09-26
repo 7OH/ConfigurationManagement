@@ -34,9 +34,12 @@ namespace Configuration_Management.Controls
 
         /// <summary>
         /// Строка, которой выделение поставлено напрямую через <see cref="SelectRow"/>
-        /// (локальное значение IsSelected). Локальное значение перекрывает штатную
-        /// разметку выделения Avalonia (SetCurrentValue), поэтому погасить подсветку
-        /// может только явный сброс здесь же, а не разметка данных.
+        /// (локальное значение IsSelected). Штатная разметка выделения Avalonia
+        /// (SetCurrentValue) может перезаписывать локальные значения, поэтому при
+        /// пересборке/переработке контейнеров прежняя ссылка гасится явно
+        /// (см. ClearContainerForItemOverride), а дубль данных в дереве исключён
+        /// обёрткой <see cref="PinnedInfobaseItem"/> (issue #301) — чужой строке
+        /// подсветку поставить больше некому.
         /// </summary>
         private TreeViewItem? _selectedRow;
 
@@ -69,13 +72,13 @@ namespace Configuration_Management.Controls
 
         /// <summary>
         /// Клик по строке выделяет именно её, а не другую копию тех же данных.
-        /// Закреплённая база присутствует в дереве дважды (узел «Закреплённые»
-        /// и собственная группа), а штатное выделение Avalonia красит ПЕРВЫЙ
-        /// контейнер с данными базы по всему дереву (TreeContainerFromItem), поэтому
-        /// клик по строке во «Все базы» подсвечивал её копию в начале списка
-        /// (issue #301). Здесь подсветка ставится на конкретный контейнер под
-        /// курсором; данные для модели поднимаются штатно: из контейнера приходит
-        /// IsSelectedChanged, а с ним — SelectedItem дерева и правая панель.
+        /// Подсветка ставится на конкретный контейнер под курсором, а событие
+        /// помечается обработанным: штатный пузырьковый обработчик TreeView
+        /// (UpdateSelectionFromEventSource) красит ПЕРВЫЙ контейнер с данными базы
+        /// по всему дереву — раньше он перебивал нашу подсветку копией в узле
+        /// «Закреплённые» (issue #301). Дубль данных в дереве устранён обёрткой
+        /// <see cref="PinnedInfobaseItem"/> (узел «Закреплённые»), поэтому и штатная
+        /// разметка, и <see cref="SelectRow"/> теперь всегда указывают на одну строку.
         /// </summary>
         private void OnRowPointerPressed(object? sender, PointerPressedEventArgs e)
         {
@@ -87,16 +90,19 @@ namespace Configuration_Management.Controls
 
             var row = source.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault();
             if (row is not null)
+            {
                 SelectRow(row);
+                e.Handled = true;
+            }
         }
 
         /// <summary>
         /// Ставит подсветку ровно на указанную строку: гасит локальную подсветку
-        /// предыдущей и включает её на переданной. Локальные значения IsSelected
-        /// перекрывают штатную разметку Avalonia (SetCurrentValue), поэтому прежняя
-        /// подсветка гаснет только здесь — явно. Снимает подсветку со всех остальных
-        /// контейнеров той же базы, чтобы при дубле (закреплённая база в узле
-        /// «Закреплённые» и в своей группе) выделена была ровно одна строка.
+        /// предыдущей и включает её на переданной. Установка IsSelected поднимает
+        /// IsSelectedChanged, синхронизирующий SelectedItems дерева; благодаря
+        /// уникальным данным в дереве (обёртка <see cref="PinnedInfobaseItem"/> в узле
+        /// «Закреплённые», issue #301) поиск контейнера по данным находит ровно
+        /// эту строку — чужие копии не подсвечиваются.
         /// </summary>
         public void SelectRow(TreeViewItem row)
         {
@@ -497,20 +503,19 @@ namespace Configuration_Management.Controls
 
         /// <summary>
         /// Локальная «заглушка» выделения строк базы при подготовке контейнера.
-        /// Штатное выделение Avalonia красит первый контейнер с данными базы по всему
-        /// дереву (TreeContainerFromItem, SetCurrentValue), а закреплённая база есть
-        /// в дереве дважды («Закреплённые» и своя группа) — клик или восстановление
-        /// подсвечивали бы копию в начале списка (issue #301). Локальный false имеет
-        /// приоритет выше SetCurrentValue и глушит такую разметку; реально подсветить
-        /// строку может только <see cref="SelectRow"/>, ставящий локальный true ровно
-        /// на нужный контейнер. Строки групп не трогаем: их данные уникальны, а сама
-        /// подсветка группы идёт из модели (GroupNodeViewModel.IsSelected).
+        /// Штатная разметка выделения красит контейнер по принадлежности данных
+        /// к SelectedItems (TreeContainerFromItem → SetCurrentValue); перекрашивание
+        /// чужих строк исключено тем, что данные в дереве уникальны (обёртка
+        /// <see cref="PinnedInfobaseItem"/> в узле «Закреплённые», issue #301), а
+        /// заглушка страхует подсветку строк, чьи базы ещё числятся выбранными
+        /// с прошлой пересборки. Строки групп не трогаем: их подсветка идёт
+        /// из модели (GroupNodeViewModel.IsSelected).
         /// </summary>
         protected override void ContainerForItemPreparedOverride(Control container, object? item, int index)
         {
             base.ContainerForItemPreparedOverride(container, item, index);
 
-            if (item is Infobase && container is TreeViewItem row && !row.IsSelected)
+            if (item is Infobase or PinnedInfobaseItem && container is TreeViewItem row && !row.IsSelected)
                 row.IsSelected = false;
         }
 

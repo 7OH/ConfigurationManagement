@@ -9,6 +9,43 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.74] — 2026-09-26
+
+### Исправлено
+
+- **На Linux клик по строке базы снова выделяет именно её, а не копию в «Закреплённых»
+  (#301)** — фикс 0.3.9.70 (перехват клика + локальная IsSelected) не сработал: в
+  Avalonia 11.3 штатный пузырьковый обработчик `TreeView` продолжает разметку данных
+  после туннельного обработчика, а `SetCurrentValue` перезаписывает локальные значения
+  свойства. Поэтому подсветка и восстановление выделения стабильно указывали на первый
+  контейнер с теми же данными — копию в узле «Закреплённые» (он стоит первым в дереве).
+  Теперь причина устранена структурно — в дереве больше нет дублей данных:
+  - [`ViewModels/PinnedInfobaseItem.Avalonia.cs`](Configuration%20Management/ViewModels/PinnedInfobaseItem.Avalonia.cs)
+    (новый) — лёгкая обёртка базы для строк узла «Закреплённые»;
+  - [`ViewModels/GroupNodeViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/GroupNodeViewModel.Avalonia.cs)
+    — узел «Закреплённые» кладёт в дерево обёртку, а не сам экземпляр `Infobase`
+    (экземпляр по-прежнему один — в своей группе);
+  - [`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs)
+    — строка «Закреплённых» строится по развёрнутой базе (`BuildInfobaseRow(pinned.Base)`),
+    поведение строки (кнопки, подписки, команды) не меняется;
+  - [`Views/MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs)
+    — выбор обёртки отдаёт вьюмодели реальную базу (правая панель и команды работают
+    как раньше);
+  - [`Views/MainWindow.Avalonia.DragDrop.cs`](Configuration%20Management/Views/MainWindow.Avalonia.DragDrop.cs)
+    — перетаскивание строки «Закреплённых» несёт реальную базу;
+  - [`Controls/LeveledTreeView.Avalonia.cs`](Configuration%20Management/Controls/LeveledTreeView.Avalonia.cs)
+    — туннельный обработчик клика помечает событие обработанным (штатная разметка
+    данных не запускается вовсе), заглушка выделения применяется и к обёрткам.
+  Поиск по данным («Найти в списке», восстановление выделения, «Закреплённые» →
+  домашняя группа) теперь всегда находит единственный контейнер строки.
+
+### Версия
+
+- **Версия приложения обновлена до `0.3.9.74`** во всех четырёх полях: `<Version>`,
+  `<AssemblyVersion>`, `<FileVersion>`, `<InformationalVersion>` в
+  [`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj).
+  Весь набор тестов проходит.
+
 ## [0.3.9.73] — 2026-09-26
 
 ### Исправлено

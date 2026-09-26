@@ -41,6 +41,8 @@ namespace Configuration_Management
             var item = source.FindAncestorOfType<TreeViewItem>(includeSelf: true);
             _dragPayload = item?.DataContext switch
             {
+                // Обёртка строки узла «Закреплённые» (issue #301): перетаскиваем реальную базу.
+                PinnedInfobaseItem pinned => pinned.Base,
                 Infobase infobase => infobase,
                 GroupNodeViewModel node when node.Group is not null => node,
                 _ => null

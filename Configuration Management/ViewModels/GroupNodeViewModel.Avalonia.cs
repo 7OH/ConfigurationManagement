@@ -306,7 +306,13 @@ public class GroupNodeViewModel : ViewModelBase
                     Items.Add(child);
             }
             foreach (var infobase in Infobases)
-                Items.Add(infobase);
+            {
+                // Узел «Закреплённые» кладёт в дерево ОБЁРТКУ базы, а не сам экземпляр
+                // (issue #301): экземпляр уже лежит в своей группе, и дубль данных в дереве
+                // заставлял штатное выделение Avalonia подсвечивать первую копию
+                // (узел «Закреплённые» стоит первым) вместо строки под курсором.
+                Items.Add(Marker == PinnedMarker ? new PinnedInfobaseItem(infobase) : infobase);
+            }
             _containsInfobasesCache = Infobases.Count > 0 || Children.Any(c => c.ContainsInfobases);
         }
         finally

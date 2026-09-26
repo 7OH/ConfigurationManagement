@@ -114,6 +114,12 @@ namespace Configuration_Management
             var selected = _tree.SelectedItem;
             switch (selected)
             {
+                // Обёртка строки узла «Закреплённые» (issue #301): во вьюмодель отдаём
+                // реальную базу, чтобы правая панель и команды работали как раньше.
+                case PinnedInfobaseItem pinned:
+                    _vm.SelectedInfobase = pinned.Base;
+                    _vm.SelectedGroupNode = null;
+                    break;
                 case Infobase ib:
                     _vm.SelectedInfobase = ib;
                     _vm.SelectedGroupNode = null;
