@@ -1197,8 +1197,48 @@
                                 <Setter Property="Height" Value="15"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding DataContext.CompactMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                                        <Setter Property="Width" Value="13"/>
-                                        <Setter Property="Height" Value="13"/>
+                                        <Setter Property="Width" Value="12"/>
+                                        <Setter Property="Height" Value="12"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                            <!-- Кнопки звезды/булавки в строке базы (issue #296): собственный
+                                 прозрачный шаблон без неявного стиля MaterialDesign, который
+                                 раздувает кнопку до ~32px и держит высоту главной линии строки.
+                                 Кнопка становится контент-размера (иконка 14 / компакт 12). -->
+                            <Style x:Key="RowActionButton" TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="MinWidth" Value="0"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#22F1F5F9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                            <!-- Кнопки действий строки базы и команд группы (issue #296):
+                                 как IconButton, но в компактном режиме отступы 8 → 3 —
+                                 иначе кнопка держит высоту строки, а строка группы сжимается. -->
+                            <Style x:Key="RowIconButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                <Setter Property="Padding" Value="8"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.CompactMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                        <Setter Property="Padding" Value="3"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -1431,7 +1471,7 @@
                                                     Margin="1,0"
                                                     ToolTip="{loc:Loc Main.EditGroupTooltip}"
                                                     Style="{StaticResource IconButton}">
-                                                <materialDesign:PackIcon Kind="Pencil" Width="15" Height="15"
+                                                <materialDesign:PackIcon Kind="Pencil" Style="{StaticResource RowActionIcon}"
                                                                          Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             </Button>
                                             <Button Command="{Binding DataContext.DeleteGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -1439,7 +1479,7 @@
                                                     Margin="1,0"
                                                     ToolTip="{loc:Loc Main.DeleteGroupTooltip}">
                                                 <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                                    <Style TargetType="Button" BasedOn="{StaticResource RowIconButton}">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding Marker}" Value="Pinned">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -1450,7 +1490,7 @@
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Button.Style>
-                                                <materialDesign:PackIcon Kind="Delete" Width="15" Height="15"
+                                                <materialDesign:PackIcon Kind="Delete" Style="{StaticResource RowActionIcon}"
                                                                          Foreground="#DC2626"/>
                                             </Button>
                                         </StackPanel>
@@ -1629,9 +1669,8 @@
                                                  Бейдж справа показывает номер горячей клавиши (если назначен). -->
                                             <Button Command="{Binding DataContext.ToggleFavoriteForCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
-                                                    Background="Transparent" BorderThickness="0"
-                                                    Cursor="Hand" Padding="0,0,2,0"
-                                                    MinWidth="0" MinHeight="0"
+                                                    Style="{StaticResource RowActionButton}"
+                                                    Padding="0,0,2,0"
                                                     VerticalAlignment="Center"
                                                     ToolTip="{loc:Loc Main.ToggleFavoriteTooltip}">
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -1693,9 +1732,8 @@
                                             <!-- Закрепление (пин): действует на конкретную базу этой строки. -->
                                             <Button Command="{Binding DataContext.TogglePinForCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
-                                                    Background="Transparent" BorderThickness="0"
-                                                    Cursor="Hand" Padding="0,0,4,0"
-                                                    MinWidth="0" MinHeight="0"
+                                                    Style="{StaticResource RowActionButton}"
+                                                    Padding="0,0,4,0"
                                                     VerticalAlignment="Center"
                                                     ToolTip="{loc:Loc Main.TogglePinTooltip}">
                                                 <materialDesign:PackIcon Kind="Pin" VerticalAlignment="Center">
@@ -1803,7 +1841,7 @@
                                                     HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <Button Command="{Binding DataContext.LaunchEnterpriseCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
-                                                    Style="{DynamicResource IconButton}" Margin="1,0"
+                                                    Style="{StaticResource RowIconButton}" Margin="1,0"
                                                     ToolTip="{loc:Loc Main.LaunchEnterpriseTooltip}">
                                                 <materialDesign:PackIcon Kind="Play"
                                                                          Style="{StaticResource RowActionIcon}"
@@ -1811,7 +1849,7 @@
                                             </Button>
                                             <Button Command="{Binding DataContext.LaunchConfiguratorCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
-                                                    Style="{DynamicResource IconButton}" Margin="1,0"
+                                                    Style="{StaticResource RowIconButton}" Margin="1,0"
                                                     ToolTip="{loc:Loc Main.LaunchConfiguratorSectionTooltip}">
                                                 <materialDesign:PackIcon Kind="Wrench"
                                                                          Style="{StaticResource RowActionIcon}"
@@ -1819,7 +1857,7 @@
                                             </Button>
                                             <Button Command="{Binding DataContext.ClearCacheCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
-                                                    Style="{DynamicResource IconButton}" Margin="1,0"
+                                                    Style="{StaticResource RowIconButton}" Margin="1,0"
                                                     ToolTip="{loc:Loc Main.ClearCacheTooltip}">
                                                 <materialDesign:PackIcon Kind="Broom"
                                                                          Style="{StaticResource RowActionIcon}"
@@ -2009,7 +2047,6 @@
                                                             HorizontalAlignment="Center" VerticalAlignment="Center"
                                                             Command="{Binding DataContext.ToggleGroupExpandedCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                             CommandParameter="{Binding}"
-                                                            Width="26" Height="26"
                                                             Background="Transparent" BorderThickness="0"
                                                             Cursor="Hand"
                                                             ToolTip="{loc:Loc Main.ExpandCollapseGroup}">
@@ -2021,10 +2058,20 @@
                                                         </Button.Margin>
                                                         <Button.Style>
                                                             <Style TargetType="Button">
+                                                                <!-- Ширина/высота кнопки разворота в стилевых сеттерах:
+                                                                     в компактном режиме DataTrigger уменьшает 26 → 18,
+                                                                     чтобы заголовок группы сжимался так же, как строка
+                                                                     базы (issue #296). Обычный режим сохраняет 26. -->
+                                                                <Setter Property="Width" Value="26"/>
+                                                                <Setter Property="Height" Value="26"/>
                                                                 <Setter Property="ToolTip" Value="{loc:Loc Main.CollapseGroup}"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="False">
                                                                         <Setter Property="ToolTip" Value="{loc:Loc Main.ExpandGroup}"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding DataContext.CompactMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                                        <Setter Property="Width" Value="18"/>
+                                                                        <Setter Property="Height" Value="18"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -2064,6 +2111,15 @@
                                                                     <DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="False">
                                                                         <Setter TargetName="IconExpanded" Property="Visibility" Value="Collapsed"/>
                                                                         <Setter TargetName="IconCollapsed" Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                    <!-- Компактный режим: рамка 22 → 16, значок 12 → 8 (issue #296) -->
+                                                                    <DataTrigger Binding="{Binding DataContext.CompactMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                                        <Setter TargetName="ExpanderBorder" Property="Width" Value="16"/>
+                                                                        <Setter TargetName="ExpanderBorder" Property="Height" Value="16"/>
+                                                                        <Setter TargetName="IconExpanded" Property="Width" Value="8"/>
+                                                                        <Setter TargetName="IconExpanded" Property="Height" Value="8"/>
+                                                                        <Setter TargetName="IconCollapsed" Property="Width" Value="8"/>
+                                                                        <Setter TargetName="IconCollapsed" Property="Height" Value="8"/>
                                                                     </DataTrigger>
                                                                     <Trigger Property="IsMouseOver" Value="True">
                                                                         <Setter TargetName="ExpanderBorder" Property="Background" Value="{DynamicResource AccentBrush}"/>
