@@ -6,6 +6,24 @@ namespace Configuration_Management.Services;
 public sealed record RunningOneCProcess(string ProcessName, string CommandLine);
 
 /// <summary>
+/// Запущенный процесс платформы 1С с подробностями для инспектора процессов.
+/// </summary>
+/// <param name="Pid">Идентификатор процесса.</param>
+/// <param name="ProcessName">Имя процесса (например «1cv8c.exe»).</param>
+/// <param name="CommandLine">Полная командная строка процесса (может быть пуста — нет прав на чтение).</param>
+/// <param name="StartTime">Время запуска процесса (локальное); null — определить не удалось.</param>
+/// <param name="StartTimeToken">Сырое значение времени старта (Linux: поле starttime из /proc/stat),
+/// по которому перед завершением сверяется, что PID не переиспользован. На Windows не используется.</param>
+/// <param name="UserName">Имя пользователя, от которого запущен процесс; null — определить не удалось.</param>
+public sealed record RunningOneCProcessDetails(
+    int Pid,
+    string ProcessName,
+    string CommandLine,
+    DateTime? StartTime,
+    string? StartTimeToken,
+    string? UserName);
+
+/// <summary>
 /// Список запущенных процессов платформы 1С на текущей машине. Используется
 /// индикатором «база сейчас запущена»: командные строки процессов сопоставляются
 /// с параметрами подключения баз (<see cref="RunningInfobaseMatcher"/>).
@@ -16,4 +34,11 @@ public interface IRunningInfobasesService
 {
     /// <summary>Текущие процессы 1С (1cv8/1cv8c и совместимые) с их командными строками.</summary>
     System.Collections.Generic.IReadOnlyList<RunningOneCProcess> GetRunning();
+
+    /// <summary>
+    /// Подробности о каждом запущенном процессе 1С: PID, время старта, командная строка
+    /// и владелец процесса (инспектор процессов). Та же политика тихой деградации: при
+    /// любой ошибке возвращается пустой список.
+    /// </summary>
+    System.Collections.Generic.IReadOnlyList<RunningOneCProcessDetails> GetRunningDetails();
 }

@@ -1355,6 +1355,27 @@ public partial class MainViewModel : ViewModelBase
         window.ShowDialogSync(OwnerWindow());
     }
 
+    // ======================= Инспектор процессов 1С (0.3.9.93) =======================
+
+    private System.Windows.Input.ICommand? _processInspectorCommand;
+
+    /// <summary>
+    /// Команда «Инспектор процессов…»: таблица всех запущенных процессов платформы 1С
+    /// (база/режим/пользователь/время старта/PID/строка подключения) с автообновлением
+    /// и завершением выбранного процесса. Двойной клик по известной базе — переход
+    /// к ней в главном окне. Работает со всем списком, поэтому активна всегда.
+    /// </summary>
+    public System.Windows.Input.ICommand ProcessInspectorCommand =>
+        _processInspectorCommand ??= new RelayCommand(_ => ExecuteProcessInspector());
+
+    private void ExecuteProcessInspector()
+    {
+        var window = new Configuration_Management.ProcessInspectorWindow(
+            _allInfobases.ToList(),
+            ib => FindInListCommand.Execute(ib));
+        window.ShowDialogSync(OwnerWindow());
+    }
+
     /// <summary>Предупреждение в журнал из окна: журнал живёт во вьюмодели.</summary>
     public void LogWarning(string message) => _logger.Warn(message);
 }

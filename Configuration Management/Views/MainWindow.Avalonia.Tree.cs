@@ -1697,6 +1697,9 @@ namespace Configuration_Management
             // Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
             // в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»).
             menu.Items.Add(MenuAction("Utilities.ExportCsv", _vm.ExportBasesCsvCommand, null, "IconFileExport", "#22C55E"));
+            // Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов платформы
+            // с режимом, пользователем, PID и завершением выбранного процесса.
+            menu.Items.Add(MenuAction("ProcessInspector.Title", _vm.ProcessInspectorCommand, null, "IconApplicationCog", "#0EA5E9"));
 
             menu.Items.Add(MenuSeparator());
 

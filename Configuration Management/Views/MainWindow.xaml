@@ -722,6 +722,11 @@
                                         <MenuItem Header="{loc:Loc Utilities.ExportCsv}" Command="{Binding ExportBasesCsvCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="FileDelimited" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов 1С
+                                             с режимом, пользователем, PID и завершением выбранного процесса. -->
+                                        <MenuItem Header="{loc:Loc ProcessInspector.Title}" Command="{Binding ProcessInspectorCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="ApplicationCog" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>

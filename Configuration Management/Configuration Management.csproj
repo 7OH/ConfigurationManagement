@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.92</Version>
-    <AssemblyVersion>0.3.9.92</AssemblyVersion>
-    <FileVersion>0.3.9.92</FileVersion>
-    <InformationalVersion>0.3.9.92</InformationalVersion>
+    <Version>0.3.9.93</Version>
+    <AssemblyVersion>0.3.9.93</AssemblyVersion>
+    <FileVersion>0.3.9.93</FileVersion>
+    <InformationalVersion>0.3.9.93</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -239,6 +239,9 @@
     <!-- Окно «Центр обслуживания» (0.3.9.89): WPF code-behind исключается,
          Avalonia-версия (MaintenanceCenterWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\MaintenanceCenterWindow.xaml.cs" />
+    <!-- Окно «Инспектор процессов 1С» (0.3.9.93): WPF code-behind исключается,
+         Avalonia-версия (ProcessInspectorWindow.Avalonia.cs) подключается глобом ниже. -->
+    <Compile Remove="Views\ProcessInspectorWindow.xaml.cs" />
     <!-- Кастомные контролы (WPF) исключаем, но возвращаем Avalonia-версии (*.Avalonia.cs) -->
     <Compile Remove="Controls\**\*.cs" />
     <Compile Include="Controls\*.Avalonia.cs" />
@@ -334,6 +337,11 @@
          платформенных зависимостей, используется обеими платформами — на Linux
          подключается явно (имя не совпадает с глобом *.Avalonia.cs). -->
     <Compile Include="ViewModels\MaintenanceCenterViewModel.cs" />
+    <!-- ViewModels окна «Инспектор процессов 1С» (0.3.9.93): чистый .NET без
+         платформенных зависимостей, используются обеими платформами — на Linux
+         подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\ProcessInspectorViewModel.cs" />
+    <Compile Include="ViewModels\ProcessRowViewModel.cs" />
     <!-- Мультивыделение (0.3.9.90): общая логика набора «для выделенных» — чистый
          .NET без платформенных зависимостей, используется обеими платформами.
          Платформенные пакетные команды лежат отдельно: MainViewModel.BatchCommands.cs

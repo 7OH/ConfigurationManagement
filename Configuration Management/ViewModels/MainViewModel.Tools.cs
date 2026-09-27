@@ -2369,5 +2369,29 @@ public partial class MainViewModel : ViewModelBase
         };
         window.ShowDialog();
     }
+
+    // ======================= Инспектор процессов 1С (0.3.9.93) =======================
+
+    private ICommand? _processInspectorCommand;
+
+    /// <summary>
+    /// Команда «Инспектор процессов…»: таблица всех запущенных процессов платформы 1С
+    /// (база/режим/пользователь/время старта/PID/строка подключения) с автообновлением
+    /// и завершением выбранного процесса. Двойной клик по известной базе — переход
+    /// к ней в главном окне. Работает со всем списком, поэтому активна всегда.
+    /// </summary>
+    public ICommand ProcessInspectorCommand =>
+        _processInspectorCommand ??= new RelayCommand(_ => ExecuteProcessInspector());
+
+    private void ExecuteProcessInspector()
+    {
+        var window = new ProcessInspectorWindow(
+            Infobases.ToList(),
+            ib => FindInListCommand.Execute(ib))
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        window.ShowDialog();
+    }
 }
 #endif

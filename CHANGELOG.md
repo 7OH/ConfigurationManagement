@@ -9,6 +9,33 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.93] — 2026-09-27
+
+### Добавлено
+
+- **Инспектор процессов 1С** (обе платформы, меню «Утилиты») — окно со списком всех
+  запущенных процессов платформы 1С (1cv8/1cv8c и совместимые): имя базы (процесс
+  сопоставляется с базой списка через `RunningInfobaseMatcher`; иначе — «Неизвестная
+  база» и строка подключения из командной строки), режим (1С:Предприятие /
+  Конфигуратор / Служебный — по ключам DESIGNER/CONFIG, /Execute, /C), пользователь
+  (из /N либо владелец процесса), время запуска, PID, краткая строка подключения
+  (подсказка — полная командная строка) и значок-флаг «известная база». Кнопка
+  «Обновить» + автообновление по таймеру (раз в 5 секунд); «Завершить процесс» —
+  с подтверждением и предупреждением о несохранённых данных (Windows — `Process.Kill`
+  с деревом потомков, Linux — kill через /proc со сверкой времени старта, чтобы PID
+  не был переиспользован); двойной клик по строке с известной базой — переход к базе
+  в главном окне (FindInList-механика, как в Центре обслуживания). Подробности
+  процессов — расширенный `IRunningInfobasesService.GetRunningDetails()` (Windows:
+  WMI Win32_Process с `GetOwner`; Linux: /proc со временем старта и владельцем),
+  завершение — `IOneCProcessKiller`. Разбор командной строки — чистый класс
+  [`Services/ProcessCommandLineParser.cs`](Configuration%20Management/Services/ProcessCommandLineParser.cs),
+  логика — [`ViewModels/ProcessInspectorViewModel.cs`](Configuration%20Management/ViewModels/ProcessInspectorViewModel.cs)
+  и [`ViewModels/ProcessRowViewModel.cs`](Configuration%20Management/ViewModels/ProcessRowViewModel.cs),
+  окна — [`Views/ProcessInspectorWindow.xaml`](Configuration%20Management/Views/ProcessInspectorWindow.xaml)
+  (WPF) и [`Views/ProcessInspectorWindow.Avalonia.cs`](Configuration%20Management/Views/ProcessInspectorWindow.Avalonia.cs)
+  (Avalonia). Класс покрыт unit-тестами
+  ([`ConfigurationManagement.Tests/ProcessInspectorParsingTests.cs`](ConfigurationManagement.Tests/ProcessInspectorParsingTests.cs)).
+
 ## [0.3.9.92] — 2026-09-27
 
 ### Добавлено

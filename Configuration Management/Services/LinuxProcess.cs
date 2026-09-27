@@ -221,6 +221,24 @@ namespace Configuration_Management.Services
             !string.IsNullOrEmpty(name)
             && OneCProcessNames.Any(n => string.Equals(name, n, StringComparison.OrdinalIgnoreCase));
 
+        /// <summary>
+        /// Завершает один процесс по PID (инспектор процессов). Перед сигналом сверяет
+        /// время старта из /proc/<pid>/stat: номер PID ядро переиспользует, и без
+        /// сверки можно завершить чужой процесс. Пустой токен подтвердить нечем —
+        /// сигнал не посылается.
+        /// </summary>
+        /// <returns>True — процесс завершён или уже отсутствует; false — не удалось.</returns>
+        public static bool KillOne(int pid, string? startTimeToken)
+        {
+            if (!IsAlive(pid))
+                return true;
+
+            if (startTimeToken is null || ReadStartTime(pid) != startTimeToken)
+                return false;
+
+            return SendKill(pid);
+        }
+
         /// <summary>Жив ли процесс с указанным pid.</summary>
         public static bool IsAlive(int pid)
         {

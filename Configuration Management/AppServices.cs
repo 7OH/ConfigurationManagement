@@ -55,10 +55,14 @@ public static class AppServices
         // для проверки целостности файловой ИБ и консоли администрирования серверов 1С
         // для клиент-серверных баз. Чистый сервис — без UI-зависимостей.
         services.AddSingleton<IInfobaseAdminService, InfobaseAdminService>();
-        // Индикатор «база сейчас запущена»: список процессов 1С с командными строками.
+        // Индикатор «база сейчас запущена» и инспектор процессов: список процессов 1С
+        // с командными строками и подробностями (PID, время старта, владелец).
         // Windows — WMI (Win32_Process), Linux — обход /proc; тип один, реализация
         // выбирается символами условной компиляции.
         services.AddSingleton<IRunningInfobasesService, RunningInfobasesService>();
+        // Завершение процесса 1С по PID (инспектор процессов): Windows — Process.Kill
+        // вместе с деревом потомков, Linux — kill через /proc со сверкой времени старта.
+        services.AddSingleton<IOneCProcessKiller, OneCProcessKiller>();
         services.AddTransient<MainViewModel>();
         services.AddTransient<MainWindow>();
 
