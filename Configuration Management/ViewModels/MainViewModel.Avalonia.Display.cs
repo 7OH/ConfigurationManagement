@@ -415,6 +415,7 @@ public partial class MainViewModel : ViewModelBase
     public string HotkeyClearTags => _settings.HotkeyClearTags;
     public string HotkeyRightPanelDetails => _settings.HotkeyRightPanelDetails;
     public string HotkeyFindInList => _settings.HotkeyFindInList;
+    public string HotkeyCommandPalette => _settings.HotkeyCommandPalette;
     public string HotkeySwitchUser => _settings.HotkeySwitchUser;
     public string HotkeyCheckUpdate => _settings.HotkeyCheckUpdate;
     public string HotkeyActualReleases => _settings.HotkeyActualReleases;
@@ -432,7 +433,8 @@ public partial class MainViewModel : ViewModelBase
         string clearSearch, string clearTags, string rightPanelDetails, string switchUser,
         string findInList = "", string sessionLock = "", string lockApp = "",
         string checkIntegrity = "", string serverConsole = "",
-        string zoomIn = "", string zoomOut = "", string zoomReset = "")
+        string zoomIn = "", string zoomOut = "", string zoomReset = "",
+        string commandPalette = "")
     {
         _settings.HotkeyEnterprise = enterprise ?? string.Empty;
         _settings.HotkeyConfigurator = configurator ?? string.Empty;
@@ -450,6 +452,8 @@ public partial class MainViewModel : ViewModelBase
         _settings.HotkeyRightPanelDetails = rightPanelDetails ?? string.Empty;
         _settings.HotkeyFindInList = findInList ?? string.Empty;
         _settings.HotkeySwitchUser = switchUser ?? string.Empty;
+        // Командная палитра (Ctrl+K): быстрый поиск баз и команд.
+        _settings.HotkeyCommandPalette = commandPalette ?? string.Empty;
         // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
         _settings.HotkeySessionLock = sessionLock ?? string.Empty;
         _settings.HotkeyLockApp = lockApp ?? string.Empty;
@@ -478,6 +482,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HotkeyClearTags));
         OnPropertyChanged(nameof(HotkeyRightPanelDetails));
         OnPropertyChanged(nameof(HotkeyFindInList));
+        OnPropertyChanged(nameof(HotkeyCommandPalette));
         OnPropertyChanged(nameof(HotkeySwitchUser));
         OnPropertyChanged(nameof(HotkeySessionLock));
         OnPropertyChanged(nameof(HotkeyLockApp));

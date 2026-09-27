@@ -461,6 +461,8 @@ namespace Configuration_Management
             var hkClearTags = ReadHotkeyBox(HotkeyClearTagsBox);
             var hkRightPanelDetails = ReadHotkeyBox(HotkeyRightPanelDetailsBox);
             var hkFindInList = ReadHotkeyBox(HotkeyFindInListBox);
+            // Командная палитра (Ctrl+K).
+            var hkCommandPalette = ReadHotkeyBox(HotkeyCommandPaletteBox);
             var hkSwitchUser = ReadHotkeyBox(HotkeySwitchUserBox);
             var hkSessionLock = ReadHotkeyBox(HotkeySessionLockBox);
             var hkLockApp = ReadHotkeyBox(HotkeyLockAppBox);
@@ -491,6 +493,7 @@ namespace Configuration_Management
                 (LocalizationManager.T("Main.ClearTags"), hkClearTags),
                 (LocalizationManager.T("Main.CollapseRightPanel"), hkRightPanelDetails),
                 (LocalizationManager.T("Main.FindInList"), hkFindInList),
+                (LocalizationManager.T("Settings.Hotkeys.CommandPalette"), hkCommandPalette),
                 (LocalizationManager.T("Main.SwitchUser"), hkSwitchUser),
                 (LocalizationManager.T("SessionLock.Title"), hkSessionLock),
                 (LocalizationManager.T("AppLock.LockTitle"), hkLockApp),
@@ -549,6 +552,7 @@ namespace Configuration_Management
                 hotkeyClearTags: hkClearTags,
                 hotkeyRightPanelDetails: hkRightPanelDetails,
                 hotkeyFindInList: hkFindInList,
+                hotkeyCommandPalette: hkCommandPalette,
                 hotkeySwitchUser: hkSwitchUser,
                 hotkeySessionLock: hkSessionLock,
                 hotkeyLockApp: hkLockApp,

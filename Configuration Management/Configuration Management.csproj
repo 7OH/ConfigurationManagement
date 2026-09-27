@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.80</Version>
-    <AssemblyVersion>0.3.9.80</AssemblyVersion>
-    <FileVersion>0.3.9.80</FileVersion>
-    <InformationalVersion>0.3.9.80</InformationalVersion>
+    <Version>0.3.9.81</Version>
+    <AssemblyVersion>0.3.9.81</AssemblyVersion>
+    <FileVersion>0.3.9.81</FileVersion>
+    <InformationalVersion>0.3.9.81</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -224,6 +224,9 @@
     <Compile Remove="Views\BackupScenariosWindow.xaml.cs" />
     <Compile Remove="Views\BackupScenarioEditWindow.xaml.cs" />
     <Compile Remove="Views\ExportsListWindow.xaml.cs" />
+    <!-- Командная палитра (Ctrl+K): WPF code-behind исключается, Avalonia-версия
+         (CommandPaletteWindow.Avalonia.cs) подключается глобом ниже. -->
+    <Compile Remove="Views\CommandPaletteWindow.xaml.cs" />
     <!-- Кастомные контролы (WPF) исключаем, но возвращаем Avalonia-версии (*.Avalonia.cs) -->
     <Compile Remove="Controls\**\*.cs" />
     <Compile Include="Controls\*.Avalonia.cs" />
@@ -256,6 +259,9 @@
     <!-- Чистая логика слотов закладок (горячие клавиши избранных): используется
          и Windows, и Linux, поэтому подключается явно (не попадает под глоб *.Avalonia.cs). -->
     <Compile Include="ViewModels\BookmarkSlotHelper.cs" />
+    <!-- Командная палитра (Ctrl+K): чистая логика фильтрации и выбора, без
+         платформенных зависимостей; подключается явно по той же причине. -->
+    <Compile Include="ViewModels\CommandPaletteViewModel.cs" />
     <Compile Include="ViewModels\ConnectionSettingsViewModel.cs" />
     <!-- Общая модель строки диалога «Определение конфигураций всех баз» (issue #236):
          чистый .NET без WPF-зависимостей, используется и Windows, и Linux. -->

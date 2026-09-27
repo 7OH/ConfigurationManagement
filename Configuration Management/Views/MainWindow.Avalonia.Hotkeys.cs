@@ -145,6 +145,8 @@ namespace Configuration_Management
             // «Найти в списке» — переход к базе в общем списке (issue #285);
             // значение по умолчанию Ctrl+T задаётся в настройках.
             AddHotkey(_vm.HotkeyFindInList, _vm.FindInListCommand);
+            // Командная палитра (Ctrl+K): быстрый поиск баз и команд интерфейса.
+            AddHotkey(_vm.HotkeyCommandPalette, _vm.CommandPaletteCommand);
             // Смена пользователя — настраиваемый хоткей (issue #200).
             AddHotkey(_vm.HotkeySwitchUser, _vm.SwitchUserCommand);
             // Проверка обновлений конфигураций 1С (функции №21/№22): F9 — для выбранной

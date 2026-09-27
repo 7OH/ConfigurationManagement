@@ -179,6 +179,7 @@ public partial class MainViewModel : ViewModelBase
     private string _hotkeyClearTags = "Ctrl+Shift+T";
     private string _hotkeyRightPanelDetails = "";
     private string _hotkeyFindInList = "Ctrl+T";
+    private string _hotkeyCommandPalette = "Ctrl+K";
     private string _hotkeySwitchUser = "";
     private string _sortField = "Name";
     private bool _sortAscending = true;
@@ -423,6 +424,9 @@ public partial class MainViewModel : ViewModelBase
         _hotkeyFindInList = string.IsNullOrWhiteSpace(settings.HotkeyFindInList)
             ? "Ctrl+T"
             : settings.HotkeyFindInList.Trim();
+        _hotkeyCommandPalette = string.IsNullOrWhiteSpace(settings.HotkeyCommandPalette)
+            ? "Ctrl+K"
+            : settings.HotkeyCommandPalette.Trim();
         _hotkeySwitchUser = settings.HotkeySwitchUser?.Trim() ?? "";
         _sortField = string.IsNullOrWhiteSpace(settings.SortField) ? "Name" : settings.SortField;
         _sortAscending = settings.SortAscending;

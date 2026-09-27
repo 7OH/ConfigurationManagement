@@ -2716,6 +2716,8 @@ namespace Configuration_Management
             var hotkeyClearTags = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ClearTags"), _viewModel.HotkeyClearTags);
             var hotkeyRightPanelDetails = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.RightPanelDetails"), _viewModel.HotkeyRightPanelDetails);
             var hotkeyFindInList = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.FindInList"), _viewModel.HotkeyFindInList);
+            // Командная палитра (Ctrl+K): быстрый поиск баз и команд интерфейса.
+            var hotkeyCommandPalette = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.CommandPalette"), _viewModel.HotkeyCommandPalette);
             var hotkeySwitchUser = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.SwitchUser"), _viewModel.HotkeySwitchUser);
             // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
             var hotkeySessionLock = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.SessionLock"), _viewModel.HotkeySessionLock);
@@ -2962,6 +2964,7 @@ namespace Configuration_Management
                     (LocalizationManager.T("Main.RecentTooltip"), hotkeyShowRecent),
                     (LocalizationManager.T("Main.ClearSearch"), hotkeyClearSearch),
                     (LocalizationManager.T("Main.ClearTags"), hotkeyClearTags),
+                    (LocalizationManager.T("Settings.Hotkeys.CommandPalette"), hotkeyCommandPalette),
                     // Панель информации (Ctrl+D, issue #172) участвует в проверке
                     // дублей, как и в Windows-версии (SettingsWindow.xaml.cs).
                     (LocalizationManager.T("Main.CollapseRightPanel"), hotkeyRightPanelDetails),
@@ -3061,7 +3064,8 @@ namespace Configuration_Management
                     hotkeyClearSearch.Value, hotkeyClearTags.Value, hotkeyRightPanelDetails.Value,
                     hotkeySwitchUser.Value, hotkeyFindInList.Value, hotkeySessionLock.Value, hotkeyLockApp.Value,
                     hotkeyCheckIntegrity.Value, hotkeyServerConsole.Value,
-                    hotkeyZoomIn.Value, hotkeyZoomOut.Value, hotkeyZoomReset.Value);
+                    hotkeyZoomIn.Value, hotkeyZoomOut.Value, hotkeyZoomReset.Value,
+                    hotkeyCommandPalette.Value);
 
                 // Копия экрана (функция №30) и автозапуск при старте ОС (функция №31, Этап 8).
                 _viewModel.ScreenshotHotkey = hotkeyScreenshot.Value ?? "";

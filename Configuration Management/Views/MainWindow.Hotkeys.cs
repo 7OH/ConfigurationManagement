@@ -82,6 +82,9 @@ namespace Configuration_Management
             // значение по умолчанию Ctrl+T задаётся в настройках.
             Add(_viewModel.HotkeyFindInList, _viewModel.FindInListCommand);
 
+            // Командная палитра (Ctrl+K): быстрый поиск баз и команд интерфейса.
+            Add(_viewModel.HotkeyCommandPalette, _viewModel.CommandPaletteCommand);
+
             // Смена пользователя — настраиваемый хоткей (issue #200);
             // значение по умолчанию не задано.
             Add(_viewModel.HotkeySwitchUser, _viewModel.SwitchUserCommand);

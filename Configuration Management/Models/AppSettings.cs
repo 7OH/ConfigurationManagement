@@ -392,6 +392,9 @@ public class AppSettings
     /// <summary>Горячая клавиша «Найти в списке» — переход к базе в общем списке (issue #285). По умолчанию Ctrl+T.</summary>
     public string HotkeyFindInList { get; set; } = "Ctrl+T";
 
+    /// <summary>Горячая клавиша «Командная палитра» (быстрый поиск баз и команд). По умолчанию Ctrl+K.</summary>
+    public string HotkeyCommandPalette { get; set; } = "Ctrl+K";
+
     /// <summary>Горячая клавиша «Смена пользователя» (issue #200). Пусто — не назначена.</summary>
     public string HotkeySwitchUser { get; set; } = "";
 

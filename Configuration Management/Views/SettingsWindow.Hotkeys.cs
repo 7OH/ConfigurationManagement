@@ -44,6 +44,7 @@ namespace Configuration_Management
             BindHotkeyBox(HotkeyClearTagsBox, _viewModel.HotkeyClearTags);
             BindHotkeyBox(HotkeyRightPanelDetailsBox, _viewModel.HotkeyRightPanelDetails);
             BindHotkeyBox(HotkeyFindInListBox, _viewModel.HotkeyFindInList);
+            BindHotkeyBox(HotkeyCommandPaletteBox, _viewModel.HotkeyCommandPalette);
             BindHotkeyBox(HotkeySwitchUserBox, _viewModel.HotkeySwitchUser);
         }
 

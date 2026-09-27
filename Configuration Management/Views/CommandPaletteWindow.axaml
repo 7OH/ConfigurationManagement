@@ -1,0 +1,33 @@
+<!-- Командная палитра (Ctrl+K) (Avalonia/Linux). Тексты приходят параметрами/локализацией
+     из кода: окно открывается из вью-модели. Windows-аналог: Views/CommandPaletteWindow.xaml. -->
+<local:ModalWindowBase xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:local="clr-namespace:Configuration_Management"
+                       x:Class="Configuration_Management.CommandPaletteWindow"
+                       Width="560"
+                       FontSize="13"
+                       CanResize="False"
+                       SystemDecorations="None">
+    <Grid Margin="10" RowDefinitions="Auto,Auto,Auto">
+        <TextBox Grid.Row="0" x:Name="SearchBox" Theme="{DynamicResource ModernTextBox}"
+                 Padding="10,8" FontSize="14"/>
+        <ListBox Grid.Row="1" x:Name="ItemList" MaxHeight="380" Margin="0,8,0,0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="2,4" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding Title}" FontSize="13"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Subtitle}" FontSize="11" Margin="0,1,0,0"
+                                       Opacity="0.65" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding Hint}" FontSize="11" Margin="8,0,0,0"
+                                   VerticalAlignment="Center" Opacity="0.65"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock Grid.Row="2" x:Name="HintText" Margin="2,8,0,2" FontSize="11" Opacity="0.65"/>
+    </Grid>
+</local:ModalWindowBase>

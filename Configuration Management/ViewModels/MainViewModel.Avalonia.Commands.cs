@@ -214,5 +214,107 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
     }
+
+    // ======================= Командная палитра (Ctrl+K) =======================
+
+    private ICommand? _commandPaletteCommand;
+
+    /// <summary>Команда открытия командной палитры (Ctrl+K).</summary>
+    public ICommand CommandPaletteCommand =>
+        _commandPaletteCommand ??= new RelayCommand(ExecuteShowCommandPalette);
+
+    /// <summary>Открывает палитру и исполняет выбранный элемент.</summary>
+    private void ExecuteShowCommandPalette()
+    {
+        var (bases, commands) = BuildPaletteSource();
+        var win = new Configuration_Management.CommandPaletteWindow(bases, commands);
+        win.ShowDialogSync(OwnerWindow());
+
+        var item = win.Result;
+        if (item is null)
+            return;
+
+        if (item.Kind == CommandPaletteItemKind.Base)
+        {
+            var ib = Infobases.FirstOrDefault(b => b.Id == item.Id);
+            if (ib is null)
+                return;
+
+            // Запуск с записью истории и сохранением — общий путь запуска из трея.
+            LaunchFromTray(ib, win.UseConfigurator);
+            return;
+        }
+
+        ExecutePaletteCommand(item.Id);
+    }
+
+    /// <summary>Источник элементов палитры: базы (избранные — выше) и команды интерфейса.</summary>
+    private (System.Collections.Generic.List<CommandPaletteItem> Bases,
+             System.Collections.Generic.List<CommandPaletteItem> Commands) BuildPaletteSource()
+    {
+        var bases = Infobases
+            .OrderByDescending(b => b.FavoriteHotkeyNumber > 0)
+            .ThenBy(b => b.FavoriteHotkeyNumber > 0 ? b.FavoriteHotkeyNumber : int.MaxValue)
+            .ThenBy(b => b.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(b => new CommandPaletteItem
+            {
+                Kind = CommandPaletteItemKind.Base,
+                Id = b.Id,
+                Title = b.Name,
+                Subtitle = string.Join(" · ",
+                    new[] { b.GroupDisplay, b.ConnectionTypeDisplay, b.ServerDatabaseDisplay }
+                        .Where(s => !string.IsNullOrWhiteSpace(s) && s != "—"))
+            })
+            .ToList();
+
+        var commands = new (string Id, string TitleKey, ICommand Command)[]
+        {
+            ("palette.settings", "Main.Settings", OpenSettingsCommand),
+            ("palette.sync", "Main.SyncWithIbases", SynchronizeWithIbasesCommand),
+            ("palette.add", "Main.AddBase", AddInfobaseCommand),
+            ("palette.availability", "Main.CheckAvailabilityLabel", CheckAvailabilityCommand),
+            ("palette.tab-all", "Main.AllBases", ShowAllCommand),
+            ("palette.tab-favorites", "Main.Favorites", ShowFavoritesCommand),
+            ("palette.tab-recent", "Main.Recent", ShowRecentCommand),
+            ("palette.clear-search", "Main.ClearSearch", ClearSearchCommand),
+            ("palette.clear-tags", "Main.ClearTagFilters", ClearTagFiltersCommand),
+            ("palette.backup-scenarios", "Backup.ScenariosTitle", ShowBackupScenariosCommand),
+            ("palette.exports", "Restore.Title", ShowExportsListCommand),
+            ("palette.actual-releases", "Updates.ActualReleasesTitle", ShowActualReleasesCommand),
+        }
+        .Select(c => new CommandPaletteItem
+        {
+            Kind = CommandPaletteItemKind.Command,
+            Id = c.Id,
+            Title = LocalizationManager.T(c.TitleKey)
+        })
+        .ToList();
+
+        return (bases, commands);
+    }
+
+    /// <summary>Исполняет команду палитры по идентификатору.</summary>
+    private void ExecutePaletteCommand(string id)
+    {
+        ICommand? command = id switch
+        {
+            "palette.settings" => OpenSettingsCommand,
+            "palette.sync" => SynchronizeWithIbasesCommand,
+            "palette.add" => AddInfobaseCommand,
+            "palette.availability" => CheckAvailabilityCommand,
+            "palette.tab-all" => ShowAllCommand,
+            "palette.tab-favorites" => ShowFavoritesCommand,
+            "palette.tab-recent" => ShowRecentCommand,
+            "palette.clear-search" => ClearSearchCommand,
+            "palette.clear-tags" => ClearTagFiltersCommand,
+            "palette.backup-scenarios" => ShowBackupScenariosCommand,
+            "palette.exports" => ShowExportsListCommand,
+            "palette.actual-releases" => ShowActualReleasesCommand,
+            _ => null
+        };
+
+        if (command is { } cmd && cmd.CanExecute(null))
+            cmd.Execute(null);
+    }
 }
 #endif

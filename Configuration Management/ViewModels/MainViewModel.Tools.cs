@@ -1939,7 +1939,8 @@ public partial class MainViewModel : ViewModelBase
         string? hotkeyServerConsole = null,
         string? hotkeyZoomIn = null,
         string? hotkeyZoomOut = null,
-        string? hotkeyZoomReset = null)
+        string? hotkeyZoomReset = null,
+        string? hotkeyCommandPalette = null)
     {
         _allowMultipleInstances = allowMultipleInstances;
         _checkForUpdatesOnStartup = checkForUpdatesOnStartup;
@@ -1974,6 +1975,8 @@ public partial class MainViewModel : ViewModelBase
         if (hotkeyZoomIn != null) HotkeyZoomIn = hotkeyZoomIn.Trim();
         if (hotkeyZoomOut != null) HotkeyZoomOut = hotkeyZoomOut.Trim();
         if (hotkeyZoomReset != null) HotkeyZoomReset = hotkeyZoomReset.Trim();
+        // Командная палитра (Ctrl+K).
+        if (hotkeyCommandPalette != null) HotkeyCommandPalette = hotkeyCommandPalette.Trim();
         OnPropertyChanged(nameof(AllowMultipleInstances));
         OnPropertyChanged(nameof(CheckForUpdatesOnStartup));
         OnPropertyChanged(nameof(AutoUpdateEnabled));

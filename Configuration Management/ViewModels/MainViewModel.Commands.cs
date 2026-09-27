@@ -1273,6 +1273,17 @@ public string HotkeyEnterprise
         }
     }
 
+    /// <summary>Горячая клавиша «Командная палитра» — быстрый поиск баз и команд. По умолчанию Ctrl+K.</summary>
+    public string HotkeyCommandPalette
+    {
+        get => _hotkeyCommandPalette;
+        set
+        {
+            if (SetProperty(ref _hotkeyCommandPalette, NormalizeHotkey(value, "Ctrl+K")))
+                ScheduleSaveSettings();
+        }
+    }
+
     /// <summary>Горячая клавиша переключения подробностей правой панели информации. Пусто — не назначена (issue #172).</summary>
     public string HotkeyRightPanelDetails
     {
@@ -1290,6 +1301,124 @@ public string HotkeyEnterprise
     /// прокрутки (флаг читается в RevealAndSelectAfterRebuild; см. OnFindInListRequested).
     /// </summary>
     public event Action? RevealFindInListRequested;
+
+    // ======================= Командная палитра (Ctrl+K) =======================
+
+    private ICommand? _commandPaletteCommand;
+
+    /// <summary>Команда открытия командной палитры (Ctrl+K).</summary>
+    public ICommand CommandPaletteCommand =>
+        _commandPaletteCommand ??= new RelayCommand(ExecuteShowCommandPalette);
+
+    /// <summary>Открывает палитру и исполняет выбранный элемент.</summary>
+    private void ExecuteShowCommandPalette()
+    {
+        var (bases, commands) = BuildPaletteSource();
+        var (item, useConfigurator) = CommandPaletteWindow.ShowDialogFor(bases, commands);
+        if (item is null)
+            return;
+
+        if (item.Kind == CommandPaletteItemKind.Base)
+        {
+            var ib = Infobases.FirstOrDefault(b => b.Id == item.Id);
+            if (ib is null)
+                return;
+            SelectedInfobase = ib;
+
+            // Запуск напрямую через лаунчер — не зависит от CanExecute команд UI
+            // (тот же подход, что у закладок Alt+N и меню трея).
+            var ok = useConfigurator
+                ? _launcher.Launch(ib, Services.OneCLaunchMode.Configurator)
+                : LaunchEnterpriseWithSessionOverrides(ib);
+            if (ok)
+            {
+                ib.LastLaunchDate = DateTime.Now;
+                ib.AddLaunchHistory(useConfigurator ? "Configurator" : "Enterprise", "palette");
+                ScheduleSave();
+                _logger.Info($"[palette] Запущена «{ib.Name}» ({(useConfigurator ? "Конфигуратор" : "Предприятие")})");
+                NotifyAfterLaunch();
+            }
+            else
+            {
+                _logger.Warn($"[palette] Не удалось запустить «{ib.Name}»");
+                ShowLaunchFailed();
+            }
+            return;
+        }
+
+        ExecutePaletteCommand(item.Id);
+    }
+
+    /// <summary>Источник элементов палитры: базы (избранные — выше) и команды интерфейса.</summary>
+    private (System.Collections.Generic.List<CommandPaletteItem> Bases,
+             System.Collections.Generic.List<CommandPaletteItem> Commands) BuildPaletteSource()
+    {
+        var bases = Infobases
+            .OrderByDescending(b => b.FavoriteHotkeyNumber > 0)
+            .ThenBy(b => b.FavoriteHotkeyNumber > 0 ? b.FavoriteHotkeyNumber : int.MaxValue)
+            .ThenBy(b => b.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(b => new CommandPaletteItem
+            {
+                Kind = CommandPaletteItemKind.Base,
+                Id = b.Id,
+                Title = b.Name,
+                Subtitle = string.Join(" · ",
+                    new[] { b.GroupDisplay, b.ConnectionTypeDisplay, b.ServerDatabaseDisplay }
+                        .Where(s => !string.IsNullOrWhiteSpace(s) && s != "—"))
+            })
+            .ToList();
+
+        // Команды палитры: идентификатор → локализованное название → команда VM.
+        // Исполняются без параметров — как из меню/хоткеев.
+        var commands = new (string Id, string TitleKey, ICommand Command)[]
+        {
+            ("palette.settings", "Main.Settings", OpenSettingsCommand),
+            ("palette.sync", "Main.SyncWithIbases", SynchronizeWithIbasesCommand),
+            ("palette.add", "Main.AddBase", AddInfobaseCommand),
+            ("palette.availability", "Main.CheckAvailabilityLabel", CheckAvailabilityCommand),
+            ("palette.tab-all", "Main.AllBases", ShowAllCommand),
+            ("palette.tab-favorites", "Main.Favorites", ShowFavoritesCommand),
+            ("palette.tab-recent", "Main.Recent", ShowRecentCommand),
+            ("palette.clear-search", "Main.ClearSearch", ClearSearchCommand),
+            ("palette.clear-tags", "Main.ClearTagFilters", ClearTagFiltersCommand),
+            ("palette.backup-scenarios", "Backup.ScenariosTitle", ShowBackupScenariosCommand),
+            ("palette.exports", "Restore.Title", ShowExportsListCommand),
+            ("palette.actual-releases", "Updates.ActualReleasesTitle", ShowActualReleasesCommand),
+        }
+        .Select(c => new CommandPaletteItem
+        {
+            Kind = CommandPaletteItemKind.Command,
+            Id = c.Id,
+            Title = LocalizationManager.T(c.TitleKey)
+        })
+        .ToList();
+
+        return (bases, commands);
+    }
+
+    /// <summary>Исполняет команду палитры по идентификатору.</summary>
+    private void ExecutePaletteCommand(string id)
+    {
+        ICommand? command = id switch
+        {
+            "palette.settings" => OpenSettingsCommand,
+            "palette.sync" => SynchronizeWithIbasesCommand,
+            "palette.add" => AddInfobaseCommand,
+            "palette.availability" => CheckAvailabilityCommand,
+            "palette.tab-all" => ShowAllCommand,
+            "palette.tab-favorites" => ShowFavoritesCommand,
+            "palette.tab-recent" => ShowRecentCommand,
+            "palette.clear-search" => ClearSearchCommand,
+            "palette.clear-tags" => ClearTagFiltersCommand,
+            "palette.backup-scenarios" => ShowBackupScenariosCommand,
+            "palette.exports" => ShowExportsListCommand,
+            "palette.actual-releases" => ShowActualReleasesCommand,
+            _ => null
+        };
+
+        if (command is { } cmd && cmd.CanExecute(null))
+            cmd.Execute(null);
+    }
 
     /// <summary>
     /// «Найти в списке» (issue #285): переходит к базе в общем списке «Все базы».
