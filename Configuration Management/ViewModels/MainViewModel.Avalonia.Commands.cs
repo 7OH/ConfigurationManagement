@@ -316,5 +316,98 @@ public partial class MainViewModel : ViewModelBase
         if (command is { } cmd && cmd.CanExecute(null))
             cmd.Execute(null);
     }
+
+    // ======================= Дублирование файловой ИБ =======================
+
+    private ICommand? _cloneInfobaseCommand;
+
+    /// <summary>Команда «Дублировать базу» (только для файловых ИБ).</summary>
+    public ICommand CloneInfobaseCommand =>
+        _cloneInfobaseCommand ??= new RelayCommand(
+            _ => ExecuteCloneInfobase(),
+            _ => SelectedInfobase?.Connection?.Type == ConnectionType.File);
+
+    /// <summary>Клонирует файловую базу: копия каталога + новая запись списка.</summary>
+    private async void ExecuteCloneInfobase()
+    {
+        var source = SelectedInfobase;
+        if (source?.Connection is not { Type: ConnectionType.File })
+            return;
+
+        var sourceDir = source.Connection.FilePath ?? "";
+        if (string.IsNullOrWhiteSpace(sourceDir) || !System.IO.Directory.Exists(sourceDir))
+        {
+            _dialog.ShowWarning(string.Format(LocalizationManager.T("Clone.SourceMissing"), source.Name), LocalizationManager.T("Clone.Title"));
+            return;
+        }
+
+        if (source.IsRunning)
+        {
+            _dialog.ShowWarning(string.Format(LocalizationManager.T("Clone.SourceRunning"), source.Name), LocalizationManager.T("Clone.Title"));
+            RefreshRunningFlags();
+            return;
+        }
+
+        var proposed = InfobaseCloneHelper.ProposeCloneName(source.Name);
+        var nameWindow = new Configuration_Management.NameInputWindow(
+            LocalizationManager.T("Clone.NameTitle"),
+            LocalizationManager.T("Clone.NamePrompt"),
+            LocalizationManager.T("Common.Ok"),
+            proposed);
+        if (!nameWindow.ShowDialogSync(OwnerWindow()))
+            return;
+        var newName = nameWindow.Result?.Trim();
+        if (string.IsNullOrWhiteSpace(newName))
+            return;
+
+        var targetDir = InfobaseCloneHelper.BuildTargetDirectory(sourceDir, newName);
+        if (string.IsNullOrEmpty(targetDir))
+        {
+            _dialog.ShowWarning(LocalizationManager.T("Clone.SourceMissing"), LocalizationManager.T("Clone.Title"));
+            return;
+        }
+
+        var sizeBytes = InfobaseCloneHelper.GetDirectorySize(sourceDir);
+        var sizeText = sizeBytes >= 0 ? Infobase.FormatSize(sizeBytes) : "?";
+        if (!_dialog.Confirm(
+                string.Format(LocalizationManager.T("Clone.Confirm"), source.Name, newName, sizeText, targetDir),
+                LocalizationManager.T("Clone.Title")))
+            return;
+
+        var copied = await System.Threading.Tasks.Task.Run(() => InfobaseCloneHelper.CopyDirectory(sourceDir, targetDir));
+        if (!copied)
+        {
+            _dialog.ShowError(LocalizationManager.T("Clone.Failed"), LocalizationManager.T("Clone.Title"));
+            return;
+        }
+
+        var clone = System.Text.Json.JsonSerializer.Deserialize<Infobase>(
+            System.Text.Json.JsonSerializer.Serialize(source))!;
+        clone.Id = Guid.NewGuid().ToString("N");
+        clone.Name = newName;
+        clone.Connection.FilePath = targetDir;
+        clone.IsFavorite = false;
+        clone.IsPinned = false;
+        clone.IsSelected = false;
+        clone.FavoriteHotkeyNumber = 0;
+        clone.LastLaunchDate = null;
+        clone.LaunchHistory = new List<LaunchHistoryEntry>();
+        clone.FileSizeBytes = null;
+        clone.FileLastWriteTimeUtc = null;
+
+        var index = _allInfobases.IndexOf(source);
+        if (index >= 0)
+            _allInfobases.Insert(index + 1, clone);
+        else
+            _allInfobases.Add(clone);
+
+        OnPropertyChanged(nameof(Infobases));
+        SaveSilently();
+        RebuildTree();
+        SelectedInfobase = clone;
+        RefreshRunningFlags();
+        _logger.Info($"[clone] «{source.Name}» → «{newName}» ({targetDir})");
+        _dialog.ShowInfo(string.Format(LocalizationManager.T("Clone.Done"), newName, targetDir), LocalizationManager.T("Clone.Title"));
+    }
 }
 #endif

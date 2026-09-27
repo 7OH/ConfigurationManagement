@@ -2244,6 +2244,10 @@
                                     <MenuItem Header="{loc:Loc Main.OpenCatalog}" Command="{Binding OpenInfobaseFolderCommand}" Style="{DynamicResource ModernMenuItem}">
                                         <MenuItem.Icon><materialDesign:PackIcon Kind="FolderOpen" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
                                     </MenuItem>
+                                    <!-- Дублирование файловой ИБ: копия каталога + запись в списке. -->
+                                    <MenuItem Header="{loc:Loc Clone.Title}" Command="{Binding CloneInfobaseCommand}" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="ContentCopy" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                    </MenuItem>
                                     <!-- Администрирование ИБ (Этап 6, функция №29): проверка целостности
                                          файловой ИБ (chdbfl). Консоль серверов перенесена в «Утилиты» (issue #287). -->
                                     <MenuItem Header="{loc:Loc Admin.CheckIntegrity}" Command="{Binding CheckIntegrityCommand}" InputGestureText="{Binding HotkeyCheckIntegrity}" Style="{DynamicResource ModernMenuItem}">

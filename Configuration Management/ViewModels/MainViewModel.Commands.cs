@@ -1422,6 +1422,101 @@ public string HotkeyEnterprise
             cmd.Execute(null);
     }
 
+    // ======================= Дублирование файловой ИБ =======================
+
+    private ICommand? _cloneInfobaseCommand;
+
+    /// <summary>Команда «Дублировать базу» (только для файловых ИБ).</summary>
+    public ICommand CloneInfobaseCommand =>
+        _cloneInfobaseCommand ??= new RelayCommand(
+            _ => ExecuteCloneInfobase(),
+            _ => SelectedInfobase?.Connection?.Type == ConnectionType.File);
+
+    /// <summary>Клонирует файловую базу: копия каталога + новая запись списка.</summary>
+    private async void ExecuteCloneInfobase()
+    {
+        var source = SelectedInfobase;
+        if (source?.Connection is not { Type: ConnectionType.File })
+            return;
+
+        var sourceDir = source.Connection.FilePath ?? "";
+        if (string.IsNullOrWhiteSpace(sourceDir) || !Directory.Exists(sourceDir))
+        {
+            _dialogs.ShowWarning(string.Format(LocalizationManager.T("Clone.SourceMissing"), source.Name), LocalizationManager.T("Clone.Title"));
+            return;
+        }
+
+        if (source.IsRunning)
+        {
+            _dialogs.ShowWarning(string.Format(LocalizationManager.T("Clone.SourceRunning"), source.Name), LocalizationManager.T("Clone.Title"));
+            RefreshRunningFlags();
+            return;
+        }
+
+        // Имя клона запрашивается отдельным окном (по образцу переименования схем).
+        var proposed = InfobaseCloneHelper.ProposeCloneName(source.Name);
+        var nameWindow = new NameInputWindow(
+            LocalizationManager.T("Clone.NameTitle"),
+            LocalizationManager.T("Clone.NamePrompt"),
+            LocalizationManager.T("Common.Ok"),
+            proposed)
+        { Owner = Application.Current.MainWindow };
+        if (nameWindow.ShowDialog() != true)
+            return;
+        var newName = nameWindow.Result?.Trim();
+        if (string.IsNullOrWhiteSpace(newName))
+            return;
+
+        var targetDir = InfobaseCloneHelper.BuildTargetDirectory(sourceDir, newName);
+        if (string.IsNullOrEmpty(targetDir))
+        {
+            _dialogs.ShowWarning(LocalizationManager.T("Clone.SourceMissing"), LocalizationManager.T("Clone.Title"));
+            return;
+        }
+
+        var sizeBytes = InfobaseCloneHelper.GetDirectorySize(sourceDir);
+        var sizeText = sizeBytes >= 0 ? Infobase.FormatSize(sizeBytes) : "?";
+        if (!_dialogs.Confirm(
+                string.Format(LocalizationManager.T("Clone.Confirm"), source.Name, newName, sizeText, targetDir),
+                LocalizationManager.T("Clone.Title")))
+            return;
+
+        var copied = await Task.Run(() => InfobaseCloneHelper.CopyDirectory(sourceDir, targetDir));
+        if (!copied)
+        {
+            _dialogs.ShowError(LocalizationManager.T("Clone.Failed"), LocalizationManager.T("Clone.Title"));
+            return;
+        }
+
+        // Полная копия записи (авторизации, параметры запуска, теги), затем замена
+        // идентичности: новый Id/имя/каталог, чистые флаги и история запусков.
+        var clone = JsonSerializer.Deserialize<Infobase>(JsonSerializer.Serialize(source))!;
+        clone.Id = Guid.NewGuid().ToString("N");
+        clone.Name = newName;
+        clone.Connection.FilePath = targetDir;
+        clone.IsFavorite = false;
+        clone.IsPinned = false;
+        clone.IsSelected = false;
+        clone.FavoriteHotkeyNumber = 0;
+        clone.LastLaunchDate = null;
+        clone.LaunchHistory = new List<LaunchHistoryEntry>();
+        clone.FileSizeBytes = null;
+        clone.FileLastWriteTimeUtc = null;
+
+        var index = Infobases.IndexOf(source);
+        if (index >= 0)
+            Infobases.Insert(index + 1, clone);
+        else
+            Infobases.Add(clone);
+
+        Save();
+        RebuildGroupTree();
+        SelectedInfobase = clone;
+        RefreshRunningFlags();
+        _logger.Info($"[clone] «{source.Name}» → «{newName}» ({targetDir})");
+        _dialogs.ShowInfo(string.Format(LocalizationManager.T("Clone.Done"), newName, targetDir), LocalizationManager.T("Clone.Title"));
+    }
+
     /// <summary>
     /// «Найти в списке» (issue #285): переходит к базе в общем списке «Все базы».
     /// Сбрасывает фильтры (вкладка/поиск/теги), принудительно раскрывает цепочку групп
