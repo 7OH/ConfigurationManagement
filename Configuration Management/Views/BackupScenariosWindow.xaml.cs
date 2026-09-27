@@ -18,14 +18,20 @@ public partial class BackupScenariosWindow : Window
     private readonly IDialogService _dialogs;
     private readonly Infobase? _infobase;
     private readonly MainViewModel? _vm;
+    private readonly IReadOnlyList<Infobase>? _batchBases;
 
     /// <param name="infobase">ИБ, для которой выполняется сценарий (может быть null).</param>
     /// <param name="vm">MainViewModel для выполнения сценария (может быть null).</param>
-    public BackupScenariosWindow(Infobase? infobase = null, MainViewModel? vm = null)
+    /// <param name="batchBases">Базы мультивыделения (0.3.9.90): «Выполнить» прогоняет сценарий по всем.</param>
+    public BackupScenariosWindow(
+        Infobase? infobase = null,
+        MainViewModel? vm = null,
+        IReadOnlyList<Infobase>? batchBases = null)
     {
         InitializeComponent();
         _infobase = infobase;
         _vm = vm;
+        _batchBases = batchBases;
         _store = AppServices.GetRequiredService<IBackupScenarioStore>();
         _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -34,7 +40,7 @@ public partial class BackupScenariosWindow : Window
         AddButton.Content = T("Common.Add");
         EditButton.Content = T("Common.Edit");
         DeleteButton.Content = T("Common.Delete");
-        RunButton.IsEnabled = _infobase is not null;
+        RunButton.IsEnabled = _infobase is not null || (_batchBases is { Count: > 0 });
 
         LoadScenarios();
     }
@@ -96,7 +102,15 @@ public partial class BackupScenariosWindow : Window
 
     private async void Run_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected is not { } item || _infobase is null || _vm is null)
+        if (Selected is not { } item || _vm is null)
+            return;
+        if (_batchBases is { Count: > 0 })
+        {
+            foreach (var ib in _batchBases)
+                await _vm.RunBackupAsync(ib, item.Scenario);
+            return;
+        }
+        if (_infobase is null)
             return;
         await _vm.RunBackupAsync(_infobase, item.Scenario);
     }

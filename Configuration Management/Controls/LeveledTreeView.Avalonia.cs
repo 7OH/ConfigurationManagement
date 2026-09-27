@@ -89,11 +89,73 @@ namespace Configuration_Management.Controls
                 return;
 
             var row = source.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault();
-            if (row is not null)
+            if (row is null)
+                return;
+
+            // Мультивыделение (0.3.9.90): Ctrl+щелчок — точечное переключение,
+            // Shift+щелчок — диапазон от «якоря» до цели по видимому порядку.
+            // Обычный ЛЕВЫЙ клик снимает мультивыделение (как в WPF-версии);
+            // правый клик его сохраняет, чтобы открылось пакетное меню.
+            var rowBase = row.DataContext switch
             {
-                SelectRow(row);
+                Infobase ib => ib,
+                PinnedInfobaseItem pinned => pinned.Base,
+                _ => null
+            };
+            if (rowBase is not null &&
+                (e.KeyModifiers & KeyModifiers.Control) == KeyModifiers.Control &&
+                (e.KeyModifiers & KeyModifiers.Shift) != KeyModifiers.Shift)
+            {
+                if (DataContext is MainViewModel vm)
+                    vm.ToggleBatchSelection(rowBase, "Ctrl");
                 e.Handled = true;
+                return;
             }
+
+            if (rowBase is not null &&
+                (e.KeyModifiers & KeyModifiers.Shift) == KeyModifiers.Shift &&
+                point.Properties.IsLeftButtonPressed)
+            {
+                if (DataContext is MainViewModel vm)
+                    vm.SelectRange(vm.SelectedInfobase, rowBase, VisibleInfobasesInOrder());
+                e.Handled = true;
+                return;
+            }
+
+            SelectRow(row);
+            e.Handled = true;
+
+            // Левый клик без модификаторов — единственный выбор: снимаем
+            // мультивыделение, чтобы пакетный блок меню не «висел».
+            if (point.Properties.IsLeftButtonPressed &&
+                rowBase is not null &&
+                DataContext is MainViewModel plainVm)
+            {
+                plainVm.ClearBatchSelection();
+            }
+        }
+
+        /// <summary>
+        /// Базы в видимом порядке строк дерева (сверху вниз, включая строки
+        /// развёрнутых подгрупп). Используется Shift-диапазоном мультивыделения
+        /// (0.3.9.90) по тем же контейнерам, что и навигация клавишами.
+        /// Закреплённые базы входят реальной моделью (обёртка снимается).
+        /// </summary>
+        private List<Infobase> VisibleInfobasesInOrder()
+        {
+            var result = new List<Infobase>();
+            foreach (var row in VisibleRows())
+            {
+                var ib = row.DataContext switch
+                {
+                    Infobase baseIb => baseIb,
+                    PinnedInfobaseItem pinned => pinned.Base,
+                    _ => null
+                };
+                if (ib is not null && !result.Contains(ib))
+                    result.Add(ib);
+            }
+            return result;
         }
 
         /// <summary>

@@ -1,0 +1,179 @@
+#if WINDOWS
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using Configuration_Management.Localization;
+using Configuration_Management.Models;
+using Configuration_Management.Services;
+
+namespace Configuration_Management.ViewModels;
+
+/// <summary>
+/// Пакетные операции над мультивыделением (0.3.9.90, Windows/WPF): назначение
+/// тега, перемещение в группу, избранное, резервирование, доступность, удаление.
+/// Диалоги — платформенные (WPF); сами изменения данных — через существующие
+/// методы VM, чтобы сохранить синхронизацию (теги, дерево, настройки).
+/// </summary>
+public partial class MainViewModel
+{
+    /// <summary>Число баз в мультивыделении (для заголовка блока меню).</summary>
+    public string BatchMenuTitle => string.Format(
+        LocalizationManager.T("Main.BatchForSelected"),
+        _batchSelectedIds.Count);
+
+    /// <summary>Назначает введённый тег всем базам мультивыделения.</summary>
+    public void AssignTagToBatch(string? tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag))
+            return;
+        var bases = BatchSelectedInfobases.ToList();
+        if (bases.Count == 0)
+            return;
+
+        var trimmed = tag!.Trim();
+        foreach (var ib in bases)
+        {
+            if (!ib.Tags.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+            {
+                ib.Tags.Add(trimmed);
+                ib.NotifyTagsChanged();
+            }
+        }
+        ScheduleSave();
+        PruneActiveTagFilters();
+        RefreshTagFilterItems();
+    }
+
+    /// <summary>Добавляет все базы мультивыделения в избранное (без снятия).</summary>
+    public void AddBatchToFavorites()
+    {
+        foreach (var ib in BatchSelectedInfobases.ToList())
+        {
+            if (ib.IsFavorite)
+                continue;
+            ib.IsFavorite = true;
+            if (!_favoriteHotkeyIds.Contains(FavoriteKey(ib)) && _favoriteHotkeyIds.Count < 9)
+                _favoriteHotkeyIds.Add(FavoriteKey(ib));
+        }
+        SyncFavoriteHotkeys();
+
+        // Состав списка меняется только при активном временном фильтре.
+        if (ShowFavoritesOnly
+            || !string.IsNullOrWhiteSpace(SearchText)
+            || HasActiveTagFilter)
+        {
+            InfobasesView.Refresh();
+        }
+        ScheduleSave();
+    }
+
+    /// <summary>Перемещает все базы мультивыделения в выбранную группу.</summary>
+    public void MoveBatchToGroup(string groupFullPath)
+    {
+        foreach (var ib in BatchSelectedInfobases.ToList())
+            MoveInfobaseToGroup(ib, groupFullPath);
+    }
+
+    /// <summary>
+    /// Выполняет сценарий резервирования для всех баз мультивыделения.
+    /// Сценарий выбирается в окне «Сценарии резервирования» (как одиночный
+    /// запуск); выполнение идёт последовательно по выбранным базам.
+    /// </summary>
+    public async Task RunBatchBackupAsync()
+    {
+        var bases = BatchSelectedInfobases.ToList();
+        if (bases.Count == 0)
+            return;
+
+        var store = AppServices.GetRequiredService<IBackupScenarioStore>();
+        var scenarios = store.LoadAll();
+        if (scenarios.Count == 0)
+        {
+            _dialogs.ShowInfo(LocalizationManager.T("Backup.NoneConfigured"), LocalizationManager.T("Backup.RunTitle"));
+            return;
+        }
+
+        if (scenarios.Count == 1)
+        {
+            foreach (var ib in bases)
+                await RunBackupAsync(ib, scenarios[0]);
+            return;
+        }
+
+        var win = new Configuration_Management.BackupScenariosWindow(batchBases: bases, vm: this)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        win.ShowDialog();
+    }
+
+    /// <summary>Проверяет доступность только баз мультивыделения.</summary>
+    public void CheckBatchAvailability()
+    {
+        if (_availabilityCheckRunning)
+            return;
+
+        var targets = BatchSelectedInfobases.ToList();
+        if (targets.Count == 0)
+        {
+            _dialogs.ShowInfo(LocalizationManager.T("Main.ConfigListEmpty"),
+                LocalizationManager.T("Main.AvailabilityTitle"));
+            return;
+        }
+
+        _availabilityCheckRunning = true;
+        foreach (var ib in targets)
+            ib.SetChecking(true);
+        InfobasesView?.Refresh();
+        SyncMessage = string.Format(
+            LocalizationManager.T("Main.AvailabilityProgress"), 0, targets.Count);
+
+        _ = RunAvailabilityCheckAsync(targets);
+    }
+
+    /// <summary>
+    /// Удаляет все базы мультивыделения: для каждой открывается общее окно
+    /// подтверждения (<see cref="Configuration_Management.DeleteInfobaseWindow"/>).
+    /// Физическое удаление каталога — по флагу окна.
+    /// </summary>
+    public void DeleteBatch()
+    {
+        var bases = BatchSelectedInfobases.ToList();
+        if (bases.Count == 0)
+            return;
+
+        foreach (var ib in bases)
+        {
+            var dlg = new Configuration_Management.DeleteInfobaseWindow(ib)
+            {
+                Owner = Application.Current?.MainWindow
+            };
+            if (dlg.ShowDialog() != true || !dlg.Confirmed)
+                continue;
+
+            if (dlg.DeletePhysically)
+            {
+                var err = InfobaseMaintenanceService.TryDeleteFileBasePhysically(ib);
+                if (err is not null)
+                {
+                    _dialogs.ShowError(err, LocalizationManager.T("DeleteInfobase.PhysicalDeleteTitle"));
+                    if (!_dialogs.Confirm(
+                            LocalizationManager.T("Main.ConfirmDeleteFromList"),
+                            LocalizationManager.T("Main.DeleteFromListTitle")))
+                        continue;
+                }
+            }
+
+            Infobases.Remove(ib);
+            if (ReferenceEquals(SelectedInfobase, ib))
+                SelectedInfobase = null;
+        }
+
+        Save();
+        RebuildGroupTree();
+        ExportToIbasesAfterLocalChange();
+    }
+}
+#endif

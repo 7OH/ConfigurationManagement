@@ -21,15 +21,21 @@ public sealed class BackupScenariosWindow : ModalWindowBase
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
     private readonly Infobase? _infobase;
     private readonly MainViewModel? _vm;
+    private readonly IReadOnlyList<Infobase>? _batchBases;
     private readonly ListBox _list = new();
     private readonly Button _runButton = new();
 
     /// <param name="infobase">ИБ, для которой выполняется сценарий (может быть null).</param>
     /// <param name="vm">MainViewModel для выполнения сценария (может быть null).</param>
-    public BackupScenariosWindow(Infobase? infobase = null, MainViewModel? vm = null)
+    /// <param name="batchBases">Базы мультивыделения (0.3.9.90): «Выполнить» прогоняет сценарий по всем.</param>
+    public BackupScenariosWindow(
+        Infobase? infobase = null,
+        MainViewModel? vm = null,
+        IReadOnlyList<Infobase>? batchBases = null)
     {
         _infobase = infobase;
         _vm = vm;
+        _batchBases = batchBases;
         Title = T("Backup.ScenariosTitle");
         Width = 720;
         Height = 540;
@@ -57,7 +63,7 @@ public sealed class BackupScenariosWindow : ModalWindowBase
             Margin = new Avalonia.Thickness(0, 12, 0, 0)
         };
         _runButton.Content = T("Backup.RunTitle");
-        _runButton.IsEnabled = _infobase is not null;
+        _runButton.IsEnabled = _infobase is not null || (_batchBases is { Count: > 0 });
         _runButton.Click += async (_, _) => await RunSelectedAsync();
 
         var add = new Button { Content = T("Common.Add") };
@@ -135,7 +141,15 @@ public sealed class BackupScenariosWindow : ModalWindowBase
 
     private async System.Threading.Tasks.Task RunSelectedAsync()
     {
-        if (Selected is not { } item || _infobase is null || _vm is null)
+        if (Selected is not { } item || _vm is null)
+            return;
+        if (_batchBases is { Count: > 0 })
+        {
+            foreach (var ib in _batchBases)
+                await _vm.RunBackupAsync(ib, item.Scenario);
+            return;
+        }
+        if (_infobase is null)
             return;
         await _vm.RunBackupAsync(_infobase, item.Scenario);
     }

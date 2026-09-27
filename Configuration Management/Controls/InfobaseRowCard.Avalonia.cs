@@ -30,8 +30,10 @@ namespace Configuration_Management.Controls
         // Актуальные кисти темы, обновляются при смене схемы/ресурсов.
         private IBrush _hoverBrush = Brushes.Transparent;
         private IBrush _accentBrush = Brushes.Transparent;
+        private IBrush _batchBrush = Brushes.Transparent;
 
         private bool _isHovered;
+        private bool _isBatchSelected;
 
         public InfobaseRowCard()
         {
@@ -62,6 +64,22 @@ namespace Configuration_Management.Controls
             // по пять живых наблюдателей на выброшенную строку.
             AddSubscription(() => SubscribeBrush("ItemHoverBrush", value => _hoverBrush = value));
             AddSubscription(() => SubscribeBrush("AccentBrush", value => _accentBrush = value));
+            // Мультивыделение (0.3.9.90): вторичный фон «для выделенных» — та же
+            // кисть, что у пунктов списков, чтобы не вводить новый цвет в темы.
+            AddSubscription(() => SubscribeBrush("ItemSelectedBrush", value => _batchBrush = value));
+        }
+
+        /// <summary>
+        /// Помечает карточку как входящую в мультивыделение (0.3.9.90). Устанавливается
+        /// построителем строки по <see cref="Configuration_Management.Models.Infobase.IsBatchSelected"/>
+        /// и перекрашивает карточку без пересборки строки.
+        /// </summary>
+        public void SetBatchSelected(bool value)
+        {
+            if (_isBatchSelected == value)
+                return;
+            _isBatchSelected = value;
+            ApplyState();
         }
 
         /// <summary>
@@ -143,14 +161,16 @@ namespace Configuration_Management.Controls
             return app.GetResourceObservable(brushKey).Subscribe(slot);
         }
 
-        /// <summary>Применяет состояние к фону и границе в порядке приоритета: выделено > hover > обычное.</summary>
+        /// <summary>Применяет состояние к фону и границе в порядке приоритета: выделено > мультивыделение > hover > обычное.</summary>
         private void ApplyState()
         {
-            // Три состояния разметки и только они: в покое прозрачно, при
-            // наведении ItemHover, у выбранной строки заливка акцентом. Рамки
-            // нет ни в одном из них.
+            // Четыре состояния: в покое прозрачно, при наведении ItemHover,
+            // у строки мультивыделения — вторичный фон ItemSelected (0.3.9.90),
+            // у выбранной строки заливка акцентом. Рамки нет ни в одном из них.
             if (_container?.IsSelected == true)
                 Background = _accentBrush;
+            else if (_isBatchSelected)
+                Background = _batchBrush;
             else if (_isHovered)
                 Background = _hoverBrush;
             else

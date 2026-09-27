@@ -107,6 +107,20 @@ public class Infobase : INotifyPropertyChanged
         set => SetProperty(ref _isSelected, value);
     }
 
+    private bool _isBatchSelected;
+
+    /// <summary>
+    /// Признак вхождения базы в мультивыделение (0.3.9.90): подсвечивает строку
+    /// вторичным фоном «для выделенных». Служебное значение сессии — в файл
+    /// списка не сохраняется.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsBatchSelected
+    {
+        get => _isBatchSelected;
+        set => SetProperty(ref _isBatchSelected, value);
+    }
+
     private bool _isRunning;
 
     /// <summary>

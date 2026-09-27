@@ -205,6 +205,22 @@ namespace Configuration_Management
             // выделено → ItemSelectedBrush + AccentBrush-граница.
             var card = new InfobaseRowCard();
 
+            // Мультивыделение (0.3.9.90): флаг IsBatchSelected меняется Ctrl/Shift-кликом
+            // и живёт на модели, поэтому строка подписывается на его изменения и
+            // перекрашивает карточку без пересборки всего дерева.
+            card.AddSubscription(() =>
+            {
+                void OnBatchChanged(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+                {
+                    if (e.PropertyName == nameof(Infobase.IsBatchSelected))
+                        card.SetBatchSelected(ib.IsBatchSelected);
+                }
+
+                ib.PropertyChanged += OnBatchChanged;
+                card.SetBatchSelected(ib.IsBatchSelected);
+                return new ActionDisposable(() => ib.PropertyChanged -= OnBatchChanged);
+            });
+
             var grid = new Grid();
             // Слева направо: звезда, булавка, иконка типа подключения, имя базы,
             // дальше колонки значений. Звезда и булавка повторяют колонки заголовка
@@ -1719,6 +1735,37 @@ namespace Configuration_Management
             menu.Items.Add(MenuAction("Main.Pin", _vm.TogglePinCommand, _vm.HotkeyPin, "IconPin", "#8B5CF6"));
             menu.Items.Add(MenuSeparator());
             menu.Items.Add(MenuAction("Main.AddBase", _vm.AddInfobaseCommand, _vm.HotkeyAdd, "IconAdd", "#22C55E"));
+
+            // Мультивыделение (0.3.9.90): блок пакетных операций над базами,
+            // помеченными Ctrl/Shift-кликом. Виден при N > 1; заголовок и
+            // видимость обновляет Opening меню.
+            var batchMenu = new MenuItem
+            {
+                Header = _vm.BatchMenuTitle,
+                Icon = MenuIcon("IconTag", "#8B5CF6"),
+                IsVisible = false
+            };
+            batchMenu.Styled(Themes.ControlThemes.ModernMenuItem);
+            batchMenu.Items.Add(BatchMenuAction("Main.BatchAssignTag", OnBatchAssignTagClick, "IconTag", "#14B8A6"));
+            batchMenu.Items.Add(BatchMenuAction("Main.BatchMoveToGroup", OnBatchMoveToGroupClick, "IconFolder", "#0EA5E9"));
+            batchMenu.Items.Add(BatchMenuAction("Main.BatchAddFavorites", OnBatchAddFavoritesClick, "IconStar", "#FBBF24"));
+            batchMenu.Items.Add(BatchMenuAction("Main.BatchRunBackup", OnBatchRunBackupClick, "IconDatabaseExport", "#22C55E"));
+            batchMenu.Items.Add(BatchMenuAction("Main.BatchCheckAvailability", OnBatchCheckAvailabilityClick, "IconCloudDownload", "#3B82F6"));
+            batchMenu.Items.Add(BatchMenuAction("Main.BatchDelete", OnBatchDeleteClick, "IconDelete", "#EF4444"));
+            menu.Items.Add(batchMenu);
+
+            // Заголовок «Для выделенных (N)…» актуален на момент открытия: клики
+            // Ctrl/Shift меняют набор между открытиями меню, а само меню живёт
+            // долго (одно на всё дерево), поэтому обновляем его в Opening.
+            // В режиме «Пользователь» пакетные операции — системные, как в WPF.
+            menu.Opening += (_, _) =>
+            {
+                var count = _vm?.BatchSelectedCount ?? 0;
+                var restricted = _vm?.IsSystemMenuRestricted ?? false;
+                batchMenu.Header = _vm?.BatchMenuTitle ?? batchMenu.Header;
+                batchMenu.IsVisible = !restricted && count > 1;
+            };
+
             menu.Items.Add(MenuSeparator());
 
             // Подменю «Обновление и связь»: обновление информации о конфигурации, проверка
@@ -1819,6 +1866,82 @@ namespace Configuration_Management
         /// </summary>
         private static Control MenuIcon(string iconKey, string colorHex)
             => IconHelper.MakeIcon(iconKey, 16, new SolidColorBrush(Color.Parse(colorHex)));
+
+        /// <summary>Пункт пакетной операции (0.3.9.90): подпись из словаря, значок, клик.</summary>
+        private static MenuItem BatchMenuAction(string textKey, Action onClick, string? iconKey = null, string? iconColor = null)
+        {
+            var item = new MenuItem { Header = LocalizationManager.T(textKey) };
+            item.Styled(Themes.ControlThemes.ModernMenuItem);
+            if (iconKey is not null && iconColor is not null)
+                item.Icon = MenuIcon(iconKey, iconColor);
+            item.Click += (_, _) => onClick();
+            return item;
+        }
+
+        // ======================= Пакетные операции (0.3.9.90) =======================
+
+        /// <summary>Назначить тег всем базам мультивыделения.</summary>
+        private void OnBatchAssignTagClick()
+        {
+            if (_vm is null || _vm.BatchSelectedCount == 0)
+                return;
+            var dlg = new NameInputWindow(
+                LocalizationManager.T("Main.BatchAssignTag"),
+                string.Format(LocalizationManager.T("Main.BatchTagPrompt"), _vm.BatchSelectedCount),
+                LocalizationManager.T("Common.Ok"));
+            if (!dlg.ShowDialogSync(this) || string.IsNullOrWhiteSpace(dlg.Result))
+                return;
+            _vm.AssignTagToBatch(dlg.Result);
+            _vm.ClearBatchSelection();
+        }
+
+        /// <summary>Переместить все базы мультивыделения в выбранную группу.</summary>
+        private void OnBatchMoveToGroupClick()
+        {
+            if (_vm is null || _vm.BatchSelectedCount == 0)
+                return;
+            var picker = new GroupPickerWindow(_vm.Groups, allowNone: true);
+            if (!picker.ShowDialogSync(this))
+                return;
+            _vm.MoveBatchToGroup(picker.ResultFullPath);
+            _vm.ClearBatchSelection();
+        }
+
+        /// <summary>Добавить все базы мультивыделения в избранное.</summary>
+        private void OnBatchAddFavoritesClick()
+        {
+            if (_vm is null || _vm.BatchSelectedCount == 0)
+                return;
+            _vm.AddBatchToFavorites();
+            _vm.ClearBatchSelection();
+        }
+
+        /// <summary>Выполнить сценарий резервирования для всех баз мультивыделения.</summary>
+        private async void OnBatchRunBackupClick()
+        {
+            if (_vm is null || _vm.BatchSelectedCount == 0)
+                return;
+            await _vm.RunBatchBackupAsync();
+            _vm.ClearBatchSelection();
+        }
+
+        /// <summary>Проверить доступность баз мультивыделения.</summary>
+        private void OnBatchCheckAvailabilityClick()
+        {
+            if (_vm is null || _vm.BatchSelectedCount == 0)
+                return;
+            _vm.CheckBatchAvailability();
+            _vm.ClearBatchSelection();
+        }
+
+        /// <summary>Удалить все базы мультивыделения (общее окно подтверждения по каждой).</summary>
+        private void OnBatchDeleteClick()
+        {
+            if (_vm is null || _vm.BatchSelectedCount == 0)
+                return;
+            _vm.DeleteBatch();
+            _vm.ClearBatchSelection();
+        }
 
         /// <summary>Пункт меню с подписью из словаря, командой и подсказкой сочетания клавиш.</summary>
         private static MenuItem MenuAction(string textKey, System.Windows.Input.ICommand command, string? gesture = null,

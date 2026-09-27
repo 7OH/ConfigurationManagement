@@ -607,17 +607,31 @@ namespace Configuration_Management
             switch (treeViewItem.DataContext)
             {
                 case Infobase infobase:
-                    // Ctrl+щелчок по строке базы — поставить/снять закладку (номер).
-                    // Не конфликтует с множественным выделением: выбор здесь и так
-                    // полностью управляется методом ApplySelection.
-                    if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                    // Ctrl+щелчок — точечное переключение мультивыделения (0.3.9.90):
+                    // строка помечается вторичным фоном «для выделенных» и попадает
+                    // в набор пакетных операций. Закладка (номер Alt+N) ставится
+                    // горячей клавишей Ctrl+Shift+P или звёздочкой в строке.
+                    if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
+                        && (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
                     {
                         _draggedData = null;
-                        _viewModel.ToggleBookmark(infobase);
+                        _viewModel.ToggleBatchSelection(infobase, "Ctrl");
                         e.Handled = true;
                         return;
                     }
+                    // Shift+щелчок — диапазон от «якоря» (последний клик без Ctrl)
+                    // до текущей строки по видимому порядку дерева (0.3.9.90).
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                    {
+                        _draggedData = null;
+                        _viewModel.SelectRange(_viewModel.SelectedInfobase, infobase, VisibleInfobasesInOrder());
+                        e.Handled = true;
+                        return;
+                    }
+                    // Обычный клик — единственный выбор: снимаем мультивыделение,
+                    // чтобы пакетный блок меню не «висел» после перехода к одной базе.
                     _draggedData = infobase;
+                    _viewModel.ClearBatchSelection();
                     ApplySelection(treeViewItem, infobase);
                     break;
                 case GroupNodeViewModel groupNode when groupNode.Group is not null:
@@ -688,6 +702,79 @@ namespace Configuration_Management
             btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
             btn.ContextMenu.DataContext = DataContext;
             btn.ContextMenu.IsOpen = true;
+        }
+
+        // ======================= Пакетные операции (0.3.9.90) =======================
+
+        /// <summary>Назначить тег всем базам мультивыделения.</summary>
+        private void OnBatchAssignTag_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null || _viewModel.BatchSelectedCount == 0)
+                return;
+            var dlg = new NameInputWindow(
+                LocalizationManager.T("Main.BatchAssignTag"),
+                string.Format(LocalizationManager.T("Main.BatchTagPrompt"), _viewModel.BatchSelectedCount),
+                LocalizationManager.T("Common.Ok"))
+            {
+                Owner = this
+            };
+            if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.Result))
+                return;
+            _viewModel.AssignTagToBatch(dlg.Result);
+            _viewModel.ClearBatchSelection();
+        }
+
+        /// <summary>Переместить все базы мультивыделения в выбранную группу.</summary>
+        private void OnBatchMoveToGroup_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null || _viewModel.BatchSelectedCount == 0)
+                return;
+            var picker = new GroupPickerWindow(
+                _viewModel.Groups,
+                allowNone: true)
+            {
+                Owner = this
+            };
+            if (picker.ShowDialog() != true)
+                return;
+            _viewModel.MoveBatchToGroup(picker.ResultFullPath);
+            _viewModel.ClearBatchSelection();
+        }
+
+        /// <summary>Добавить все базы мультивыделения в избранное.</summary>
+        private void OnBatchAddFavorites_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null || _viewModel.BatchSelectedCount == 0)
+                return;
+            _viewModel.AddBatchToFavorites();
+            _viewModel.ClearBatchSelection();
+        }
+
+        /// <summary>Выполнить сценарий резервирования для всех баз мультивыделения.</summary>
+        private async void OnBatchRunBackup_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null || _viewModel.BatchSelectedCount == 0)
+                return;
+            await _viewModel.RunBatchBackupAsync();
+            _viewModel.ClearBatchSelection();
+        }
+
+        /// <summary>Проверить доступность баз мультивыделения.</summary>
+        private void OnBatchCheckAvailability_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null || _viewModel.BatchSelectedCount == 0)
+                return;
+            _viewModel.CheckBatchAvailability();
+            _viewModel.ClearBatchSelection();
+        }
+
+        /// <summary>Удалить все базы мультивыделения (общее окно подтверждения по каждой).</summary>
+        private void OnBatchDelete_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null || _viewModel.BatchSelectedCount == 0)
+                return;
+            _viewModel.DeleteBatch();
+            _viewModel.ClearBatchSelection();
         }
 
 

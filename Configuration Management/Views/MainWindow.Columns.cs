@@ -78,10 +78,35 @@ namespace Configuration_Management
 
             var restricted = _viewModel.IsSystemMenuRestricted;
             var items = menu.Items.Cast<object>().ToList();
+
+            // Мультивыделение (0.3.9.90): блок «Для выделенных (N)…» виден только
+            // при N > 1, заголовок показывает текущее число помеченных баз.
+            // В режиме «Пользователь» пакетные операции — системные, скрываются
+            // общим правилом ниже (пункт помечен Tag="Batch", не "User").
+            var batchMenu = items.OfType<MenuItem>()
+                .FirstOrDefault(m => string.Equals(m.Tag as string, "Batch", StringComparison.Ordinal));
+            if (batchMenu is not null)
+            {
+                var batchCount = _viewModel.BatchSelectedCount;
+                batchMenu.Header = string.Format(
+                    LocalizationManager.T("Main.BatchForSelected"), batchCount);
+                batchMenu.Visibility = batchCount > 1 && !restricted
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+
             foreach (var item in items.OfType<MenuItem>())
             {
                 var allowed = string.Equals(item.Tag as string, "User", StringComparison.Ordinal);
                 item.Visibility = restricted && !allowed ? Visibility.Collapsed : Visibility.Visible;
+            }
+            // Пакетный блок уже получил свою видимость; возвращаем её после общего
+            // прохода (в не-restricted режиме общий проход делает все пункты видимыми).
+            if (batchMenu is not null && !restricted)
+            {
+                batchMenu.Visibility = _viewModel.BatchSelectedCount > 1
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             }
             // Скрываем разделители, оставшиеся рядом со скрытыми пунктами.
             if (restricted)

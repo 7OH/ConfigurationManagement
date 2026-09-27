@@ -1599,6 +1599,12 @@
                                                 <Style TargetType="Border">
                                                     <Setter Property="Background" Value="Transparent"/>
                                                     <Style.Triggers>
+                                                        <!-- Мультивыделение (0.3.9.90): строка, помеченная Ctrl/Shift-кликом,
+                                                             получает вторичный фон «для выделенных». Основное выделение
+                                                             (TreeViewItem.IsSelected) объявлено ПОЗЖЕ и перекрывает его. -->
+                                                        <DataTrigger Binding="{Binding IsBatchSelected}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource ItemSelectedBrush}"/>
+                                                        </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="True">
                                                             <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
                                                         </DataTrigger>
@@ -2282,6 +2288,31 @@
                                 <Separator/>
                                 <MenuItem Header="{loc:Loc Main.AddBase}" Command="{Binding AddInfobaseCommand}" InputGestureText="{Binding HotkeyAdd}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Plus" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                </MenuItem>
+                                <!-- Мультивыделение (0.3.9.90): блок пакетных операций над базами,
+                                     помеченными Ctrl/Shift-кликом. Виден при N > 1; заголовок и
+                                     видимость обновляет OnBaseContextMenu_Opened. -->
+                                <MenuItem x:Name="BatchOperationsMenu" Tag="Batch" Header="{loc:Loc Main.BatchForSelected}"
+                                          Visibility="Collapsed" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="SelectionMultiple" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
+                                    <MenuItem Header="{loc:Loc Main.BatchAssignTag}" Click="OnBatchAssignTag_Click" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="Tag" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="{loc:Loc Main.BatchMoveToGroup}" Click="OnBatchMoveToGroup_Click" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="FolderMove" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="{loc:Loc Main.BatchAddFavorites}" Click="OnBatchAddFavorites_Click" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="Star" Width="16" Height="16" Foreground="#FBBF24"/></MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="{loc:Loc Main.BatchRunBackup}" Click="OnBatchRunBackup_Click" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseExport" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="{loc:Loc Main.BatchCheckAvailability}" Click="OnBatchCheckAvailability_Click" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="CloudCheck" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="{loc:Loc Main.BatchDelete}" Click="OnBatchDelete_Click" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="Delete" Width="16" Height="16" Foreground="#EF4444"/></MenuItem.Icon>
+                                    </MenuItem>
                                 </MenuItem>
                                 <Separator/>
                                 <!-- Подменю «Обновление и связь»: обновление информации о конфигурации,

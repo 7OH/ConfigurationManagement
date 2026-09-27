@@ -71,6 +71,23 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Базы в видимом порядке строк дерева (сверху вниз, включая строки
+        /// развёрнутых подгрупп). Используется Shift-диапазоном мультивыделения
+        /// (0.3.9.90): закреплённая база присутствует в дереве дважды, поэтому
+        /// порядок строится по контейнерам, как в навигации (GetVisibleTreeViewItems).
+        /// </summary>
+        private List<Infobase> VisibleInfobasesInOrder()
+        {
+            var result = new List<Infobase>();
+            foreach (var item in GetVisibleTreeViewItems())
+            {
+                if (item.DataContext is Infobase ib && !result.Contains(ib))
+                    result.Add(ib);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Индекс текущей строки навигации. Определяется по контейнеру под
         /// фокусом либо под выделением, а не по объекту данных: закреплённая
         /// база присутствует в дереве дважды (узел «Закреплённые» и собственная
