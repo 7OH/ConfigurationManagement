@@ -27,6 +27,47 @@ namespace Configuration_Management
     public partial class MainWindow
     {
 
+        // ===================== Приём файлов из проводника (0.3.9.92) =====================
+        //
+        // Окно целиком принимает drop (AllowDrop=True в XAML). Туннельные
+        // PreviewDragOver/PreviewDrop перехватывают ВНЕШНИЕ файлы раньше
+        // обработчиков дерева; внутреннее перетаскивание строк/групп
+        // (форматы DragFormatInfobase/DragFormatGroup, DataFormats.FileDrop
+        // отсутствует) обработчики не трогают — им занимается OnMainTree_*.
+
+        /// <summary>
+        /// Курсор «можно бросить» только когда среди перетащенных путей есть
+        /// файловая ИБ (каталог с 1Cv8.1CD или сам файл 1Cv8.1CD).
+        /// </summary>
+        private void OnWindow_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+                return;
+
+            var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+            e.Effects = DroppedBaseDetector.HasAnyBasePath(files)
+                ? DragDropEffects.Copy
+                : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Drop файлов из проводника: пути передаются во вьюмодель, которая
+        /// распознаёт базы, отсеивает дубликаты и показывает итог.
+        /// </summary>
+        private void OnWindow_PreviewDrop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+                return;
+
+            e.Handled = true;
+            var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+            if (files is null || files.Length == 0)
+                return;
+
+            _viewModel.AddInfobasesFromDroppedPaths(files);
+        }
+
         private void OnMainTree_PreviewMouseMove(object sender, MouseEventArgs e)
         {
             if (e.LeftButton != MouseButtonState.Pressed || _isDragging || _draggedData is null)

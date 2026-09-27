@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.91</Version>
-    <AssemblyVersion>0.3.9.91</AssemblyVersion>
-    <FileVersion>0.3.9.91</FileVersion>
-    <InformationalVersion>0.3.9.91</InformationalVersion>
+    <Version>0.3.9.92</Version>
+    <AssemblyVersion>0.3.9.92</AssemblyVersion>
+    <FileVersion>0.3.9.92</FileVersion>
+    <InformationalVersion>0.3.9.92</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -342,6 +342,12 @@
     <!-- Пакетные операции мультивыделения (0.3.9.90, Avalonia/Linux): имя не совпадает
          с глобом *.Avalonia.cs, добавляется явно. -->
     <Compile Include="ViewModels\MainViewModel.Avalonia.BatchCommands.cs" />
+    <!-- Drag & drop добавление баз из проводника (0.3.9.92): общая логика
+         (MainViewModel.Dnd.cs, имя не совпадает с глобом *.Avalonia.cs)
+         добавляется явно; платформенная часть для Avalonia
+         (MainViewModel.Dnd.Avalonia.cs) уже покрыта глобом *.Avalonia.cs,
+         WPF-часть (#if WINDOWS) в Linux-сборку не попадает. -->
+    <Compile Include="ViewModels\MainViewModel.Dnd.cs" />
     <!-- Чистая логика ротации резервных копий (0.3.9.86): используется и Windows,
          и Linux; на Linux подключается явно паттерном Remove+Include, как остальные
          общие файлы сервисов (дефолтный глоб уже включает файл — Remove снимает его). -->
@@ -351,6 +357,11 @@
          на Linux подключается явно паттерном Remove+Include, как BackupRotation. -->
     <Compile Remove="Services\CsvExporter.cs" />
     <Compile Include="Services\CsvExporter.cs" />
+    <!-- Детектор путей drag&drop из проводника (0.3.9.92): чистый .NET без
+         платформенных зависимостей, используется и Windows, и Linux; на Linux
+         подключается явно паттерном Remove+Include, как CsvExporter. -->
+    <Compile Remove="Services\DroppedBaseDetector.cs" />
+    <Compile Include="Services\DroppedBaseDetector.cs" />
     <!-- Windows-only сервисы — Этап 5 -->
     <Compile Remove="Services\WpfDialogService.cs" />
     <!-- Проверка обновлений из GitHub Releases кроссплатформенная: на Linux тоже используется

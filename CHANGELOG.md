@@ -9,6 +9,30 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.92] — 2026-09-27
+
+### Добавлено
+
+- **Drag & drop добавление баз из проводника** (обе платформы) — каталог файловой
+  информационной базы или сам файл `1Cv8.1CD` можно перетащить из проводника
+  Windows / файлового менеджера Linux прямо в главное окно: база автоматически
+  добавляется в список (имя — имя каталога, тип — файловая, путь — каталог,
+  порядок — в конец списка). За один drop принимается несколько путей; каталоги
+  без `1Cv8.1CD` (серверные/веб-базы и прочее) не принимаются, дубликаты пути
+  (без учёта регистра и хвостовых разделителей) пропускаются с итоговым
+  уведомлением «Добавлено: N; пропущено дубликатов: M». Курсор показывает
+  «можно бросить» только когда среди перетащенных объектов есть файловая база.
+  Распознавание путей — чистый класс
+  [`Services/DroppedBaseDetector.cs`](Configuration%20Management/Services/DroppedBaseDetector.cs),
+  логика добавления — [`ViewModels/MainViewModel.Dnd.cs`](Configuration%20Management/ViewModels/MainViewModel.Dnd.cs)
+  (платформенные части — `MainViewModel.Dnd.Windows.cs` / `MainViewModel.Dnd.Avalonia.cs`),
+  приём drop в окне — [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml)
+  и [`Views/MainWindow.DragDrop.cs`](Configuration%20Management/Views/MainWindow.DragDrop.cs)
+  (WPF), [`Views/MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs)
+  и [`Views/MainWindow.Avalonia.DragDrop.cs`](Configuration%20Management/Views/MainWindow.Avalonia.DragDrop.cs)
+  (Avalonia). Класс покрыт unit-тестами
+  ([`ConfigurationManagement.Tests/DroppedBaseDetectorTests.cs`](ConfigurationManagement.Tests/DroppedBaseDetectorTests.cs)).
+
 ## [0.3.9.91] — 2026-09-27
 
 ### Добавлено

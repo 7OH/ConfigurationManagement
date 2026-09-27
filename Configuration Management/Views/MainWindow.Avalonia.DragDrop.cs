@@ -3,8 +3,10 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
 
 namespace Configuration_Management
@@ -16,6 +18,79 @@ namespace Configuration_Management
     {
         /// <summary>Формат содержимого перетаскивания: сама нагрузка живёт в поле окна.</summary>
         private const string DragPayloadMarker = "ConfigurationManagement.Row";
+
+        // ===================== Приём файлов из файлового менеджера (0.3.9.92) =====================
+        //
+        // Окно целиком принимает drop (DragDrop.SetAllowDrop(this, true) в конструкторе).
+        // Туннельная фаза перехватывает ВНЕШНИЕ файлы раньше обработчиков дерева
+        // (OnTreeDragOver/OnTreeDrop); внутреннее перетаскивание строк несёт маркер
+        // DragPayloadMarker и файловых форматов не содержит — его обработчики не трогают.
+
+        /// <summary>
+        /// Курсор «можно бросить» только когда среди перетащенных путей есть
+        /// файловая ИБ (каталог с 1Cv8.1CD или сам файл 1Cv8.1CD).
+        /// </summary>
+        private void OnWindowDragOver(object? sender, DragEventArgs e)
+        {
+            if (!HasExternalFiles(e))
+                return;
+
+            var files = GetDroppedFileNames(e);
+            e.DragEffects = DroppedBaseDetector.HasAnyBasePath(files)
+                ? DragDropEffects.Copy
+                : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Drop файлов из файлового менеджера: пути передаются во вьюмодель, которая
+        /// распознаёт базы, отсеивает дубликаты и показывает итог.
+        /// </summary>
+        private void OnWindowDrop(object? sender, DragEventArgs e)
+        {
+            if (!HasExternalFiles(e))
+                return;
+
+            e.Handled = true;
+            var files = GetDroppedFileNames(e);
+            if (files.Count > 0 && _vm is not null)
+                _vm.AddInfobasesFromDroppedPaths(files);
+        }
+
+        /// <summary>
+        /// Признак внешнего перетаскивания файлов (не строк дерева): платформа
+        /// приносит файлы в формате <see cref="DataFormat.File"/>, внутреннее
+        /// перетаскивание строк несёт текст DragPayloadMarker.
+        /// </summary>
+        private static bool HasExternalFiles(DragEventArgs e) =>
+            e.DataTransfer.Contains(DataFormat.File);
+
+        /// <summary>
+        /// Список локальных путей перетащенных файлов. На Linux и Windows внешние
+        /// файлы приходят в формате <see cref="DataFormat.File"/>; для элементов
+        /// вне локальной ФС (облако и т.п.) путь недоступен — они отбрасываются.
+        /// </summary>
+        private static List<string> GetDroppedFileNames(DragEventArgs e)
+        {
+            var items = e.DataTransfer.Items;
+            if (items is null)
+                return new List<string>();
+
+            var result = new List<string>();
+            foreach (var item in items)
+            {
+                var file = item.TryGetFile();
+                if (file is null)
+                    continue;
+
+                // IStorageItem.Path — это Uri, а нам нужен локальный путь ФС.
+                var path = file.TryGetLocalPath();
+                if (!string.IsNullOrWhiteSpace(path))
+                    result.Add(path);
+            }
+
+            return result;
+        }
 
         /// <summary>
         /// Фиксация того, что поедет: как в WPF, нагрузка берётся в нажатии,

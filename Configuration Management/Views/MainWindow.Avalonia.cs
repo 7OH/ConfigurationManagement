@@ -155,6 +155,14 @@ namespace Configuration_Management
             Loaded += OnWindowLoaded;
             KeyDown += OnWindowKeyDown;
 
+            // Приём файловых баз из файлового менеджера (0.3.9.92): окно целиком
+            // принимает drop, туннельная фаза перехватывает внешние файлы раньше
+            // обработчиков дерева (MainWindow.Avalonia.DragDrop.cs), не мешая
+            // внутреннему перетаскиванию строк.
+            DragDrop.SetAllowDrop(this, true);
+            AddHandler(DragDrop.DragOverEvent, OnWindowDragOver, RoutingStrategies.Tunnel);
+            AddHandler(DragDrop.DropEvent, OnWindowDrop, RoutingStrategies.Tunnel);
+
             // Регистрируем общий механизм закрытия подсказок (issue #270): глобальный реестр
             // открытых тултипов/пользовательских Popup/ContextMenu для всех окон Avalonia,
             // единый диагностический трейс CM_TOOLTIP_TRACE. Регистрация идемпотентна —

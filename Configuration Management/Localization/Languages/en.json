@@ -1499,6 +1499,11 @@
 
     "Main.DlgBaseCreated": "Base \"{0}\" created and added to the list.",
     "Main.DlgBaseCreatedTitle": "Create Infobase",
+
+    "Dnd.AddTitle": "Add infobases from explorer",
+    "Dnd.AddSuccess": "Added: {0}; duplicates skipped: {1}",
+    "Dnd.NotBaseFolder": "The dropped items are not file infobases (1Cv8.1CD not found).",
+    "Dnd.AddError": "Failed to add infobases: {0}",
     "Main.ConfirmDeleteFromList": "Remove the base only from the program list (files on disk untouched or partially deleted)?",
     "Main.DeleteFromListTitle": "Remove from list",
     "Main.SubgroupsCount": "subgroups: {0}",
