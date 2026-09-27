@@ -1360,6 +1360,7 @@
     "Infobase.Type.WebServer": "Web server",
     "Infobase.Type.ClientServer": "Client-server",
     "Infobase.Checking": "Checking availability…",
+    "Infobase.RunningTooltip": "Base is currently running",
     "Infobase.Unavailable.File": "Unavailable: file-based infobase directory not found on disk",
     "Infobase.Unavailable.Web": "Unavailable: web publishing address is not specified",
     "Infobase.Unavailable.ClientServer": "Unavailable: server or database name is not specified",

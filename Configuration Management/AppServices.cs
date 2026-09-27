@@ -55,6 +55,10 @@ public static class AppServices
         // для проверки целостности файловой ИБ и консоли администрирования серверов 1С
         // для клиент-серверных баз. Чистый сервис — без UI-зависимостей.
         services.AddSingleton<IInfobaseAdminService, InfobaseAdminService>();
+        // Индикатор «база сейчас запущена»: список процессов 1С с командными строками.
+        // Windows — WMI (Win32_Process), Linux — обход /proc; тип один, реализация
+        // выбирается символами условной компиляции.
+        services.AddSingleton<IRunningInfobasesService, RunningInfobasesService>();
         services.AddTransient<MainViewModel>();
         services.AddTransient<MainWindow>();
 
@@ -83,4 +87,21 @@ public static class AppServices
 
     public static T GetRequiredService<T>() where T : notnull =>
         Services.GetRequiredService<T>();
+
+    /// <summary>
+    /// Служба, если контейнер уже настроен и она зарегистрирована, иначе null.
+    /// Для вспомогательных фоновых задач (мониторы), которые обязаны тихо
+    /// пропускать работу до инициализации контейнера.
+    /// </summary>
+    public static T? TryGetService<T>() where T : notnull
+    {
+        try
+        {
+            return Services is null ? default : Services.GetService<T>();
+        }
+        catch
+        {
+            return default;
+        }
+    }
 }

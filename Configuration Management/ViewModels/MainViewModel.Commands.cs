@@ -630,12 +630,14 @@ public partial class MainViewModel : ViewModelBase
 
         if (ok)
         {
-            ib.LastLaunchDate = DateTime.Now;
-            ib.AddLaunchHistory(isConfigurator ? "Configurator" : "Enterprise", "tray");
-            InfobasesView.Refresh();
-            Save();
-            _logger.Info($"[tray] Запущена «{ib.Name}» ({(isConfigurator ? "Конфигуратор" : "Предприятие")})");
-            NotifyAfterLaunch();
+                ib.LastLaunchDate = DateTime.Now;
+                ib.AddLaunchHistory(isConfigurator ? "Configurator" : "Enterprise", "tray");
+                InfobasesView.Refresh();
+                Save();
+                _logger.Info($"[tray] Запущена «{ib.Name}» ({(isConfigurator ? "Конфигуратор" : "Предприятие")})");
+                NotifyAfterLaunch();
+                // Внеплановый опрос процессов: точка «база запущена» появляется сразу.
+                RefreshRunningFlags();
         }
         else
         {

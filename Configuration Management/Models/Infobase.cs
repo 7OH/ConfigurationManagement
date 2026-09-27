@@ -93,6 +93,29 @@ public class Infobase : INotifyPropertyChanged
         set => SetProperty(ref _isSelected, value);
     }
 
+    private bool _isRunning;
+
+    /// <summary>
+    /// База сейчас запущена (индикатор «зелёная точка»): у процесса платформы 1С
+    /// в командной строке обнаружены параметры подключения этой базы. Значение
+    /// обновляется фоновым монитором вью-модели и в файл списка не сохраняется.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsRunning
+    {
+        get => _isRunning;
+        set
+        {
+            if (SetProperty(ref _isRunning, value))
+                OnPropertyChanged(nameof(IsRunningTooltip));
+        }
+    }
+
+    /// <summary>Подсказка индикатора запуска (для точки у имени базы).</summary>
+    public string IsRunningTooltip => IsRunning
+        ? LocalizationManager.T("Infobase.RunningTooltip")
+        : string.Empty;
+
     private DateTime? _lastLaunchDate;
 
     /// <summary>Дата и время последнего запуска базы.</summary>

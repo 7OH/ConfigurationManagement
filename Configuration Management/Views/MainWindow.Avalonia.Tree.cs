@@ -324,7 +324,27 @@ namespace Configuration_Management
                 VerticalAlignment = VerticalAlignment.Center
             };
             ThemeBrushes.Bind(name, TextBlock.ForegroundProperty, "TextPrimaryBrush");
-            content.Children.Add(name);
+
+            // Индикатор «база сейчас запущена»: зелёная точка после имени
+            // (монитор процессов 1С, MainViewModel.Running). Видимость привязана
+            // к флагу IsRunning — обновляется без пересборки строки.
+            var nameRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var runningDot = new Border
+            {
+                Width = UiMetrics.Scaled(7),
+                Height = UiMetrics.Scaled(7),
+                CornerRadius = new CornerRadius(UiMetrics.Scaled(3.5)),
+                Margin = new Thickness(UiMetrics.Scaled(6), 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#22C55E")),
+                IsVisible = false
+            };
+            ToolTip.SetTip(runningDot, ib.IsRunningTooltip);
+            runningDot.Bind(Visual.IsVisibleProperty,
+                new Avalonia.Data.Binding(nameof(Infobase.IsRunning)) { Source = ib });
+            nameRow.Children.Add(name);
+            nameRow.Children.Add(runningDot);
+            content.Children.Add(nameRow);
 
             // Второй подписи под именем в разметке нет: первая строка это значок
             // статуса и имя, а вторая отдана тегам (MainWindow.xaml:1230-1247).

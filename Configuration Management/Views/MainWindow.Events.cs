@@ -306,6 +306,10 @@ namespace Configuration_Management
 
             // Запускаем автоматическую синхронизацию с файлом ibases.v8i.
             _viewModel.StartAutoSync();
+
+            // Монитор запущенных баз (индикатор «зелёная точка»): первый опрос
+            // сразу, далее раз в 10 секунд, пока окно открыто.
+            _viewModel.StartRunningBasesMonitor();
         }
 
         /// <summary>

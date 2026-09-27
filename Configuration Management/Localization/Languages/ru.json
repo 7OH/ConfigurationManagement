@@ -1360,6 +1360,7 @@
     "Infobase.Type.WebServer": "Веб-сервер",
     "Infobase.Type.ClientServer": "Клиент-серверная",
     "Infobase.Checking": "Проверка доступности…",
+    "Infobase.RunningTooltip": "База сейчас запущена",
     "Infobase.Unavailable.File": "Недоступна: каталог файловой базы не найден на диске",
     "Infobase.Unavailable.Web": "Недоступна: не указан адрес веб-публикации",
     "Infobase.Unavailable.ClientServer": "Недоступна: не указан сервер или имя базы",

@@ -2062,6 +2062,10 @@ namespace Configuration_Management
             {
                 Position = ClampToScreen(Position);
             }
+
+            // Монитор запущенных баз (индикатор «зелёная точка»): первый опрос
+            // сразу, далее раз в 10 секунд, пока окно открыто.
+            _vm?.StartRunningBasesMonitor();
         }
 
         /// <summary>
