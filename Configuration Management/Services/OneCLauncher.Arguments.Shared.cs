@@ -171,6 +171,47 @@ public static partial class OneCLauncher
         return arguments;
     }
 
+    /// <summary>
+    /// Собирает аргументы пакетного обновления конфигурации из хранилища конфигурации:
+    /// /ConfigurationRepositoryF "путь" /ConfigurationRepositoryN "user" /ConfigurationRepositoryP "pwd"
+    /// /ConfigurationRepositoryUpdateCfg /UpdateDBCfg.
+    /// Путь к хранилищу строится из <see cref="Infobase.Repository"/> (Server + RepositoryName) так же,
+    /// как в <see cref="BuildArguments"/>; логин/пароль хранилища — через единый резолвинг
+    /// <see cref="InfobaseAuthResolver.ResolveRepository"/>.
+    /// Значения идут по грамматике ключа (не строки подключения): небезопасное значение (с «"»)
+    /// не подставляется (см. <see cref="IsSafeCliValue"/>). Возвращает пустую строку, если адрес
+    /// хранилища не задан или безопасно представить его невозможно.
+    /// </summary>
+    public static string BuildRepositoryUpdateArgument(Infobase? infobase)
+    {
+        var repo = infobase?.Repository;
+        if (repo is null || !repo.HasServer)
+            return "";
+
+        var server = repo.Server.Trim().TrimEnd('/');
+        var name = (repo.RepositoryName ?? string.Empty).Trim();
+        var repoPath = string.IsNullOrWhiteSpace(name) ? server : $"{server}/{name}";
+        if (!IsSafeCliValue(repoPath))
+            return "";
+
+        // Учётные данные Хранилища конфигурации выбираются единым резолвингом (Этап 12,
+        // функция №7 StartManager): отдельные логин/пароль хранилища (RepositorySettings).
+        InfobaseAuthResolver.ResolveRepository(infobase!, out var repoUser, out var repoPassword);
+
+        var arg = $" /ConfigurationRepositoryF \"{repoPath}\"";
+        if (IsSafeCliValue(repoUser))
+        {
+            arg += $" /ConfigurationRepositoryN \"{repoUser}\"";
+            if (IsSafeCliValue(repoPassword))
+                arg += $" /ConfigurationRepositoryP \"{repoPassword}\"";
+        }
+
+        // Загрузка конфигурации из хранилища и обновление конфигурации БД.
+        // /ConfigurationRepositoryDumpCfg НЕ нужен: выгрузка конфигурации в файл не выполняется.
+        arg += " /ConfigurationRepositoryUpdateCfg /UpdateDBCfg";
+        return arg;
+    }
+
     /// <summary>Аргументы /N /P при режиме Credentials.</summary>
     public static string BuildAuthArgument(Infobase infobase)
     {

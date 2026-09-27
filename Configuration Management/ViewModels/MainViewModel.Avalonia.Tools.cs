@@ -1203,6 +1203,40 @@ public partial class MainViewModel : ViewModelBase
         (ClearProgramCacheCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (ClearUserCacheCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (ClearCacheBothCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (RepositoryBatchUpdateCommand as RelayCommand)?.RaiseCanExecuteChanged();
+    }
+
+    // ======================= Пакетное обновление из хранилищ (0.3.9.88) =======================
+
+    private System.Windows.Input.ICommand? _repositoryBatchUpdateCommand;
+
+    /// <summary>
+    /// Команда «Обновление из хранилищ…»: окно-чеклист баз с заполненным хранилищем
+    /// конфигурации и последовательный прогон через конфигуратор в пакетном режиме.
+    /// Активна, если хотя бы у одной базы заполнен адрес хранилища.
+    /// </summary>
+    public System.Windows.Input.ICommand RepositoryBatchUpdateCommand =>
+        _repositoryBatchUpdateCommand ??= new RelayCommand(_ => ExecuteRepositoryBatchUpdate(),
+            _ => _allInfobases.Any(b => b.Repository.HasServer));
+
+    private void ExecuteRepositoryBatchUpdate()
+    {
+        var withRepo = _allInfobases.Where(b => b.Repository.HasServer).ToList();
+        if (withRepo.Count == 0)
+        {
+            _dialog.ShowInfo(LocalizationManager.T("RepoUpdate.NoBases"),
+                LocalizationManager.T("RepoUpdate.Title"));
+            return;
+        }
+
+        // Безопасность: подтверждение перед запуском конфигуратора по нескольким базам.
+        if (!_dialog.Confirm(
+                string.Format(LocalizationManager.T("RepoUpdate.ConfirmFormat"), withRepo.Count),
+                LocalizationManager.T("RepoUpdate.Title")))
+            return;
+
+        var window = new Configuration_Management.RepositoryBatchUpdateWindow(withRepo);
+        window.ShowDialogSync(OwnerWindow());
     }
 
     /// <summary>Предупреждение в журнал из окна: журнал живёт во вьюмодели.</summary>

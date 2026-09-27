@@ -32,7 +32,13 @@ namespace Configuration_Management.Services
             /// <summary>Установка блокировки сеансов ИБ (/LockIB"строка сеансов").</summary>
             LockIB,
             /// <summary>Снятие блокировки сеансов ИБ (/LockIB"").</summary>
-            UnlockIB
+            UnlockIB,
+            /// <summary>
+            /// Обновление конфигурации из хранилища конфигурации и обновление конфигурации БД
+            /// (/ConfigurationRepositoryF … /ConfigurationRepositoryUpdateCfg /UpdateDBCfg).
+            /// Пакетное обновление из хранилищ (0.3.9.88): последовательный прогон выбранных баз.
+            /// </summary>
+            RepositoryUpdate
         }
 
         /// <summary>Информация о запущенной пакетной операции DESIGNER.</summary>
@@ -66,6 +72,7 @@ namespace Configuration_Management.Services
                 DesignerBatchOperation.LoadCfg => LocalizationManager.T("Launcher.OperationLoadCfg"),
                 DesignerBatchOperation.LockIB => LocalizationManager.T("Launcher.OperationLockIB"),
                 DesignerBatchOperation.UnlockIB => LocalizationManager.T("Launcher.OperationUnlockIB"),
+                DesignerBatchOperation.RepositoryUpdate => LocalizationManager.T("Launcher.OperationRepositoryUpdate"),
                 _ => LocalizationManager.T("Launcher.OperationGeneric")
             };
         }
@@ -129,6 +136,10 @@ namespace Configuration_Management.Services
                 DesignerBatchOperation.LockIB when IsSafeCliValue(outputPath) => $"/LockIB\"{outputPath}\"",
                 // Снятие блокировки: /LockIB с пустой строкой сеансов.
                 DesignerBatchOperation.UnlockIB => "/LockIB\"\"",
+                // Обновление конфигурации из хранилища (0.3.9.88): адрес, логин/пароль
+                // хранилища и флаги /ConfigurationRepositoryUpdateCfg /UpdateDBCfg
+                // собираются общим методом (см. OneCLauncher.Arguments.Shared.cs).
+                DesignerBatchOperation.RepositoryUpdate => BuildRepositoryUpdateArgument(infobase),
                 _ => ""
             };
             if (string.IsNullOrEmpty(opArg))

@@ -2210,5 +2210,40 @@ public partial class MainViewModel : ViewModelBase
         RefreshTagFilterItems();
     }
 
+    // ======================= Пакетное обновление из хранилищ (0.3.9.88) =======================
+
+    private ICommand? _repositoryBatchUpdateCommand;
+
+    /// <summary>
+    /// Команда «Обновление из хранилищ…»: окно-чеклист баз с заполненным хранилищем
+    /// конфигурации и последовательный прогон через конфигуратор в пакетном режиме.
+    /// Активна, если хотя бы у одной базы заполнен адрес хранилища.
+    /// </summary>
+    public ICommand RepositoryBatchUpdateCommand =>
+        _repositoryBatchUpdateCommand ??= new RelayCommand(_ => ExecuteRepositoryBatchUpdate(),
+            _ => Infobases.Any(b => b.Repository.HasServer));
+
+    private void ExecuteRepositoryBatchUpdate()
+    {
+        var withRepo = Infobases.Where(b => b.Repository.HasServer).ToList();
+        if (withRepo.Count == 0)
+        {
+            _dialogs.ShowInfo(LocalizationManager.T("RepoUpdate.NoBases"),
+                LocalizationManager.T("RepoUpdate.Title"));
+            return;
+        }
+
+        // Безопасность: подтверждение перед запуском конфигуратора по нескольким базам.
+        if (!_dialogs.Confirm(
+                string.Format(LocalizationManager.T("RepoUpdate.ConfirmFormat"), withRepo.Count),
+                LocalizationManager.T("RepoUpdate.Title")))
+            return;
+
+        var window = new RepositoryBatchUpdateWindow(withRepo)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        window.ShowDialog();
+    }
 }
 #endif

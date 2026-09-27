@@ -703,6 +703,11 @@
                                         <MenuItem Header="{loc:Loc Backup.RunTitle}" Command="{Binding RunBackupScenarioCommand}" InputGestureText="{Binding HotkeyRunBackup}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseExport" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
+                                             баз с заполненным хранилищем + последовательный прогон с логом. -->
+                                        <MenuItem Header="{loc:Loc RepoUpdate.Title}" Command="{Binding RepositoryBatchUpdateCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="SourceBranch" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>

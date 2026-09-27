@@ -1671,6 +1671,9 @@ namespace Configuration_Management
             // базе, поэтому перенесены из контекстного меню базы в «Утилиты» (issue #293).
             menu.Items.Add(MenuAction("Backup.ScenariosTitle", _vm.ShowBackupScenariosCommand, null, "IconSettings", "#F59E0B"));
             menu.Items.Add(MenuAction("Backup.RunTitle", _vm.RunBackupScenarioCommand, _vm.HotkeyRunBackup, "IconDatabaseExport", "#22C55E"));
+            // Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
+            // баз с заполненным хранилищем + последовательный прогон с логом.
+            menu.Items.Add(MenuAction("RepoUpdate.Title", _vm.RepositoryBatchUpdateCommand, null, "IconCloudDownload", "#06B6D4"));
 
             menu.Items.Add(MenuSeparator());
 
