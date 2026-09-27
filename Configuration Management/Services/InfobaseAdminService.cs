@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Configuration_Management.Localization;
 using Configuration_Management.Models;
 
 namespace Configuration_Management.Services;
@@ -14,6 +17,9 @@ namespace Configuration_Management.Services;
 /// </summary>
 public sealed class InfobaseAdminService : IInfobaseAdminService
 {
+    /// <summary>Лимит ожидания проверки целостности: большие файловые базы проверяются долго.</summary>
+    private static readonly TimeSpan QuietTimeout = TimeSpan.FromHours(2);
+
     private readonly IAppLogger _logger;
 
     public InfobaseAdminService(IAppLogger logger)
@@ -53,6 +59,112 @@ public sealed class InfobaseAdminService : IInfobaseAdminService
         // Проверка целостности выполняется над файлом базы: <путь>\1Cv8.1CD.
         var dbFile = Path.Combine(baseDir, "1Cv8.1CD");
         return Launch(exe, $"\"{dbFile}\"", $"Проверка целостности базы «{infobase.Name}» (chdbfl)");
+    }
+
+    /// <inheritdoc />
+    public async Task<BackupRunResult> CheckIntegrityQuiet(Infobase infobase)
+    {
+        var result = new BackupRunResult();
+        if (infobase?.Connection?.Type != ConnectionType.File)
+        {
+            _logger.Warn($"Проверка целостности (тихо): база «{infobase?.Name}» не файловая.");
+            result.ErrorMessage = LocalizationManager.T("Admin.CheckIntegrityNotFileBase");
+            return result;
+        }
+
+        var baseDir = infobase.Connection.FilePath;
+        if (string.IsNullOrWhiteSpace(baseDir))
+        {
+            _logger.Warn($"Проверка целостности (тихо): не задан путь к файловой базе «{infobase.Name}».");
+            result.ErrorMessage = LocalizationManager.T("Admin.CheckIntegrityFailed");
+            return result;
+        }
+
+        var binDir = ResolveBinDirectory(infobase);
+        if (binDir is null)
+        {
+            _logger.Warn(
+                $"Проверка целостности (тихо): не найден каталог платформы 1С для базы «{infobase.Name}».");
+            result.ErrorMessage = LocalizationManager.T("Admin.CheckIntegrityFailed");
+            return result;
+        }
+
+        var exe = FindInBinDir(binDir, "chdbfl");
+        if (exe is null)
+        {
+            _logger.Warn(
+                $"Проверка целостности (тихо): не найден исполняемый файл chdbfl в каталоге платформы {binDir}.");
+            result.ErrorMessage = LocalizationManager.T("Admin.CheckIntegrityFailed");
+            return result;
+        }
+
+        // Проверка целостности выполняется над файлом базы: <путь>\1Cv8.1CD.
+        var dbFile = Path.Combine(baseDir, "1Cv8.1CD");
+        try
+        {
+            _logger.Info($"Проверка целостности (тихо): запущен {exe} \"{dbFile}\"");
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = exe,
+                    Arguments = $"\"{dbFile}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }
+            };
+
+            if (!process.Start())
+            {
+                _logger.Warn($"Проверка целостности (тихо): не удалось запустить {exe}.");
+                result.ErrorMessage = LocalizationManager.T("Admin.CheckIntegrityFailed");
+                return result;
+            }
+
+            // Читаем вывод параллельно с ожиданием: иначе большой вывод может переполнить
+            // буфер канала и заблокировать завершение процесса.
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            using var cts = new CancellationTokenSource(QuietTimeout);
+            try
+            {
+                await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.Warn($"Проверка целостности базы «{infobase.Name}»: превышен таймаут ожидания.");
+                result.ErrorMessage = LocalizationManager.T("Admin.CheckIntegrityTimeout");
+                return result;
+            }
+
+            var output = ((await stdoutTask.ConfigureAwait(false)) + "\n" +
+                          (await stderrTask.ConfigureAwait(false))).Trim();
+
+            if (process.ExitCode == 0)
+            {
+                _logger.Info($"Проверка целостности базы «{infobase.Name}»: завершена успешно.");
+                result.Success = true;
+                result.ScenarioName = LocalizationManager.T("Admin.CheckIntegrityDone");
+                return result;
+            }
+
+            var message = string.Format(
+                LocalizationManager.T("Admin.CheckIntegrityExitCode"), process.ExitCode);
+            if (!string.IsNullOrWhiteSpace(output))
+                message += "\n" + output;
+            _logger.Warn($"Проверка целостности базы «{infobase.Name}»: {message}");
+            result.ErrorMessage = message;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Проверка целостности (тихо): не удалось запустить {exe}. {ex.Message}", ex);
+            result.ErrorMessage = LocalizationManager.T("Admin.CheckIntegrityFailed");
+            return result;
+        }
     }
 
     /// <inheritdoc />

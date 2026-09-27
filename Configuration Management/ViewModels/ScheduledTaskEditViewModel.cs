@@ -77,6 +77,7 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         new ScheduledTaskOption("Backup", LocalizationManager.T("Schedule.Kind.Backup")),
         new ScheduledTaskOption("UpdateConfig", LocalizationManager.T("Schedule.Kind.UpdateConfig")),
         new ScheduledTaskOption("BackupThenUpdateConfig", LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig")),
+        new ScheduledTaskOption("CheckIntegrity", LocalizationManager.T("Schedule.Kind.CheckIntegrity")),
         new ScheduledTaskOption("UpdateApp", LocalizationManager.T("Schedule.Kind.UpdateApp"))
     };
 
@@ -106,7 +107,8 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     /// <summary>Нужен ли выбор базы (кроме обновления приложения).</summary>
     public bool NeedsInfobase => Kind is ScheduledTaskKind.Backup
         or ScheduledTaskKind.UpdateConfig
-        or ScheduledTaskKind.BackupThenUpdateConfig;
+        or ScheduledTaskKind.BackupThenUpdateConfig
+        or ScheduledTaskKind.CheckIntegrity;
 
     /// <summary>Нужен ли путь к файлу .cf (для обновления конфигурации).</summary>
     public bool NeedsCfgFile => Kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;

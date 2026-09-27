@@ -16,6 +16,9 @@ public enum ScheduledTaskKind
     /// <summary>Связка «Копия → обновление»: сначала резервная копия, затем обновление конфигурации.</summary>
     BackupThenUpdateConfig,
 
+    /// <summary>Проверка целостности файловой ИБ (<c>chdbfl</c>), тихий запуск с ожиданием (0.3.9.87).</summary>
+    CheckIntegrity,
+
     /// <summary>Обновление самого приложения через GitHub Releases (без диалога).</summary>
     UpdateApp
 }

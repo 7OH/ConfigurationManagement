@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Configuration_Management.Models;
 
 namespace Configuration_Management.Services;
@@ -17,6 +18,13 @@ public interface IInfobaseAdminService
     /// (<c><путь>\1Cv8.1CD</c>). Возвращает true, если процесс запущен.
     /// </summary>
     bool CheckIntegrity(Infobase infobase);
+
+    /// <summary>
+    /// Тихий запуск проверки целостности файловой ИБ (<c>chdbfl</c>) с ожиданием завершения
+    /// (0.3.9.87): процесс запускается без окна, метод дожидается его выхода и возвращает
+    /// результат (успех или ошибка с кодом выхода). Используется планировщиком заданий.
+    /// </summary>
+    Task<BackupRunResult> CheckIntegrityQuiet(Infobase infobase);
 
     /// <summary>
     /// Запуск консоли администрирования серверов 1С.

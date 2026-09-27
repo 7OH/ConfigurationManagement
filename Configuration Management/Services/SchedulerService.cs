@@ -23,6 +23,7 @@ public class SchedulerService : IDisposable
     private readonly IInfobaseRepository _repository;
     private readonly IBackupService _backup;
     private readonly IConfigUpdateService _configUpdate;
+    private readonly IInfobaseAdminService _admin;
     private readonly GitHubReleaseService _gitHub;
     private readonly UpdateService _updateService;
     private readonly IAppLogger? _logger;
@@ -37,6 +38,7 @@ public class SchedulerService : IDisposable
         IInfobaseRepository repository,
         IBackupService backup,
         IConfigUpdateService configUpdate,
+        IInfobaseAdminService admin,
         GitHubReleaseService gitHub,
         UpdateService updateService,
         IAppLogger? logger = null)
@@ -46,6 +48,7 @@ public class SchedulerService : IDisposable
         _repository = repository;
         _backup = backup;
         _configUpdate = configUpdate;
+        _admin = admin;
         _gitHub = gitHub;
         _updateService = updateService;
         _logger = logger;
@@ -149,6 +152,7 @@ public class SchedulerService : IDisposable
                 ScheduledTaskKind.Backup => await RunBackupAsync(task).ConfigureAwait(false),
                 ScheduledTaskKind.UpdateConfig => await RunUpdateConfigAsync(task).ConfigureAwait(false),
                 ScheduledTaskKind.BackupThenUpdateConfig => await RunBackupThenUpdateAsync(task).ConfigureAwait(false),
+                ScheduledTaskKind.CheckIntegrity => await RunCheckIntegrityAsync(task).ConfigureAwait(false),
                 ScheduledTaskKind.UpdateApp => await RunUpdateAppAsync(task).ConfigureAwait(false),
                 _ => null
             };
@@ -183,6 +187,17 @@ public class SchedulerService : IDisposable
             return Fail(LocalizationManager.T("Schedule.CfgFileRequired"));
 
         return await _configUpdate.UpdateConfigAsync(infobase, task.ConfigFilePath!).ConfigureAwait(false);
+    }
+
+    private async Task<BackupRunResult?> RunCheckIntegrityAsync(ScheduledTask task)
+    {
+        var infobase = ResolveInfobase(task.InfobaseId);
+        if (infobase is null)
+            return Fail(LocalizationManager.T("Schedule.BaseNotFound"));
+
+        // Тихий запуск chdbfl с ожиданием завершения (0.3.9.87): процесс без окна,
+        // результат (успех/код выхода) возвращается в BackupRunResult.
+        return await _admin.CheckIntegrityQuiet(infobase).ConfigureAwait(false);
     }
 
     private async Task<BackupRunResult?> RunBackupThenUpdateAsync(ScheduledTask task)

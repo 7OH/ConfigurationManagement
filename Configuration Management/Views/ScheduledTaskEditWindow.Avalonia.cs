@@ -211,7 +211,8 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _scenarioPanel.IsVisible = kind is ScheduledTaskKind.Backup or ScheduledTaskKind.BackupThenUpdateConfig;
         _infobasePanel.IsVisible = kind is ScheduledTaskKind.Backup
             or ScheduledTaskKind.UpdateConfig
-            or ScheduledTaskKind.BackupThenUpdateConfig;
+            or ScheduledTaskKind.BackupThenUpdateConfig
+            or ScheduledTaskKind.CheckIntegrity;
         _cfgPanel.IsVisible = kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
     }
 

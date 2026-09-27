@@ -108,7 +108,8 @@ public partial class ScheduledTaskEditWindow : Window
         var needsScenario = kind is ScheduledTaskKind.Backup or ScheduledTaskKind.BackupThenUpdateConfig;
         var needsInfobase = kind is ScheduledTaskKind.Backup
             or ScheduledTaskKind.UpdateConfig
-            or ScheduledTaskKind.BackupThenUpdateConfig;
+            or ScheduledTaskKind.BackupThenUpdateConfig
+            or ScheduledTaskKind.CheckIntegrity;
         var needsCfg = kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
 
         ScenarioPanel.Visibility = needsScenario ? Visibility.Visible : Visibility.Collapsed;
