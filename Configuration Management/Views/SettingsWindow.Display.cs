@@ -52,6 +52,7 @@ namespace Configuration_Management
             "LastLaunch" => "Column.LastLaunch",
             "Size" => "Column.Size",
             "Modified" => "Column.Modified",
+            "LastBackup" => "Column.LastBackup",
             "Actions" => "Column.Actions",
             _ => "Column.Name"
         });
@@ -67,6 +68,7 @@ namespace Configuration_Management
             "LastLaunch" => MaterialDesignThemes.Wpf.PackIconKind.ClockOutline,
             "Size" => MaterialDesignThemes.Wpf.PackIconKind.Database,
             "Modified" => MaterialDesignThemes.Wpf.PackIconKind.CalendarClock,
+            "LastBackup" => MaterialDesignThemes.Wpf.PackIconKind.BackupRestore,
             "Actions" => MaterialDesignThemes.Wpf.PackIconKind.Cog,
             _ => MaterialDesignThemes.Wpf.PackIconKind.FormatTitle
         };
@@ -82,6 +84,7 @@ namespace Configuration_Management
             "LastLaunch" => _viewModel.ShowLastLaunchColumn,
             "Size" => _viewModel.ShowSizeColumn,
             "Modified" => _viewModel.ShowModifiedColumn,
+            "LastBackup" => _viewModel.ShowLastBackupColumn,
             "Actions" => _viewModel.ShowActionsColumn,
             _ => true
         };

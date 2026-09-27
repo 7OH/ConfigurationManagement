@@ -287,6 +287,12 @@ public class AppSettings
     /// <summary>Ширина колонки «Дата изменений» (0 — по умолчанию).</summary>
     public double ModifiedColumnWidth { get; set; }
 
+    /// <summary>Показывать колонку «Последняя копия» (дата резервной копии) в списке баз (0.3.9.86).</summary>
+    public bool ShowLastBackupColumn { get; set; } = true;
+
+    /// <summary>Ширина колонки «Последняя копия» (0 — по умолчанию).</summary>
+    public double LastBackupColumnWidth { get; set; }
+
     /// <summary>
     /// Порядок колонок списка баз слева направо (кроме фиксированных колонок
     /// «Название» и «Действия»). Пустой список — порядок по умолчанию

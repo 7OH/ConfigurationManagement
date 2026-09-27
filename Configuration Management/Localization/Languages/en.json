@@ -307,6 +307,7 @@
     "Column.LastLaunch": "Last launch",
     "Column.Size": "Size",
     "Column.Modified": "Modified",
+    "Column.LastBackup": "Last backup",
     "Column.Actions": "Actions",
     "Column.HideColumn": "Hide column",
     "Settings.Columns.OpenSettings": "Open column settings",
@@ -1389,6 +1390,7 @@
     "Infobase.Status.ClientServer": "Client-server infobase",
     "Infobase.LaunchMode.Auto": "Automatic",
     "Infobase.LastLaunch.Never": "Never launched",
+    "Infobase.LastBackup.Never": "No backups yet",
     "Infobase.History.Empty": "No records",
     "Infobase.History.Summary": "{0} rec., last: {1}",
 
@@ -1771,6 +1773,10 @@
     "Backup.Timeout": "Export wait time exceeded.",
     "Backup.TargetUnavailableFormat": "Target directory unavailable \"{0}\": {1}",
     "Backup.ArchiveFailed": "Failed to create the backup archive.",
+    "Backup.Rotation": "Rotation",
+    "Backup.KeepCount": "Keep copies (0 — all)",
+    "Backup.DeleteOlderThanDays": "Delete older than, days (0 — never)",
+    "Backup.RotationHint": "Applied after each successful backup in every target directory.",
 
     "Schedule.Title": "Scheduled tasks",
     "Schedule.AddTitle": "New task",

@@ -109,7 +109,7 @@ namespace Configuration_Management
         /// </summary>
         private List<string> BuildColumnLayout()
         {
-            var known = new[] { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "Configuration", "ConfigurationVersion" };
+            var known = new[] { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "LastBackup", "Configuration", "ConfigurationVersion" };
             var keys = new List<string>();
             // Идём по ПОЛЬЗОВАТЕЛЬСКОМУ порядку, отбрасывая незнакомые ключи,
             // чтобы фактически применять выбранный порядок (в т.ч. перенос «Действий»).
@@ -736,6 +736,8 @@ namespace Configuration_Management
                 return SizeColumn;
             if (ReferenceEquals(sender, ModifiedSplitter))
                 return ModifiedColumn;
+            if (ReferenceEquals(sender, LastBackupSplitter))
+                return LastBackupColumn;
             return null;
         }
 
@@ -788,6 +790,12 @@ namespace Configuration_Management
             {
                 // ModifiedColumnWidth имеет публичный сеттер и авто-сохраняется при изменении.
                 _viewModel.ModifiedColumnWidth = newWidth;
+                return;
+            }
+            if (ReferenceEquals(_resizeColumn, LastBackupColumn))
+            {
+                // LastBackupColumnWidth имеет публичный сеттер и авто-сохраняется при изменении.
+                _viewModel.LastBackupColumnWidth = newWidth;
                 return;
             }
 

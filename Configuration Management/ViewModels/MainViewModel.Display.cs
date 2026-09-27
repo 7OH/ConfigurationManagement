@@ -567,6 +567,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Показывать колонку «Дата изменений» файловой ИБ.</summary>
     public bool ShowModifiedColumn => _showModifiedColumn;
 
+    /// <summary>Показывать колонку «Последняя копия» (дата резервной копии) в списке баз (0.3.9.86).</summary>
+    public bool ShowLastBackupColumn => _showLastBackupColumn;
+
     /// <summary>Показывать колонку «Действия» (кнопки запуска/конфигуратора/очистки кеша) в списке баз.</summary>
     public bool ShowActionsColumn => _showActionsColumn;
 
@@ -590,12 +593,22 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    public double LastBackupColumnWidth
+    {
+        get => _lastBackupColumnWidth;
+        set
+        {
+            if (SetProperty(ref _lastBackupColumnWidth, value))
+                ScheduleSaveSettings();
+        }
+    }
+
     /// <summary>
     /// Порядок колонок списка баз по умолчанию (колонка «Конфигурация» в самом
     /// конце). Используется, пока пользователь не задал собственный порядок.
     /// </summary>
     private static readonly string[] DefaultColumnOrder =
-        { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "Configuration", "ConfigurationVersion" };
+        { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "LastBackup", "Configuration", "ConfigurationVersion" };
 
     /// <summary>
     /// Порядок колонок списка баз слева направо (кроме фиксированной колонки
@@ -618,10 +631,11 @@ public partial class MainViewModel : ViewModelBase
             var needsActions = !order!.Contains("Actions", StringComparer.Ordinal);
             var needsConfigurationVersion = !order.Contains("ConfigurationVersion", StringComparer.Ordinal);
             var needsModified = !order.Contains("Modified", StringComparer.Ordinal);
-            if (!needsActions && !needsConfigurationVersion && !needsModified)
+            var needsLastBackup = !order.Contains("LastBackup", StringComparer.Ordinal);
+            if (!needsActions && !needsConfigurationVersion && !needsModified && !needsLastBackup)
                 return order;
 
-            var result = new List<string>(order.Count + 2);
+            var result = new List<string>(order.Count + 3);
             foreach (var key in order)
             {
                 if (needsConfigurationVersion && key == "Configuration")
@@ -629,6 +643,9 @@ public partial class MainViewModel : ViewModelBase
                 result.Add(key);
                 if (needsModified && key == "Size")
                     result.Add("Modified");
+                // «Последняя копия» (0.3.9.86) встаёт сразу после «Даты изменений».
+                if (needsLastBackup && key == "Modified")
+                    result.Add("LastBackup");
             }
             if (needsActions)
                 result.Add("Actions");
@@ -675,7 +692,7 @@ public partial class MainViewModel : ViewModelBase
         bool showVersionColumn, bool showLaunchModeColumn, bool showServerColumn, bool showLastLaunchColumn,
         bool groupByGroup, bool showFavoritesOnly, bool showSizeColumn = true, bool showModifiedColumn = true,
         bool showConfigurationColumn = true, bool showConfigurationVersionColumn = true, bool showEmptyGroups = false,
-        List<string>? columnOrder = null, bool showActionsColumn = true)
+        List<string>? columnOrder = null, bool showActionsColumn = true, bool showLastBackupColumn = true)
     {
         _showFavoritesButton = showFavoritesButton;
         _showPinnedButton = showPinnedButton;
@@ -688,6 +705,7 @@ public partial class MainViewModel : ViewModelBase
         _showLastLaunchColumn = showLastLaunchColumn;
         _showSizeColumn = showSizeColumn;
         _showModifiedColumn = showModifiedColumn;
+        _showLastBackupColumn = showLastBackupColumn;
         _showActionsColumn = showActionsColumn;
 
         OnPropertyChanged(nameof(ShowFavoritesButton));
@@ -701,6 +719,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowLastLaunchColumn));
         OnPropertyChanged(nameof(ShowSizeColumn));
         OnPropertyChanged(nameof(ShowModifiedColumn));
+        OnPropertyChanged(nameof(ShowLastBackupColumn));
         OnPropertyChanged(nameof(ShowActionsColumn));
 
         // Применяем поведение списка (уже имеющиеся настройки).
@@ -736,7 +755,8 @@ public partial class MainViewModel : ViewModelBase
             showConfigurationVersionColumn: key == "ConfigurationVersion" ? visible : _showConfigurationVersionColumn,
             showEmptyGroups: _showEmptyGroups,
             columnOrder: _columnOrder,
-            showActionsColumn: key == "Actions" ? visible : _showActionsColumn);
+            showActionsColumn: key == "Actions" ? visible : _showActionsColumn,
+            showLastBackupColumn: key == "LastBackup" ? visible : _showLastBackupColumn);
     }
 
     /// <summary>Сохранённая ширина окна приложения (0 — по умолчанию).</summary>

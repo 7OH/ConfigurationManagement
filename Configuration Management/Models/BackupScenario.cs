@@ -42,6 +42,18 @@ public class BackupScenario
     /// <summary>Добавлять отметку даты-времени ({Timestamp}) в имя файла.</summary>
     public bool IncludeTimestamp { get; set; } = true;
 
+    /// <summary>
+    /// Сколько последних резервных копий хранить в каждом каталоге назначения
+    /// (ротация, 0.3.9.86). 0 — хранить все, ничего не удалять по количеству.
+    /// </summary>
+    public int KeepCount { get; set; }
+
+    /// <summary>
+    /// Удалять резервные копии старше указанного числа дней (ротация, 0.3.9.86).
+    /// 0 — не чистить по возрасту.
+    /// </summary>
+    public int DeleteOlderThanDays { get; set; }
+
     /// <summary>Расширение файла в зависимости от формата (.dt/.cf/.zip/.rar).</summary>
     public string GetExtension() => Format switch
     {

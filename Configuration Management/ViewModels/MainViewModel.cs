@@ -101,6 +101,8 @@ public partial class MainViewModel : ViewModelBase
     private double _sizeColumnWidth;
     private bool _showModifiedColumn = true;
     private double _modifiedColumnWidth;
+    private bool _showLastBackupColumn = true;
+    private double _lastBackupColumnWidth;
     private List<string> _columnOrder = new();
 
     // Автосохранение состояния списка (раскрытые/свёрнутые группы) с периодичностью.
@@ -339,6 +341,8 @@ public partial class MainViewModel : ViewModelBase
         _sizeColumnWidth = settings.SizeColumnWidth;
         _showModifiedColumn = settings.ShowModifiedColumn;
         _modifiedColumnWidth = settings.ModifiedColumnWidth;
+        _showLastBackupColumn = settings.ShowLastBackupColumn;
+        _lastBackupColumnWidth = settings.LastBackupColumnWidth;
         _autoSaveListState = settings.AutoSaveListState;
         _listStateAutoSaveIntervalSeconds = Math.Max(1, settings.ListStateAutoSaveIntervalSeconds);
         _columnOrder = settings.ColumnOrder is { Count: > 0 }

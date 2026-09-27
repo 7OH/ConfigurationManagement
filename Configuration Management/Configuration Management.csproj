@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.85</Version>
-    <AssemblyVersion>0.3.9.85</AssemblyVersion>
-    <FileVersion>0.3.9.85</FileVersion>
-    <InformationalVersion>0.3.9.85</InformationalVersion>
+    <Version>0.3.9.86</Version>
+    <AssemblyVersion>0.3.9.86</AssemblyVersion>
+    <FileVersion>0.3.9.86</FileVersion>
+    <InformationalVersion>0.3.9.86</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -320,6 +320,11 @@
     <!-- Команда разблокировки приватных баз (0.3.9.85): имя «MainViewModel.Avalonia.*.cs»
          не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
     <Compile Include="ViewModels\MainViewModel.Avalonia.PrivateBases.cs" />
+    <!-- Чистая логика ротации резервных копий (0.3.9.86): используется и Windows,
+         и Linux; на Linux подключается явно паттерном Remove+Include, как остальные
+         общие файлы сервисов (дефолтный глоб уже включает файл — Remove снимает его). -->
+    <Compile Remove="Services\BackupRotation.cs" />
+    <Compile Include="Services\BackupRotation.cs" />
     <!-- Windows-only сервисы — Этап 5 -->
     <Compile Remove="Services\WpfDialogService.cs" />
     <!-- Проверка обновлений из GitHub Releases кроссплатформенная: на Linux тоже используется

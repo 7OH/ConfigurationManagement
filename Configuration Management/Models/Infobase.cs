@@ -143,6 +143,23 @@ public class Infobase : INotifyPropertyChanged
         }
     }
 
+    private DateTime? _lastBackupUtc;
+
+    /// <summary>
+    /// Дата и время последней успешной резервной копии (UTC, 0.3.9.86).
+    /// Проставляется сервисом резервирования после успешного выполнения сценария
+    /// и сериализуется в файл списка баз для колонки «Последняя копия».
+    /// </summary>
+    public DateTime? LastBackupUtc
+    {
+        get => _lastBackupUtc;
+        set
+        {
+            if (SetProperty(ref _lastBackupUtc, value))
+                OnPropertyChanged(nameof(LastBackupDisplay));
+        }
+    }
+
     private ConnectionSettings _connection = new();
 
     /// <summary>
@@ -711,6 +728,15 @@ public class Infobase : INotifyPropertyChanged
         LastLaunchDate.HasValue
             ? LastLaunchDate.Value.ToString("dd.MM.yyyy HH:mm")
             : LocalizationManager.T("Infobase.LastLaunch.Never");
+
+    /// <summary>
+    /// Дата последней резервной копии для колонки «Последняя копия» (0.3.9.86).
+    /// Хранится в UTC, показывается в локальном времени.
+    /// </summary>
+    public string LastBackupDisplay =>
+        LastBackupUtc.HasValue
+            ? LastBackupUtc.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+            : LocalizationManager.T("Infobase.LastBackup.Never");
 
     /// <summary>История запусков (глубина — настройка <c>MaxLaunchHistoryPerBase</c>, по умолчанию 30).</summary>
     private List<LaunchHistoryEntry> _launchHistory = new();

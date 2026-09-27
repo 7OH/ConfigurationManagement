@@ -121,8 +121,37 @@ public class BackupService : IBackupService
                 }
             }
 
+            // Ротация (0.3.9.86): по КАЖДОМУ каталогу назначения удаляем копии
+            // за пределами лимита количества и/или старше заданного возраста.
+            // Префикс имени — безопасная часть шаблона (префикс базы), не зависящая
+            // от имени ИБ; пустой префикс соответствует любым файлам расширения.
+            var purged = new List<string>();
+            if (scenario.KeepCount > 0 || scenario.DeleteOlderThanDays > 0)
+            {
+                foreach (var targetDir in targets)
+                {
+                    try
+                    {
+                        purged.AddRange(BackupRotation.Apply(
+                            targetDir,
+                            scenario.BasePrefix ?? "",
+                            scenario.GetExtension(),
+                            scenario.KeepCount,
+                            scenario.DeleteOlderThanDays));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Warn($"Не удалось выполнить ротацию резервных копий в каталоге «{targetDir}»: {ex.Message}");
+                    }
+                }
+            }
+
             result.Success = true;
             result.CreatedFiles = created;
+            result.PurgedFiles = purged;
+            // Метка последней успешной копии для колонки «Последняя копия» (0.3.9.86).
+            if (infobase is not null)
+                infobase.LastBackupUtc = DateTime.UtcNow;
             return result;
         }
         catch (Exception ex)

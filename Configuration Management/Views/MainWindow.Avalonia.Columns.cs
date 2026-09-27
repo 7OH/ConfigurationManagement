@@ -166,6 +166,9 @@ namespace Configuration_Management
                     case "Modified":
                         Add(_vm.ShowModifiedColumn, "Modified", "Column.Modified", _vm.ModifiedColumnWidth, 130);
                         break;
+                    case "LastBackup":
+                        Add(_vm.ShowLastBackupColumn, "LastBackup", "Column.LastBackup", _vm.LastBackupColumnWidth, 130);
+                        break;
                 }
             }
             return columns;
@@ -231,6 +234,7 @@ namespace Configuration_Management
             "LastLaunch" => ib.LastLaunchDisplay ?? string.Empty,
             "Size" => ib.FileSizeDisplay ?? string.Empty,
             "Modified" => ib.LastModifiedDisplay ?? string.Empty,
+            "LastBackup" => ib.LastBackupDisplay ?? string.Empty,
             _ => string.Empty
         };
 

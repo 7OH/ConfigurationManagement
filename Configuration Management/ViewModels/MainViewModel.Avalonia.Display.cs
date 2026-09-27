@@ -60,7 +60,8 @@ public partial class MainViewModel : ViewModelBase
         bool showActionsColumn,
         bool showRightPanelDetails, bool showSessionLaunchPanel,
         bool groupByGroup, bool showEmptyGroups,
-        List<string>? columnOrder)
+        List<string>? columnOrder,
+        bool showLastBackupColumn = true)
     {
         var previousShowFavoritesButton = _settings.ShowFavoritesButton;
         var previousShowPinnedButton = _settings.ShowPinnedButton;
@@ -73,6 +74,7 @@ public partial class MainViewModel : ViewModelBase
         var previousShowLastLaunchColumn = _settings.ShowLastLaunchColumn;
         var previousShowSizeColumn = _settings.ShowSizeColumn;
         var previousShowModifiedColumn = _settings.ShowModifiedColumn;
+        var previousShowLastBackupColumn = _settings.ShowLastBackupColumn;
         var previousShowActionsColumn = _settings.ShowActionsColumn;
         var previousColumnOrder = _settings.ColumnOrder ?? new List<string>();
         var previousGroupByGroup = _groupByGroup;
@@ -90,6 +92,7 @@ public partial class MainViewModel : ViewModelBase
         _settings.ShowLastLaunchColumn = showLastLaunchColumn;
         _settings.ShowSizeColumn = showSizeColumn;
         _settings.ShowModifiedColumn = showModifiedColumn;
+        _settings.ShowLastBackupColumn = showLastBackupColumn;
         _settings.ShowActionsColumn = showActionsColumn;
         _settings.ColumnOrder = columnOrder ?? new List<string>();
         _settings.ShowRightPanelDetails = showRightPanelDetails;
@@ -117,6 +120,7 @@ public partial class MainViewModel : ViewModelBase
             || showLastLaunchColumn != previousShowLastLaunchColumn
             || showSizeColumn != previousShowSizeColumn
             || showModifiedColumn != previousShowModifiedColumn
+            || showLastBackupColumn != previousShowLastBackupColumn
             || showActionsColumn != previousShowActionsColumn
             || !previousColumnOrder.SequenceEqual(_settings.ColumnOrder);
 
@@ -164,7 +168,8 @@ public partial class MainViewModel : ViewModelBase
             _settings.ShowSessionLaunchPanel,
             _groupByGroup,
             _showEmptyGroups,
-            _settings.ColumnOrder);
+            _settings.ColumnOrder,
+            showLastBackupColumn: key == "LastBackup" ? visible : _settings.ShowLastBackupColumn);
     }
 
     /// <summary>
@@ -506,7 +511,7 @@ public partial class MainViewModel : ViewModelBase
     /// собственный порядок.
     /// </summary>
     private static readonly string[] DefaultColumnOrder =
-        { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "Configuration", "ConfigurationVersion" };
+        { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "LastBackup", "Configuration", "ConfigurationVersion" };
 
     /// <summary>
     /// Порядок колонок списка баз слева направо (кроме фиксированной колонки
@@ -532,10 +537,11 @@ public partial class MainViewModel : ViewModelBase
             var needsActions = !order!.Contains("Actions", StringComparer.Ordinal);
             var needsConfigurationVersion = !order.Contains("ConfigurationVersion", StringComparer.Ordinal);
             var needsModified = !order.Contains("Modified", StringComparer.Ordinal);
-            if (!needsActions && !needsConfigurationVersion && !needsModified)
+            var needsLastBackup = !order.Contains("LastBackup", StringComparer.Ordinal);
+            if (!needsActions && !needsConfigurationVersion && !needsModified && !needsLastBackup)
                 return order;
 
-            var result = new List<string>(order.Count + 3);
+            var result = new List<string>(order.Count + 4);
             foreach (var key in order)
             {
                 if (needsConfigurationVersion && key == "Configuration")
@@ -544,6 +550,9 @@ public partial class MainViewModel : ViewModelBase
                 // умолчанию, не меняя сам сохранённый список.
                 if (needsModified && key == "Size")
                     result.Add("Modified");
+                // «Последняя копия» (0.3.9.86) встаёт сразу после «Даты изменений».
+                if (needsLastBackup && key == "Modified")
+                    result.Add("LastBackup");
                 result.Add(key);
             }
             if (needsActions)
@@ -563,6 +572,7 @@ public partial class MainViewModel : ViewModelBase
     public bool ShowLastLaunchColumn => _settings.ShowLastLaunchColumn;
     public bool ShowSizeColumn => _settings.ShowSizeColumn;
     public bool ShowModifiedColumn => _settings.ShowModifiedColumn;
+    public bool ShowLastBackupColumn => _settings.ShowLastBackupColumn;
 
     /// <summary>Показывать колонку «Действия» (кнопки запуска/конфигуратора/очистки кеша) в списке баз.</summary>
     public bool ShowActionsColumn => _settings.ShowActionsColumn;
@@ -665,6 +675,7 @@ public partial class MainViewModel : ViewModelBase
     public double LastLaunchColumnWidth => _settings.LastLaunchColumnWidth;
     public double SizeColumnWidth => _settings.SizeColumnWidth;
     public double ModifiedColumnWidth => _settings.ModifiedColumnWidth;
+    public double LastBackupColumnWidth => _settings.LastBackupColumnWidth;
     public double ActionsColumnWidth => _settings.ActionsColumnWidth;
 
     /// <summary>
@@ -685,6 +696,7 @@ public partial class MainViewModel : ViewModelBase
             case "LastLaunch": _settings.LastLaunchColumnWidth = width; break;
             case "Size": _settings.SizeColumnWidth = width; break;
             case "Modified": _settings.ModifiedColumnWidth = width; break;
+            case "LastBackup": _settings.LastBackupColumnWidth = width; break;
             // Колонка «Действия» тоже перетаскиваемая и сохраняемая, как в разметке
             // (MainWindow.xaml:528): раньше её ширина была константой.
             case "Actions": _settings.ActionsColumnWidth = width; break;
@@ -793,6 +805,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowLastLaunchColumn));
         OnPropertyChanged(nameof(ShowSizeColumn));
         OnPropertyChanged(nameof(ShowModifiedColumn));
+        OnPropertyChanged(nameof(ShowLastBackupColumn));
         OnPropertyChanged(nameof(ShowTags));
         OnPropertyChanged(nameof(NameColumnWidth));
         OnPropertyChanged(nameof(VersionColumnWidth));
@@ -803,6 +816,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(LastLaunchColumnWidth));
         OnPropertyChanged(nameof(SizeColumnWidth));
         OnPropertyChanged(nameof(ModifiedColumnWidth));
+        OnPropertyChanged(nameof(LastBackupColumnWidth));
         OnPropertyChanged(nameof(ActionsColumnWidth));
         OnPropertyChanged(nameof(ColumnOrderKeys));
     }

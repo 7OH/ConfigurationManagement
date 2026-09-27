@@ -11,6 +11,13 @@ public class BackupRunResult
     /// <summary>Пути созданных (скопированных) файлов резервных копий.</summary>
     public IReadOnlyList<string> CreatedFiles { get; set; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Пути файлов резервных копий, удалённых ротацией (0.3.9.86): за пределами
+    /// лимита <see cref="BackupScenario.KeepCount"/> либо старше
+    /// <see cref="BackupScenario.DeleteOlderThanDays"/>.
+    /// </summary>
+    public IReadOnlyList<string> PurgedFiles { get; set; } = Array.Empty<string>();
+
     /// <summary>Сообщение об ошибке при неуспехе.</summary>
     public string? ErrorMessage { get; set; }
 

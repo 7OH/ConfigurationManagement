@@ -315,6 +315,8 @@ namespace Configuration_Management
                     or nameof(MainViewModel.ShowServerColumn)
                     or nameof(MainViewModel.ShowLastLaunchColumn)
                     or nameof(MainViewModel.ShowSizeColumn)
+                    or nameof(MainViewModel.ShowModifiedColumn)
+                    or nameof(MainViewModel.ShowLastBackupColumn)
                     or nameof(MainViewModel.ShowActionsColumn)
                     or nameof(MainViewModel.ShowFavoritesButton)
                     or nameof(MainViewModel.ShowPinnedButton))
@@ -470,7 +472,7 @@ namespace Configuration_Management
         // фиксированных колонок слева (кнопки групп, компенсатор, избранное, закрепление,
         // название). Совпадает с порядком по умолчанию: «Действия» сразу после «Режим запуска».
         private static readonly string[] StaticDataColumnKeys =
-            { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "Configuration", "ConfigurationVersion" };
+            { "Version", "LaunchMode", "Actions", "ServerBase", "LastLaunch", "Size", "Modified", "LastBackup", "Configuration", "ConfigurationVersion" };
 
         // Индекс первой колонки данных в сетке заголовка / строки базы.
         // Строка базы и заголовок имеют одинаковый набор ведущих колонок

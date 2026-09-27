@@ -18,6 +18,8 @@ public class BackupScenarioEditViewModel : ViewModelBase
             Format = scenario.Format;
             BasePrefix = scenario.BasePrefix ?? "";
             IncludeTimestamp = scenario.IncludeTimestamp;
+            KeepCount = Math.Max(0, scenario.KeepCount);
+            DeleteOlderThanDays = Math.Max(0, scenario.DeleteOlderThanDays);
             UseInfobaseAuth = scenario.Credential?.UseInfobaseAuth ?? true;
             User = scenario.Credential?.User ?? "";
             Password = scenario.Credential?.Password ?? "";
@@ -35,6 +37,13 @@ public class BackupScenarioEditViewModel : ViewModelBase
     public BackupFormat Format { get; set; } = BackupFormat.Dt;
     public string BasePrefix { get; set; } = "";
     public bool IncludeTimestamp { get; set; } = true;
+
+    /// <summary>Сколько последних копий хранить (0 — все).</summary>
+    public int KeepCount { get; set; }
+
+    /// <summary>Удалять копии старше N дней (0 — не удалять).</summary>
+    public int DeleteOlderThanDays { get; set; }
+
     public bool UseInfobaseAuth { get; set; } = true;
     public string User { get; set; } = "";
     public string Password { get; set; } = "";
@@ -82,6 +91,8 @@ public class BackupScenarioEditViewModel : ViewModelBase
         scenario.Format = Format;
         scenario.BasePrefix = BasePrefix?.Trim() ?? "";
         scenario.IncludeTimestamp = IncludeTimestamp;
+        scenario.KeepCount = Math.Max(0, KeepCount);
+        scenario.DeleteOlderThanDays = Math.Max(0, DeleteOlderThanDays);
         scenario.TargetDirectories = NonEmptyDirectories;
         scenario.Credential = new BackupCredential
         {

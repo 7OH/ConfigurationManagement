@@ -137,6 +137,8 @@ namespace Configuration_Management
             "ServerBase" => "IconServer",
             "LastLaunch" => "IconRecent",
             "Size" => "IconDatabase",
+            // «Последняя копия» (0.3.9.86) — значок резервной копии со стрелкой.
+            "LastBackup" => "IconBackupRestore",
             "Actions" => "IconSettings",
             _ => "IconFormatTitle"
         };

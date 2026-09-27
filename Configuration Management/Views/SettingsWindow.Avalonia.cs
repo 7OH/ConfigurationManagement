@@ -946,6 +946,7 @@ namespace Configuration_Management
                 "LastLaunch" => "Column.LastLaunch",
                 "Size" => "Column.Size",
                 "Modified" => "Column.Modified",
+                "LastBackup" => "Column.LastBackup",
                 "Actions" => "Column.Actions",
                 _ => "Column.Name"
             });
@@ -960,6 +961,7 @@ namespace Configuration_Management
                 "LastLaunch" => _viewModel.ShowLastLaunchColumn,
                 "Size" => _viewModel.ShowSizeColumn,
                 "Modified" => _viewModel.ShowModifiedColumn,
+                "LastBackup" => _viewModel.ShowLastBackupColumn,
                 "Actions" => _viewModel.ShowActionsColumn,
                 _ => true
             };

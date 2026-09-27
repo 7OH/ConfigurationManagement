@@ -80,6 +80,24 @@
                 </StackPanel>
                 <ListBox x:Name="DirList" ItemsSource="{Binding TargetDirectories}" Height="110" Margin="0,0,0,10"/>
 
+                <TextBlock x:Name="RotationLabel" Text="Ротация" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <Grid Margin="0,0,0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock x:Name="KeepCountLabel" Text="Хранить копий (0 — все)" Margin="0,0,0,2"/>
+                        <TextBox x:Name="KeepCountBox" Text="{Binding KeepCount, UpdateSourceTrigger=PropertyChanged}" Padding="4"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock x:Name="AgeDaysLabel" Text="Удалять старше, дней (0 — нет)" Margin="0,0,0,2"/>
+                        <TextBox x:Name="AgeDaysBox" Text="{Binding DeleteOlderThanDays, UpdateSourceTrigger=PropertyChanged}" Padding="4"/>
+                    </StackPanel>
+                </Grid>
+                <TextBlock x:Name="RotationHint" Text="" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="2,0,0,10"/>
+
                 <TextBlock x:Name="CredLabel" Text="Учётные данные" FontWeight="SemiBold" Margin="0,0,0,4"/>
                 <CheckBox x:Name="UseAuthCheck" Content="Использовать авторизацию базы" IsChecked="{Binding UseInfobaseAuth}" Margin="0,0,0,8"/>
 

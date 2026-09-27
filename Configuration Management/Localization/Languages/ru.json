@@ -307,6 +307,7 @@
     "Column.LastLaunch": "Последний запуск",
     "Column.Size": "Размер",
     "Column.Modified": "Дата изменений",
+    "Column.LastBackup": "Последняя копия",
     "Column.Actions": "Действия",
     "Column.HideColumn": "Скрыть колонку",
     "Settings.Columns.OpenSettings": "Открыть настройки колонок",
@@ -1389,6 +1390,7 @@
     "Infobase.Status.ClientServer": "Клиент-серверная база",
     "Infobase.LaunchMode.Auto": "Автоматический",
     "Infobase.LastLaunch.Never": "Не запускалась",
+    "Infobase.LastBackup.Never": "Копий не было",
     "Infobase.History.Empty": "Нет записей",
     "Infobase.History.Summary": "{0} зап., посл.: {1}",
 
@@ -1771,6 +1773,10 @@
     "Backup.Timeout": "Превышено время ожидания выгрузки.",
     "Backup.TargetUnavailableFormat": "Каталог назначения недоступен «{0}»: {1}",
     "Backup.ArchiveFailed": "Не удалось создать архив резервной копии.",
+    "Backup.Rotation": "Ротация",
+    "Backup.KeepCount": "Хранить копий (0 — все)",
+    "Backup.DeleteOlderThanDays": "Удалять старше, дней (0 — нет)",
+    "Backup.RotationHint": "Применяется после каждого успешного резервирования в каждом каталоге назначения.",
 
     "Schedule.Title": "Задания по расписанию",
     "Schedule.AddTitle": "Новое задание",

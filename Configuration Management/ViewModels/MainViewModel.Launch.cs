@@ -516,6 +516,8 @@ public partial class MainViewModel : ViewModelBase
             SizeColumnWidth = _sizeColumnWidth,
             ShowModifiedColumn = _showModifiedColumn,
             ModifiedColumnWidth = _modifiedColumnWidth,
+            ShowLastBackupColumn = _showLastBackupColumn,
+            LastBackupColumnWidth = _lastBackupColumnWidth,
             ColumnOrder = _columnOrder.ToList(),
             WindowWidth = _windowWidth,
             WindowHeight = _windowHeight,

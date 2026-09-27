@@ -38,6 +38,10 @@ public partial class BackupScenarioEditWindow : Window
         DirsLabel.Text = T("Backup.TargetDirectories");
         AddDirButton.Content = T("Common.Browse");
         RemoveDirButton.Content = T("Common.Delete");
+        RotationLabel.Text = T("Backup.Rotation");
+        KeepCountLabel.Text = T("Backup.KeepCount");
+        AgeDaysLabel.Text = T("Backup.DeleteOlderThanDays");
+        RotationHint.Text = T("Backup.RotationHint");
         CredLabel.Text = T("Backup.Credentials");
         UseAuthCheck.Content = T("Backup.UseInfobaseAuth");
         UserLabel.Text = T("Backup.User");
@@ -78,6 +82,10 @@ public partial class BackupScenarioEditWindow : Window
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
         _vm.Password = PasswordBox.Password;
+        // Числовые поля ротации: привязка к int не срабатывает на некорректном
+        // тексте, поэтому парсим явно и кладём в модель (0 — хранить всё / не чистить).
+        _vm.KeepCount = TryParseInt(KeepCountBox.Text, 0);
+        _vm.DeleteOlderThanDays = TryParseInt(AgeDaysBox.Text, 0);
         var errorKey = _vm.Validate();
         if (errorKey is not null)
         {
@@ -96,5 +104,9 @@ public partial class BackupScenarioEditWindow : Window
         DialogResult = false;
         Close();
     }
+
+    /// <summary>Парсит целое число; при неудаче возвращает значение по умолчанию.</summary>
+    private static int TryParseInt(string? text, int fallback) =>
+        int.TryParse(text?.Trim(), out var value) && value >= 0 ? value : fallback;
 }
 #endif

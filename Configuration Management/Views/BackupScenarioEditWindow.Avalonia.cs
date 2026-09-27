@@ -1,5 +1,6 @@
 #if LINUX
 using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Configuration_Management.Localization;
@@ -25,6 +26,8 @@ public sealed class BackupScenarioEditWindow : ModalWindowBase
     private readonly ComboBox _formatCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
     private readonly TextBox _prefixBox = new TextBox().Styled(ControlThemes.ModernTextBox);
     private readonly ListBox _dirList = new();
+    private readonly TextBox _keepCountBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+    private readonly TextBox _ageDaysBox = new TextBox().Styled(ControlThemes.ModernTextBox);
     private readonly CheckBox _useAuthCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
     private readonly TextBox _userBox = new TextBox().Styled(ControlThemes.ModernTextBox);
     private readonly TextBox _passwordBox = new TextBox { PasswordChar = '\u25CF' }.Styled(ControlThemes.ModernTextBox);
@@ -123,6 +126,31 @@ public sealed class BackupScenarioEditWindow : ModalWindowBase
         _dirList.Height = 110;
         panel.Children.Add(_dirList);
 
+        panel.Children.Add(Label(T("Backup.Rotation")));
+        var rotationRow = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                new ColumnDefinition { Width = new GridLength(12) },
+                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }
+            }
+        };
+        var keepColumn = new StackPanel();
+        keepColumn.Children.Add(HintLabel(T("Backup.KeepCount")));
+        _keepCountBox.Text = _vm.KeepCount.ToString();
+        keepColumn.Children.Add(_keepCountBox);
+        Grid.SetColumn(keepColumn, 0);
+        rotationRow.Children.Add(keepColumn);
+        var ageColumn = new StackPanel();
+        ageColumn.Children.Add(HintLabel(T("Backup.DeleteOlderThanDays")));
+        _ageDaysBox.Text = _vm.DeleteOlderThanDays.ToString();
+        ageColumn.Children.Add(_ageDaysBox);
+        Grid.SetColumn(ageColumn, 2);
+        rotationRow.Children.Add(ageColumn);
+        panel.Children.Add(rotationRow);
+        panel.Children.Add(HintLabel(T("Backup.RotationHint")));
+
         panel.Children.Add(Label(T("Backup.Credentials")));
         _useAuthCheck.Content = T("Backup.UseInfobaseAuth");
         _useAuthCheck.IsChecked = _vm.UseInfobaseAuth;
@@ -174,6 +202,9 @@ public sealed class BackupScenarioEditWindow : ModalWindowBase
         _vm.IncludeTimestamp = _timestampCheck.IsChecked == true;
         _vm.Format = _formatCombo.SelectedItem is BackupFormat f ? f : BackupFormat.Dt;
         _vm.BasePrefix = _prefixBox.Text ?? "";
+        // Числовые поля ротации парсим явно: привязка к int на некорректном тексте не сработала бы.
+        _vm.KeepCount = TryParseInt(_keepCountBox.Text, 0);
+        _vm.DeleteOlderThanDays = TryParseInt(_ageDaysBox.Text, 0);
         _vm.UseInfobaseAuth = _useAuthCheck.IsChecked == true;
         _vm.User = _userBox.Text ?? "";
         _vm.Password = _passwordBox.Text ?? "";
@@ -191,5 +222,9 @@ public sealed class BackupScenarioEditWindow : ModalWindowBase
         DialogResult = true;
         Close();
     }
+
+    /// <summary>Парсит целое число; при неудаче возвращает значение по умолчанию.</summary>
+    private static int TryParseInt(string? text, int fallback) =>
+        int.TryParse(text?.Trim(), out var value) && value >= 0 ? value : fallback;
 }
 #endif
