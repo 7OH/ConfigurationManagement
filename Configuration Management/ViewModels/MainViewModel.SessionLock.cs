@@ -14,10 +14,20 @@ public partial class MainViewModel
 {
     private ICommand? _showSessionLockCommand;
     private ICommand? _lockAppCommand;
+    private ICommand? _changeAppLockCommand;
     private string _hotkeySessionLock = "Ctrl+Alt+L";
     private string _hotkeyLockApp = "";
     // Пароль временной блокировки приложения (PBKDF2-хэш), функция №19.
     private string _appLockPasswordHash = "";
+    // Активная блокировка сохраняется в настройках: блокировка переживает
+    // закрытие из трея и перезапуск приложения (issue #294).
+    private bool _appLockActive;
+
+    /// <summary>Приложение заблокировано (окно спрятано/свернуто, требуется пароль).</summary>
+    public event EventHandler? AppLockEngaged;
+
+    /// <summary>Окно ввода пароля закрыто, а блокировка ещё активна (issue #294).</summary>
+    public event EventHandler? AppLockPromptDismissed;
 
     /// <summary>Горячая клавиша «Блокировка сеансов ИБ» (по умолчанию Ctrl+Alt+L).</summary>
     public string HotkeySessionLock
@@ -51,6 +61,10 @@ public partial class MainViewModel
     public ICommand LockAppCommand =>
         _lockAppCommand ??= new RelayCommand(ExecuteLockApp);
 
+    /// <summary>Команда смены пароля блокировки приложения (issue #294).</summary>
+    public ICommand ChangeAppLockCommand =>
+        _changeAppLockCommand ??= new RelayCommand(ExecuteChangeAppLock);
+
     private void ExecuteShowSessionLock()
     {
         var infobase = SelectedInfobase;
@@ -80,10 +94,35 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Включает блокировку приложения (issue #294): состояние <see cref="IsAppLocked"/>
-    /// закрывает главное окно оверлеем, поверх открывается закрываемое окно ввода пароля.
-    /// Закрытие окна ввода блокировку не снимает — блокировка держится до верного пароля.
-    /// Повторный вызов при активной блокировке просто показывает окно ввода пароля.
+    /// Смена пароля блокировки приложения (issue #294): диалог запрашивает текущий
+    /// пароль, новый и его повтор. Если пароль ещё не задан, окно работает в режиме
+    /// установки. Сама блокировка этой командой не включается.
+    /// </summary>
+    private void ExecuteChangeAppLock()
+    {
+        if (!HasAppLockPassword)
+        {
+            var setupWin = new Configuration_Management.AppLockWindow(this, setupMode: true)
+            {
+                Owner = System.Windows.Application.Current.MainWindow
+            };
+            setupWin.ShowDialog();
+            return;
+        }
+
+        var win = new Configuration_Management.AppLockWindow(this, changeMode: true)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        win.ShowDialog();
+    }
+
+    /// <summary>
+    /// Включает блокировку приложения (issue #294): интерфейс закрывается оверлеем,
+    /// состояние сохраняется в настройках, а окно сворачивается, чтобы не мешать
+    /// работать. Пароль запрашивается при попытке открыть окно (из трея, повторным
+    /// запуском) и после перезапуска приложения; снять блокировку можно только
+    /// верным паролем.
     /// </summary>
     public void LockNow()
     {
@@ -91,18 +130,52 @@ public partial class MainViewModel
             return;
 
         IsAppLocked = true;
-        ShowAppUnlockDialog();
+        _appLockActive = true;
+        // Сохраняем сразу (не по debounce): блокировка обязана пережить и аварийное
+        // завершение, и запуск второй копии приложения.
+        SaveSettings();
+        AppLockEngaged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Снимает блокировку приложения (после верного пароля, issue #294).</summary>
-    public void UnlockApp() => IsAppLocked = false;
+    public void UnlockApp()
+    {
+        IsAppLocked = false;
+        if (_appLockActive)
+        {
+            _appLockActive = false;
+            SaveSettings();
+        }
+    }
+
+    /// <summary>
+    /// Восстанавливает блокировку после запуска приложения (issue #294): если в
+    /// прошлом сеансе приложение было заблокировано, окно открывается с оверлеем
+    /// и окном ввода пароля. Без пароля (сброшен в файле настроек) флаг гасится.
+    /// </summary>
+    public void RestoreAppLockOnStartup()
+    {
+        if (!_appLockActive)
+            return;
+        if (!HasAppLockPassword)
+        {
+            _appLockActive = false;
+            SaveSettings();
+            return;
+        }
+
+        IsAppLocked = true;
+        ShowAppUnlockDialog();
+    }
 
     private Configuration_Management.AppLockWindow? _unlockWindow;
 
     /// <summary>
     /// Показывает окно ввода пароля в немодальном режиме с владельцем — главное окно
     /// остаётся недоступным из-за оверлея и перехвата ввода (issue #294). Повторный
-    /// вызов активирует уже открытое окно, а не создаёт новое.
+    /// вызов активирует уже открытое окно, а не создаёт новое. Если окно закрыто,
+    /// а блокировка ещё активна, главному окну сообщается об этом (AppLockPromptDismissed) —
+    /// оно сворачивается, чтобы не мешать работать до ввода верного пароля.
     /// </summary>
     public void ShowAppUnlockDialog()
     {
@@ -115,7 +188,14 @@ public partial class MainViewModel
         var win = new Configuration_Management.AppLockWindow(this, setupMode: false);
         _unlockWindow = win;
         win.UnlockSucceeded += (_, _) => UnlockApp();
-        win.Closed += (_, _) => _unlockWindow = null;
+        win.Closed += (_, _) =>
+        {
+            _unlockWindow = null;
+            // Закрытие без верного пароля: окно приложения прячется обратно
+            // (в трей или свернуто), блокировка остаётся активной (issue #294).
+            if (IsAppLocked)
+                AppLockPromptDismissed?.Invoke(this, EventArgs.Empty);
+        };
         win.Owner = System.Windows.Application.Current.MainWindow;
         win.Show();
     }

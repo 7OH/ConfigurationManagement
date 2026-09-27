@@ -591,6 +591,14 @@ public class AppSettings
     /// <summary>Пароль временной блокировки приложения (функция №19) в виде PBKDF2-хэша.</summary>
     public string AppLockPasswordHash { get; set; } = "";
 
+    /// <summary>
+    /// Приложение заблокировано (функция №19, issue #294): состояние сохраняется,
+    /// чтобы блокировка пережила закрытие из трея и перезапуск приложения. При
+    /// запуске с этим флагом окно открывается заблокированным с запросом пароля;
+    /// снимается только вводом верного пароля.
+    /// </summary>
+    public bool AppLockActive { get; set; }
+
     /// <summary>Путь к исполняемому файлу внешнего архиватора RAR (winrar.exe/rar), если он не найден в PATH.</summary>
     public string RarExecutablePath { get; set; } = "";
 

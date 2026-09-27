@@ -337,6 +337,47 @@ namespace Configuration_Management
             if (WindowState == WindowState.Minimized)
                 WindowState = WindowState.Normal;
             Activate();
+            // Блокировка приложения (issue #294): попытка открыть окно из трея
+            // сопровождается запросом пароля; без верного пароля окно снова спрячется
+            // (обработчик AppLockPromptDismissed).
+            if (_vm is { IsAppLocked: true })
+                _vm.ShowAppUnlockDialog();
+        }
+
+        /// <summary>
+        /// Блокировка включена (issue #294): окно прячется в трей, чтобы не мешать
+        /// работать; без пути возврата (значка в трее) — сворачивается. Пароль будет
+        /// запрошен при попытке открыть окно из трея или после перезапуска.
+        /// </summary>
+        private void HideForAppLock()
+        {
+            if (CanRestoreHiddenWindow)
+            {
+                SaveWindowLayout();
+                // Значок в трее обязан быть виден: пока блокировка активна, он —
+                // основной путь назад к окну ввода пароля.
+                if (_trayIcon is not null)
+                    _trayIcon.IsVisible = true;
+                Hide();
+            }
+            else
+            {
+                WindowState = WindowState.Minimized;
+            }
+        }
+
+        /// <summary>Блокировка включена: окно прячется (в трей или свернуто).</summary>
+        private void OnViewModelAppLockEngaged(object? sender, EventArgs e) =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(HideForAppLock);
+
+        /// <summary>
+        /// Окно ввода пароля закрыто без верного пароля (issue #294): окно приложения
+        /// прячется снова, блокировка остаётся активной.
+        /// </summary>
+        private void OnViewModelAppLockPromptDismissed(object? sender, EventArgs e)
+        {
+            if (_vm is { IsAppLocked: true })
+                Avalonia.Threading.Dispatcher.UIThread.Post(HideForAppLock);
         }
     }
 }

@@ -572,6 +572,8 @@ public partial class MainViewModel : ViewModelBase
             HotkeyCheckIntegrity = _hotkeyCheckIntegrity,
             HotkeyServerConsole = _hotkeyServerConsole,
             AppLockPasswordHash = _appLockPasswordHash,
+            // Активная блокировка переживает перезапуск приложения (issue #294).
+            AppLockActive = _appLockActive,
             SortField = _sortField,
             SortAscending = _sortAscending,
             FavoriteHotkeyIds = _favoriteHotkeyIds.ToList(),

@@ -672,6 +672,10 @@
                                         <MenuItem Header="{loc:Loc AppLock.LockTitle}" Command="{Binding LockAppCommand}" InputGestureText="{Binding HotkeyLockApp}" Style="{DynamicResource ModernMenuItem}" ToolTip="{loc:Loc AppLock.MenuTooltip}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Lock" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Смена пароля блокировки: пароль больше не «одноразовый» (issue #294). -->
+                                        <MenuItem Header="{loc:Loc AppLock.ChangeMenu}" Command="{Binding ChangeAppLockCommand}" Style="{DynamicResource ModernMenuItem}" ToolTip="{loc:Loc AppLock.ChangeMenuTooltip}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Key" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.Bases.RemoveMissing}" Command="{Binding RemoveMissingFileBasesCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="FolderRemove" Width="16" Height="16" Foreground="#EF4444"/></MenuItem.Icon>

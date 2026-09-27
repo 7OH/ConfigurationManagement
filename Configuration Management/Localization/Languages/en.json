@@ -1897,6 +1897,11 @@
     "AppLock.PasswordMismatch": "Passwords do not match.",
     "AppLock.OverlayTitle": "Application locked",
     "AppLock.OverlayHint": "Enter the password to continue",
-    "AppLock.WrongPassword": "Wrong password."
+    "AppLock.WrongPassword": "Wrong password.",
+    "AppLock.ChangeTitle": "Change lock password",
+    "AppLock.ChangeMenu": "Change lock password",
+    "AppLock.ChangeMenuTooltip": "Change the application lock password: the current password is required, then a new one and its confirmation.",
+    "AppLock.ChangePrompt": "Enter the current password and set a new one. The new password takes effect immediately and will be asked on the next unlock.",
+    "AppLock.CurrentPassword": "Current password"
   }
 }

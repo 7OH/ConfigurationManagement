@@ -1605,6 +1605,8 @@ namespace Configuration_Management
             menu.Items.Add(MenuSeparator());
 
             menu.Items.Add(MenuAction("AppLock.LockTitle", _vm.LockAppCommand, _vm.HotkeyLockApp, "IconExitToApp", "#8B5CF6", "AppLock.MenuTooltip"));
+            // Смена пароля блокировки: пароль больше не «одноразовый» (issue #294).
+            menu.Items.Add(MenuAction("AppLock.ChangeMenu", _vm.ChangeAppLockCommand, "", "IconAccountKey", "#8B5CF6", "AppLock.ChangeMenuTooltip"));
             menu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
 
             // Обслуживание списка и приложения (issue #279): удаление отсутствующих

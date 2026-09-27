@@ -10,15 +10,17 @@ namespace Configuration_Management
 {
     /// <summary>
     /// Окно временной блокировки приложения паролем (функция №19 StartManager).
-    /// Работает в двух режимах:
+    /// Работает в трёх режимах:
     ///  — «установить пароль» (когда пароль ещё не задан): два поля ввода пароля;
-    ///  — «разблокировать» (когда пароль уже задан): одно поле для снятия блокировки.
+    ///  — «разблокировать» (когда пароль уже задан): одно поле для снятия блокировки;
+    ///  — «сменить пароль» (issue #294): текущий пароль, новый и его повтор.
     /// Пароль сохраняется в виде PBKDF2-хэша в настройках.
     /// </summary>
     public partial class AppLockWindow : Window
     {
         private readonly MainViewModel _vm;
         private readonly bool _setupMode;
+        private readonly bool _changeMode;
 
         /// <summary>true, если блокировка снята (введён верный пароль).</summary>
         public bool Unlocked { get; private set; }
@@ -30,13 +32,29 @@ namespace Configuration_Management
         /// </summary>
         public event EventHandler? UnlockSucceeded;
 
-        public AppLockWindow(MainViewModel vm, bool setupMode = false)
+        public AppLockWindow(MainViewModel vm, bool setupMode = false, bool changeMode = false)
         {
             InitializeComponent();
             _vm = vm;
             _setupMode = setupMode;
+            _changeMode = changeMode;
 
-            if (setupMode)
+            if (changeMode)
+            {
+                // Смена пароля (issue #294): текущий пароль + новый + повтор.
+                // Окно выше обычного — в нём три поля ввода.
+                Height = 430;
+                Title = LocalizationManager.T("AppLock.ChangeTitle");
+                TitleLabel.Text = LocalizationManager.T("AppLock.ChangeTitle");
+                PromptLabel.Text = LocalizationManager.T("AppLock.ChangePrompt");
+                OkTextBlock.Text = LocalizationManager.T("Common.Save");
+                CancelTextBlock.Text = LocalizationManager.T("Common.Cancel");
+                CurrentPasswordLabel.Visibility = Visibility.Visible;
+                PasswordBox0.Visibility = Visibility.Visible;
+                PasswordBox2.Visibility = Visibility.Visible;
+                ConfirmLabel.Visibility = Visibility.Visible;
+            }
+            else if (setupMode)
             {
                 Title = LocalizationManager.T("AppLock.SetupTitle");
                 TitleLabel.Text = LocalizationManager.T("AppLock.SetupTitle");
@@ -72,16 +90,50 @@ namespace Configuration_Management
             Loaded += (_, _) =>
             {
                 // Фокус на первое (видимое) поле пароля: при установке — «Новый пароль»,
-                // при разблокировке — единственное поле ввода. Пост с низким приоритетом
-                // страхует фокус, снятый активацией окна при показе (issue #294).
-                PasswordBox1.Focus();
+                // при разблокировке — единственное поле ввода, при смене — «Текущий
+                // пароль». Пост с низким приоритетом страхует фокус, снятый активацией
+                // окна при показе (issue #294).
+                var first = _changeMode ? PasswordBox0 : PasswordBox1;
+                first.Focus();
                 Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
-                    new Action(() => PasswordBox1.Focus()));
+                    new Action(() => first.Focus()));
             };
         }
 
         private void OnOk_Click(object sender, RoutedEventArgs e)
         {
+            if (_changeMode)
+            {
+                // Смена пароля (issue #294): текущий пароль проверяется, новый
+                // не пустой и совпадает с повтором — только тогда сохраняется.
+                var current = PasswordBox0.Password ?? string.Empty;
+                var pwd = PasswordBox1.Password ?? string.Empty;
+                var confirm = PasswordBox2.Password ?? string.Empty;
+                if (!_vm.VerifyAppLockPassword(current))
+                {
+                    MessageBox.Show(LocalizationManager.T("AppLock.WrongPassword"),
+                        Title, MessageBoxButton.OK, MessageBoxImage.Error);
+                    PasswordBox0.Clear();
+                    PasswordBox0.Focus();
+                    return;
+                }
+                if (string.IsNullOrEmpty(pwd))
+                {
+                    MessageBox.Show(LocalizationManager.T("AppLock.PasswordEmpty"),
+                        Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (!string.Equals(pwd, confirm, StringComparison.Ordinal))
+                {
+                    MessageBox.Show(LocalizationManager.T("AppLock.PasswordMismatch"),
+                        Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                _vm.SetAppLockPassword(pwd);
+                DialogResult = true;
+                return;
+            }
+
             if (_setupMode)
             {
                 var pwd = PasswordBox1.Password ?? string.Empty;

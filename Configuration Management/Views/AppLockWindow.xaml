@@ -31,6 +31,8 @@
         <TextBlock x:Name="PromptLabel" TextWrapping="Wrap" Margin="0,0,0,12"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
 
+        <TextBlock x:Name="CurrentPasswordLabel" Text="{loc:Loc AppLock.CurrentPassword}" Margin="0,0,0,4" Visibility="Collapsed"/>
+        <PasswordBox x:Name="PasswordBox0" Margin="0,0,0,8" KeyDown="OnPassword_KeyDown" Visibility="Collapsed"/>
         <TextBlock x:Name="NewPasswordLabel" Text="{loc:Loc AppLock.NewPassword}" Margin="0,0,0,4"/>
         <PasswordBox x:Name="PasswordBox1" Margin="0,0,0,8" KeyDown="OnPassword_KeyDown"/>
         <TextBlock x:Name="ConfirmLabel" Text="{loc:Loc AppLock.ConfirmPassword}" Margin="0,0,0,4"/>

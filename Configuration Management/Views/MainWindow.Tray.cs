@@ -534,6 +534,28 @@ namespace Configuration_Management
             // Иконку в трее оставляем видимой, если она включена в настройках.
             if (_trayIcon != null && _viewModel != null)
                 _trayIcon.Visible = _viewModel.ShowTrayIcon;
+            // Блокировка приложения (issue #294): попытка открыть окно из трея
+            // сопровождается запросом пароля; без верного пароля окно снова свернётся
+            // (обработчик AppLockPromptDismissed).
+            if (_viewModel is { IsAppLocked: true })
+                _viewModel.ShowAppUnlockDialog();
+        }
+
+        /// <summary>
+        /// Блокировка включена (issue #294): окно сворачивается в трей, чтобы не мешать
+        /// работать. Пароль будет запрошен при попытке открыть окно из трея.
+        /// </summary>
+        private void OnViewModelAppLockEngaged(object? sender, EventArgs e) =>
+            Dispatcher.BeginInvoke(new Action(MinimizeToTray));
+
+        /// <summary>
+        /// Окно ввода пароля закрыто без верного пароля (issue #294): окно приложения
+        /// сворачивается в трей снова, блокировка остаётся активной.
+        /// </summary>
+        private void OnViewModelAppLockPromptDismissed(object? sender, EventArgs e)
+        {
+            if (_viewModel is { IsAppLocked: true })
+                Dispatcher.BeginInvoke(new Action(MinimizeToTray));
         }
 
         /// <summary>

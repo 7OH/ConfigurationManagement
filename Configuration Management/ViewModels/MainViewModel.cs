@@ -396,6 +396,9 @@ public partial class MainViewModel : ViewModelBase
         _hotkeyCheckIntegrity = string.IsNullOrWhiteSpace(settings.HotkeyCheckIntegrity) ? "Ctrl+Alt+Q" : settings.HotkeyCheckIntegrity.Trim();
         _hotkeyServerConsole = string.IsNullOrWhiteSpace(settings.HotkeyServerConsole) ? "Ctrl+Alt+S" : settings.HotkeyServerConsole.Trim();
         _appLockPasswordHash = settings.AppLockPasswordHash ?? "";
+        // Активная блокировка восстанавливается только при наличии пароля: флаг без
+        // хэша (сброшен вручную в файле настроек) гасим (issue #294).
+        _appLockActive = settings.AppLockActive && !string.IsNullOrEmpty(_appLockPasswordHash);
         _hotkeyFavorite = settings.HotkeyFavorite?.Trim() ?? "F8";
         _hotkeyEdit = settings.HotkeyEdit?.Trim() ?? "F2";
         _hotkeyDelete = settings.HotkeyDelete?.Trim() ?? "Delete";
@@ -674,9 +677,10 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>
     /// Приложение заблокировано паролем (функция №19 StartManager, issue #294).
-    /// Состояние живёт только в рамках сеанса: пока оно активно, главное окно закрыто
-    /// оверлеем блокировки, ввод перехватывается, а окно разблокировки можно закрыть —
-    /// блокировка при этом не снимается. В настройки не сохраняется.
+    /// Пока оно активно, главное окно закрыто оверлеем блокировки, ввод перехватывается,
+    /// а окно разблокировки можно закрыть — блокировка при этом не снимается.
+    /// Состояние сохраняется в настройках (AppLockActive): блокировка переживает
+    /// перезапуск приложения и снимается только верным паролем.
     /// </summary>
     public bool IsAppLocked
     {

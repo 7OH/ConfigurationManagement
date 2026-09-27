@@ -212,6 +212,12 @@ namespace Configuration_Management
             // Действие после запуска базы или конфигуратора по глобальной настройке.
             _vm.AfterLaunchRequested += OnAfterLaunchRequested;
 
+            // Блокировка приложения (issue #294): при включении блокировки окно
+            // прячется (в трей или свернуто), чтобы не мешать работать; если окно
+            // ввода пароля закрыто без верного пароля — окно прячется снова.
+            _vm.AppLockEngaged += OnViewModelAppLockEngaged;
+            _vm.AppLockPromptDismissed += OnViewModelAppLockPromptDismissed;
+
             // Подписка здесь, а не в построении содержимого: компактный режим
             // пересобирает содержимое, и обработчики копились бы на каждый показ.
             _vm.TraySettingsChanged += ApplyTrayVisibility;

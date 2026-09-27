@@ -1897,6 +1897,11 @@
     "AppLock.PasswordMismatch": "Пароли не совпадают.",
     "AppLock.OverlayTitle": "Приложение заблокировано",
     "AppLock.OverlayHint": "Введите пароль, чтобы продолжить работу",
-    "AppLock.WrongPassword": "Неверный пароль."
+    "AppLock.WrongPassword": "Неверный пароль.",
+    "AppLock.ChangeTitle": "Смена пароля блокировки",
+    "AppLock.ChangeMenu": "Сменить пароль блокировки",
+    "AppLock.ChangeMenuTooltip": "Изменить пароль блокировки приложения: потребуется текущий пароль, затем новый и его повтор.",
+    "AppLock.ChangePrompt": "Введите текущий пароль и задайте новый. Новый пароль действует сразу и будет запрошен при следующей разблокировке.",
+    "AppLock.CurrentPassword": "Текущий пароль"
   }
 }
