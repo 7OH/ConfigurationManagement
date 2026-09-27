@@ -353,6 +353,13 @@ public class AppSettings
     /// <summary>Показывать значок приложения в системном трее.</summary>
     public bool ShowTrayIcon { get; set; } = true;
 
+    /// <summary>
+    /// Системные уведомления ОС о завершении фоновых операций (функция №4):
+    /// резервная копия, задание по расписанию, найденное обновление приложения.
+    /// false — все уведомления подавляются (Windows: balloon-tip трея, Linux: notify-send).
+    /// </summary>
+    public bool ShowSystemNotifications { get; set; } = true;
+
     /// <summary>Горячая клавиша запуска «1С:Предприятие» (например F3). Пусто — не назначена.</summary>
     public string HotkeyEnterprise { get; set; } = "F3";
 

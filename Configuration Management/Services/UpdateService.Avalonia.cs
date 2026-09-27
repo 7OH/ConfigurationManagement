@@ -73,6 +73,7 @@ namespace Configuration_Management.Services
 
         private readonly GitHubReleaseService _gitHub;
         private readonly IDialogService _dialogs;
+        private readonly INotificationService _notifications;
         private readonly HttpClient _http;
 
         /// <summary>
@@ -97,10 +98,11 @@ namespace Configuration_Management.Services
             => AutoUpdateEnabled = autoUpdateEnabled
                 && !(LinuxRendering.Virtualized || LinuxRendering.SoftwareRender);
 
-        public UpdateService(GitHubReleaseService gitHub, IDialogService dialogs)
+        public UpdateService(GitHubReleaseService gitHub, IDialogService dialogs, INotificationService notifications)
         {
             _gitHub = gitHub;
             _dialogs = dialogs;
+            _notifications = notifications;
 
             _http = new HttpClient();
             // GitHub требует корректный User-Agent.
@@ -125,8 +127,13 @@ namespace Configuration_Management.Services
                 if (!GitHubReleaseService.IsNewerThan(release, VersionInfo.Display()))
                     return;
 
+                // Системное уведомление (функция №4): при молчаливом автообновлении диалог
+                // не показывается, и если окно свёрнуто в трей — пользователь узнает о новой
+                // версии только из уведомления. Когда диалог будет показан (автообновление
+                // выключено), дублировать уведомлением не нужно.
                 if (AutoUpdateEnabled)
                 {
+                    NotifyUpdateAvailable(release);
                     // Автообновление включено — применяем новую версию без вопросов.
                     await DownloadAndInstallAutoAsync(release).ConfigureAwait(false);
                     return;
@@ -137,6 +144,25 @@ namespace Configuration_Management.Services
             catch
             {
                 // Фоновая проверка не должна ронять приложение.
+            }
+        }
+
+        /// <summary>
+        /// Системное уведомление «Доступна новая версия X.Y.Z» (функция №4). Вызывается из
+        /// фоновой проверки при молчаливом автообновлении; ошибки уведомления не влияют на
+        /// обновление.
+        /// </summary>
+        private void NotifyUpdateAvailable(ReleaseInfo release)
+        {
+            try
+            {
+                _notifications.Show(
+                    LocalizationManager.T("App.Title"),
+                    string.Format(LocalizationManager.T("Notify.UpdateAvailable"), release.TagName));
+            }
+            catch
+            {
+                // Уведомление не должно ронять фоновую проверку.
             }
         }
 

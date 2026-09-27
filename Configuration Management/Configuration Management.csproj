@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.93</Version>
-    <AssemblyVersion>0.3.9.93</AssemblyVersion>
-    <FileVersion>0.3.9.93</FileVersion>
-    <InformationalVersion>0.3.9.93</InformationalVersion>
+    <Version>0.3.9.94</Version>
+    <AssemblyVersion>0.3.9.94</AssemblyVersion>
+    <FileVersion>0.3.9.94</FileVersion>
+    <InformationalVersion>0.3.9.94</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -370,6 +370,13 @@
          подключается явно паттерном Remove+Include, как CsvExporter. -->
     <Compile Remove="Services\DroppedBaseDetector.cs" />
     <Compile Include="Services\DroppedBaseDetector.cs" />
+    <!-- Системные уведомления ОС (0.3.9.94, функция №4): интерфейс используется и
+         Windows, и Linux; на Linux подключается явно паттерном Remove+Include, как
+         CsvExporter. Платформенные реализации (NotificationService.Windows.cs /
+         .Linux.cs) выбираются символами #if WINDOWS / #if LINUX и покрыты
+         дефолтным глобом (на чужой платформе файл компилируется пустым). -->
+    <Compile Remove="Services\INotificationService.cs" />
+    <Compile Include="Services\INotificationService.cs" />
     <!-- Windows-only сервисы — Этап 5 -->
     <Compile Remove="Services\WpfDialogService.cs" />
     <!-- Проверка обновлений из GitHub Releases кроссплатформенная: на Linux тоже используется

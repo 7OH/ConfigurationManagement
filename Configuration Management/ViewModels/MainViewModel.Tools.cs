@@ -2209,6 +2209,7 @@ public partial class MainViewModel : ViewModelBase
         bool showTagFilterPanel,
         bool closeToTray = false,
         bool showTrayIcon = true,
+        bool showSystemNotifications = true,
         string? hotkeyEnterprise = null,
         string? hotkeyConfigurator = null,
         string? hotkeyFavorite = null,
@@ -2243,6 +2244,7 @@ public partial class MainViewModel : ViewModelBase
         _showTagFilterPanel = showTagFilterPanel;
         _closeToTray = closeToTray;
         _showTrayIcon = showTrayIcon;
+        _showSystemNotifications = showSystemNotifications;
         _escapeToTray = escapeToTray;
         _rememberWindowLayout = rememberWindowLayout;
         _afterLaunchAction = afterLaunchAction;
@@ -2278,6 +2280,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowTagFilterPanel));
         OnPropertyChanged(nameof(CloseToTray));
         OnPropertyChanged(nameof(ShowTrayIcon));
+        OnPropertyChanged(nameof(ShowSystemNotifications));
         OnPropertyChanged(nameof(EscapeToTray));
         OnPropertyChanged(nameof(AfterLaunchAction));
         OnPropertyChanged(nameof(HotkeyEnterprise));

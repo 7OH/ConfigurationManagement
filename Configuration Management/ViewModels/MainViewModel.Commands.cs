@@ -1024,6 +1024,17 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Системные уведомления ОС о завершении фоновых операций (функция №4).</summary>
+    public bool ShowSystemNotifications
+    {
+        get => _showSystemNotifications;
+        set
+        {
+            if (SetProperty(ref _showSystemNotifications, value))
+                ScheduleSaveSettings();
+        }
+    }
+
     /// <summary>Esc сворачивает окно в трей (если значок в трее включён).</summary>
     public bool EscapeToTray
     {

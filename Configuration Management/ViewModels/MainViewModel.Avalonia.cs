@@ -212,6 +212,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Показывать ли значок в области уведомлений.</summary>
     public bool ShowTrayIcon => _settings.ShowTrayIcon;
 
+    /// <summary>Системные уведомления ОС о завершении фоновых операций (функция №4).</summary>
+    public bool ShowSystemNotifications => _settings.ShowSystemNotifications;
+
     /// <summary>Уводить ли окно в трей вместо выхода при закрытии.</summary>
     public bool CloseToTray => _settings.CloseToTray;
 
@@ -266,12 +269,14 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(AutoUpdateEnabled));
     }
 
-    /// <summary>Применяет настройки поведения трея из окна настроек.</summary>
-    public void ApplyTraySettings(bool showTrayIcon, bool closeToTray, bool escapeToTray)
+    /// <summary>Применяет настройки поведения трея и системных уведомлений из окна настроек.</summary>
+    public void ApplyTraySettings(
+        bool showTrayIcon, bool closeToTray, bool escapeToTray, bool showSystemNotifications)
     {
         _settings.ShowTrayIcon = showTrayIcon;
         _settings.CloseToTray = closeToTray;
         _settings.EscapeToTray = escapeToTray;
+        _settings.ShowSystemNotifications = showSystemNotifications;
         if (!SaveSettingsSafe())
             _dialog.ShowError(LocalizationManager.T("Main.SaveFailedHint"),
                 LocalizationManager.T("Settings.Title"));

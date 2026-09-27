@@ -27,6 +27,7 @@ public class SchedulerService : IDisposable
     private readonly GitHubReleaseService _gitHub;
     private readonly UpdateService _updateService;
     private readonly IAppLogger? _logger;
+    private readonly INotificationService _notifications;
 
     private Timer? _timer;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -41,6 +42,7 @@ public class SchedulerService : IDisposable
         IInfobaseAdminService admin,
         GitHubReleaseService gitHub,
         UpdateService updateService,
+        INotificationService notifications,
         IAppLogger? logger = null)
     {
         _tasks = tasks;
@@ -51,6 +53,7 @@ public class SchedulerService : IDisposable
         _admin = admin;
         _gitHub = gitHub;
         _updateService = updateService;
+        _notifications = notifications;
         _logger = logger;
     }
 
@@ -80,6 +83,7 @@ public class SchedulerService : IDisposable
         var result = await ExecuteAsync(task).ConfigureAwait(false);
         task.LastRunAt = DateTime.Now;
         SaveResult(task, result);
+        NotifyJobFinished(task, result);
         return result;
     }
 
@@ -118,6 +122,7 @@ public class SchedulerService : IDisposable
             var result = await ExecuteAsync(task).ConfigureAwait(false);
             task.LastRunAt = DateTime.Now;
             SaveResult(task, result);
+            NotifyJobFinished(task, result);
             // Следующий момент — с запасом в минуту, чтобы не выполнить задание дважды подряд.
             _nextRuns[task.Id] = ScheduleCalculator.ComputeNextRun(task, DateTime.Now.AddMinutes(1));
         }
@@ -142,6 +147,39 @@ public class SchedulerService : IDisposable
         try { _tasks.Save(task); }
         catch (Exception ex) { _logger?.Error("Не удалось сохранить состояние задания", ex); }
     }
+
+    /// <summary>
+    /// Системное уведомление о завершении задания по расписанию (функция №4): успех или
+    /// ошибка, имя задания и тип. Вызывается только когда задание реально выполнилось
+    /// (не на каждое тиканье таймера). Ошибки уведомления не влияют на планировщик.
+    /// </summary>
+    private void NotifyJobFinished(ScheduledTask task, BackupRunResult? result)
+    {
+        try
+        {
+            var success = result is { Success: true };
+            _notifications.Show(
+                LocalizationManager.T("App.Title"),
+                string.Format(
+                    LocalizationManager.T(success ? "Notify.JobDone" : "Notify.JobError"),
+                    task.Name, KindName(task.Kind)));
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("Не удалось показать системное уведомление о задании", ex);
+        }
+    }
+
+    /// <summary>Локализованное имя типа задания (как в окне заданий).</summary>
+    private static string KindName(ScheduledTaskKind kind) => kind switch
+    {
+        ScheduledTaskKind.Backup => LocalizationManager.T("Schedule.Kind.Backup"),
+        ScheduledTaskKind.UpdateConfig => LocalizationManager.T("Schedule.Kind.UpdateConfig"),
+        ScheduledTaskKind.BackupThenUpdateConfig => LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig"),
+        ScheduledTaskKind.CheckIntegrity => LocalizationManager.T("Schedule.Kind.CheckIntegrity"),
+        ScheduledTaskKind.UpdateApp => LocalizationManager.T("Schedule.Kind.UpdateApp"),
+        _ => LocalizationManager.T("Schedule.Kind.Backup")
+    };
 
     private async Task<BackupRunResult?> ExecuteAsync(ScheduledTask task)
     {

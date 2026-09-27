@@ -27,6 +27,14 @@ namespace Configuration_Management
     public partial class MainWindow
     {
 
+        /// <summary>
+        /// Текущий экземпляр NotifyIcon системного трея — точка доступа для системных
+        /// уведомлений (функция №4): balloon-tip показывается именно через этот значок,
+        /// без AUMID/WinRT. Обновляется при (пере)создании и освобождении значка;
+        /// null, если трей недоступен.
+        /// </summary>
+        internal static Forms.NotifyIcon? TrayIconInstance { get; private set; }
+
         private void InitializeTrayIcon()
         {
             try
@@ -47,6 +55,7 @@ namespace Configuration_Management
                     Icon = icon,
                     Visible = false
                 };
+                TrayIconInstance = _trayIcon;
 
                 try
                 {
@@ -81,6 +90,7 @@ namespace Configuration_Management
                         Icon = Drawing.SystemIcons.Application,
                         Visible = true
                     };
+                    TrayIconInstance = _trayIcon;
                     _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
                 }
                 catch
@@ -614,6 +624,7 @@ namespace Configuration_Management
                 _trayIcon.Visible = false;
                 _trayIcon.Dispose();
                 _trayIcon = null;
+                TrayIconInstance = null;
             }
         }
 

@@ -90,6 +90,21 @@ public partial class MainViewModel
         {
             _dialog.ShowError(result.ErrorMessage ?? LocalizationManager.T("Backup.Failed"), LocalizationManager.T("Backup.RunTitle"));
         }
+
+        // Системное уведомление (функция №4): приложение может быть свёрнуто в трей,
+        // а диалог результата увиден не будет.
+        try
+        {
+            AppServices.GetRequiredService<INotificationService>().Show(
+                LocalizationManager.T("App.Title"),
+                string.Format(
+                    LocalizationManager.T(result.Success ? "Notify.BackupDone" : "Notify.BackupError"),
+                    infobase.Name, scenario.Name));
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Системное уведомление не показано: {ex.Message}");
+        }
     }
 
     /// <summary>

@@ -60,6 +60,10 @@ public static class AppServices
         // Windows — WMI (Win32_Process), Linux — обход /proc; тип один, реализация
         // выбирается символами условной компиляции.
         services.AddSingleton<IRunningInfobasesService, RunningInfobasesService>();
+        // Системные уведомления ОС (функция №4): balloon-tip трея на Windows/WPF,
+        // notify-send на Linux/Avalonia. Тип один, реализация выбирается символами
+        // условной компиляции (#if WINDOWS / #if LINUX), как RunningInfobasesService.
+        services.AddSingleton<INotificationService, NotificationService>();
         // Завершение процесса 1С по PID (инспектор процессов): Windows — Process.Kill
         // вместе с деревом потомков, Linux — kill через /proc со сверкой времени старта.
         services.AddSingleton<IOneCProcessKiller, OneCProcessKiller>();

@@ -538,6 +538,7 @@ public partial class MainViewModel : ViewModelBase
             CloseToTray = _closeToTray,
             AfterLaunchAction = _afterLaunchAction,
             ShowTrayIcon = _showTrayIcon,
+            ShowSystemNotifications = _showSystemNotifications,
             EscapeToTray = _escapeToTray,
             CompactMode = _compactMode,
             ExplorerIntegrationEnabled = _explorerIntegrationEnabled,

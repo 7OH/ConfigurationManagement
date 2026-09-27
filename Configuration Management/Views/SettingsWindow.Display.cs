@@ -190,6 +190,8 @@ namespace Configuration_Management
                 CloseToTrayCheck.IsChecked = _viewModel.CloseToTray;
             if (EscapeToTrayCheck != null)
                 EscapeToTrayCheck.IsChecked = _viewModel.EscapeToTray;
+            if (ShowSystemNotificationsCheck != null)
+                ShowSystemNotificationsCheck.IsChecked = _viewModel.ShowSystemNotifications;
             if (AfterLaunchActionCombo != null)
             {
                 AfterLaunchActionCombo.ItemsSource = new[]

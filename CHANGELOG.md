@@ -9,6 +9,37 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.94] — 2026-09-27
+
+### Добавлено
+
+- **Системные уведомления ОС о завершении фоновых операций** (обе платформы, функция №4) —
+  когда приложение свёрнуто в трей, завершение резервной копии (успех/ошибка с именем базы
+  и сценария), задания по расписанию (успех/ошибка с именем задания и типом действия) и
+  обнаружение новой версии приложения при молчаливом автообновлении показываются системным
+  уведомлением. Windows — balloon-tip значка трея (существующий `NotifyIcon` главного окна,
+  [`Views/MainWindow.Tray.cs`](Configuration%20Management/Views/MainWindow.Tray.cs), без
+  AUMID/WinRT); Linux — `notify-send` (libnotify) с тихим no-op, если команда недоступна.
+  Единый сервис —
+  [`Services/INotificationService.cs`](Configuration%20Management/Services/INotificationService.cs)
+  с платформенными реализациями
+  [`Services/NotificationService.Windows.cs`](Configuration%20Management/Services/NotificationService.Windows.cs)
+  и [`Services/NotificationService.Linux.cs`](Configuration%20Management/Services/NotificationService.Linux.cs),
+  зарегистрирован в DI ([`AppServices.cs`](Configuration%20Management/AppServices.cs)).
+  Точки вызова: завершение задания по расписанию и «Выполнить сейчас»
+  ([`Services/SchedulerService.cs`](Configuration%20Management/Services/SchedulerService.cs)),
+  выполнение сценария резервирования (Ctrl+Shift+F5,
+  [`ViewModels/MainViewModel.Backup.cs`](Configuration%20Management/ViewModels/MainViewModel.Backup.cs)
+  и [`ViewModels/MainViewModel.Avalonia.Backup.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Backup.cs)),
+  фоновая проверка обновлений
+  ([`Services/UpdateService.cs`](Configuration%20Management/Services/UpdateService.cs)
+  и [`Services/UpdateService.Avalonia.cs`](Configuration%20Management/Services/UpdateService.Avalonia.cs)) —
+  уведомление «Доступна новая версия X.Y.Z» отправляется только когда диалог обновления не
+  показывается (молчаливое автообновление), чтобы не дублировать окно. Переключатель
+  «Системные уведомления» в окне настроек (рядом с настройками трея;
+  `AppSettings.ShowSystemNotifications`, по умолчанию включён) — при выключении все
+  уведомления подавляются в самом сервисе; тексты локализованы (ru/en, ключи `Notify.*`).
+
 ## [0.3.9.93] — 2026-09-27
 
 ### Добавлено

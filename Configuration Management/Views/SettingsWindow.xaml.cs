@@ -534,6 +534,7 @@ namespace Configuration_Management
                 ShowTagFilterPanelCheck.IsChecked ?? true,
                 CloseToTrayCheck.IsChecked ?? false,
                 ShowTrayIconCheck.IsChecked ?? true,
+                ShowSystemNotificationsCheck.IsChecked ?? true,
                 hkEnterprise,
                 hkConfigurator,
                 hkFavorite,

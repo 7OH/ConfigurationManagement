@@ -576,6 +576,7 @@
     "Settings.General.ShowTrayIcon": "Icon in the notification area",
     "Settings.General.CloseToTray": "Minimize to tray on close",
     "Settings.General.EscapeToTray": "Minimize to tray on Esc",
+    "Settings.General.ShowSystemNotifications": "System notifications about completed background operations (backup, scheduled task, application update)",
     "Main.AfterLaunchTrayUnavailable": "No tray icon is available, the window was minimized instead of hiding: a hidden window could not be restored.",
     "Settings.General.RememberWindowLayout": "Remember window position, size and monitor",
     "Settings.General.AfterLaunchAction": "After launching an infobase or configurator:",
@@ -1907,6 +1908,13 @@
     "Schedule.Kind.BackupThenUpdateConfig": "Backup → update configuration",
     "Schedule.Kind.CheckIntegrity": "Check integrity (chdbfl)",
     "Schedule.Kind.UpdateApp": "Update the application",
+
+    "Notify.BackupDone": "Backup created: {0} — {1}",
+    "Notify.BackupError": "Backup failed: {0} — {1}",
+    "Notify.JobDone": "Scheduled task completed: {0} ({1})",
+    "Notify.JobError": "Scheduled task failed: {0} ({1})",
+    "Notify.UpdateAvailable": "New version {0} is available",
+
     "Schedule.Monday": "Mon",
     "Schedule.Tuesday": "Tue",
     "Schedule.Wednesday": "Wed",

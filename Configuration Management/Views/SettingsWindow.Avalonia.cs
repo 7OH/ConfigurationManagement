@@ -402,12 +402,18 @@ namespace Configuration_Management
             var trayIconCheck = SettingsSwitch("Settings.General.ShowTrayIcon", _viewModel.ShowTrayIcon, "IconTrayFull", "#14B8A6");
             var closeToTrayCheck = SettingsSwitch("Settings.General.CloseToTray", _viewModel.CloseToTray, "IconWindowMinimize", "#F59E0B");
             var escapeToTrayCheck = SettingsSwitch("Settings.General.EscapeToTray", _viewModel.EscapeToTray, "IconKeyboard", "#8B5CF6");
+            // Системные уведомления ОС о завершении фоновых операций (функция №4):
+            // резервная копия, задание по расписанию, найденное обновление приложения.
+            var notificationsCheck = SettingsSwitch(
+                "Settings.General.ShowSystemNotifications", _viewModel.ShowSystemNotifications, "IconInformationOutline", "#14B8A6");
             trayIconCheck.Margin = new Thickness(0, 0, 0, 6);
             closeToTrayCheck.Margin = new Thickness(0, 0, 0, 6);
             escapeToTrayCheck.Margin = new Thickness(0, 0, 0, 6);
+            notificationsCheck.Margin = new Thickness(0, 0, 0, 6);
             settings.Children.Add(trayIconCheck);
             settings.Children.Add(closeToTrayCheck);
             settings.Children.Add(escapeToTrayCheck);
+            settings.Children.Add(notificationsCheck);
 
 
             // Параметры текущей сессии
@@ -3016,7 +3022,8 @@ namespace Configuration_Management
                 _viewModel.ApplyTraySettings(
                     trayIconCheck.IsChecked == true,
                     closeToTrayCheck.IsChecked == true,
-                    escapeToTrayCheck.IsChecked == true);
+                    escapeToTrayCheck.IsChecked == true,
+                    notificationsCheck.IsChecked == true);
                 _viewModel.ApplyTemplateCatalogPaths(templatePaths);
                 ApplyExportFileNameSettings();
 

@@ -143,6 +143,8 @@ public partial class MainViewModel : ViewModelBase
     private bool _syncTimerRunning;
     private bool _closeToTray;
     private bool _showTrayIcon = true;
+    // Системные уведомления ОС о завершении фоновых операций (функция №4).
+    private bool _showSystemNotifications = true;
     private bool _compactMode;
 
     // ---- Быстрый запуск: индикатор загрузки и фоновое построение дерева ----
@@ -371,6 +373,7 @@ public partial class MainViewModel : ViewModelBase
             : settings.ExportTimestampFormat;
         _closeToTray = settings.CloseToTray;
         _showTrayIcon = settings.ShowTrayIcon;
+        _showSystemNotifications = settings.ShowSystemNotifications;
         _escapeToTray = settings.EscapeToTray;
         _afterLaunchAction = settings.AfterLaunchAction ?? "None";
         _compactMode = settings.CompactMode;
