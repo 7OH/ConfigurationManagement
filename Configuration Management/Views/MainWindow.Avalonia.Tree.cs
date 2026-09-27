@@ -865,7 +865,10 @@ namespace Configuration_Management
             // Подписи секций подчинены тем же условиям, что и их содержимое:
             // иначе в компактной панели и без выбранной базы висели заголовки
             // без содержимого.
-            badges.Bind(Control.IsVisibleProperty, new Binding("IsInfobaseSelected"));
+            // Плашки «Избранное»/«Закреплено» видны вместе с подробностями (issue #300):
+            // в WPF они лежат внутри сворачиваемого блока подробностей, а здесь висели
+            // над кнопками запуска в узкой панели, где их принимали за артефакты.
+            badges.Bind(Control.IsVisibleProperty, new Binding("ShowConnectionInfo"));
             connectionLabel.Bind(Control.IsVisibleProperty, new Binding("ShowConnectionInfo"));
             descriptionLabel.Bind(Control.IsVisibleProperty, new Binding("ShowConnectionInfo"));
             desc.Bind(Control.IsVisibleProperty, new Binding("ShowConnectionInfo"));
