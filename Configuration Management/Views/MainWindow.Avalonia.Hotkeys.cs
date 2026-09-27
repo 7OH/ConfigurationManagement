@@ -159,6 +159,10 @@ namespace Configuration_Management
             // приложения паролем (функция №19). Сочетания настраиваются в настройках.
             AddHotkey(_vm.HotkeySessionLock, _vm.ShowSessionLockCommand);
             AddHotkey(_vm.HotkeyLockApp, _vm.LockAppCommand);
+            // Масштаб строк списка (issue #303): Ctrl++ / Ctrl+- / Ctrl+0, как в редакторах.
+            AddHotkey(_vm.HotkeyZoomIn, _vm.ZoomInCommand);
+            AddHotkey(_vm.HotkeyZoomOut, _vm.ZoomOutCommand);
+            AddHotkey(_vm.HotkeyZoomReset, _vm.ZoomResetCommand);
             // Администрирование ИБ (Этап 6, функция №29 + консоль серверов):
             // проверка целостности файловой ИБ (chdbfl) и консоль администрирования серверов 1С.
             AddHotkey(_vm.HotkeyCheckIntegrity, _vm.CheckIntegrityCommand);

@@ -291,6 +291,18 @@ namespace Configuration_Management
         /// </summary>
         private void ScrollListByWheel(MouseWheelEventArgs e)
         {
+            // Ctrl+колесо — масштаб строк списка (issue #303): вверх — крупнее,
+            // вниз — мельче; список при этом не прокручивается.
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                if (e.Delta > 0)
+                    _viewModel.ZoomListBy(+0.1);
+                else if (e.Delta < 0)
+                    _viewModel.ZoomListBy(-0.1);
+                e.Handled = true;
+                return;
+            }
+
             var treeScroll = GetTreeScrollViewer();
             if (treeScroll is null)
             {

@@ -123,6 +123,13 @@ namespace Configuration_Management
                 HotkeyCheckIntegrityBox.Value = viewModel.HotkeyCheckIntegrity;
             if (HotkeyServerConsoleBox != null)
                 HotkeyServerConsoleBox.Value = viewModel.HotkeyServerConsole;
+            // Масштаб строк списка (issue #303): Ctrl++ / Ctrl+- / Ctrl+0.
+            if (HotkeyZoomInBox != null)
+                HotkeyZoomInBox.Value = viewModel.HotkeyZoomIn;
+            if (HotkeyZoomOutBox != null)
+                HotkeyZoomOutBox.Value = viewModel.HotkeyZoomOut;
+            if (HotkeyZoomResetBox != null)
+                HotkeyZoomResetBox.Value = viewModel.HotkeyZoomReset;
             _settings = new SettingsViewModel(viewModel);
             _installedPlatformVersions = new List<string>(viewModel.InstalledPlatformVersions);
             foreach (var path in viewModel.AdditionalPlatformSearchPaths)
@@ -461,6 +468,10 @@ namespace Configuration_Management
             var hkServerConsole = ReadHotkeyBox(HotkeyServerConsoleBox);
             // Копия экрана по хоткею (функция №30, Этап 8).
             var hkScreenshot = ReadHotkeyBox(HotkeyScreenshotBox);
+            // Масштаб строк списка (issue #303).
+            var hkZoomIn = ReadHotkeyBox(HotkeyZoomInBox);
+            var hkZoomOut = ReadHotkeyBox(HotkeyZoomOutBox);
+            var hkZoomReset = ReadHotkeyBox(HotkeyZoomResetBox);
 
             // Проверка: одна клавиша — одно действие (пустые «Нет» не учитываются).
             var assigned = new (string Name, string Key)[]
@@ -485,7 +496,10 @@ namespace Configuration_Management
                 (LocalizationManager.T("AppLock.LockTitle"), hkLockApp),
                 (LocalizationManager.T("Admin.CheckIntegrityTitle"), hkCheckIntegrity),
                 (LocalizationManager.T("Admin.ServerConsoleTitle"), hkServerConsole),
-                (LocalizationManager.T("Settings.Screenshot.Title"), hkScreenshot)
+                (LocalizationManager.T("Settings.Screenshot.Title"), hkScreenshot),
+                (LocalizationManager.T("Settings.Hotkeys.ZoomIn"), hkZoomIn),
+                (LocalizationManager.T("Settings.Hotkeys.ZoomOut"), hkZoomOut),
+                (LocalizationManager.T("Settings.Hotkeys.ZoomReset"), hkZoomReset)
             };
             var duplicates = SettingsViewModel.FindDuplicateHotkeys(assigned).ToList();
             if (duplicates.Count > 0)
@@ -539,7 +553,10 @@ namespace Configuration_Management
                 hotkeySessionLock: hkSessionLock,
                 hotkeyLockApp: hkLockApp,
                 hotkeyCheckIntegrity: hkCheckIntegrity,
-                hotkeyServerConsole: hkServerConsole);
+                hotkeyServerConsole: hkServerConsole,
+                hotkeyZoomIn: hkZoomIn,
+                hotkeyZoomOut: hkZoomOut,
+                hotkeyZoomReset: hkZoomReset);
 
             // Копия экрана (функция №30, Этап 8): сочетание и каталог сохранения.
             _viewModel.ScreenshotHotkey = hkScreenshot;

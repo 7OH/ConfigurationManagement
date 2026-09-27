@@ -166,6 +166,9 @@ namespace Configuration_Management
         {
             ReadFontSelection();
             _viewModel.PreviewElementFonts(_settings.ElementFonts);
+            // «Применить» сохраняет сразу: не нужно закрывать окно настроек,
+            // чтобы подобрать размер каждого элемента (issue #303).
+            _viewModel.SaveElementFonts(_settings.ElementFonts);
         }
     }
 }

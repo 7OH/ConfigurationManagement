@@ -431,7 +431,8 @@ public partial class MainViewModel : ViewModelBase
         string showAll, string showFavorites, string showRecent,
         string clearSearch, string clearTags, string rightPanelDetails, string switchUser,
         string findInList = "", string sessionLock = "", string lockApp = "",
-        string checkIntegrity = "", string serverConsole = "")
+        string checkIntegrity = "", string serverConsole = "",
+        string zoomIn = "", string zoomOut = "", string zoomReset = "")
     {
         _settings.HotkeyEnterprise = enterprise ?? string.Empty;
         _settings.HotkeyConfigurator = configurator ?? string.Empty;
@@ -455,6 +456,10 @@ public partial class MainViewModel : ViewModelBase
         // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
         _settings.HotkeyCheckIntegrity = checkIntegrity ?? string.Empty;
         _settings.HotkeyServerConsole = serverConsole ?? string.Empty;
+        // Масштаб строк списка (issue #303): Ctrl++ / Ctrl+- / Ctrl+0.
+        _settings.HotkeyZoomIn = zoomIn ?? string.Empty;
+        _settings.HotkeyZoomOut = zoomOut ?? string.Empty;
+        _settings.HotkeyZoomReset = zoomReset ?? string.Empty;
 
         SaveSettingsSilently();
 
@@ -478,6 +483,10 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HotkeyLockApp));
         OnPropertyChanged(nameof(HotkeyCheckIntegrity));
         OnPropertyChanged(nameof(HotkeyServerConsole));
+        // Масштаб строк списка (issue #303).
+        OnPropertyChanged(nameof(HotkeyZoomIn));
+        OnPropertyChanged(nameof(HotkeyZoomOut));
+        OnPropertyChanged(nameof(HotkeyZoomReset));
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
     }
 

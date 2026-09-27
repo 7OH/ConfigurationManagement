@@ -1456,6 +1456,11 @@ namespace Configuration_Management
             {
                 StoreFontScope();
                 _viewModel.PreviewElementFonts(editedFonts);
+                // «Применить» сохраняет сразу: не нужно закрывать окно настроек,
+                // чтобы подобрать размер каждого элемента (issue #303). Масштаб
+                // строк пересчитывается, так как зависит от области шрифта.
+                _viewModel.ApplyListZoom();
+                _viewModel.SaveElementFonts(editedFonts);
             };
             // Подписка оформляется до загрузки области, и это важно:
             // GetObservable отдаёт текущее значение прямо при подписке. Пока поля
@@ -2715,6 +2720,10 @@ namespace Configuration_Management
             // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
             var hotkeySessionLock = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.SessionLock"), _viewModel.HotkeySessionLock);
             var hotkeyLockApp = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.LockApp"), _viewModel.HotkeyLockApp);
+            // Масштаб строк списка (issue #303): Ctrl++ / Ctrl+- / Ctrl+0.
+            var hotkeyZoomIn = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ZoomIn"), _viewModel.HotkeyZoomIn);
+            var hotkeyZoomOut = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ZoomOut"), _viewModel.HotkeyZoomOut);
+            var hotkeyZoomReset = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ZoomReset"), _viewModel.HotkeyZoomReset);
             // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
             var hotkeyCheckIntegrity = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.CheckIntegrity"), _viewModel.HotkeyCheckIntegrity);
             var hotkeyServerConsole = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ServerConsole"), _viewModel.HotkeyServerConsole);
@@ -3051,7 +3060,8 @@ namespace Configuration_Management
                     hotkeyShowAll.Value, hotkeyShowFavorites.Value, hotkeyShowRecent.Value,
                     hotkeyClearSearch.Value, hotkeyClearTags.Value, hotkeyRightPanelDetails.Value,
                     hotkeySwitchUser.Value, hotkeyFindInList.Value, hotkeySessionLock.Value, hotkeyLockApp.Value,
-                    hotkeyCheckIntegrity.Value, hotkeyServerConsole.Value);
+                    hotkeyCheckIntegrity.Value, hotkeyServerConsole.Value,
+                    hotkeyZoomIn.Value, hotkeyZoomOut.Value, hotkeyZoomReset.Value);
 
                 // Копия экрана (функция №30) и автозапуск при старте ОС (функция №31, Этап 8).
                 _viewModel.ScreenshotHotkey = hotkeyScreenshot.Value ?? "";

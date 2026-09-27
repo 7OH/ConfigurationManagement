@@ -118,7 +118,7 @@ namespace Configuration_Management
             {
                 FontWeight = FontWeight.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
-                FontSize = UiMetrics.ScaledFont(UiMetrics.Compact ? 12 : 15)
+                FontSize = UiMetrics.ScaledRowFont(UiMetrics.Compact ? 12 : 15)
             };
             if (UiMetrics.Compact)
                 text.FontSize = UiMetrics.GroupNameFont;
@@ -129,7 +129,7 @@ namespace Configuration_Management
             var count = new TextBlock
             {
                 VerticalAlignment = VerticalAlignment.Center,
-                FontSize = UiMetrics.ScaledFont(UiMetrics.Compact ? 11 : 13)
+                FontSize = UiMetrics.ScaledRowFont(UiMetrics.Compact ? 11 : 13)
             };
             if (UiMetrics.Compact)
                 count.FontSize = UiMetrics.GroupNameFont;
@@ -463,7 +463,7 @@ namespace Configuration_Management
         {
             var text = new TextBlock
             {
-                FontSize = UiMetrics.ScaledFont(10),
+                FontSize = UiMetrics.ScaledRowFont(10),
                 FontWeight = FontWeight.Bold,
                 // Цвет подписи в разметке задан числом и одинаков в обеих темах.
                 Foreground = new SolidColorBrush(Color.Parse("#1C1917")),

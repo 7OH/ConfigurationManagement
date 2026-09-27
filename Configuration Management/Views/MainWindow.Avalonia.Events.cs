@@ -45,6 +45,16 @@ namespace Configuration_Management
             // Шаблон дерева готов только после загрузки окна, раньше внутренней
             // прокрутки ещё нет.
             AttachVerticalScrollBar();
+            // Масштаб строк списка (issue #303): применяем сохранённое значение и
+            // включаем Ctrl+колесо над деревом — как в редакторах.
+            _vm?.ApplyListZoom();
+            _tree.AddHandler(Avalonia.Input.InputElement.PointerWheelChangedEvent, (_, e) =>
+            {
+                if (_vm is null || !e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control))
+                    return;
+                _vm.ZoomListBy(e.Delta.Y > 0 ? 0.1 : -0.1);
+                e.Handled = true;
+            }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
             if (_vm is not null)
             {
                 // Переназначение клавиш меняет и привязки, и подписи в меню.

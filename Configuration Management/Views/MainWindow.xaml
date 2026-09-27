@@ -1439,12 +1439,7 @@
                                                        Foreground="{Binding HeaderTextBrush}">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="FontSize" Value="15"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding DataContext.CompactMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                                                                <Setter Property="FontSize" Value="12"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
+                                                        <Setter Property="FontSize" Value="{Binding DataContext.GroupNameFontSize, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
@@ -1453,12 +1448,7 @@
                                                        Foreground="{Binding HeaderTextBrush}">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="FontSize" Value="13"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding DataContext.CompactMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                                                                <Setter Property="FontSize" Value="11"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
+                                                        <Setter Property="FontSize" Value="{Binding DataContext.GroupCountFontSize, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
@@ -1726,7 +1716,7 @@
                                                             </Style>
                                                         </Border.Style>
                                                         <TextBlock Text="{Binding FavoriteHotkeyDisplay}"
-                                                                   FontSize="10" FontWeight="Bold"
+                                                                   FontSize="{Binding DataContext.RowHotkeyFontSize, RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="Bold"
                                                                    Foreground="#1C1917"
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center"/>
@@ -1791,7 +1781,7 @@
                                                     </MultiBinding>
                                                 </Path.Fill>
                                             </Path>
-                                            <TextBlock x:Name="NameText" Text="{Binding NameDisplay}" FontWeight="SemiBold" FontSize="13"
+                                            <TextBlock x:Name="NameText" Text="{Binding NameDisplay}" FontWeight="SemiBold" FontSize="{Binding DataContext.RowNameFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
@@ -1804,38 +1794,38 @@
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                                 Cursor="Hand" Tag="PlatformVersion"
                                                 ToolTip="{loc:Loc Main.PlatformVersionTooltip}">
-                                            <TextBlock Text="{Binding PlatformVersionDisplay}" FontSize="12"
+                                            <TextBlock Text="{Binding PlatformVersionDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                        HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
                                         </Border>
 
-                                        <TextBlock Grid.Column="12" Text="{Binding ConfigurationNameDisplay}" FontSize="12"
+                                        <TextBlock Grid.Column="12" Text="{Binding ConfigurationNameDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
                                                    ToolTip="{Binding ConfigurationNameDisplay}"/>
 
-                                        <TextBlock Grid.Column="13" Text="{Binding ConfigurationVersionDisplay}" FontSize="12"
+                                        <TextBlock Grid.Column="13" Text="{Binding ConfigurationVersionDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
                                                    ToolTip="{Binding ConfigurationVersionDisplay}"/>
 
-                                        <TextBlock Grid.Column="6" Text="{Binding ParsedLaunchMode}" FontSize="12"
+                                        <TextBlock Grid.Column="6" Text="{Binding ParsedLaunchMode}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
 
-                                        <TextBlock Grid.Column="8" Text="{Binding ServerDatabaseDisplay}" FontSize="12"
+                                        <TextBlock Grid.Column="8" Text="{Binding ServerDatabaseDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
 
-                                        <TextBlock Grid.Column="9" Text="{Binding LastLaunchDisplay}" FontSize="12"
+                                        <TextBlock Grid.Column="9" Text="{Binding LastLaunchDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
 
-                                        <TextBlock Grid.Column="10" Text="{Binding FileSizeDisplay}" FontSize="12"
+                                        <TextBlock Grid.Column="10" Text="{Binding FileSizeDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
 
-                                        <TextBlock Grid.Column="11" Text="{Binding LastModifiedDisplay}" FontSize="12"
+                                        <TextBlock Grid.Column="11" Text="{Binding LastModifiedDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
                                                    ToolTip="{Binding LastModifiedDisplay}"/>
@@ -1915,7 +1905,7 @@
                                                                     <Button.Template>
                                                                         <ControlTemplate TargetType="Button">
                                                                             <TextBlock Text="{Binding}" Foreground="{DynamicResource AccentBrush}"
-                                                                                       FontSize="11" FontWeight="SemiBold"
+                                                                                       FontSize="{Binding DataContext.RowBadgeFontSize, RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold"
                                                                                        VerticalAlignment="Center"
                                                                                        LineHeight="12" LineStackingStrategy="BlockLineHeight"/>
                                                                         </ControlTemplate>
@@ -1929,7 +1919,7 @@
                                                                         VerticalAlignment="Center">
                                                                     <Button.Template>
                                                                         <ControlTemplate TargetType="Button">
-                                                                            <TextBlock Text="×" FontSize="11" LineHeight="12"
+                                                                            <TextBlock Text="×" FontSize="{Binding DataContext.RowBadgeFontSize, RelativeSource={RelativeSource AncestorType=Window}}" LineHeight="12"
                                                                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                                                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                                                                        LineStackingStrategy="BlockLineHeight"/>
@@ -1976,7 +1966,7 @@
                                                             </Style>
                                                         </Path.Style>
                                                     </Path>
-                                                    <TextBlock Text="{loc:Loc Main.AddTagShort}" FontSize="11" VerticalAlignment="Center"
+                                                    <TextBlock Text="{loc:Loc Main.AddTagShort}" FontSize="{Binding DataContext.RowBadgeFontSize, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center"
                                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                                 </StackPanel>
                                             </Button>
@@ -1984,7 +1974,7 @@
                                                  списка или свободный ввод нового (issue #283). Локальные значения
                                                  переопределяют сеттеры ModernComboBox (высоту, отступы, рамку). -->
                                             <ComboBox x:Name="InlineTagBox" Visibility="Collapsed"
-                                                      Width="120" FontSize="12" Padding="6,3"
+                                                      Width="120" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}" Padding="6,3"
                                                       MinHeight="24" Margin="4,0,0,0" VerticalAlignment="Center"
                                                       IsEditable="True" IsTextSearchEnabled="False"
                                                       StaysOpenOnEdit="True"

@@ -65,6 +65,36 @@ namespace Configuration_Management.Controls
         /// <summary>Масштабирует размер шрифта на коэффициент компактного режима.</summary>
         public static double ScaledFont(double value) => value * FontScale;
 
+        // ---- Масштаб строк списка (issue #303) ----
+
+        private static double _userRowScale = 1.0;
+
+        /// <summary>
+        /// Пользовательский масштаб строк списка (issue #303): произведение базы
+        /// области шрифта («Список баз»/«По умолчанию», эталон 13) и масштаба
+        /// Ctrl+колеса/хоткеев. Задаётся вью-моделью; строки списка строятся кодом
+        /// с явными размерами, поэтому после изменения дерево перестраивается.
+        /// </summary>
+        public static double UserRowScale
+        {
+            get => _userRowScale;
+            set
+            {
+                var clamped = value < 0.5 ? 0.5 : value > 3.0 ? 3.0 : value;
+                if (Math.Abs(_userRowScale - clamped) > 0.001)
+                {
+                    _userRowScale = clamped;
+                    RowScaleChanged?.Invoke();
+                }
+            }
+        }
+
+        /// <summary>Событие изменения масштаба строк списка (для пересборки UI).</summary>
+        public static event Action? RowScaleChanged;
+
+        /// <summary>Масштабирует размер шрифта элемента строки списка (компакт × масштаб #303).</summary>
+        public static double ScaledRowFont(double value) => value * FontScale * _userRowScale;
+
         /// <summary>Вертикальный отступ верхней панели.</summary>
         /// <remarks>
         /// Значение 8 (в обычном режиме) согласовано с WPF-разметкой, где верхняя панель
@@ -111,16 +141,16 @@ namespace Configuration_Management.Controls
         /// <summary>Размер самой иконки статуса внутри подложки.</summary>
         public static double RowIcon => 14;
         /// <summary>Размер шрифта имени базы в строке списка.</summary>
-        public static double RowNameFont => Compact ? 12.5 : 13;
+        public static double RowNameFont => (Compact ? 12.5 : 13) * _userRowScale;
         /// <summary>Размер шрифта вторичной информации в строке списка.</summary>
-        public static double RowSecondaryFont => Compact ? 11 : 12;
+        public static double RowSecondaryFont => (Compact ? 11 : 12) * _userRowScale;
 
         /// <summary>
         /// Размер шрифта имени группы в списке. В обычном режиме имя группы наследует
         /// применяемый к интерфейсу шрифт (без жёсткого размера), поэтому значение имеет
         /// смысл только в компактном режиме, где имя группы задаётся явно и уменьшается.
         /// </summary>
-        public static double GroupNameFont => 12.5;
+        public static double GroupNameFont => 12.5 * _userRowScale;
 
         /// <summary>Вертикальный внутренний отступ заголовка группы (высота оформления группы).</summary>
         public static double GroupHeaderPadV => Compact ? 1 : 3;

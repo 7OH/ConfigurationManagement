@@ -574,6 +574,11 @@ public partial class MainViewModel : ViewModelBase
             AppLockPasswordHash = _appLockPasswordHash,
             // Активная блокировка переживает перезапуск приложения (issue #294).
             AppLockActive = _appLockActive,
+            // Масштаб строк списка и его хоткеи (issue #303).
+            ListZoomFactor = _listZoomFactor,
+            HotkeyZoomIn = _hotkeyZoomIn,
+            HotkeyZoomOut = _hotkeyZoomOut,
+            HotkeyZoomReset = _hotkeyZoomReset,
             SortField = _sortField,
             SortAscending = _sortAscending,
             FavoriteHotkeyIds = _favoriteHotkeyIds.ToList(),

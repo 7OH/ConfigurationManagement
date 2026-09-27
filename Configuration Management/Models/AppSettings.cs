@@ -588,6 +588,22 @@ public class AppSettings
     /// </summary>
     public string HotkeyServerConsole { get; set; } = "Ctrl+Alt+S";
 
+    /// <summary>Горячая клавиша увеличения масштаба строк списка (issue #303, по умолчанию Ctrl++).</summary>
+    public string HotkeyZoomIn { get; set; } = "Ctrl+OemPlus";
+
+    /// <summary>Горячая клавиша уменьшения масштаба строк списка (issue #303, по умолчанию Ctrl+-).</summary>
+    public string HotkeyZoomOut { get; set; } = "Ctrl+OemMinus";
+
+    /// <summary>Горячая клавиша сброса масштаба строк списка (issue #303, по умолчанию Ctrl+0).</summary>
+    public string HotkeyZoomReset { get; set; } = "Ctrl+D0";
+
+    /// <summary>
+    /// Масштаб строк списка баз (issue #303): 1.0 — обычный размер, допустимо 0.5–3.0.
+    /// Меняется Ctrl+колесом мыши над списком и горячими клавишами; сохраняется между
+    /// запусками. Значение при загрузке ограничивается вью-моделью.
+    /// </summary>
+    public double ListZoomFactor { get; set; } = 1.0;
+
     /// <summary>Пароль временной блокировки приложения (функция №19) в виде PBKDF2-хэша.</summary>
     public string AppLockPasswordHash { get; set; } = "";
 

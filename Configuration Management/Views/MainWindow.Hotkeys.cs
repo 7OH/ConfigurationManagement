@@ -101,6 +101,12 @@ namespace Configuration_Management
             Add(_viewModel.HotkeySessionLock, _viewModel.ShowSessionLockCommand);
             Add(_viewModel.HotkeyLockApp, _viewModel.LockAppCommand);
 
+            // Масштаб строк списка (issue #303): Ctrl++ / Ctrl+- / Ctrl+0, как в
+            // редакторах. Сочетания настраиваются в «Настройки → Клавиши».
+            Add(_viewModel.HotkeyZoomIn, _viewModel.ZoomInCommand);
+            Add(_viewModel.HotkeyZoomOut, _viewModel.ZoomOutCommand);
+            Add(_viewModel.HotkeyZoomReset, _viewModel.ZoomResetCommand);
+
             // Администрирование ИБ (Этап 6, функция №29 + консоль серверов):
             // проверка целостности файловой ИБ (chdbfl) и консоль администрирования серверов 1С.
             Add(_viewModel.HotkeyCheckIntegrity, _viewModel.CheckIntegrityCommand);
@@ -158,6 +164,19 @@ namespace Configuration_Management
                 keyPart = "Insert";
             if (keyPart.Equals("Esc", StringComparison.OrdinalIgnoreCase))
                 keyPart = "Escape";
+            // «Отображаемые» имена клавиш из HotkeyBox (KeyToDisplay): без обратных
+            // синонимов сохранённые сочетания вида Ctrl+0 / Ctrl++ / Ctrl+- не читались
+            // бы из настроек после перезапуска (issue #303 — хоткеи масштаба строк).
+            if (keyPart.Length == 1 && keyPart[0] >= '0' && keyPart[0] <= '9')
+                keyPart = "D" + keyPart;
+            else if (keyPart is "+" or "=")
+                keyPart = "OemPlus";
+            else if (keyPart == "-")
+                keyPart = "OemMinus";
+            else if (keyPart == "NumPad+")
+                keyPart = "Add";
+            else if (keyPart == "NumPad-")
+                keyPart = "Subtract";
 
             if (!Enum.TryParse<Key>(keyPart, true, out var parsed) || parsed == Key.None)
                 return false;

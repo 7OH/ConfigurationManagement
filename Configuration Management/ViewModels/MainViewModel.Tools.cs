@@ -1936,7 +1936,10 @@ public partial class MainViewModel : ViewModelBase
         string? hotkeySessionLock = null,
         string? hotkeyLockApp = null,
         string? hotkeyCheckIntegrity = null,
-        string? hotkeyServerConsole = null)
+        string? hotkeyServerConsole = null,
+        string? hotkeyZoomIn = null,
+        string? hotkeyZoomOut = null,
+        string? hotkeyZoomReset = null)
     {
         _allowMultipleInstances = allowMultipleInstances;
         _checkForUpdatesOnStartup = checkForUpdatesOnStartup;
@@ -1967,6 +1970,10 @@ public partial class MainViewModel : ViewModelBase
         if (hotkeyLockApp != null) _hotkeyLockApp = hotkeyLockApp.Trim();
         if (hotkeyCheckIntegrity != null) _hotkeyCheckIntegrity = hotkeyCheckIntegrity.Trim();
         if (hotkeyServerConsole != null) _hotkeyServerConsole = hotkeyServerConsole.Trim();
+        // Масштаб строк списка (issue #303): сочетания Ctrl++ / Ctrl+- / Ctrl+0.
+        if (hotkeyZoomIn != null) HotkeyZoomIn = hotkeyZoomIn.Trim();
+        if (hotkeyZoomOut != null) HotkeyZoomOut = hotkeyZoomOut.Trim();
+        if (hotkeyZoomReset != null) HotkeyZoomReset = hotkeyZoomReset.Trim();
         OnPropertyChanged(nameof(AllowMultipleInstances));
         OnPropertyChanged(nameof(CheckForUpdatesOnStartup));
         OnPropertyChanged(nameof(AutoUpdateEnabled));

@@ -399,6 +399,11 @@ public partial class MainViewModel : ViewModelBase
         // Активная блокировка восстанавливается только при наличии пароля: флаг без
         // хэша (сброшен вручную в файле настроек) гасим (issue #294).
         _appLockActive = settings.AppLockActive && !string.IsNullOrEmpty(_appLockPasswordHash);
+        // Масштаб строк списка и его хоткеи (issue #303).
+        _listZoomFactor = Math.Clamp(settings.ListZoomFactor, 0.5, 3.0);
+        _hotkeyZoomIn = string.IsNullOrWhiteSpace(settings.HotkeyZoomIn) ? "Ctrl+OemPlus" : settings.HotkeyZoomIn.Trim();
+        _hotkeyZoomOut = string.IsNullOrWhiteSpace(settings.HotkeyZoomOut) ? "Ctrl+OemMinus" : settings.HotkeyZoomOut.Trim();
+        _hotkeyZoomReset = string.IsNullOrWhiteSpace(settings.HotkeyZoomReset) ? "Ctrl+D0" : settings.HotkeyZoomReset.Trim();
         _hotkeyFavorite = settings.HotkeyFavorite?.Trim() ?? "F8";
         _hotkeyEdit = settings.HotkeyEdit?.Trim() ?? "F2";
         _hotkeyDelete = settings.HotkeyDelete?.Trim() ?? "Delete";

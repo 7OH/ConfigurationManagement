@@ -218,6 +218,121 @@ public partial class MainViewModel : ViewModelBase
         if (window is not MainWindow mw)
             return;
         Themes.ThemeManager.ApplyElementFonts(mw, _elementFonts);
+        // Размеры строк списка зависят и от области «Список баз»/«По умолчанию»,
+        // уведомляем их привязки (issue #303).
+        OnListFontSizeChanged();
+    }
+
+    // ---- Масштаб строк списка баз (issue #303) ----
+
+    private ICommand? _zoomInCommand;
+    private ICommand? _zoomOutCommand;
+    private ICommand? _zoomResetCommand;
+    private double _listZoomFactor = 1.0;
+    private string _hotkeyZoomIn = "Ctrl+OemPlus";
+    private string _hotkeyZoomOut = "Ctrl+OemMinus";
+    private string _hotkeyZoomReset = "Ctrl+D0";
+
+    /// <summary>
+    /// Масштаб строк списка баз (issue #303): 1.0 — обычный размер, допустимо
+    /// 0.5–3.0. Меняется Ctrl+колесом мыши над списком, горячими клавишами
+    /// (как в редакторах: Ctrl+«+» / Ctrl+«-» / Ctrl+0) и сохраняется между запусками.
+    /// </summary>
+    public double ListZoomFactor
+    {
+        get => _listZoomFactor;
+        set
+        {
+            var clamped = Math.Clamp(Math.Round(value * 10) / 10.0, 0.5, 3.0);
+            if (SetProperty(ref _listZoomFactor, clamped))
+            {
+                OnListFontSizeChanged();
+                ScheduleSaveSettings();
+            }
+        }
+    }
+
+    /// <summary>Горячая клавиша увеличения масштаба строк списка (issue #303).</summary>
+    public string HotkeyZoomIn
+    {
+        get => _hotkeyZoomIn;
+        set { if (SetProperty(ref _hotkeyZoomIn, NormalizeHotkey(value, "Ctrl+OemPlus"))) ScheduleSaveSettings(); }
+    }
+
+    /// <summary>Горячая клавиша уменьшения масштаба строк списка (issue #303).</summary>
+    public string HotkeyZoomOut
+    {
+        get => _hotkeyZoomOut;
+        set { if (SetProperty(ref _hotkeyZoomOut, NormalizeHotkey(value, "Ctrl+OemMinus"))) ScheduleSaveSettings(); }
+    }
+
+    /// <summary>Горячая клавиша сброса масштаба строк списка (issue #303).</summary>
+    public string HotkeyZoomReset
+    {
+        get => _hotkeyZoomReset;
+        set { if (SetProperty(ref _hotkeyZoomReset, NormalizeHotkey(value, "Ctrl+D0"))) ScheduleSaveSettings(); }
+    }
+
+    /// <summary>Команда увеличения масштаба строк списка (Ctrl++ / Ctrl+колесо, issue #303).</summary>
+    public ICommand ZoomInCommand => _zoomInCommand ??= new RelayCommand(() => ListZoomFactor += 0.1);
+
+    /// <summary>Команда уменьшения масштаба строк списка (Ctrl+-, issue #303).</summary>
+    public ICommand ZoomOutCommand => _zoomOutCommand ??= new RelayCommand(() => ListZoomFactor -= 0.1);
+
+    /// <summary>Команда сброса масштаба строк списка (Ctrl+0, issue #303).</summary>
+    public ICommand ZoomResetCommand => _zoomResetCommand ??= new RelayCommand(() => ListZoomFactor = 1.0);
+
+    /// <summary>Меняет масштаб строк списка на один шаг (Ctrl+колесо мыши, issue #303).</summary>
+    public void ZoomListBy(double delta) => ListZoomFactor += delta;
+
+    /// <summary>
+    /// Итоговый коэффициент размеров строк списка: база области («Список баз»,
+    /// иначе «По умолчанию», эталон 13) отнесённая к 13 и умноженная на масштаб
+    /// Ctrl+колеса/хоткеев (issue #303).
+    /// </summary>
+    private double ListFontScale
+    {
+        get
+        {
+            double baseSize = 13.0;
+            if (_elementFonts is not null)
+            {
+                if (_elementFonts.TryGetValue(Themes.ThemeManager.FontList, out var list) && list is { FontSize: > 0 })
+                    baseSize = list.FontSize;
+                else if (_elementFonts.TryGetValue(Themes.ThemeManager.FontDefault, out var def) && def is { FontSize: > 0 })
+                    baseSize = def.FontSize;
+            }
+            return baseSize / 13.0 * _listZoomFactor;
+        }
+    }
+
+    /// <summary>Размер названия базы в строке списка (эталон 13, issue #303).</summary>
+    public double RowNameFontSize => 13.0 * ListFontScale * (_compactMode ? 0.9 : 1.0);
+
+    /// <summary>Размер второстепенных ячеек строки (эталон 12, issue #303).</summary>
+    public double RowSecondaryFontSize => 12.0 * ListFontScale * (_compactMode ? 0.9 : 1.0);
+
+    /// <summary>Размер плашек-тегов строки (эталон 11, issue #303).</summary>
+    public double RowBadgeFontSize => 11.0 * ListFontScale * (_compactMode ? 0.9 : 1.0);
+
+    /// <summary>Размер номера слота Alt+N в строке (эталон 10, issue #303).</summary>
+    public double RowHotkeyFontSize => 10.0 * ListFontScale * (_compactMode ? 0.9 : 1.0);
+
+    /// <summary>Размер названия группы (15, в компактном режиме 12, issue #303).</summary>
+    public double GroupNameFontSize => (_compactMode ? 12.0 : 15.0) * ListFontScale;
+
+    /// <summary>Размер счётчика баз у группы (13, в компактном режиме 11, issue #303).</summary>
+    public double GroupCountFontSize => (_compactMode ? 11.0 : 13.0) * ListFontScale;
+
+    /// <summary>Уведомляет привязки размеров строк списка об изменении масштаба/шрифта.</summary>
+    private void OnListFontSizeChanged()
+    {
+        OnPropertyChanged(nameof(RowNameFontSize));
+        OnPropertyChanged(nameof(RowSecondaryFontSize));
+        OnPropertyChanged(nameof(RowBadgeFontSize));
+        OnPropertyChanged(nameof(RowHotkeyFontSize));
+        OnPropertyChanged(nameof(GroupNameFontSize));
+        OnPropertyChanged(nameof(GroupCountFontSize));
     }
 
     /// <summary>
@@ -254,6 +369,8 @@ public partial class MainViewModel : ViewModelBase
         if (window is not MainWindow mw)
             return;
         Themes.ThemeManager.ApplyElementFonts(mw, fonts);
+        // Предпросмотр тоже меняет размер строк списка (issue #303).
+        OnListFontSizeChanged();
     }
 
     /// <summary>Выгружает схему в JSON-файл.</summary>

@@ -757,7 +757,15 @@ public partial class MainViewModel : ViewModelBase
     public bool CompactMode
     {
         get => _compactMode;
-        set { if (SetProperty(ref _compactMode, value)) SaveSettings(); }
+        set
+        {
+            if (SetProperty(ref _compactMode, value))
+            {
+                // Размеры строк списка зависят от компактного режима (issue #303).
+                OnListFontSizeChanged();
+                SaveSettings();
+            }
+        }
     }
 
     /// <summary>Применяет компактный режим к главному окну (масштабирует отступы/шрифты/высоты).</summary>
