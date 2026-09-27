@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.94</Version>
-    <AssemblyVersion>0.3.9.94</AssemblyVersion>
-    <FileVersion>0.3.9.94</FileVersion>
-    <InformationalVersion>0.3.9.94</InformationalVersion>
+    <Version>0.3.9.95</Version>
+    <AssemblyVersion>0.3.9.95</AssemblyVersion>
+    <FileVersion>0.3.9.95</FileVersion>
+    <InformationalVersion>0.3.9.95</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -242,6 +242,9 @@
     <!-- Окно «Инспектор процессов 1С» (0.3.9.93): WPF code-behind исключается,
          Avalonia-версия (ProcessInspectorWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\ProcessInspectorWindow.xaml.cs" />
+    <!-- Окно «Статистика использования» (0.3.9.95): WPF code-behind исключается,
+         Avalonia-версия (UsageStatisticsWindow.Avalonia.cs) подключается глобом ниже. -->
+    <Compile Remove="Views\UsageStatisticsWindow.xaml.cs" />
     <!-- Кастомные контролы (WPF) исключаем, но возвращаем Avalonia-версии (*.Avalonia.cs) -->
     <Compile Remove="Controls\**\*.cs" />
     <Compile Include="Controls\*.Avalonia.cs" />
@@ -342,6 +345,11 @@
          подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
     <Compile Include="ViewModels\ProcessInspectorViewModel.cs" />
     <Compile Include="ViewModels\ProcessRowViewModel.cs" />
+    <!-- ViewModels окна «Статистика использования» (0.3.9.95): чистый .NET без
+         платформенных зависимостей, используются обеими платформами — на Linux
+         подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\UsageStatisticsViewModel.cs" />
+    <Compile Include="ViewModels\UsageStatisticsRowViewModel.cs" />
     <!-- Мультивыделение (0.3.9.90): общая логика набора «для выделенных» — чистый
          .NET без платформенных зависимостей, используется обеими платформами.
          Платформенные пакетные команды лежат отдельно: MainViewModel.BatchCommands.cs
@@ -370,6 +378,11 @@
          подключается явно паттерном Remove+Include, как CsvExporter. -->
     <Compile Remove="Services\DroppedBaseDetector.cs" />
     <Compile Include="Services\DroppedBaseDetector.cs" />
+    <!-- Агрегатор статистики использования баз (0.3.9.95): чистый .NET без
+         платформенных зависимостей, используется и Windows, и Linux; на Linux
+         подключается явно паттерном Remove+Include, как CsvExporter. -->
+    <Compile Remove="Services\UsageStatisticsAggregator.cs" />
+    <Compile Include="Services\UsageStatisticsAggregator.cs" />
     <!-- Системные уведомления ОС (0.3.9.94, функция №4): интерфейс используется и
          Windows, и Linux; на Linux подключается явно паттерном Remove+Include, как
          CsvExporter. Платформенные реализации (NotificationService.Windows.cs /

@@ -2396,5 +2396,26 @@ public partial class MainViewModel : ViewModelBase
         };
         window.ShowDialog();
     }
+
+    // ======================= Статистика использования баз (0.3.9.95) =======================
+
+    private ICommand? _usageStatisticsCommand;
+
+    /// <summary>
+    /// Команда «Статистика использования…»: аналитика по истории запусков всех баз
+    /// (число запусков, первый/последний запуск, дней с последнего запуска, сводка,
+    /// распределение по дням недели). Работает со всем списком, поэтому активна всегда.
+    /// </summary>
+    public ICommand UsageStatisticsCommand =>
+        _usageStatisticsCommand ??= new RelayCommand(_ => ExecuteUsageStatistics());
+
+    private void ExecuteUsageStatistics()
+    {
+        var window = new UsageStatisticsWindow(Infobases.ToList())
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        window.ShowDialog();
+    }
 }
 #endif

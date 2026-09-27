@@ -1700,6 +1700,9 @@ namespace Configuration_Management
             // Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов платформы
             // с режимом, пользователем, PID и завершением выбранного процесса.
             menu.Items.Add(MenuAction("ProcessInspector.Title", _vm.ProcessInspectorCommand, null, "IconApplicationCog", "#0EA5E9"));
+            // Статистика использования баз (0.3.9.95): аналитика по истории запусков —
+            // число запусков, первый/последний запуск, сводка и распределение по дням недели.
+            menu.Items.Add(MenuAction("Stats.Title", _vm.UsageStatisticsCommand, null, "IconHistory", "#14B8A6"));
 
             menu.Items.Add(MenuSeparator());
 

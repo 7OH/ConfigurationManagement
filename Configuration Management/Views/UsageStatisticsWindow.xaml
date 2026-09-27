@@ -1,0 +1,131 @@
+<Window x:Class="Configuration_Management.UsageStatisticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Icon="{StaticResource AppIcon}"
+        Height="640" Width="1080" MinHeight="480" MinWidth="820"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <!-- Вертикальное выравнивание содержимого ячеек по центру (как в MaintenanceCenterWindow). -->
+        <Style x:Key="CenteredCellText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+
+        <Style x:Key="CellTextAccent" TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок и фильтр-переключатель «Только используемые» -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock FontSize="15" FontWeight="SemiBold" Text="{loc:Loc Stats.Title}"/>
+            <CheckBox x:Name="UsedOnlyCheck" Margin="24,2,0,0" VerticalAlignment="Center"
+                      Content="{loc:Loc Stats.UsedOnly}"
+                      IsChecked="{Binding UsedOnly, UpdateSourceTrigger=PropertyChanged}"
+                      Cursor="Hand"/>
+        </StackPanel>
+
+        <!-- Сводка -->
+        <TextBlock x:Name="SummaryTextBlock" Grid.Row="1" Margin="0,6,0,2" FontSize="12"
+                   Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding SummaryText}"/>
+        <TextBlock x:Name="TopBaseTextBlock" Grid.Row="2" Margin="0,0,0,10" FontSize="12"
+                   Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding TopBaseText}"/>
+
+        <!-- Таблица статистики по базам -->
+        <DataGrid x:Name="BasesGrid" Grid.Row="3"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                  SelectionMode="Single" SelectionUnit="FullRow"
+                  GridLinesVisibility="Horizontal"
+                  RowHeight="36"
+                  AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                  BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Padding" Value="0"/>
+                </Style>
+            </DataGrid.CellStyle>
+            <DataGrid.Columns>
+                <!-- Имя базы -->
+                <DataGridTemplateColumn Width="2*" Header="{loc:Loc Stats.BaseName}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" Margin="4,0"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTextColumn Width="90" Header="{loc:Loc Stats.LaunchCount}"
+                                    Binding="{Binding LaunchCount}"
+                                    ElementStyle="{StaticResource CellTextAccent}"/>
+                <DataGridTextColumn Width="1.2*" Header="{loc:Loc Stats.LastLaunch}"
+                                    Binding="{Binding LastLaunchText}"
+                                    ElementStyle="{StaticResource CenteredCellText}"/>
+                <DataGridTextColumn Width="1.2*" Header="{loc:Loc Stats.FirstLaunch}"
+                                    Binding="{Binding FirstLaunchText}"
+                                    ElementStyle="{StaticResource CenteredCellText}"/>
+                <DataGridTextColumn Width="1.2*" Header="{loc:Loc Stats.DaysSince}"
+                                    Binding="{Binding DaysSinceText}"
+                                    ElementStyle="{StaticResource CenteredCellText}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Распределение запусков по дням недели -->
+        <Border Grid.Row="4" Margin="0,12,0,0" Padding="12,8"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+            <StackPanel>
+                <TextBlock FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Text="{loc:Loc Stats.WeekdayDistribution}"/>
+                <ItemsControl ItemsSource="{Binding DayOfWeekBars}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock FontFamily="Consolas" FontSize="12" Margin="0,1"
+                                       Text="{Binding}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Кнопка «Закрыть» -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="CloseButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" MinWidth="110"
+                    Click="OnClose_Click">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="Close" Width="14" Height="14"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
+                        VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc Common.Close}" Margin="6,0,0,0"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

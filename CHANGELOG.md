@@ -9,6 +9,30 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.95] — 2026-09-27
+
+### Добавлено
+
+- **Статистика использования баз** (обе платформы, меню «Утилиты», функция №5) — окно
+  с аналитикой по истории запусков всех баз: таблица «Имя базы | Запусков | Последний
+  запуск | Первый запуск | Дней с последнего запуска» (сортировка по умолчанию — по числу
+  запусков убыванием, фильтр-переключатель «Только используемые»), сводка (всего баз,
+  баз с запусками, всего запусков, среднее число запусков на базу, самая запускаемая
+  база) и распределение запусков по дням недели текстовой гистограммой «Пн ██████ 12»
+  (без внешних библиотек графиков). Учитываются ВСЕ записи
+  [`Models/LaunchHistoryEntry.cs`](Configuration%20Management/Models/LaunchHistoryEntry.cs)
+  (`Infobase.LaunchHistory`, глубина — настройка `MaxLaunchHistoryPerBase`); для баз без
+  истории — 0 запусков и «—» в колонках дат. Агрегация — чистый класс
+  [`Services/UsageStatisticsAggregator.cs`](Configuration%20Management/Services/UsageStatisticsAggregator.cs),
+  логика — [`ViewModels/UsageStatisticsViewModel.cs`](Configuration%20Management/ViewModels/UsageStatisticsViewModel.cs)
+  и [`ViewModels/UsageStatisticsRowViewModel.cs`](Configuration%20Management/ViewModels/UsageStatisticsRowViewModel.cs),
+  окна — [`Views/UsageStatisticsWindow.xaml`](Configuration%20Management/Views/UsageStatisticsWindow.xaml)
+  (WPF) и [`Views/UsageStatisticsWindow.Avalonia.cs`](Configuration%20Management/Views/UsageStatisticsWindow.Avalonia.cs)
+  (Avalonia), пункт меню — [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml)
+  и [`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs).
+  Класс покрыт unit-тестами
+  ([`ConfigurationManagement.Tests/UsageStatisticsTests.cs`](ConfigurationManagement.Tests/UsageStatisticsTests.cs)).
+
 ## [0.3.9.94] — 2026-09-27
 
 ### Добавлено

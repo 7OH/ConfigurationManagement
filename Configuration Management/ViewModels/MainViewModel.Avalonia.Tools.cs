@@ -1376,6 +1376,24 @@ public partial class MainViewModel : ViewModelBase
         window.ShowDialogSync(OwnerWindow());
     }
 
+    // ======================= Статистика использования баз (0.3.9.95) =======================
+
+    private System.Windows.Input.ICommand? _usageStatisticsCommand;
+
+    /// <summary>
+    /// Команда «Статистика использования…»: аналитика по истории запусков всех баз
+    /// (число запусков, первый/последний запуск, дней с последнего запуска, сводка,
+    /// распределение по дням недели). Работает со всем списком, поэтому активна всегда.
+    /// </summary>
+    public System.Windows.Input.ICommand UsageStatisticsCommand =>
+        _usageStatisticsCommand ??= new RelayCommand(_ => ExecuteUsageStatistics());
+
+    private void ExecuteUsageStatistics()
+    {
+        var window = new Configuration_Management.UsageStatisticsWindow(_allInfobases.ToList());
+        window.ShowDialogSync(OwnerWindow());
+    }
+
     /// <summary>Предупреждение в журнал из окна: журнал живёт во вьюмодели.</summary>
     public void LogWarning(string message) => _logger.Warn(message);
 }
