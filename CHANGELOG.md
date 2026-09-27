@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.96] — 2026-09-27
+
+### Добавлено
+
+- **Свободное место на дисках в Центре обслуживания** (обе платформы, функция №6) — новая
+  колонка «Свободно на диске» в дашборде состояния баз: для файловой базы — имя
+  диска/точки монтирования и свободное место с долей от объёма («C:\ — 23,4 ГБ (12%)»,
+  Linux — «/home — 145,2 ГБ (38%)»), для клиент-серверных и веб-баз — «—». Если свободного
+  места меньше порога (по умолчанию 10 ГБ, точное равенство проблемой не считается),
+  строка попадает в фильтр «Только проблемы», а ячейка подсвечивается красным. Порог
+  настраивается: `AppSettings.MaintenanceFreeSpaceWarningGb` (0 — не предупреждать, колонка
+  показывается) и поле «Предупреждать, если свободно меньше» в
+  Настройки → Базы → Обслуживание (обе платформы). Данные — `System.IO.DriveInfo`
+  (работает на Windows и Linux), диск выбирается по корню пути (`Path.GetPathRoot`),
+  недоступные сетевые диски и исключения — тихая деградация в «—». Чистая логика вынесена
+  в [`Services/DiskFreeSpaceHelper.cs`](Configuration%20Management/Services/DiskFreeSpaceHelper.cs)
+  (выбор диска, формат размера, правило предупреждения; принимает колбэк-резолвер вместо
+  реальных дисков для тестов), строки расширены в
+  [`ViewModels/MaintenanceCenterViewModel.cs`](Configuration%20Management/ViewModels/MaintenanceCenterViewModel.cs)
+  (`FreeSpaceDisplay` / `FreeSpaceIsProblem`, учёт в `HasProblem`), окна —
+  [`Views/MaintenanceCenterWindow.xaml`](Configuration%20Management/Views/MaintenanceCenterWindow.xaml)
+  (WPF) и [`Views/MaintenanceCenterWindow.Avalonia.cs`](Configuration%20Management/Views/MaintenanceCenterWindow.Avalonia.cs)
+  (Avalonia), настройка — [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs)
+  и окно [`Views/SettingsWindow.xaml`](Configuration%20Management/Views/SettingsWindow.xaml) /
+  [`Views/SettingsWindow.Avalonia.cs`](Configuration%20Management/Views/SettingsWindow.Avalonia.cs).
+  Класс покрыт unit-тестами
+  ([`ConfigurationManagement.Tests/DiskFreeSpaceHelperTests.cs`](ConfigurationManagement.Tests/DiskFreeSpaceHelperTests.cs)).
+
 ## [0.3.9.95] — 2026-09-27
 
 ### Добавлено

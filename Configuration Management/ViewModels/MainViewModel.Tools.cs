@@ -2366,7 +2366,8 @@ public partial class MainViewModel : ViewModelBase
         var window = new MaintenanceCenterWindow(
             Infobases.ToList(),
             () => CheckAvailabilityCommand.Execute(null),
-            ib => FindInListCommand.Execute(ib))
+            ib => FindInListCommand.Execute(ib),
+            MaintenanceFreeSpaceWarningGb)
         {
             Owner = System.Windows.Application.Current.MainWindow
         };

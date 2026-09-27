@@ -90,6 +90,20 @@
                 <DataGridTextColumn Width="80" Header="{loc:Loc Maintenance.Size}"
                                     Binding="{Binding SizeText}"
                                     ElementStyle="{StaticResource CenteredCellText}"/>
+                <!-- Свободное место на диске (0.3.9.96): для файловых баз —
+                     «C:\ — 23,4 ГБ (12%)»; ниже порога ячейка подсвечивается красным. -->
+                <DataGridTextColumn Width="1.3*" Header="{loc:Loc Maintenance.FreeSpace}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding FreeSpaceIsProblem}" Value="True">
+                                    <Setter Property="Foreground" Value="#E53935"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Width="90" Header="{loc:Loc Maintenance.Cache}"
                                     Binding="{Binding CacheText}"
                                     ElementStyle="{StaticResource CenteredCellText}"/>

@@ -94,6 +94,9 @@ namespace Configuration_Management
             // Глубина истории запусков одной базы (issue #246).
             if (MaxLaunchHistoryDepthBox != null)
                 MaxLaunchHistoryDepthBox.Text = viewModel.MaxLaunchHistoryPerBase.ToString();
+            // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96).
+            if (MaintenanceFreeSpaceWarningGbBox != null)
+                MaintenanceFreeSpaceWarningGbBox.Text = viewModel.MaintenanceFreeSpaceWarningGb.ToString();
             // Каталоги шаблонов конфигураций: показываем сохранённые значения при открытии,
             // иначе список выглядел бы пустым и «ОК» затирал их пустым списком (как в Avalonia).
             if (TemplatePathsList != null)
@@ -522,6 +525,10 @@ namespace Configuration_Management
             if (ComDetectTimeoutMsBox != null
                 && int.TryParse(ComDetectTimeoutMsBox.Text, out var detectTimeout))
                 _viewModel.ComDetectTimeoutMs = detectTimeout;
+            // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96).
+            if (MaintenanceFreeSpaceWarningGbBox != null
+                && int.TryParse(MaintenanceFreeSpaceWarningGbBox.Text, out var freeSpaceWarningGb))
+                _viewModel.MaintenanceFreeSpaceWarningGb = Math.Max(0, freeSpaceWarningGb);
             // Глубина истории запусков одной базы (issue #246).
             if (MaxLaunchHistoryDepthBox != null
                 && int.TryParse(MaxLaunchHistoryDepthBox.Text, out var historyDepth))

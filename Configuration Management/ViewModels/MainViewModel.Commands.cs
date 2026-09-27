@@ -1035,6 +1035,21 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96),
+    /// ГБ. 0 — не предупреждать.
+    /// </summary>
+    public int MaintenanceFreeSpaceWarningGb
+    {
+        get => _maintenanceFreeSpaceWarningGb;
+        set
+        {
+            var clamped = Math.Max(0, value);
+            if (SetProperty(ref _maintenanceFreeSpaceWarningGb, clamped))
+                ScheduleSaveSettings();
+        }
+    }
+
     /// <summary>Esc сворачивает окно в трей (если значок в трее включён).</summary>
     public bool EscapeToTray
     {

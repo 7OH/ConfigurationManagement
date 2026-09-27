@@ -215,6 +215,24 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Системные уведомления ОС о завершении фоновых операций (функция №4).</summary>
     public bool ShowSystemNotifications => _settings.ShowSystemNotifications;
 
+    /// <summary>
+    /// Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96),
+    /// ГБ. 0 — не предупреждать.
+    /// </summary>
+    public int MaintenanceFreeSpaceWarningGb
+    {
+        get => _settings.MaintenanceFreeSpaceWarningGb;
+        set
+        {
+            var clamped = Math.Max(0, value);
+            if (_settings.MaintenanceFreeSpaceWarningGb == clamped)
+                return;
+            _settings.MaintenanceFreeSpaceWarningGb = clamped;
+            SaveSettingsSilently();
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>Уводить ли окно в трей вместо выхода при закрытии.</summary>
     public bool CloseToTray => _settings.CloseToTray;
 

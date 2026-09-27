@@ -145,6 +145,8 @@ public partial class MainViewModel : ViewModelBase
     private bool _showTrayIcon = true;
     // Системные уведомления ОС о завершении фоновых операций (функция №4).
     private bool _showSystemNotifications = true;
+    // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96), ГБ.
+    private int _maintenanceFreeSpaceWarningGb = Services.DiskFreeSpaceHelper.DefaultWarningGb;
     private bool _compactMode;
 
     // ---- Быстрый запуск: индикатор загрузки и фоновое построение дерева ----
@@ -374,6 +376,7 @@ public partial class MainViewModel : ViewModelBase
         _closeToTray = settings.CloseToTray;
         _showTrayIcon = settings.ShowTrayIcon;
         _showSystemNotifications = settings.ShowSystemNotifications;
+        _maintenanceFreeSpaceWarningGb = Math.Max(0, settings.MaintenanceFreeSpaceWarningGb);
         _escapeToTray = settings.EscapeToTray;
         _afterLaunchAction = settings.AfterLaunchAction ?? "None";
         _compactMode = settings.CompactMode;

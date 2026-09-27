@@ -360,6 +360,15 @@ public class AppSettings
     /// </summary>
     public bool ShowSystemNotifications { get; set; } = true;
 
+    /// <summary>
+    /// Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96),
+    /// ГБ. Если свободное место на диске файловой базы меньше порога, строка
+    /// считается проблемной (фильтр «Только проблемы», подсветка ячейки).
+    /// 0 — не предупреждать (колонка показывается, но база за диск не ругается).
+    /// </summary>
+    public int MaintenanceFreeSpaceWarningGb { get; set; }
+        = Configuration_Management.Services.DiskFreeSpaceHelper.DefaultWarningGb;
+
     /// <summary>Горячая клавиша запуска «1С:Предприятие» (например F3). Пусто — не назначена.</summary>
     public string HotkeyEnterprise { get; set; } = "F3";
 

@@ -1,6 +1,7 @@
 #if LINUX
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -9,6 +10,7 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Themes;
@@ -33,10 +35,13 @@ namespace Configuration_Management
         /// <param name="infobases">Все базы списка.</param>
         /// <param name="checkAvailability">Запуск общей проверки доступности (команда главного окна).</param>
         /// <param name="openBase">Переход к базе в главном окне (FindInList-механика).</param>
+        /// <param name="freeSpaceWarningGb">Порог предупреждения «Свободно на диске» в ГБ
+        /// (0 — не предупреждать), по умолчанию 10 ГБ (0.3.9.96).</param>
         public MaintenanceCenterWindow(
             IEnumerable<Infobase> infobases,
             Action checkAvailability,
-            Action<Infobase> openBase)
+            Action<Infobase> openBase,
+            int freeSpaceWarningGb = Services.DiskFreeSpaceHelper.DefaultWarningGb)
         {
             Title = LocalizationManager.T("Maintenance.Title");
             Width = 1080;
@@ -45,7 +50,8 @@ namespace Configuration_Management
             MinHeight = 420;
             FontSize = 13;
             CanResize = true;
-            DataContext = _vm = new MaintenanceCenterViewModel(infobases, checkAvailability, openBase);
+            DataContext = _vm = new MaintenanceCenterViewModel(
+                infobases, checkAvailability, openBase, freeSpaceWarningGb);
 
             // Верхняя панель: заголовок + фильтр «Только проблемы».
             var title = new TextBlock
@@ -82,9 +88,18 @@ namespace Configuration_Management
 
             // Таблица баз × состояние: шапка с фиксированными колонками и строки.
             _grid.ItemsSource = _vm.Rows;
-            _grid.ItemTemplate = new FuncDataTemplate<MaintenanceCenterRowViewModel>((_, _) => BuildRow());
+            _grid.ItemTemplate = new FuncDataTemplate<MaintenanceCenterRowViewModel>((row, _) => BuildRow(row));
             _grid.DoubleTapped += OnGrid_DoubleTapped;
             ScrollViewer.SetHorizontalScrollBarVisibility(_grid, ScrollBarVisibility.Disabled);
+            // Подсветка ячейки «Свободно на диске» при нехватке места (0.3.9.96).
+            _grid.Styles.Add(new Style(x => x.OfType<TextBlock>().Class("freeSpaceProblem"))
+            {
+                Setters =
+                {
+                    new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(Color.Parse("#E53935"))),
+                    new Setter(TextBlock.FontWeightProperty, FontWeight.SemiBold)
+                }
+            });
 
             _hint = new TextBlock
             {
@@ -168,8 +183,8 @@ namespace Configuration_Management
             return button;
         }
 
-        /// <summary>Строка таблицы: имя с пояснением и семь колонок состояния.</summary>
-        private Control BuildRow()
+        /// <summary>Строка таблицы: имя с пояснением и восемь колонок состояния.</summary>
+        private Control BuildRow(MaintenanceCenterRowViewModel model)
         {
             var name = new TextBlock { FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
             name.Bind(TextBlock.TextProperty, new Binding("Name"));
@@ -186,10 +201,20 @@ namespace Configuration_Management
             var availability = CellText("AvailabilityText", bold: true);
             var lastBackup = CellText("LastBackupText");
             var size = CellText("SizeText");
+            // «Свободно на диске» (0.3.9.96): при нехватке места ячейка подсвечивается
+            // классом freeSpaceProblem (стиль задан в конструкторе окна).
+            var freeSpace = CellText("FreeSpaceDisplay");
             var cache = CellText("CacheText");
             var config = CellText("ConfigurationText");
             var dataAge = CellText("DataAgeText");
             var update = CellText("UpdateText");
+
+            freeSpace.Classes.Set("freeSpaceProblem", model.FreeSpaceIsProblem);
+            model.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MaintenanceCenterRowViewModel.FreeSpaceIsProblem))
+                    freeSpace.Classes.Set("freeSpaceProblem", model.FreeSpaceIsProblem);
+            };
 
             var row = new Grid
             {
@@ -199,21 +224,23 @@ namespace Configuration_Management
                     new ColumnDefinition(GridLength.Auto),
                     new ColumnDefinition(GridLength.Auto),
                     new ColumnDefinition(GridLength.Auto),
+                    new ColumnDefinition(new GridLength(1.3, GridUnitType.Star)),
                     new ColumnDefinition(GridLength.Auto),
                     new ColumnDefinition(new GridLength(1.5, GridUnitType.Star)),
                     new ColumnDefinition(GridLength.Auto),
                     new ColumnDefinition(new GridLength(1.3, GridUnitType.Star))
                 },
-                Children = { nameCell, availability, lastBackup, size, cache, config, dataAge, update }
+                Children = { nameCell, availability, lastBackup, size, freeSpace, cache, config, dataAge, update }
             };
             Grid.SetColumn(nameCell, 0);
             Grid.SetColumn(availability, 1);
             Grid.SetColumn(lastBackup, 2);
             Grid.SetColumn(size, 3);
-            Grid.SetColumn(cache, 4);
-            Grid.SetColumn(config, 5);
-            Grid.SetColumn(dataAge, 6);
-            Grid.SetColumn(update, 7);
+            Grid.SetColumn(freeSpace, 4);
+            Grid.SetColumn(cache, 5);
+            Grid.SetColumn(config, 6);
+            Grid.SetColumn(dataAge, 7);
+            Grid.SetColumn(update, 8);
             return row;
         }
 

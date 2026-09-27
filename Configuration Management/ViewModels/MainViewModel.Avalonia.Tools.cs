@@ -1351,7 +1351,8 @@ public partial class MainViewModel : ViewModelBase
         var window = new Configuration_Management.MaintenanceCenterWindow(
             _allInfobases.ToList(),
             () => CheckAvailabilityCommand.Execute(null),
-            ib => FindInListCommand.Execute(ib));
+            ib => FindInListCommand.Execute(ib),
+            MaintenanceFreeSpaceWarningGb);
         window.ShowDialogSync(OwnerWindow());
     }
 

@@ -23,13 +23,16 @@ namespace Configuration_Management
         /// <param name="infobases">Все базы списка.</param>
         /// <param name="checkAvailability">Запуск общей проверки доступности (команда главного окна).</param>
         /// <param name="openBase">Переход к базе в главном окне (FindInList-механика).</param>
+        /// <param name="freeSpaceWarningGb">Порог предупреждения «Свободно на диске» в ГБ
+        /// (0 — не предупреждать), по умолчанию 10 ГБ (0.3.9.96).</param>
         public MaintenanceCenterWindow(
             IEnumerable<Infobase> infobases,
             Action checkAvailability,
-            Action<Infobase> openBase)
+            Action<Infobase> openBase,
+            int freeSpaceWarningGb = Services.DiskFreeSpaceHelper.DefaultWarningGb)
         {
             InitializeComponent();
-            _vm = new MaintenanceCenterViewModel(infobases, checkAvailability, openBase);
+            _vm = new MaintenanceCenterViewModel(infobases, checkAvailability, openBase, freeSpaceWarningGb);
             DataContext = _vm;
 
             Title = LocalizationManager.T("Maintenance.Title");

@@ -2280,6 +2280,36 @@ namespace Configuration_Management
                 maintenanceButton.HorizontalAlignment = HorizontalAlignment.Stretch;
             basesMaintenancePanel.Children.Add(maintenanceButtons);
 
+            // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96):
+            // база файловая, свободно меньше порога — строка попадает в «Только проблемы».
+            var freeSpaceWarningRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 10, 0, 0) };
+            freeSpaceWarningRow.Children.Add(new TextBlock
+            {
+                Text = LocalizationManager.T("Settings.Bases.FreeSpaceWarningGb"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            freeSpaceWarningRow.Children.Add(new HelpLink
+            {
+                HelpText = LocalizationManager.T("Settings.Bases.FreeSpaceWarningGbTooltip"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            var freeSpaceWarningBox = new TextBox
+            {
+                Text = _viewModel.MaintenanceFreeSpaceWarningGb.ToString(),
+                Width = 70,
+                Height = 30,
+                VerticalContentAlignment = VerticalAlignment.Center
+            }.Styled(ControlThemes.ModernTextBox);
+            freeSpaceWarningRow.Children.Add(freeSpaceWarningBox);
+            var freeSpaceWarningUnit = new TextBlock
+            {
+                Text = LocalizationManager.T("Settings.Bases.FreeSpaceWarningGbUnit"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.65
+            };
+            freeSpaceWarningRow.Children.Add(freeSpaceWarningUnit);
+            basesMaintenancePanel.Children.Add(freeSpaceWarningRow);
+
             // Интеграция с проводником Windows (функция №12): на Linux недоступна,
             // поэтому показываем заблокированный пункт с пояснением.
             var explorerIntegrationHint = new TextBlock
@@ -3050,6 +3080,10 @@ namespace Configuration_Management
                 // Глубина истории запусков одной базы (issue #246).
                 if (int.TryParse(historyDepthBox.Text, out var historyDepth))
                     _viewModel.MaxLaunchHistoryPerBase = historyDepth;
+
+                // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96).
+                if (int.TryParse(freeSpaceWarningBox.Text, out var freeSpaceWarningGb))
+                    _viewModel.MaintenanceFreeSpaceWarningGb = Math.Max(0, freeSpaceWarningGb);
 
                 _viewModel.ApplyIbasesSyncSettings(
                     syncModeBox.SelectedIndex >= 0 ? syncModes[syncModeBox.SelectedIndex].Mode : IbasesSyncMode.None,

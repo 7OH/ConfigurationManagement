@@ -21,14 +21,21 @@ public sealed class MaintenanceCenterRowViewModel : ViewModelBase, IDisposable
     public const long CacheProblemBytes = 1024L * 1024 * 1024;
 
     private readonly Infobase _infobase;
+    private readonly int _freeSpaceWarningGb;
     private DateTime? _lastCheckedAt;
 
     /// <param name="infobase">Информационная база.</param>
     /// <param name="updateResult">Последний результат проверки обновлений конфигурации
     /// (из UpdateCheckCache по UpdateConfigCode; null — проверка не выполнялась).</param>
-    public MaintenanceCenterRowViewModel(Infobase infobase, ConfigUpdateCheckResult? updateResult)
+    /// <param name="freeSpaceWarningGb">Порог предупреждения «Свободно на диске» в ГБ
+    /// (0 — не предупреждать). По умолчанию — 10 ГБ (0.3.9.96).</param>
+    public MaintenanceCenterRowViewModel(
+        Infobase infobase,
+        ConfigUpdateCheckResult? updateResult,
+        int freeSpaceWarningGb = DiskFreeSpaceHelper.DefaultWarningGb)
     {
         _infobase = infobase ?? throw new ArgumentNullException(nameof(infobase));
+        _freeSpaceWarningGb = Math.Max(0, freeSpaceWarningGb);
         UpdateResult = updateResult;
         _infobase.PropertyChanged += OnInfobasePropertyChanged;
         RefreshFromInfobase();
@@ -69,6 +76,14 @@ public sealed class MaintenanceCenterRowViewModel : ViewModelBase, IDisposable
 
     /// <summary>Колонка «Обновление» — последний результат проверки из UpdateCheckCache.</summary>
     public string UpdateText { get; private set; } = string.Empty;
+
+    /// <summary>Колонка «Свободно на диске» (0.3.9.96): «C:\ — 23,4 ГБ (12%)» для
+    /// файловых баз, «—» для клиент-серверных/веб-баз и недоступных дисков.</summary>
+    public string FreeSpaceDisplay { get; private set; } = string.Empty;
+
+    /// <summary>True — свободное место на диске файловой базы ниже порога
+    /// MaintenanceFreeSpaceWarningGb (0 — предупреждение отключено).</summary>
+    public bool FreeSpaceIsProblem { get; private set; }
 
     /// <summary>True — база попадает под фильтр «Только проблемы».</summary>
     public bool HasProblem { get; private set; }
@@ -114,10 +129,32 @@ public sealed class MaintenanceCenterRowViewModel : ViewModelBase, IDisposable
         DataAgeText = FormatDataAge(_infobase.FileLastWriteTimeUtc);
         UpdateText = FormatUpdate(UpdateResult);
 
+        // Свободное место на диске (0.3.9.96): только для файловых баз с путём.
+        // Ошибки резолвера (недоступный сетевой диск, исключения DriveInfo) —
+        // тихая деградация в «—».
+        if (_infobase.Connection.Type == ConnectionType.File
+            && !string.IsNullOrWhiteSpace(_infobase.Connection.FilePath))
+        {
+            var driveName = DiskFreeSpaceHelper.ResolveDriveName(_infobase.Connection.FilePath);
+            var info = DiskFreeSpaceHelper.TryGetInfo(
+                _infobase.Connection.FilePath, DiskFreeSpaceHelper.DefaultDriveResolver);
+            FreeSpaceDisplay = driveName is null || info is null
+                ? "—"
+                : DiskFreeSpaceHelper.FormatDisplay(driveName, info);
+            FreeSpaceIsProblem = info is not null
+                && DiskFreeSpaceHelper.IsWarning(info.FreeBytes, _freeSpaceWarningGb);
+        }
+        else
+        {
+            FreeSpaceDisplay = "—";
+            FreeSpaceIsProblem = false;
+        }
+
         var backupTooOld = !_infobase.LastBackupUtc.HasValue
             || DateTime.UtcNow - _infobase.LastBackupUtc.Value > BackupMaxAge;
         var cacheTooBig = _infobase.CacheSizeBytes > CacheProblemBytes;
-        HasProblem = !IsAvailable || backupTooOld || cacheTooBig || UpdateResult?.HasNewer == true;
+        HasProblem = !IsAvailable || backupTooOld || cacheTooBig
+            || FreeSpaceIsProblem || UpdateResult?.HasNewer == true;
 
         OnPropertyChanged(nameof(Subtitle));
         OnPropertyChanged(nameof(IsAvailable));
@@ -128,6 +165,8 @@ public sealed class MaintenanceCenterRowViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ConfigurationText));
         OnPropertyChanged(nameof(DataAgeText));
         OnPropertyChanged(nameof(UpdateText));
+        OnPropertyChanged(nameof(FreeSpaceDisplay));
+        OnPropertyChanged(nameof(FreeSpaceIsProblem));
         OnPropertyChanged(nameof(HasProblem));
     }
 
@@ -176,10 +215,13 @@ public sealed class MaintenanceCenterViewModel : ViewModelBase
     /// <param name="infobases">Все базы списка.</param>
     /// <param name="checkAvailability">Запуск общей проверки доступности (команда главного окна).</param>
     /// <param name="openBase">Переход к базе в главном окне (FindInList-механика).</param>
+    /// <param name="freeSpaceWarningGb">Порог предупреждения «Свободно на диске» в ГБ
+    /// (0 — не предупреждать), по умолчанию 10 ГБ (0.3.9.96).</param>
     public MaintenanceCenterViewModel(
         IEnumerable<Infobase> infobases,
         Action checkAvailability,
-        Action<Infobase> openBase)
+        Action<Infobase> openBase,
+        int freeSpaceWarningGb = DiskFreeSpaceHelper.DefaultWarningGb)
     {
         _checkAvailability = checkAvailability;
         _openBase = openBase;
@@ -189,7 +231,8 @@ public sealed class MaintenanceCenterViewModel : ViewModelBase
         {
             if (ib is null)
                 continue;
-            var row = new MaintenanceCenterRowViewModel(ib, ResolveUpdateResult(ib, cache));
+            var row = new MaintenanceCenterRowViewModel(
+                ib, ResolveUpdateResult(ib, cache), freeSpaceWarningGb);
             AllRows.Add(row);
             // Размер кэша вычисляется асинхронно при открытии окна (0.3.9.89).
             ib.RefreshCacheSizeAsync();
