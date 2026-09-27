@@ -27,6 +27,14 @@ public class ReleaseInfo
     public string? DownloadUrl { get; set; }
 
     /// <summary>
+    /// Точный размер файла платформенного ассета в байтах (поле <c>size</c> из
+    /// GitHub API). Используется для строгой проверки скачанного файла: обрезанная
+    /// или склеенная из старой и новой версий загрузка не принимается (issue #302).
+    /// 0 — размер неизвестен (резервный источник Atom-лента размеров не отдаёт).
+    /// </summary>
+    public long AssetSize { get; set; }
+
+    /// <summary>
     /// URL страницы релиза на GitHub (html_url из API или href из Atom-ленты).
     /// Используется как fallback, когда прямая ссылка на asset недоступна.
     /// </summary>

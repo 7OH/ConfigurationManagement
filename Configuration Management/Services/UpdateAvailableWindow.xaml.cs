@@ -25,6 +25,9 @@ public partial class UpdateAvailableWindow : Window
     // Путь к текущему exe и к скачанному файлу; заполняются после успешной загрузки.
     private string? _targetExe;
     private string? _newExe;
+    // true, когда обновление уже запланировано (сейчас/после закрытия): скачанный
+    // файл ещё понадобится помощнику, удалять его нельзя (issue #302).
+    private bool _applyScheduled;
 
     public UpdateAvailableWindow(ReleaseInfo release, UpdateService service)
     {
@@ -116,7 +119,7 @@ public partial class UpdateAvailableWindow : Window
 
             try
             {
-                _newExe = await _service.DownloadNewExeCoreAsync(_release.DownloadUrl!);
+                _newExe = await _service.DownloadNewExeCoreAsync(_release);
             }
             catch (Exception ex)
             {
@@ -181,6 +184,9 @@ public partial class UpdateAvailableWindow : Window
             return;
         }
 
+        // Обновление запланировано: помощник заменит файл сам, temp не удалять.
+        _applyScheduled = true;
+
         // Помощник уже запущен. Показываем подтверждение и через короткую паузу закрываем
         // приложение, чтобы exe освободился и был заменён, а новое приложение запустилось.
         ShowDonePhase(LocalizationManager.T("Update.RestartPrompt"));
@@ -210,6 +216,9 @@ public partial class UpdateAvailableWindow : Window
             ShowError(LocalizationManager.T("Update.InstallFailed"));
             return;
         }
+
+        // Обновление запланировано: помощник заменит файл после закрытия, temp не удалять.
+        _applyScheduled = true;
 
         // Обновление применится при естественном закрытии программы — показываем
         // подтверждение в этом же окне (без дополнительных диалогов).
@@ -304,6 +313,22 @@ public partial class UpdateAvailableWindow : Window
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// Окно закрыто без применения обновления («Отмена», крестик, закрытие на этапе
+    /// перезапуска): скачанный временный файл удаляется. Раньше он оставался в %TEMP%,
+    /// занимал десятки МБ и участвовал в «мгновенных» докачках со смешанными байтами
+    /// разных версий (issue #302).
+    /// </summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        if (!_applyScheduled && _newExe is not null)
+        {
+            try { File.Delete(_newExe); } catch { /* не критично */ }
+            _newExe = null;
+        }
+    }
 
     private const int WmGetMinMaxInfo = 0x0024;
     private const int WmSizing = 0x0214;

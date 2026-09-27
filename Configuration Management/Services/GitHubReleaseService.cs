@@ -79,7 +79,7 @@ public class GitHubReleaseService
                 HtmlUrl = GetString(root, "html_url"),
             };
 
-            release.DownloadUrl = FindAssetUrl(root);
+            (release.DownloadUrl, release.AssetSize) = FindAsset(root);
             return release;
         }
         catch
@@ -255,12 +255,14 @@ public class GitHubReleaseService
 
     /// <summary>
     /// Ищет в assets выпуска asset, подходящий для текущей платформы
-    /// (см. <see cref="IsPlatformAsset"/>).
+    /// (см. <see cref="IsPlatformAsset"/>), и возвращает пару «ссылка + точный
+    /// размер файла в байтах» (поле <c>size</c> ассета из GitHub API). Размер
+    /// используется загрузчиком для строгой проверки скачанного файла (issue #302).
     /// </summary>
-    private static string? FindAssetUrl(JsonElement root)
+    private static (string Url, long Size) FindAsset(JsonElement root)
     {
         if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
-            return null;
+            return (string.Empty, 0);
 
         foreach (var asset in assets.EnumerateArray())
         {
@@ -275,11 +277,18 @@ public class GitHubReleaseService
                 continue;
 
             var url = GetString(asset, "browser_download_url");
-            if (!string.IsNullOrEmpty(url))
-                return url;
+            if (string.IsNullOrEmpty(url))
+                continue;
+
+            // Размер ассета GitHub отдаёт целым числом байт; отсутствует/не число — 0.
+            var size = asset.TryGetProperty("size", out var sizeEl) && sizeEl.ValueKind == JsonValueKind.Number
+                && sizeEl.TryGetInt64(out var parsed)
+                ? parsed
+                : 0;
+            return (url, size);
         }
 
-        return null;
+        return (string.Empty, 0);
     }
 
 #if WINDOWS

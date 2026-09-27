@@ -55,6 +55,22 @@ namespace Configuration_Management.Services
             return dir;
         }
 
+        /// <summary>
+        /// Оставляет в ключе версии только символы, безопасные для имени файла:
+        /// буквы, цифры, точка, дефис и подчёркивание; остальные заменяются на «_».
+        /// Пустой ключ даёт «unknown».
+        /// </summary>
+        private static string SanitizeKey(string? key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                return "unknown";
+
+            var chars = key.Trim()
+                .Select(c => char.IsLetterOrDigit(c) || c == '.' || c == '-' || c == '_' ? c : '_')
+                .ToArray();
+            return new string(chars);
+        }
+
         private readonly GitHubReleaseService _gitHub;
         private readonly IDialogService _dialogs;
         private readonly HttpClient _http;
@@ -260,7 +276,7 @@ namespace Configuration_Management.Services
             // Скачиваем новый бинарник, не блокируя поток интерфейса: диалог показан
             // из UI-потока, и синхронное ожидание здесь замораживало окно на всё время
             // загрузки (десятки МБ).
-            var newBinary = await DownloadWithProgressAsync(release.DownloadUrl!)
+            var newBinary = await DownloadWithProgressAsync(release)
                 .ConfigureAwait(true);
             if (newBinary is null)
             {
@@ -337,7 +353,7 @@ namespace Configuration_Management.Services
                 return;
             }
 
-            var newBinary = await DownloadWithProgressAsync(release.DownloadUrl!)
+            var newBinary = await DownloadWithProgressAsync(release)
                 .ConfigureAwait(true);
             if (newBinary is null)
             {
@@ -481,7 +497,7 @@ namespace Configuration_Management.Services
                 return;
             }
 
-            var newBinary = await DownloadWithProgressAsync(release.DownloadUrl!);
+            var newBinary = await DownloadWithProgressAsync(release);
             if (newBinary is null)
             {
                 ShowOnUi(() => _dialogs.ShowError(
@@ -570,7 +586,7 @@ namespace Configuration_Management.Services
         /// (issue #225). В Windows-версии тот же этап показан полосой прогресса
         /// в едином диалоге обновления (<c>UpdateAvailableWindow</c>).
         /// </summary>
-        private async Task<string?> DownloadWithProgressAsync(string url)
+        private async Task<string?> DownloadWithProgressAsync(ReleaseInfo release)
         {
             UpdateProgressWindowAvalonia? window = null;
             try
@@ -590,7 +606,9 @@ namespace Configuration_Management.Services
 
             try
             {
-                return await DownloadNewBinaryAsync(url, window).ConfigureAwait(true);
+                return await DownloadNewBinaryAsync(
+                        release.DownloadUrl!, release.TagName, release.AssetSize, window)
+                    .ConfigureAwait(true);
             }
             finally
             {
@@ -618,12 +636,19 @@ namespace Configuration_Management.Services
         /// О ходе загрузки сообщается окну <paramref name="progress"/>, если оно показано.
         /// Сначала пробуется многопоточная загрузка (issue #284), при любом сбое —
         /// переход к однопоточной загрузке ниже.
+        /// <para>
+        /// С 0.3.9.77 имя временного файла привязано к версии релиза (issue #302): в одном
+        /// сеансе каталог обновления общий, и остаток загрузки другого релиза больше не
+        /// может быть принят за новый бинарник. Принимается файл точного размера —
+        /// ожидаемого из GitHub API либо заявленного сервером Content-Length.
+        /// </para>
         /// </summary>
         private async Task<string?> DownloadNewBinaryAsync(
-            string url, UpdateProgressWindowAvalonia? progress = null)
+            string url, string versionKey, long expectedSize,
+            UpdateProgressWindowAvalonia? progress = null)
         {
             var dir = EnsureUpdateDirectory();
-            var dest = Path.Combine(dir, "ConfigurationManagement.new");
+            var dest = Path.Combine(dir, $"ConfigurationManagement.{SanitizeKey(versionKey)}.new");
 
             try
             {
@@ -685,9 +710,12 @@ namespace Configuration_Management.Services
 
                 // Размер теперь известен, поэтому обрыв, не бросивший исключение, ловится
                 // здесь: недокачанный бинарник не должен подставляться вместо рабочего.
-                // Так же принимает файл Windows-версия (size >= totalBytes).
+                // Принимается ровно ожидаемый размер (issue #302): ни обрезанный, ни
+                // «удлинённый» посторонними байтами файл не считается готовым. Если эталона
+                // нет вовсе (резервный источник без размеров) — как раньше, любой непустой.
                 var size = new FileInfo(dest).Length;
-                if (size <= 0 || (totalBytes > 0 && size < totalBytes))
+                var accepted = expectedSize > 0 ? expectedSize : totalBytes;
+                if (size <= 0 || (accepted > 0 && size != accepted))
                 {
                     TryDelete(dest);
                     return null;

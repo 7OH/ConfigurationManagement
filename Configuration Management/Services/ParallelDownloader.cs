@@ -353,10 +353,16 @@ internal static class ParallelDownloader
     /// </summary>
     internal static async Task<string?> TryDownloadAsync(
         HttpClient http, string url, string destPath,
-        Action<double>? reportProgress, CancellationToken cancellationToken = default)
+        Action<double>? reportProgress, long expectedSize = 0,
+        CancellationToken cancellationToken = default)
     {
         var probe = await ProbeAsync(http, url, cancellationToken).ConfigureAwait(false);
         if (probe is null)
+            return null;
+
+        // Сервер отдаёт файл не того размера, что заявлен GitHub API: качать такой
+        // гибрид бессмысленно, пусть вызывающий код покажет ошибку загрузки (issue #302).
+        if (expectedSize > 0 && probe.TotalBytes != expectedSize)
             return null;
 
         var zones = SplitRanges(probe.TotalBytes, DefaultMaxParallelism, MinSegmentBytes);
@@ -366,6 +372,21 @@ internal static class ParallelDownloader
         var dir = Path.GetDirectoryName(destPath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
+
+        // Части докачиваются только того же ассета (issue #302): рядом хранится ETag
+        // прошлой загрузки; он не совпал с текущим (другая версия/другой файл) —
+        // все остатки стираются, загрузка начинается с нуля.
+        var etagPath = destPath + ".etag";
+        var storedEtag = SafeReadText(etagPath) ?? string.Empty;
+        var currentEtag = probe.ETag ?? string.Empty;
+        if (!string.Equals(storedEtag, currentEtag, StringComparison.Ordinal))
+        {
+            CleanupParts(destPath, zones.Count);
+            TryDelete(etagPath);
+            storedEtag = string.Empty;
+        }
+        if (currentEtag.Length > 0)
+            SafeWriteText(etagPath, currentEtag);
 
         // Прогресс стартует с учётом уже скачанных ранее частей (докачка между запусками).
         var progress = new ParallelProgressAggregator(probe.TotalBytes, reportProgress);
@@ -444,6 +465,10 @@ internal static class ParallelDownloader
         }
 
         progress.Publish(); // 100%
+        // Части уже склеены в итоговый файл — стираем, чтобы они не занимали диск
+        // и не выдавали себя за недокачанные остатки при следующей загрузке (issue #302).
+        // Метка ETag остаётся: она удостоверяет, что итоговый файл — нужный ассет.
+        CleanupParts(destPath, zones.Count);
         return destPath;
     }
 
@@ -477,10 +502,14 @@ internal static class ParallelDownloader
             if (uri is null)
                 return null;
 
+            // ETag ассета: метка идентичности для докачки частей между запусками
+            // (issue #302). GitHub отдаёт сильный ETag, уникальный для содержимого.
+            var etag = response.Headers.ETag?.ToString();
+
             // Дренируем тело (1 байт), чтобы соединение вернулось в пул.
             try { await response.Content.ReadAsByteArrayAsync(cts.Token).ConfigureAwait(false); } catch { /* не критично */ }
 
-            return new ProbeResult(total, uri);
+            return new ProbeResult(total, uri, etag);
         }
         catch
         {
@@ -641,6 +670,32 @@ internal static class ParallelDownloader
         }
     }
 
+    /// <summary>Читает текстовый файл (метку ETag) или null, если его нет/не читается.</summary>
+    private static string? SafeReadText(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Пишет текстовый файл (метку ETag); сбой не критичен.</summary>
+    private static void SafeWriteText(string path, string content)
+    {
+        try
+        {
+            File.WriteAllText(path, content);
+        }
+        catch
+        {
+            // Без метки следующая загрузка просто начнётся с нуля.
+        }
+    }
+
     /// <summary>Удаляет все частичные файлы сегментов.</summary>
     private static void CleanupParts(string destPath, int count)
     {
@@ -661,17 +716,21 @@ internal static class ParallelDownloader
         }
     }
 
-    /// <summary>Результат проверки поддержки многопоточной загрузки: размер и URI без редиректов.</summary>
+    /// <summary>Результат проверки поддержки многопоточной загрузки: размер, ETag и URI без редиректов.</summary>
     private sealed class ProbeResult
     {
-        public ProbeResult(long totalBytes, Uri uri)
+        public ProbeResult(long totalBytes, Uri uri, string? etag)
         {
             TotalBytes = totalBytes;
             Uri = uri;
+            ETag = etag;
         }
 
         public long TotalBytes { get; }
         public Uri Uri { get; }
+
+        /// <summary>ETag ассета (метка идентичности докачки) или null, если сервер его не отдал.</summary>
+        public string? ETag { get; }
     }
 
     /// <summary>Сигнал того, что сервер не поддерживает Range (ответ 200 на запрос с Range).</summary>

@@ -206,7 +206,7 @@ public sealed class UpdateService
 
             // Скачивание выполняется в фоне; прогресс передаётся в строку состояния
             // главного окна через событие DownloadProgressChanged.
-            var newExe = await DownloadNewExeCoreAsync(release.DownloadUrl!);
+            var newExe = await DownloadNewExeCoreAsync(release);
 
             if (newExe is null)
             {
@@ -242,31 +242,75 @@ public sealed class UpdateService
     /// (десятки МБ) провайдер/прокси сбрасывает соединение и раньше скачивание каждый раз
     /// начиналось с нуля и, при повторном обрыве, падало с ошибкой «не удалось скачать
     /// обновление».
+    /// <para>
+    /// С 0.3.9.77 загрузка привязана к версии релиза (issue #302). Раньше все версии
+    /// качались в один и тот же файл «ConfigurationManagement.new.exe», и остаток
+    /// загрузки предыдущей версии (обрыв, закрытый без применения диалог, сбой замены
+    /// exe) принимался за «докачку» нового файла: загрузка «мгновенно завершалась»,
+    /// а устанавливался гибрид старых и новых байт, падавший с требованием установить
+    /// .NET. Теперь имя временного файла содержит версию (чужие остатки физически не
+    /// подходят), докачка разрешена только при совпадении ETag ассета, а файл принимается
+    /// только точного размера — ожидаемого из GitHub API либо заявленного сервером.
+    /// </para>
     /// </summary>
-    private async Task<string?> DownloadAsync(string url)
+    private async Task<string?> DownloadAsync(string url, string versionKey, long expectedSize)
     {
         var dir = Path.Combine(Path.GetTempPath(), UpdateTempDir);
         Directory.CreateDirectory(dir);
-        var dest = Path.Combine(dir, "ConfigurationManagement.new.exe");
+        CleanStaleUpdateFiles(dir, versionKey);
+
+        var dest = Path.Combine(dir, TempFileName(versionKey));
+        var etagPath = dest + ".etag";
+
+        // Быстрый запрос одного байта: узнаём ETag ассета и полный размер до докачки.
+        var probe = await ProbeAssetAsync(url).ConfigureAwait(false);
+        var totalBytes = probe.TotalSize;
+
+        // Сервер отдаёт не тот файл, что заявлен GitHub API (размер ассета не совпал):
+        // качать такой гибрид бессмысленно, считаем загрузку неудачной (issue #302).
+        if (expectedSize > 0 && totalBytes > 0 && totalBytes != expectedSize)
+            return null;
+
+        // Докачка допустима только в тот же ассет: ETag из прошлого сеанса обязан
+        // совпадать с текущим. Отсутствие метки (остаток старой версии приложения)
+        // или несовпадение — начинаем с нуля. Пустой ETag ответа (сбой зонда) остаток
+        // не стирает: наказывать загрузку за временную ошибку сети нельзя.
+        var storedEtag = TryReadText(etagPath);
+        if (TryGetFileLength(dest) > 0
+            && !string.IsNullOrEmpty(probe.ETag)
+            && (string.IsNullOrEmpty(storedEtag)
+                || !string.Equals(storedEtag, probe.ETag, StringComparison.Ordinal)))
+        {
+            TryDelete(dest);
+        }
+        if (!string.IsNullOrEmpty(probe.ETag))
+            TryWriteText(etagPath, probe.ETag);
 
         // Многопоточная загрузка по HTTP Range (N сегментов). Прогресс агрегированный:
         // сумма скачанного по сегментам / общий размер, публикуется не чаще раза на процент.
         var parallelResult = await ParallelDownloader.TryDownloadAsync(
-            _http, url, dest, ReportDownloadProgressPercent);
+            _http, url, dest, ReportDownloadProgressPercent, expectedSize);
         if (parallelResult is not null)
             return parallelResult;
 
         const int maxAttempts = 12;
-        long totalBytes = -1;
 
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             // Сколько уже скачано — с этого байта продолжим (докачка через Range).
             var existing = TryGetFileLength(dest);
 
-            // Файл уже полный — принимаем его.
-            if (totalBytes > 0 && existing >= totalBytes)
-                return existing > 0 ? dest : null;
+            // Файл уже полный — принимаем только точного размера (issue #302):
+            // ни обрезанный, ни «удлинённый» остаток не считается готовым файлом.
+            var accepted = totalBytes > 0 ? totalBytes : expectedSize;
+            if (accepted > 0 && existing >= accepted)
+            {
+                if (existing == accepted)
+                    return dest;
+                // Длиннее ожидаемого — повреждён, начинаем заново.
+                TryDelete(dest);
+                existing = 0;
+            }
 
             try
             {
@@ -276,8 +320,12 @@ public sealed class UpdateService
                 if (result.Completed)
                 {
                     var size = TryGetFileLength(dest);
-                    if (totalBytes <= 0 || size >= totalBytes)
-                        return size > 0 ? dest : null;
+                    accepted = expectedSize > 0 ? expectedSize : totalBytes;
+                    // Ровный размер: прежняя проверка «>=» пропускала бы лишние хвосты.
+                    // Без эталона вовсе (обе стороны размер не сообщили) — как раньше,
+                    // принимаем любой непустой файл.
+                    if (accepted > 0 ? size == accepted : size > 0)
+                        return dest;
                 }
             }
             catch
@@ -291,6 +339,113 @@ public sealed class UpdateService
 
         TryDelete(dest);
         return null;
+    }
+
+    /// <summary>Имя временного файла загрузки, привязанное к версии релиза (issue #302).</summary>
+    private static string TempFileName(string versionKey) =>
+        $"ConfigurationManagement.{SanitizeKey(versionKey)}.new.exe";
+
+    /// <summary>
+    /// Оставляет в ключе версии только символы, безопасные для имени файла:
+    /// буквы, цифры, точка, дефис и подчёркивание; остальные заменяются на «_».
+    /// Пустой ключ даёт «unknown».
+    /// </summary>
+    private static string SanitizeKey(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return "unknown";
+
+        var chars = key.Trim()
+            .Select(c => char.IsLetterOrDigit(c) || c == '.' || c == '-' || c == '_' ? c : '_')
+            .ToArray();
+        return new string(chars);
+    }
+
+    /// <summary>
+    /// Удаляет из каталога обновлений остатки загрузок других версий: раньше все
+    /// версии качались в один и тот же «ConfigurationManagement.new.exe», и такие
+    /// файлы (включая части многопоточной загрузки) больше не должны занимать диск
+    /// или выдавать себя за докачку (issue #302). Текущий файл версии и его метка
+    /// ETag не трогаются.
+    /// </summary>
+    private static void CleanStaleUpdateFiles(string dir, string currentVersionKey)
+    {
+        try
+        {
+            var currentTemp = TempFileName(currentVersionKey);
+            foreach (var file in Directory.EnumerateFiles(dir, "ConfigurationManagement*"))
+            {
+                var name = Path.GetFileName(file);
+                if (string.Equals(name, currentTemp, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(name, currentTemp + ".etag", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                TryDelete(file);
+            }
+        }
+        catch
+        {
+            // Очистка не критична: главный барьер против гибридов — версионное имя файла.
+        }
+    }
+
+    /// <summary>
+    /// Запрашивает один байт файла (Range 0-0), чтобы узнать ETag ассета и полный
+    /// размер до начала загрузки или докачки (issue #302). Идентичность файла обязана
+    /// совпадать с тем, что уже лежит во временном каталоге, иначе докачка смешала бы
+    /// байты разных ассетов. При любой ошибке возвращает пустой результат: загрузка
+    /// пойдёт без докачки, а размер сверится с ожидаемым из GitHub API.
+    /// </summary>
+    private async Task<(string? ETag, long TotalSize)> ProbeAssetAsync(string url)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Range = new RangeHeaderValue(0, 0);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None);
+            cts.CancelAfter(TimeSpan.FromSeconds(30));
+            using var response = await _http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            response.EnsureSuccessStatusCode();
+
+            var total = response.StatusCode == HttpStatusCode.PartialContent
+                ? response.Content.Headers.ContentRange?.Length ?? -1
+                : response.Content.Headers.ContentLength ?? -1;
+            var etag = response.Headers.ETag?.ToString();
+
+            // Дренируем тело (1 байт), чтобы соединение вернулось в пул.
+            try { await response.Content.ReadAsByteArrayAsync(cts.Token); }
+            catch { /* не критично */ }
+
+            return (etag, total);
+        }
+        catch
+        {
+            return (null, -1);
+        }
+    }
+
+    private static string? TryReadText(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void TryWriteText(string path, string content)
+    {
+        try
+        {
+            File.WriteAllText(path, content);
+        }
+        catch
+        {
+            // Метка идентичности не критична: без неё докачка просто не начнётся.
+        }
     }
 
     /// <summary>
@@ -442,14 +597,15 @@ public sealed class UpdateService
     }
 
     /// <summary>
-    /// Скачивает exe по прямой ссылке и поднимает события прогресса/завершения для строки
-    /// состояния главного окна. Возвращает путь к файлу или null при неудаче.
+    /// Скачивает exe по прямой ссылке релиза и поднимает события прогресса/завершения
+    /// для строки состояния главного окна. Возвращает путь к файлу или null при неудаче.
+    /// Имя временного файла и проверка размера привязаны к версии релиза (issue #302).
     /// </summary>
-    internal async Task<string?> DownloadNewExeCoreAsync(string downloadUrl)
+    internal async Task<string?> DownloadNewExeCoreAsync(ReleaseInfo release)
     {
         try
         {
-            return await DownloadAsync(downloadUrl);
+            return await DownloadAsync(release.DownloadUrl!, release.TagName, release.AssetSize);
         }
         finally
         {
@@ -580,6 +736,9 @@ while (-not $moved -and $attempts -lt 10) {
 }
 if (-not $moved) {
     Log 'FATAL: failed to replace target executable.'
+    # Оставленный гибрид/обрезок больше не должен выдавать себя за докачку
+    # следующей попытки (issue #302).
+    Remove-Item -LiteralPath $new -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
     exit 1
 }
