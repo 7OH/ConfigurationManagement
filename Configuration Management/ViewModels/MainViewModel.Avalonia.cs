@@ -374,6 +374,7 @@ public partial class MainViewModel : ViewModelBase
             () => SelectedInfobase,
             launcher,
             logger,
+            dialog,
             OnLaunched)
         {
             EnterpriseOverrides = ResolveSessionOverrides

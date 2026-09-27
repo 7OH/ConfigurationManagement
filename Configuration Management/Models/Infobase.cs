@@ -402,6 +402,25 @@ public class Infobase : INotifyPropertyChanged
     /// </summary>
     public string ExternalProcessingData { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Произвольная команда (скрипт/исполняемый файл с аргументами), выполняемая
+    /// ПЕРЕД запуском 1С (и в режиме «Предприятие», и в Конфигураторе) — функция №8
+    /// «Пользовательские скрипты при запуске базы» (0.3.9.98). Выполняется через
+    /// системный shell (Windows — <c>cmd /c</c>, Linux — <c>sh -c</c>) с ожиданием
+    /// завершения и таймаутом 30 секунд (<see cref="Services.ExternalCommandRunner"/>);
+    /// при ошибке запуск базы не блокируется — пользователь предупреждается.
+    /// Пустая строка/null — команда не задана.
+    /// </summary>
+    public string? PreLaunchCommand { get; set; }
+
+    /// <summary>
+    /// Произвольная команда, выполняемая ПОСЛЕ успешного старта 1С (функция №8,
+    /// 0.3.9.98) без ожидания завершения (fire-and-forget). Выполняется через
+    /// системный shell так же, как <see cref="PreLaunchCommand"/>.
+    /// Пустая строка/null — команда не задана.
+    /// </summary>
+    public string? PostLaunchCommand { get; set; }
+
     private string _architecture = "32-priority";
 
     /// <summary>Разрядность платформы при запуске базы («32» или «64» бита).</summary>

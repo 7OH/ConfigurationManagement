@@ -826,6 +826,21 @@
                     <TextBlock Text="{loc:Loc Connection.ExternalProcessingDataLabel}" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,4"/>
                     <TextBox Text="{Binding ExternalProcessingData, UpdateSourceTrigger=PropertyChanged}"
                              Padding="8,6" VerticalContentAlignment="Center" Margin="0,0,0,4"/>
+
+                    <TextBlock Text="{loc:Loc Launch.PreCommand}" FontWeight="SemiBold" FontSize="12" Margin="0,8,0,4"/>
+                    <TextBox Text="{Binding PreLaunchCommand, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="8,6" VerticalContentAlignment="Center" Margin="0,0,0,4">
+                        <TextBox.ToolTip>
+                            <TextBlock Text="{loc:Loc Launch.PreCommandTooltip}" TextWrapping="Wrap" MaxWidth="380"/>
+                        </TextBox.ToolTip>
+                    </TextBox>
+                    <TextBlock Text="{loc:Loc Launch.PostCommand}" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,4"/>
+                    <TextBox Text="{Binding PostLaunchCommand, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="8,6" VerticalContentAlignment="Center" Margin="0,0,0,4">
+                        <TextBox.ToolTip>
+                            <TextBlock Text="{loc:Loc Launch.PostCommandTooltip}" TextWrapping="Wrap" MaxWidth="380"/>
+                        </TextBox.ToolTip>
+                    </TextBox>
                     <Border Margin="0,0,0,4" Padding="8,6" CornerRadius="6"
                             BorderThickness="1.5" Cursor="Hand"
                             Background="{DynamicResource CardBackgroundBrush}">

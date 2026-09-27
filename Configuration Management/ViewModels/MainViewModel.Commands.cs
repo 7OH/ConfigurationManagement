@@ -625,26 +625,46 @@ public partial class MainViewModel : ViewModelBase
         var ib = Infobases.FirstOrDefault(i => i.Id == id);
         if (ib is null) return;
 
-        bool ok;
-        if (isConfigurator)
-            ok = _launcher.Launch(ib, Services.OneCLaunchMode.Configurator);
-        else
-            ok = LaunchEnterpriseWithSessionOverrides(ib);
+        // Пользовательские скрипты (функция №8, 0.3.9.98) выполняются и при
+        // запуске из трея: pre-команда может ждать до 30 секунд, поэтому
+        // фактический запуск уходит в асинхронное ядро.
+        _ = LaunchInfobaseByIdCoreAsync(ib, isConfigurator);
+    }
 
-        if (ok)
+    /// <summary>Асинхронное ядро запуска из трея: pre → запуск → post.</summary>
+    private async Task LaunchInfobaseByIdCoreAsync(Infobase ib, bool isConfigurator)
+    {
+        try
         {
+            await RunPreLaunchScriptAsync(ib);
+
+            bool ok;
+            if (isConfigurator)
+                ok = _launcher.Launch(ib, Services.OneCLaunchMode.Configurator);
+            else
+                ok = LaunchEnterpriseWithSessionOverrides(ib);
+
+            if (ok)
+            {
+                RunPostLaunchScript(ib);
                 ib.LastLaunchDate = DateTime.Now;
-                ib.AddLaunchHistory(isConfigurator ? "Configurator" : "Enterprise", "tray");
+                ib.AddLaunchHistory(isConfigurator ? "Configurator" : "Enterprise", BuildLaunchDetails("tray", ib));
                 InfobasesView.Refresh();
                 Save();
                 _logger.Info($"[tray] Запущена «{ib.Name}» ({(isConfigurator ? "Конфигуратор" : "Предприятие")})");
                 NotifyAfterLaunch();
                 // Внеплановый опрос процессов: точка «база запущена» появляется сразу.
                 RefreshRunningFlags();
+            }
+            else
+            {
+                _logger.Warn($"[tray] Не удалось запустить «{ib.Name}»");
+                ShowLaunchFailed();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _logger.Warn($"[tray] Не удалось запустить «{ib.Name}»");
+            _logger.Error($"[tray] Ошибка запуска «{ib.Name}»", ex);
             ShowLaunchFailed();
         }
     }
@@ -660,17 +680,34 @@ public partial class MainViewModel : ViewModelBase
 
         SelectedInfobase = ib;
         // Запуск напрямую через лаунчер — не зависит от CanExecute команд UI.
-        var ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise);
-        if (ok)
+        // Пользовательские скрипты (функция №8) выполняются и здесь.
+        _ = LaunchFavoriteByHotkeyCoreAsync(ib, number);
+    }
+
+    /// <summary>Асинхронное ядро запуска избранной базы по Alt+N: pre → запуск → post.</summary>
+    private async Task LaunchFavoriteByHotkeyCoreAsync(Infobase ib, int number)
+    {
+        try
         {
-            ib.LastLaunchDate = DateTime.Now;
-            ScheduleSave();
-            _logger.Info($"Запущена избранная база «{ib.Name}» по Alt+{number}");
-            NotifyAfterLaunch();
+            await RunPreLaunchScriptAsync(ib);
+            var ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise);
+            if (ok)
+            {
+                RunPostLaunchScript(ib);
+                ib.LastLaunchDate = DateTime.Now;
+                ScheduleSave();
+                _logger.Info($"Запущена избранная база «{ib.Name}» по Alt+{number}");
+                NotifyAfterLaunch();
+            }
+            else
+            {
+                _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+{number}");
+                ShowLaunchFailed();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+{number}");
+            _logger.Error($"Ошибка запуска избранной базы «{ib.Name}» по Alt+{number}", ex);
             ShowLaunchFailed();
         }
     }
@@ -804,19 +841,36 @@ public partial class MainViewModel : ViewModelBase
             return;
 
         SelectedInfobase = ib;
-        var ok = _launcher.Launch(ib, configurator ? OneCLaunchMode.Configurator : OneCLaunchMode.Enterprise);
-        if (ok)
+        // Пользовательские скрипты (функция №8, 0.3.9.98) выполняются и здесь.
+        _ = LaunchBookmarkCoreAsync(ib, number, configurator);
+    }
+
+    /// <summary>Асинхронное ядро запуска закладки: pre → запуск → post.</summary>
+    private async Task LaunchBookmarkCoreAsync(Infobase ib, int number, bool configurator)
+    {
+        try
         {
-            ib.LastLaunchDate = DateTime.Now;
-            ScheduleSave();
-            _logger.Info(configurator
-                ? $"Запущен Конфигуратор избранной базы «{ib.Name}» по Ctrl+Alt+{number}"
-                : $"Запущена избранная база «{ib.Name}» по Alt+{number}");
-            NotifyAfterLaunch();
+            await RunPreLaunchScriptAsync(ib);
+            var ok = _launcher.Launch(ib, configurator ? OneCLaunchMode.Configurator : OneCLaunchMode.Enterprise);
+            if (ok)
+            {
+                RunPostLaunchScript(ib);
+                ib.LastLaunchDate = DateTime.Now;
+                ScheduleSave();
+                _logger.Info(configurator
+                    ? $"Запущен Конфигуратор избранной базы «{ib.Name}» по Ctrl+Alt+{number}"
+                    : $"Запущена избранная база «{ib.Name}» по Alt+{number}");
+                NotifyAfterLaunch();
+            }
+            else
+            {
+                _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» (номер {number})");
+                ShowLaunchFailed();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» (номер {number})");
+            _logger.Error($"Ошибка запуска закладки «{ib.Name}» (номер {number})", ex);
             ShowLaunchFailed();
         }
     }
@@ -824,25 +878,40 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Запускает Предприятие для всех баз с закладками (Alt+E).</summary>
     public void LaunchAllBookmarks()
     {
-        foreach (var key in BookmarkSlotHelper.GetAllKeys(_favoriteHotkeyIds))
+        _ = LaunchAllBookmarksCoreAsync();
+    }
+
+    /// <summary>Асинхронное ядро массового запуска: для каждой базы — pre → запуск → post.</summary>
+    private async Task LaunchAllBookmarksCoreAsync()
+    {
+        try
         {
-            var ib = FindByFavoriteKey(key);
-            if (ib is null)
-                continue;
-            var ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise);
-            if (ok)
+            foreach (var key in BookmarkSlotHelper.GetAllKeys(_favoriteHotkeyIds))
             {
-                ib.LastLaunchDate = DateTime.Now;
-                ScheduleSave();
-                _logger.Info($"Запущена избранная база «{ib.Name}» по Alt+E");
+                var ib = FindByFavoriteKey(key);
+                if (ib is null)
+                    continue;
+                await RunPreLaunchScriptAsync(ib);
+                var ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise);
+                if (ok)
+                {
+                    RunPostLaunchScript(ib);
+                    ib.LastLaunchDate = DateTime.Now;
+                    ScheduleSave();
+                    _logger.Info($"Запущена избранная база «{ib.Name}» по Alt+E");
+                }
+                else
+                {
+                    _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+E");
+                    ShowLaunchFailed();
+                }
             }
-            else
-            {
-                _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+E");
-                ShowLaunchFailed();
-            }
+            NotifyAfterLaunch();
         }
-        NotifyAfterLaunch();
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка массового запуска закладок (Alt+E)", ex);
+        }
     }
 
     /// <summary>Занятые слоты с базами в порядке нумерации (для меню Ctrl+B).</summary>
@@ -1376,14 +1445,29 @@ public string HotkeyEnterprise
             SelectedInfobase = ib;
 
             // Запуск напрямую через лаунчер — не зависит от CanExecute команд UI
-            // (тот же подход, что у закладок Alt+N и меню трея).
+            // (тот же подход, что у закладок Alt+N и меню трея). Пользовательские
+            // скрипты (функция №8, 0.3.9.98) выполняются в асинхронном ядре.
+            _ = LaunchFromPaletteCoreAsync(ib, useConfigurator);
+            return;
+        }
+
+        ExecutePaletteCommand(item.Id);
+    }
+
+    /// <summary>Асинхронное ядро запуска базы из командной палитры: pre → запуск → post.</summary>
+    private async Task LaunchFromPaletteCoreAsync(Infobase ib, bool useConfigurator)
+    {
+        try
+        {
+            await RunPreLaunchScriptAsync(ib);
             var ok = useConfigurator
                 ? _launcher.Launch(ib, Services.OneCLaunchMode.Configurator)
                 : LaunchEnterpriseWithSessionOverrides(ib);
             if (ok)
             {
+                RunPostLaunchScript(ib);
                 ib.LastLaunchDate = DateTime.Now;
-                ib.AddLaunchHistory(useConfigurator ? "Configurator" : "Enterprise", "palette");
+                ib.AddLaunchHistory(useConfigurator ? "Configurator" : "Enterprise", BuildLaunchDetails("palette", ib));
                 ScheduleSave();
                 _logger.Info($"[palette] Запущена «{ib.Name}» ({(useConfigurator ? "Конфигуратор" : "Предприятие")})");
                 NotifyAfterLaunch();
@@ -1393,10 +1477,12 @@ public string HotkeyEnterprise
                 _logger.Warn($"[palette] Не удалось запустить «{ib.Name}»");
                 ShowLaunchFailed();
             }
-            return;
         }
-
-        ExecutePaletteCommand(item.Id);
+        catch (Exception ex)
+        {
+            _logger.Error($"[palette] Ошибка запуска «{ib.Name}»", ex);
+            ShowLaunchFailed();
+        }
     }
 
     /// <summary>Источник элементов палитры: базы (избранные — выше) и команды интерфейса.</summary>

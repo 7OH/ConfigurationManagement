@@ -50,6 +50,10 @@ public class ConnectionSettingsViewModel : ViewModelBase
     private string _doubleClickAction = Configuration_Management.Models.DoubleClickAction.Default;
     private string _externalProcessingPath = string.Empty;
     private string _externalProcessingData = string.Empty;
+    /// <summary>Команда перед запуском 1С (функция №8, 0.3.9.98).</summary>
+    private string _preLaunchCommand = string.Empty;
+    /// <summary>Команда после запуска 1С (функция №8, 0.3.9.98).</summary>
+    private string _postLaunchCommand = string.Empty;
     private string _tagInput = string.Empty;
     private IReadOnlyList<string> _availableTags = Array.Empty<string>();
 
@@ -814,6 +818,26 @@ public class ConnectionSettingsViewModel : ViewModelBase
         set => SetProperty(ref _externalProcessingData, value ?? string.Empty);
     }
 
+    /// <summary>
+    /// Произвольная команда, выполняемая перед запуском 1С (функция №8, 0.3.9.98):
+    /// shell (cmd /c на Windows, sh -c на Linux), ожидание завершения с таймаутом.
+    /// </summary>
+    public string PreLaunchCommand
+    {
+        get => _preLaunchCommand;
+        set => SetProperty(ref _preLaunchCommand, value ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Произвольная команда, выполняемая после успешного старта 1С (функция №8,
+    /// 0.3.9.98): fire-and-forget, без ожидания завершения.
+    /// </summary>
+    public string PostLaunchCommand
+    {
+        get => _postLaunchCommand;
+        set => SetProperty(ref _postLaunchCommand, value ?? string.Empty);
+    }
+
     /// <summary>Режим аутентификации.</summary>
     public AuthenticationMode AuthenticationMode
     {
@@ -1069,6 +1093,9 @@ public class ConnectionSettingsViewModel : ViewModelBase
             DoubleClickAction = infobase.DoubleClickAction ?? string.Empty;
             ExternalProcessingPath = infobase.ExternalProcessingPath ?? string.Empty;
             ExternalProcessingData = infobase.ExternalProcessingData ?? string.Empty;
+            // Пользовательские скрипты при запуске базы (функция №8, 0.3.9.98).
+            PreLaunchCommand = infobase.PreLaunchCommand ?? string.Empty;
+            PostLaunchCommand = infobase.PostLaunchCommand ?? string.Empty;
 
             // Ручной размер базы (issue #243).
             ManualSizeBytes = infobase.ManualSizeBytes;
@@ -1243,6 +1270,10 @@ public class ConnectionSettingsViewModel : ViewModelBase
         infobase.DoubleClickAction = (DoubleClickAction ?? string.Empty).Trim();
         infobase.ExternalProcessingPath = (ExternalProcessingPath ?? string.Empty).Trim();
         infobase.ExternalProcessingData = (ExternalProcessingData ?? string.Empty).Trim();
+        // Пользовательские скрипты при запуске базы (функция №8, 0.3.9.98):
+        // пустые значения сохраняются как null (совместимость JSON-файлов).
+        infobase.PreLaunchCommand = NormalizeScriptCommand(PreLaunchCommand);
+        infobase.PostLaunchCommand = NormalizeScriptCommand(PostLaunchCommand);
 
         // Теги базы (issue #283): переносим отредактированные теги.
         infobase.Tags = Tags.ToList();
@@ -1307,5 +1338,15 @@ public class ConnectionSettingsViewModel : ViewModelBase
                 Password = ConfiguratorPassword
             };
         }
+    }
+
+    /// <summary>
+    /// Нормализует пользовательскую команду для хранения в модели (функция №8, 0.3.9.98):
+    /// пробельная строка/пусто — null (поле не задано), иначе — обрезанное значение.
+    /// </summary>
+    private static string? NormalizeScriptCommand(string? command)
+    {
+        var trimmed = (command ?? string.Empty).Trim();
+        return trimmed.Length == 0 ? null : trimmed;
     }
 }

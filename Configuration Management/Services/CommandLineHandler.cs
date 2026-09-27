@@ -175,15 +175,43 @@ public static class CommandLineHandler
 
             var mode = designer ? OneCLaunchMode.Configurator : OneCLaunchMode.Enterprise;
             var launcher = AppServices.GetRequiredService<IOneCLauncher>();
+
+            // Пользовательские скрипты при запуске базы (0.3.9.98, функция №8):
+            // pre-команда выполняется с ожиданием (до 30 секунд). При ошибке или
+            // таймауте запуск НЕ блокируется — пишем предупреждение и продолжаем.
+            if (!string.IsNullOrWhiteSpace(infobase.PreLaunchCommand))
+            {
+                var preOk = ExternalCommandRunner.RunAsync(
+                    infobase.PreLaunchCommand,
+                    ExternalCommandRunner.DefaultPreCommandTimeoutMs).GetAwaiter().GetResult();
+                if (preOk)
+                {
+                    logger.Info($"[cli] Pre-команда «{infobase.Name}» выполнена: {infobase.PreLaunchCommand}");
+                }
+                else
+                {
+                    Console.Error.WriteLine(
+                        $"[cli] Внимание: не удалось выполнить команду перед запуском: {infobase.PreLaunchCommand}");
+                    logger.Warn($"[cli] Pre-команда «{infobase.Name}» завершилась с ошибкой: {infobase.PreLaunchCommand}");
+                }
+            }
+
             var ok = launcher.Launch(infobase, mode);
 
             if (ok)
             {
+                // Post-команда — fire-and-forget, без ожидания завершения.
+                if (!string.IsNullOrWhiteSpace(infobase.PostLaunchCommand))
+                {
+                    ExternalCommandRunner.RunDetached(infobase.PostLaunchCommand);
+                    logger.Info($"[cli] Запущена post-команда «{infobase.Name}»: {infobase.PostLaunchCommand}");
+                }
+
                 // История запуска: если приложение уже запущено, его сохранение
                 // перезапишет файл последним — запись истории может потеряться,
                 // это допустимо (полные JSON-файлы, «побеждает последний»).
                 infobase.LastLaunchDate = DateTime.Now;
-                infobase.AddLaunchHistory(designer ? "Configurator" : "Enterprise", "cli");
+                infobase.AddLaunchHistory(designer ? "Configurator" : "Enterprise", BuildCliLaunchDetails(infobase));
                 try { repository.Save(bases); }
                 catch { /* параллельная запись — не ошибка CLI-запуска */ }
 
@@ -209,5 +237,19 @@ public static class CommandLineHandler
             exitCode = 3;
             return true;
         }
+    }
+
+    /// <summary>
+    /// Детали истории запуска из CLI с маркером пользовательских команд (0.3.9.98):
+    /// например «cli; pre: ras connect …; post: start …».
+    /// </summary>
+    private static string BuildCliLaunchDetails(Models.Infobase infobase)
+    {
+        var parts = new System.Collections.Generic.List<string> { "cli" };
+        if (!string.IsNullOrWhiteSpace(infobase.PreLaunchCommand))
+            parts.Add("pre: " + infobase.PreLaunchCommand);
+        if (!string.IsNullOrWhiteSpace(infobase.PostLaunchCommand))
+            parts.Add("post: " + infobase.PostLaunchCommand);
+        return string.Join("; ", parts);
     }
 }

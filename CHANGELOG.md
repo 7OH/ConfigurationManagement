@@ -9,6 +9,39 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.98] — 2026-09-27
+
+### Добавлено
+
+- **Пользовательские скрипты при запуске базы** (обе платформы, функция №8) — два новых
+  поля в свойствах базы: «Команда перед запуском» и «Команда после запуска»
+  (вкладка «Запуск»). Произвольная команда (скрипт/исполняемый файл с аргументами)
+  выполняется через системный shell — Windows `cmd /c <команда>`, Linux `sh -c <команда>`
+  (выбор платформы — директива `#if` без разделения файлов):
+  [`Services/ExternalCommandRunner.cs`](Configuration%20Management/Services/ExternalCommandRunner.cs)
+  (`BuildShellCommand`, `RunAsync` с таймаутом, `RunDetached`; таймаут pre-команды
+  по умолчанию 30 секунд — `DefaultPreCommandTimeoutMs`). Pre-команда выполняется
+  ДО запуска 1С с ожиданием завершения; при ошибке или таймауте пользователь
+  предупреждается (`Launch.PreCommandFailed`), но запуск базы НЕ блокируется —
+  он продолжается. Post-команда запускается ПОСЛЕ успешного старта 1С без ожидания
+  (fire-and-forget). Скрипты покрывают все пути запуска базы: окно (обе платформы),
+  трей, закладки и командная палитра (WPF —
+  [`ViewModels/MainViewModel.Launch.cs`](Configuration%20Management/ViewModels/MainViewModel.Launch.cs),
+  [`ViewModels/MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs);
+  Avalonia — [`ViewModels/LaunchViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/LaunchViewModel.Avalonia.cs),
+  [`ViewModels/MainViewModel.Avalonia.Launch.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Launch.cs))
+  и CLI `--run` ([`Services/CommandLineHandler.cs`](Configuration%20Management/Services/CommandLineHandler.cs)).
+  Хранение — опциональные поля `Infobase.PreLaunchCommand` / `PostLaunchCommand`
+  ([`Models/Infobase.cs`](Configuration%20Management/Models/Infobase.cs); пустые значения
+  сохраняются как `null`, старые JSON-файлы читаются без изменений), редактирование —
+  вкладка «Запуск» окна свойств базы
+  ([`Views/ConnectionSettingsWindow.xaml`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml) /
+  [`Views/ConnectionSettingsWindow.Avalonia.cs`](Configuration%20Management/Views/ConnectionSettingsWindow.Avalonia.cs),
+  связка — [`ViewModels/ConnectionSettingsViewModel.cs`](Configuration%20Management/ViewModels/ConnectionSettingsViewModel.cs)).
+  Команды фиксируются в истории запусков базы маркером `pre:`/`post:` в деталях записи
+  (`LaunchHistoryEntry.Details`). Логика выполнения покрыта unit-тестами
+  ([`ConfigurationManagement.Tests/ExternalCommandRunnerTests.cs`](ConfigurationManagement.Tests/ExternalCommandRunnerTests.cs)).
+
 ## [0.3.9.97] — 2026-09-27
 
 ### Добавлено

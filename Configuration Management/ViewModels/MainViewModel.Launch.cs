@@ -79,25 +79,12 @@ public partial class MainViewModel : ViewModelBase
             Owner = Application.Current?.MainWindow
         };
         if (dlg.ShowDialog() != true) return;
-        var saved = SelectedInfobase.LaunchParameters ?? "";
-        try
-        {
-            SelectedInfobase.LaunchParameters = dlg.Result ?? "";
-            var ok = _launcher.Launch(SelectedInfobase, OneCLaunchMode.Enterprise);
-            if (ok)
-            {
-                SelectedInfobase.LastLaunchDate = DateTime.Now;
-                Save();
-            }
-            else
-            {
-                ShowLaunchFailed();
-            }
-        }
-        finally
-        {
-            SelectedInfobase.LaunchParameters = saved;
-        }
+        var ib = SelectedInfobase;
+        var saved = ib.LaunchParameters ?? "";
+        // Разовые параметры действуют только на этот запуск: pre-команда может
+        // выполняться до 30 секунд, поэтому подменённое значение держим в ядре
+        // и возвращаем в finally после фактического запуска 1С.
+        _ = LaunchWithParamsCoreAsync(ib, saved, dlg.Result ?? "", OneCLaunchMode.Enterprise);
     }
 
     private void LaunchConfiguratorWithParams(object? parameter)
@@ -111,14 +98,24 @@ public partial class MainViewModel : ViewModelBase
             Owner = Application.Current?.MainWindow
         };
         if (dlg.ShowDialog() != true) return;
-        var saved = SelectedInfobase.LaunchParameters ?? "";
+        var ib = SelectedInfobase;
+        var saved = ib.LaunchParameters ?? "";
+        _ = LaunchWithParamsCoreAsync(ib, saved, dlg.Result ?? "", OneCLaunchMode.Configurator);
+    }
+
+    /// <summary>
+    /// Ядро запуска с разовыми параметрами: подмена параметров → pre-команда →
+    /// запуск → post-команда; исходные параметры возвращаются всегда.
+    /// </summary>
+    private async Task LaunchWithParamsCoreAsync(Infobase ib, string savedParameters, string newParameters, OneCLaunchMode mode)
+    {
         try
         {
-            SelectedInfobase.LaunchParameters = dlg.Result ?? "";
-            var ok = _launcher.Launch(SelectedInfobase, OneCLaunchMode.Configurator);
+            ib.LaunchParameters = newParameters;
+            var ok = await RunScriptedLaunchAsync(ib, () => _launcher.Launch(ib, mode));
             if (ok)
             {
-                SelectedInfobase.LastLaunchDate = DateTime.Now;
+                ib.LastLaunchDate = DateTime.Now;
                 Save();
             }
             else
@@ -126,34 +123,57 @@ public partial class MainViewModel : ViewModelBase
                 ShowLaunchFailed();
             }
         }
+        catch (Exception ex)
+        {
+            _logger.Error($"Ошибка запуска базы «{ib.Name}» с параметрами", ex);
+            ShowLaunchFailed();
+        }
         finally
         {
-            SelectedInfobase.LaunchParameters = saved;
+            ib.LaunchParameters = savedParameters;
         }
     }
 
     private void LaunchEnterpriseWithAuth(object? parameter)
     {
         if (SelectedInfobase is null) return;
-        var conn = SelectedInfobase.Connection;
+        var ib = SelectedInfobase;
+        var conn = ib.Connection;
         var savedUser = conn.User;
         var savedPwd = conn.Password;
         var savedAuth = conn.AuthenticationMode;
+        // Учётные данные очищаются на время запуска (чтобы платформа спросила их сама):
+        // pre-команда выполняется до фактического запуска, восстановление — в finally.
+        _ = LaunchWithAuthCoreAsync(ib, conn, savedUser, savedPwd, savedAuth);
+    }
+
+    /// <summary>
+    /// Ядро запуска с запросом авторизации: очистка учётных данных → pre-команда →
+    /// запуск → post-команда; прежние значения восстанавливаются всегда.
+    /// </summary>
+    private async Task LaunchWithAuthCoreAsync(
+        Infobase ib, ConnectionSettings conn, string savedUser, string savedPwd, AuthenticationMode savedAuth)
+    {
         try
         {
             conn.User = string.Empty;
             conn.Password = string.Empty;
             conn.AuthenticationMode = AuthenticationMode.Prompt;
-            var ok = _launcher.Launch(SelectedInfobase, OneCLaunchMode.Enterprise);
+            var ok = await RunScriptedLaunchAsync(ib, () => _launcher.Launch(ib, OneCLaunchMode.Enterprise));
             if (ok)
             {
-                SelectedInfobase.LastLaunchDate = DateTime.Now;
+                ib.LastLaunchDate = DateTime.Now;
                 Save();
             }
             else
             {
                 ShowLaunchFailed();
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Ошибка запуска базы «{ib.Name}» с запросом авторизации", ex);
+            ShowLaunchFailed();
         }
         finally
         {
@@ -161,6 +181,20 @@ public partial class MainViewModel : ViewModelBase
             conn.Password = savedPwd;
             conn.AuthenticationMode = savedAuth;
         }
+    }
+
+    /// <summary>
+    /// Обёртка запуска с пользовательскими скриптами (функция №8, 0.3.9.98):
+    /// pre-команда (ожидание с таймаутом) → действие запуска → post-команда
+    /// (fire-and-forget при успехе). Возвращает результат действия запуска.
+    /// </summary>
+    private async Task<bool> RunScriptedLaunchAsync(Infobase ib, Func<bool> launchAction)
+    {
+        await RunPreLaunchScriptAsync(ib);
+        var ok = launchAction();
+        if (ok)
+            RunPostLaunchScript(ib);
+        return ok;
     }
 
     private void LaunchNativeStarter()
@@ -172,6 +206,8 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>
     /// Единая точка запуска 1С. parameter — LaunchKind, строка имени enum или null (Enterprise).
     /// Для Enterprise учитываются переопределения «Текущая сессия» (клиент и разрядность).
+    /// Перед запуском выполняется пользовательская pre-команда (функция №8, 0.3.9.98),
+    /// после успешного старта — post-команда без ожидания.
     /// </summary>
     private void Launch(object? parameter, bool runAsAdmin = false, Infobase? target = null)
     {
@@ -179,46 +215,123 @@ public partial class MainViewModel : ViewModelBase
         if (ib is null)
             return;
 
-        var kind = ResolveLaunchKind(parameter);
-        bool ok;
-        switch (kind)
+        // Асинхронное ядро: pre-команда может ждать завершения до 30 секунд,
+        // поэтому блокировать UI-поток нельзя — запуск продолжается после неё.
+        _ = LaunchCoreAsync(ib, parameter, runAsAdmin);
+    }
+
+    /// <summary>
+    /// Асинхронное ядро единой точки запуска: pre-команда → запуск 1С → post-команда.
+    /// </summary>
+    private async Task LaunchCoreAsync(Infobase ib, object? parameter, bool runAsAdmin)
+    {
+        try
         {
-            case LaunchKind.Configurator:
-                ok = _launcher.Launch(ib, OneCLaunchMode.Configurator, runAsAdmin);
-                break;
-            case LaunchKind.Thin32:
-                ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise, OneCClientType.Thin, OneCArchitecture.x86, runAsAdmin);
-                break;
-            case LaunchKind.Thick32:
-                ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise, OneCClientType.Thick, OneCArchitecture.x86, runAsAdmin);
-                break;
-            case LaunchKind.Thin64:
-                ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise, OneCClientType.Thin, OneCArchitecture.x64, runAsAdmin);
-                break;
-            case LaunchKind.Thick64:
-                ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise, OneCClientType.Thick, OneCArchitecture.x64, runAsAdmin);
-                break;
-            default:
-                ok = LaunchEnterpriseWithSessionOverrides(ib, runAsAdmin);
-                break;
+            var kind = ResolveLaunchKind(parameter);
+            await RunPreLaunchScriptAsync(ib);
+
+            bool ok;
+            switch (kind)
+            {
+                case LaunchKind.Configurator:
+                    ok = _launcher.Launch(ib, OneCLaunchMode.Configurator, runAsAdmin);
+                    break;
+                case LaunchKind.Thin32:
+                    ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise, OneCClientType.Thin, OneCArchitecture.x86, runAsAdmin);
+                    break;
+                case LaunchKind.Thick32:
+                    ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise, OneCClientType.Thick, OneCArchitecture.x86, runAsAdmin);
+                    break;
+                case LaunchKind.Thin64:
+                    ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise, OneCClientType.Thin, OneCArchitecture.x64, runAsAdmin);
+                    break;
+                case LaunchKind.Thick64:
+                    ok = _launcher.Launch(ib, OneCLaunchMode.Enterprise, OneCClientType.Thick, OneCArchitecture.x64, runAsAdmin);
+                    break;
+                default:
+                    ok = LaunchEnterpriseWithSessionOverrides(ib, runAsAdmin);
+                    break;
+            }
+
+            if (ok)
+            {
+                RunPostLaunchScript(ib);
+                var sessionDetails = string.Format(
+                    LocalizationManager.T("Main.LaunchHistorySessionDetails"),
+                    _sessionClientMode, _sessionArchitecture);
+                ib.AddLaunchHistory(kind.ToString(), BuildLaunchDetails(sessionDetails, ib));
+                InfobasesView.Refresh();
+                Save();
+                _logger.Info($"Запущена база «{ib.Name}» ({kind}, клиент={_sessionClientMode}, арх={_sessionArchitecture})");
+                NotifyAfterLaunch();
+            }
+            else
+            {
+                _logger.Warn($"Не удалось запустить базу «{ib.Name}» ({kind})");
+                ShowLaunchFailed();
+            }
         }
+        catch (Exception ex)
+        {
+            // Скрипты не должны ронять запуск базы: любые ошибки логируем и продолжаем.
+            _logger.Error($"Ошибка при запуске базы «{ib.Name}» ({ResolveLaunchKind(parameter)})", ex);
+            ShowLaunchFailed();
+        }
+    }
+
+    /// <summary>
+    /// Выполняет пользовательскую команду «перед запуском» (функция №8, 0.3.9.98):
+    /// ожидание завершения с таймаутом 30 секунд. При ошибке/таймауте предупреждает
+    /// пользователя, НО не блокирует запуск базы — он продолжается.
+    /// </summary>
+    private async Task RunPreLaunchScriptAsync(Infobase ib)
+    {
+        if (string.IsNullOrWhiteSpace(ib.PreLaunchCommand))
+            return;
+
+        var ok = await ExternalCommandRunner.RunAsync(
+            ib.PreLaunchCommand, ExternalCommandRunner.DefaultPreCommandTimeoutMs).ConfigureAwait(true);
 
         if (ok)
         {
-            var sessionDetails = string.Format(
-                LocalizationManager.T("Main.LaunchHistorySessionDetails"),
-                _sessionClientMode, _sessionArchitecture);
-            ib.AddLaunchHistory(kind.ToString(), sessionDetails);
-            InfobasesView.Refresh();
-            Save();
-            _logger.Info($"Запущена база «{ib.Name}» ({kind}, клиент={_sessionClientMode}, арх={_sessionArchitecture})");
-            NotifyAfterLaunch();
+            _logger.Info($"Pre-команда базы «{ib.Name}» выполнена: {ib.PreLaunchCommand}");
         }
         else
         {
-            _logger.Warn($"Не удалось запустить базу «{ib.Name}» ({kind})");
-            ShowLaunchFailed();
+            _logger.Warn($"Pre-команда базы «{ib.Name}» завершилась с ошибкой или таймаутом: {ib.PreLaunchCommand}");
+            _dialogs.ShowWarning(
+                string.Format(LocalizationManager.T("Launch.PreCommandFailed"), ib.PreLaunchCommand),
+                LocalizationManager.T("Launch.CommandsTitle"));
         }
+    }
+
+    /// <summary>
+    /// Запускает пользовательскую команду «после запуска» (функция №8, 0.3.9.98)
+    /// без ожидания завершения (fire-and-forget).
+    /// </summary>
+    private void RunPostLaunchScript(Infobase ib)
+    {
+        if (string.IsNullOrWhiteSpace(ib.PostLaunchCommand))
+            return;
+
+        ExternalCommandRunner.RunDetached(ib.PostLaunchCommand);
+        _logger.Info($"Запущена post-команда базы «{ib.Name}»: {ib.PostLaunchCommand}");
+    }
+
+    /// <summary>
+    /// Детали истории запуска с маркером пользовательских команд (0.3.9.98):
+    /// например «pre: ras connect …; post: start …». Пустые части пропускаются.
+    /// </summary>
+    private static string BuildLaunchDetails(string baseDetails, Infobase ib)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(baseDetails))
+            parts.Add(baseDetails);
+        if (!string.IsNullOrWhiteSpace(ib.PreLaunchCommand))
+            parts.Add("pre: " + ib.PreLaunchCommand);
+        if (!string.IsNullOrWhiteSpace(ib.PostLaunchCommand))
+            parts.Add("post: " + ib.PostLaunchCommand);
+        return string.Join("; ", parts);
     }
 
     /// <summary>Сообщение пользователю о неудачном запуске (детальная причина — в логе сервиса).</summary>

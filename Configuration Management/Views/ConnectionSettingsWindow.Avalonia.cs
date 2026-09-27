@@ -957,6 +957,29 @@ namespace Configuration_Management
             var extData = Tb("ExternalProcessingData");
             extData.Padding = new Thickness(8, 6);
 
+            // Пользовательские скрипты при запуске базы (функция №8, 0.3.9.98):
+            // команда перед запуском (ожидание с таймаутом) и после (fire-and-forget).
+            var preLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("Launch.PreCommand"),
+                FontSize = 12,
+                FontWeight = FontWeight.SemiBold,
+                Margin = new Thickness(0, 8, 0, 4)
+            };
+            var preCmd = Tb("PreLaunchCommand");
+            preCmd.Padding = new Thickness(8, 6);
+            ToolTip.SetTip(preCmd, LocalizationManager.T("Launch.PreCommandTooltip"));
+            var postLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("Launch.PostCommand"),
+                FontSize = 12,
+                FontWeight = FontWeight.SemiBold,
+                Margin = new Thickness(0, 4, 0, 4)
+            };
+            var postCmd = Tb("PostLaunchCommand");
+            postCmd.Padding = new Thickness(8, 6);
+            ToolTip.SetTip(postCmd, LocalizationManager.T("Launch.PostCommandTooltip"));
+
             var content = new StackPanel
             {
                 Children =
@@ -967,6 +990,10 @@ namespace Configuration_Management
                     extPath,
                     extDataLabel,
                     extData,
+                    preLabel,
+                    preCmd,
+                    postLabel,
+                    postCmd,
                     OptionCard("LaunchMode", "IsAutoMode", "Connection.LaunchAuto", "Connection.LaunchAutoHint", wrapHint: true),
                     OptionCard("LaunchMode", "IsThinClient", "Connection.LaunchThin", "Connection.LaunchThinHint", wrapHint: true),
                     OptionCard("LaunchMode", "IsThickClient", "Connection.LaunchThickManaged", "Connection.LaunchThickManagedHint", wrapHint: true),

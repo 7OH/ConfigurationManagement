@@ -154,28 +154,45 @@ public partial class MainViewModel : ViewModelBase
     /// В Windows-версии это делает LaunchInfobaseById (MainViewModel.Commands.cs:544),
     /// и она тоже не меняет SelectedInfobase: иначе запуск из трея переставлял бы
     /// выделение, правую панель и строку состояния. Источник записи в истории
-    /// тот же, что у автора.
+    /// тот же, что у автора. Пользовательские скрипты (функция №8, 0.3.9.98)
+    /// выполняются и при запуске из трея.
     /// </summary>
     public void LaunchFromTray(Infobase ib, bool configurator)
     {
         if (!_allInfobases.Contains(ib))
             return;
 
-        var ok = configurator
-            ? _launcher.Launch(ib, Services.OneCLaunchMode.Configurator)
-            : _launcher.Launch(ib, Services.OneCLaunchMode.Enterprise);
+        _ = LaunchFromTrayCoreAsync(ib, configurator);
+    }
 
-        if (ok)
+    /// <summary>Асинхронное ядро запуска из трея: pre → запуск → post.</summary>
+    private async Task LaunchFromTrayCoreAsync(Infobase ib, bool configurator)
+    {
+        try
         {
-            ib.AddLaunchHistory(configurator ? "Configurator" : "Enterprise", "tray");
-            SaveSilently();
-            OnPropertyChanged(nameof(RecentInfobases));
-            _logger.Info($"[tray] Запущена «{ib.Name}» ({(configurator ? "Конфигуратор" : "Предприятие")})");
-            NotifyAfterLaunch();
+            await RunPreLaunchScriptAsync(ib);
+            var ok = configurator
+                ? _launcher.Launch(ib, Services.OneCLaunchMode.Configurator)
+                : _launcher.Launch(ib, Services.OneCLaunchMode.Enterprise);
+
+            if (ok)
+            {
+                RunPostLaunchScript(ib);
+                ib.AddLaunchHistory(configurator ? "Configurator" : "Enterprise",
+                    BuildLaunchDetails("tray", ib));
+                SaveSilently();
+                OnPropertyChanged(nameof(RecentInfobases));
+                _logger.Info($"[tray] Запущена «{ib.Name}» ({(configurator ? "Конфигуратор" : "Предприятие")})");
+                NotifyAfterLaunch();
+            }
+            else
+            {
+                _logger.Warn($"[tray] Не удалось запустить «{ib.Name}»");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _logger.Warn($"[tray] Не удалось запустить «{ib.Name}»");
+            _logger.Error($"[tray] Ошибка запуска «{ib.Name}»", ex);
         }
     }
 
@@ -183,7 +200,9 @@ public partial class MainViewModel : ViewModelBase
     {
         if (SelectedInfobase is not null)
         {
-            SelectedInfobase.AddLaunchHistory(LocalizationManager.T("Main.LaunchAction"));
+            SelectedInfobase.AddLaunchHistory(
+                LocalizationManager.T("Main.LaunchAction"),
+                BuildLaunchDetails(string.Empty, SelectedInfobase));
             SaveSilently();
         }
 
@@ -193,6 +212,61 @@ public partial class MainViewModel : ViewModelBase
         // Одна точка на все пути запуска: команды окна, контекстное меню и трей
         // приходят сюда же, в отличие от WPF, где уведомление расставлено трижды.
         NotifyAfterLaunch();
+    }
+
+    /// <summary>
+    /// Выполняет пользовательскую команду «перед запуском» (функция №8, 0.3.9.98):
+    /// ожидание завершения с таймаутом 30 секунд. При ошибке/таймауте предупреждает
+    /// пользователя, НО не блокирует запуск базы — он продолжается.
+    /// </summary>
+    private async Task RunPreLaunchScriptAsync(Infobase ib)
+    {
+        if (string.IsNullOrWhiteSpace(ib.PreLaunchCommand))
+            return;
+
+        var ok = await ExternalCommandRunner.RunAsync(
+            ib.PreLaunchCommand, ExternalCommandRunner.DefaultPreCommandTimeoutMs);
+
+        if (ok)
+        {
+            _logger.Info($"Pre-команда базы «{ib.Name}» выполнена: {ib.PreLaunchCommand}");
+        }
+        else
+        {
+            _logger.Warn($"Pre-команда базы «{ib.Name}» завершилась с ошибкой или таймаутом: {ib.PreLaunchCommand}");
+            _dialog.ShowWarning(
+                string.Format(LocalizationManager.T("Launch.PreCommandFailed"), ib.PreLaunchCommand),
+                LocalizationManager.T("Launch.CommandsTitle"));
+        }
+    }
+
+    /// <summary>
+    /// Запускает пользовательскую команду «после запуска» (функция №8, 0.3.9.98)
+    /// без ожидания завершения (fire-and-forget).
+    /// </summary>
+    private void RunPostLaunchScript(Infobase ib)
+    {
+        if (string.IsNullOrWhiteSpace(ib.PostLaunchCommand))
+            return;
+
+        ExternalCommandRunner.RunDetached(ib.PostLaunchCommand);
+        _logger.Info($"Запущена post-команда базы «{ib.Name}»: {ib.PostLaunchCommand}");
+    }
+
+    /// <summary>
+    /// Детали истории запуска с маркером пользовательских команд (0.3.9.98):
+    /// например «pre: ras connect …; post: start …». Пустые части пропускаются.
+    /// </summary>
+    private static string BuildLaunchDetails(string baseDetails, Infobase ib)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(baseDetails))
+            parts.Add(baseDetails);
+        if (!string.IsNullOrWhiteSpace(ib.PreLaunchCommand))
+            parts.Add("pre: " + ib.PreLaunchCommand);
+        if (!string.IsNullOrWhiteSpace(ib.PostLaunchCommand))
+            parts.Add("post: " + ib.PostLaunchCommand);
+        return string.Join("; ", parts);
     }
 
     /// <summary>
@@ -606,25 +680,40 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public void LaunchAllBookmarks()
     {
-        foreach (var key in BookmarkSlotHelper.GetAllKeys(_favoriteHotkeyIds))
+        _ = LaunchAllBookmarksCoreAsync();
+    }
+
+    /// <summary>Асинхронное ядро массового запуска: для каждой базы — pre → запуск → post.</summary>
+    private async Task LaunchAllBookmarksCoreAsync()
+    {
+        try
         {
-            var ib = FindByFavoriteKey(key);
-            if (ib is null)
-                continue;
-            var ok = _launcher.Launch(ib, Services.OneCLaunchMode.Enterprise);
-            if (ok)
+            foreach (var key in BookmarkSlotHelper.GetAllKeys(_favoriteHotkeyIds))
             {
-                ib.AddLaunchHistory("Enterprise", "bookmarks");
-                SaveSilently();
-                OnPropertyChanged(nameof(RecentInfobases));
-                _logger.Info($"Запущена избранная база «{ib.Name}» по Alt+E");
+                var ib = FindByFavoriteKey(key);
+                if (ib is null)
+                    continue;
+                await RunPreLaunchScriptAsync(ib);
+                var ok = _launcher.Launch(ib, Services.OneCLaunchMode.Enterprise);
+                if (ok)
+                {
+                    RunPostLaunchScript(ib);
+                    ib.AddLaunchHistory("Enterprise", BuildLaunchDetails("bookmarks", ib));
+                    SaveSilently();
+                    OnPropertyChanged(nameof(RecentInfobases));
+                    _logger.Info($"Запущена избранная база «{ib.Name}» по Alt+E");
+                }
+                else
+                {
+                    _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+E");
+                }
             }
-            else
-            {
-                _logger.Warn($"Не удалось запустить избранную базу «{ib.Name}» по Alt+E");
-            }
+            NotifyAfterLaunch();
         }
-        NotifyAfterLaunch();
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка массового запуска закладок (Alt+E)", ex);
+        }
     }
 
     /// <summary>Занятые слоты с базами в порядке нумерации (для меню Ctrl+B).</summary>
