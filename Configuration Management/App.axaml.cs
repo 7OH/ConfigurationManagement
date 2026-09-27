@@ -179,7 +179,7 @@ namespace Configuration_Management
                         LocalizationManager.Instance.Initialize(null, DataDirectory);
                     }
 
-                    var selectedId = LoginWindow.ShowLogin(profileService);
+                    var (selectedId, passwordEntered) = LoginWindow.ShowLogin(profileService);
                     if (selectedId == null)
                     {
                         // Вход отменён — завершаем приложение.
@@ -187,6 +187,9 @@ namespace Configuration_Management
                         return;
                     }
                     profileService.SetCurrentProfile(selectedId);
+                    // Вход с паролем автоматически разблокирует приватные базы (0.3.9.85).
+                    if (passwordEntered)
+                        profileService.MarkPrivateBasesUnlocked();
                 }
                 else
                 {

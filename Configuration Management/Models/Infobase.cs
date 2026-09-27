@@ -84,6 +84,20 @@ public class Infobase : INotifyPropertyChanged
         set => SetProperty(ref _isPinned, value);
     }
 
+    private bool _isPrivate;
+
+    /// <summary>
+    /// Признак приватной базы (0.3.9.85): база скрывается из всех списков
+    /// (дерево, поиск, теги, трей, палитра, недавние, CLI), пока активный профиль
+    /// не разблокирован его паролем (<see cref="Services.IProfileService.CanShowPrivateBases"/>).
+    /// Для профиля без пароля приватность не действует: базы всегда видны.
+    /// </summary>
+    public bool IsPrivate
+    {
+        get => _isPrivate;
+        set => SetProperty(ref _isPrivate, value);
+    }
+
     private bool _isSelected;
 
     /// <summary>Признак выбранной базы в дереве (для синхронизации с TreeViewItem.IsSelected).</summary>

@@ -252,7 +252,9 @@ public partial class MainViewModel : ViewModelBase
     private (System.Collections.Generic.List<CommandPaletteItem> Bases,
              System.Collections.Generic.List<CommandPaletteItem> Commands) BuildPaletteSource()
     {
+        // Приватные базы заблокированного профиля в палитру не попадают (0.3.9.85).
         var bases = Infobases
+            .Where(IsVisibleForPrivateFilter)
             .OrderByDescending(b => b.FavoriteHotkeyNumber > 0)
             .ThenBy(b => b.FavoriteHotkeyNumber > 0 ? b.FavoriteHotkeyNumber : int.MaxValue)
             .ThenBy(b => b.Name, StringComparer.OrdinalIgnoreCase)

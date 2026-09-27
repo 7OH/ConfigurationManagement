@@ -563,7 +563,7 @@ namespace Configuration_Management
 
         private Control BuildBaseTab()
         {
-            var fields = FieldsGrid(4);
+            var fields = FieldsGrid(5);
             Place(fields, 0, "Connection.NameLabel", Tb("Name"));
 
             var groupPath = Tb("GroupDisplayPath", readOnly: true);
@@ -594,6 +594,22 @@ namespace Configuration_Management
             Grid.SetRow(manualSizeText, 3);
             Grid.SetColumn(manualSizeText, 1);
             fields.Children.Add(manualSizeText);
+
+            // Приватная база (0.3.9.85): скрывается из списков, пока профиль не
+            // разблокирован паролем. При включении без пароля профиля OnSave_Click
+            // предложит задать пароль.
+            var privateCheck = new CheckBox
+            {
+                Content = LocalizationManager.T("Connection.PrivateBase"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 3)
+            };
+            privateCheck.Bind(CheckBox.IsCheckedProperty,
+                new Binding(nameof(ConnectionSettingsViewModel.IsPrivate)) { Mode = BindingMode.TwoWay });
+            ToolTip.SetTip(privateCheck, LocalizationManager.T("Connection.PrivateBaseTooltip"));
+            Grid.SetRow(privateCheck, 4);
+            Grid.SetColumn(privateCheck, 0);
+            fields.Children.Add(privateCheck);
 
             var baseGroup = Group("IconDatabase", "Connection.GroupBase", fields);
 
@@ -1282,6 +1298,25 @@ namespace Configuration_Management
             }
 
             _viewModel.ApplyTo(Result);
+
+            // Приватная база требует пароль профиля (0.3.9.85): при включении флага
+            // у профиля без пароля предлагаем его задать. Отказ — сохранять нельзя:
+            // база с приватностью исчезнет из списков и станет недоступной.
+            if (Result.IsPrivate)
+            {
+                var profileService = AppServices.GetRequiredService<IProfileService>();
+                if (profileService.CurrentProfile?.HasPassword != true)
+                {
+                    var setupWin = new PrivateBasesUnlockWindow(setupMode: true);
+                    setupWin.ShowDialogSync(this);
+                    if (!setupWin.PasswordSet)
+                    {
+                        _dialogs.ShowWarning(LocalizationManager.T("Private.NeedPasswordToEnable"),
+                            LocalizationManager.T("Private.SetupTitle"));
+                        return;
+                    }
+                }
+            }
 
             if (string.IsNullOrWhiteSpace(Result.Id))
             {

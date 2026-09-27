@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.84</Version>
-    <AssemblyVersion>0.3.9.84</AssemblyVersion>
-    <FileVersion>0.3.9.84</FileVersion>
-    <InformationalVersion>0.3.9.84</InformationalVersion>
+    <Version>0.3.9.85</Version>
+    <AssemblyVersion>0.3.9.85</AssemblyVersion>
+    <FileVersion>0.3.9.85</FileVersion>
+    <InformationalVersion>0.3.9.85</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -227,6 +227,9 @@
     <!-- Командная палитра (Ctrl+K): WPF code-behind исключается, Avalonia-версия
          (CommandPaletteWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\CommandPaletteWindow.xaml.cs" />
+    <!-- Окно разблокировки приватных баз (0.3.9.85): WPF code-behind исключается,
+         Avalonia-версия (PrivateBasesUnlockWindow.Avalonia.cs) подключается глобом ниже. -->
+    <Compile Remove="Views\PrivateBasesUnlockWindow.xaml.cs" />
     <!-- Окно выбора баз (выборочный экспорт/импорт): WPF code-behind исключается,
          Avalonia-версия (BaseSelectionWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\BaseSelectionWindow.xaml.cs" />
@@ -314,6 +317,9 @@
     <!-- Режим функциональности (Этап 10 StartManager): имя «MainViewModel.Avalonia.*.cs»
          не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
     <Compile Include="ViewModels\MainViewModel.Avalonia.Functional.cs" />
+    <!-- Команда разблокировки приватных баз (0.3.9.85): имя «MainViewModel.Avalonia.*.cs»
+         не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
+    <Compile Include="ViewModels\MainViewModel.Avalonia.PrivateBases.cs" />
     <!-- Windows-only сервисы — Этап 5 -->
     <Compile Remove="Services\WpfDialogService.cs" />
     <!-- Проверка обновлений из GitHub Releases кроссплатформенная: на Linux тоже используется

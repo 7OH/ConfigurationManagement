@@ -181,10 +181,12 @@ public partial class MainViewModel : ViewModelBase
         !string.IsNullOrEmpty(tag) && _activeTagFilters.Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// Уникальные теги всех баз для панели быстрого отбора.
+    /// Уникальные теги всех баз для панели быстрого отбора. Приватные базы,
+    /// скрытые из-за заблокированного профиля (0.3.9.85), своих тегов не дают.
     /// </summary>
     public IEnumerable<string> AvailableTags =>
         Infobases
+            .Where(IsVisibleForPrivateFilter)
             .SelectMany(i => i.Tags)
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -199,7 +201,9 @@ public partial class MainViewModel : ViewModelBase
     public void RefreshTagFilterItems()
     {
         var selected = new HashSet<string>(_activeTagFilters, StringComparer.OrdinalIgnoreCase);
+        // Приватные базы заблокированного профиля скрыты — их теги в панель не попадают (0.3.9.85).
         var tags = Infobases
+            .Where(IsVisibleForPrivateFilter)
             .SelectMany(i => i.Tags)
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Distinct(StringComparer.OrdinalIgnoreCase)

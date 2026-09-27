@@ -320,6 +320,25 @@ namespace Configuration_Management
             // Применяем значения из ViewModel к результату.
             _viewModel.ApplyTo(Result);
 
+            // Приватная база требует пароль профиля (0.3.9.85): при включении флага
+            // у профиля без пароля предлагаем его задать. Отказ — сохранять нельзя:
+            // база с приватностью исчезнет из списков и станет недоступной.
+            if (Result.IsPrivate)
+            {
+                var profileService = AppServices.GetRequiredService<Services.IProfileService>();
+                if (profileService.CurrentProfile?.HasPassword != true)
+                {
+                    var setupWin = new PrivateBasesUnlockWindow(setupMode: true) { Owner = this };
+                    setupWin.ShowDialog();
+                    if (!setupWin.PasswordSet)
+                    {
+                        _dialogs.ShowWarning(LocalizationManager.T("Private.NeedPasswordToEnable"),
+                            LocalizationManager.T("Private.SetupTitle"));
+                        return;
+                    }
+                }
+            }
+
             // Если ID базы 1С не задан — пытаемся найти его в файле ibases.v8i
             // по имени базы или строке подключения. Это позволяет корректно
             // очищать кеш 1С точечно по ID даже для баз, созданных вручную.

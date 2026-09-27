@@ -516,7 +516,28 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Перебирает базы с учётом фильтров (избранное, поиск, тег) без ICollectionView.Refresh.
+    /// true, если база должна показываться в списках с учётом приватности (0.3.9.85):
+    /// не приватная — всегда; приватная — только когда активный профиль разблокирован
+    /// паролем (или у профиля нет пароля). Сбой получения сервиса (тестовый контекст)
+    /// не скрывает базы — приватность там не задействована.
+    /// </summary>
+    private bool IsVisibleForPrivateFilter(Infobase infobase)
+    {
+        if (!infobase.IsPrivate)
+            return true;
+        try
+        {
+            return AppServices.GetRequiredService<Services.IProfileService>().CanShowPrivateBases;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Перебирает базы с учётом фильтров (приватность, избранное, поиск, тег)
+    /// без ICollectionView.Refresh.
     /// </summary>
     private IEnumerable<Infobase> EnumerateFilteredInfobases()
     {
@@ -525,7 +546,7 @@ public partial class MainViewModel : ViewModelBase
         var hasTags = _activeTagFilterSet.Count > 0;
         var mode = _listViewMode;
 
-        IEnumerable<Infobase> source = Infobases;
+        IEnumerable<Infobase> source = Infobases.Where(IsVisibleForPrivateFilter);
         if (mode == ListViewMode.Favorites)
             source = source.Where(i => i.IsFavorite);
         else if (mode == ListViewMode.Recent)

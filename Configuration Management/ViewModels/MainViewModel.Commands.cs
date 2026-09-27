@@ -606,11 +606,14 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Запускает избранную базу по номеру горячей клавиши (1–9 → Alt+N).</summary>
 
-    /// <summary>Недавние базы по дате последнего запуска (для меню трея).</summary>
+    /// <summary>
+    /// Недавние базы по дате последнего запуска (для меню трея).
+    /// Приватные базы заблокированного профиля не показываются (0.3.9.85).
+    /// </summary>
     public System.Collections.Generic.IReadOnlyList<Models.Infobase> GetRecentInfobases(int count = 7)
     {
         return Infobases
-            .Where(i => i.LastLaunchDate.HasValue)
+            .Where(i => i.LastLaunchDate.HasValue && IsVisibleForPrivateFilter(i))
             .OrderByDescending(i => i.LastLaunchDate)
             .Take(Math.Max(1, count))
             .ToList();
@@ -981,9 +984,13 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Публичный доступ к упорядоченному списку ключей избранного (для настроек).</summary>
     public IReadOnlyList<string> FavoriteHotkeyIds => _favoriteHotkeyIds;
 
-    /// <summary>Возвращает базу по ключу слота избранного.</summary>
+    /// <summary>
+    /// Возвращает базу по ключу слота избранного. Приватная база заблокированного
+    /// профиля не возвращается: она не должна запускаться ни горячей клавишей,
+    /// ни из трея, ни из палитры (0.3.9.85).
+    /// </summary>
     public Infobase? FindByFavoriteKey(string key) =>
-        Infobases.FirstOrDefault(ib => FavoriteKey(ib) == key);
+        Infobases.FirstOrDefault(ib => FavoriteKey(ib) == key && IsVisibleForPrivateFilter(ib));
 
     /// <summary>
     /// Заменяет порядок слотов горячих клавиш (из окна настроек).
@@ -1355,7 +1362,9 @@ public string HotkeyEnterprise
     private (System.Collections.Generic.List<CommandPaletteItem> Bases,
              System.Collections.Generic.List<CommandPaletteItem> Commands) BuildPaletteSource()
     {
+        // Приватные базы заблокированного профиля в палитру не попадают (0.3.9.85).
         var bases = Infobases
+            .Where(IsVisibleForPrivateFilter)
             .OrderByDescending(b => b.FavoriteHotkeyNumber > 0)
             .ThenBy(b => b.FavoriteHotkeyNumber > 0 ? b.FavoriteHotkeyNumber : int.MaxValue)
             .ThenBy(b => b.Name, StringComparer.OrdinalIgnoreCase)

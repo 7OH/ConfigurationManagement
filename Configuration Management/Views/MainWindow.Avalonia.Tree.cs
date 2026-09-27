@@ -1631,6 +1631,9 @@ namespace Configuration_Management
             // Смена пароля блокировки: пароль больше не «одноразовый» (issue #294).
             menu.Items.Add(MenuAction("AppLock.ChangeMenu", _vm.ChangeAppLockCommand, "", "IconAccountKey", "#8B5CF6", "AppLock.ChangeMenuTooltip"));
             menu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
+            // Приватные базы (0.3.9.85): разблокировка паролем профиля открывает скрытые
+            // базы; при отсутствии пароля профиля — предлагает его задать.
+            menu.Items.Add(MenuAction("Private.OpenCommand", _vm.UnlockPrivateBasesCommand, "", "IconAccountKey", "#22C55E"));
 
             // Обслуживание списка и приложения (issue #279): удаление отсутствующих
             // файловых баз, завершение процессов платформы и проверка обновлений самого

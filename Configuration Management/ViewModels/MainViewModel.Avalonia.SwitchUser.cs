@@ -41,7 +41,7 @@ public partial class MainViewModel : ViewModelBase
                 return;
 
             var current = profileService.CurrentProfile;
-            var selectedId = LoginWindow.ShowLogin(profileService);
+            var (selectedId, passwordEntered) = LoginWindow.ShowLogin(profileService);
             if (selectedId == null)
                 return; // Вход отменён — остаёмся как есть.
 
@@ -50,6 +50,9 @@ public partial class MainViewModel : ViewModelBase
                 return; // Та же запись — перезагрузка не нужна.
 
             profileService.SetCurrentProfile(selectedId);
+            // Вход с паролем автоматически разблокирует приватные базы (0.3.9.85).
+            if (passwordEntered)
+                profileService.MarkPrivateBasesUnlocked();
             ReloadAfterProfileSwitch();
         }
         catch (Exception ex)

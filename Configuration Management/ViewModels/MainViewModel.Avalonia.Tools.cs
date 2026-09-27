@@ -1017,8 +1017,9 @@ public partial class MainViewModel : ViewModelBase
     /// как в Windows-версии (MainWindow.Tray.cs:216 запрашивает семь).
     /// </summary>
     public List<Infobase> RecentInfobases =>
+        // Приватные базы заблокированного профиля в меню трея не показываются (0.3.9.85).
         _allInfobases
-            .Where(ib => ib.LastLaunchDate.HasValue)
+            .Where(ib => ib.LastLaunchDate.HasValue && IsVisibleForPrivateFilter(ib))
             .OrderByDescending(ib => ib.LastLaunchDate)
             .Take(7)
             .ToList();

@@ -44,6 +44,8 @@ public class ConnectionSettingsViewModel : ViewModelBase
     private string _configuratorUser = string.Empty;
     private string _configuratorPassword = string.Empty;
     private bool _configuratorUseEnterpriseAuth;
+    /// <summary>Признак приватной базы (0.3.9.85): скрыта, пока профиль не разблокирован паролем.</summary>
+    private bool _isPrivate;
     private string _defaultLaunchMode = string.Empty;
     private string _doubleClickAction = Configuration_Management.Models.DoubleClickAction.Default;
     private string _externalProcessingPath = string.Empty;
@@ -768,6 +770,17 @@ public class ConnectionSettingsViewModel : ViewModelBase
     public bool IsConfiguratorAuthEnabled => !_configuratorUseEnterpriseAuth;
 
     /// <summary>
+    /// Признак приватной базы (0.3.9.85): база скрывается из всех списков, пока
+    /// активный профиль не разблокирован паролем. Включать можно только при
+    /// наличии пароля у профиля — иначе окно свойств предложит его задать.
+    /// </summary>
+    public bool IsPrivate
+    {
+        get => _isPrivate;
+        set => SetProperty(ref _isPrivate, value);
+    }
+
+    /// <summary>
     /// Режим запуска базы по умолчанию (при двойном клике на базе): пусто — автоматически
     /// (1С:Предприятие), "Enterprise" — 1С:Предприятие, "Configurator" — Конфигуратор.
     /// </summary>
@@ -1131,6 +1144,9 @@ public class ConnectionSettingsViewModel : ViewModelBase
             // значения «1С:Предприятия» уже из загруженных выше полей.
             ConfiguratorUseEnterpriseAuth = infobase.ConfiguratorUseEnterpriseAuth;
 
+            // Приватная база (0.3.9.85): флаг скрытия до разблокировки профиля паролем.
+            IsPrivate = infobase.IsPrivate;
+
             // Теги базы (issue #283): загружаем текущие теги для редактирования.
             Tags.Clear();
             foreach (var t in infobase.Tags ?? new List<string>())
@@ -1230,6 +1246,9 @@ public class ConnectionSettingsViewModel : ViewModelBase
 
         // Теги базы (issue #283): переносим отредактированные теги.
         infobase.Tags = Tags.ToList();
+
+        // Приватная база (0.3.9.85): флаг скрытия до разблокировки профиля паролем.
+        infobase.IsPrivate = IsPrivate;
 
         // Ручной размер базы (issue #243).
         infobase.ManualSizeBytes = ManualSizeBytes;

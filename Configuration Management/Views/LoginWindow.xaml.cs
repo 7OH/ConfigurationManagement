@@ -22,10 +22,19 @@ namespace Configuration_Management
         public string? SelectedProfileId { get; private set; }
 
         /// <summary>
-        /// Создаёт окно авторизации и, если пользователь вошёл, возвращает идентификатор
-        /// выбранного профиля; иначе — null (приложение завершает работу).
+        /// true, если вход выполнен с верным паролем защищённого профиля — приватные
+        /// базы разблокируются автоматически (0.3.9.85). Для профиля без пароля false.
         /// </summary>
-        public static string? ShowLogin(IProfileService profileService)
+        public bool PasswordEntered { get; private set; }
+
+        /// <summary>
+        /// Показывает окно авторизации и, если пользователь вошёл, возвращает идентификатор
+        /// выбранного профиля и признак входа с паролем; иначе — (null, false) — приложение
+        /// завершает работу. При входе с паролем вызывающий код после
+        /// <see cref="IProfileService.SetCurrentProfile"/> должен взвести флаг разблокировки
+        /// приватных баз (MarkPrivateBasesUnlocked), так как SetCurrentProfile его сбрасывает.
+        /// </summary>
+        public static (string? ProfileId, bool PasswordEntered) ShowLogin(IProfileService profileService)
         {
             ApplyActiveTheme();
 
@@ -40,7 +49,7 @@ namespace Configuration_Management
                 window.Owner = owner;
 
             window.ShowDialog();
-            return window.SelectedProfileId;
+            return (window.SelectedProfileId, window.PasswordEntered);
         }
 
         /// <summary>
@@ -136,6 +145,10 @@ namespace Configuration_Management
                 }
 
                 SelectedProfileId = profile.Id;
+                // Вход с паролем защищённого профиля автоматически разблокирует
+                // приватные базы (0.3.9.85). Флаг взводит вызывающий код ПОСЛЕ
+                // SetCurrentProfile, который сбрасывает его для нового профиля.
+                PasswordEntered = profile.HasPassword;
                 DialogResult = true;
             }
             catch (Exception ex)

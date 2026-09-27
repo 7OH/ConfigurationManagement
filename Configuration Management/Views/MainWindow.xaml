@@ -676,6 +676,11 @@
                                         <MenuItem Header="{loc:Loc AppLock.ChangeMenu}" Command="{Binding ChangeAppLockCommand}" Style="{DynamicResource ModernMenuItem}" ToolTip="{loc:Loc AppLock.ChangeMenuTooltip}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Key" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Приватные базы (0.3.9.85): разблокировка паролем профиля открывает
+                                             скрытые базы; при отсутствии пароля профиля — предлагает его задать. -->
+                                        <MenuItem Header="{loc:Loc Private.OpenCommand}" Command="{Binding UnlockPrivateBasesCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="LockOpenVariant" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.Bases.RemoveMissing}" Command="{Binding RemoveMissingFileBasesCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="FolderRemove" Width="16" Height="16" Foreground="#EF4444"/></MenuItem.Icon>

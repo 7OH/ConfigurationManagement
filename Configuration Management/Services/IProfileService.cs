@@ -54,6 +54,38 @@ public interface IProfileService
     /// <summary>Проверяет пароль профиля.</summary>
     bool VerifyPassword(string id, string password);
 
+    /// <summary>
+    /// Приватные базы (0.3.9.85) разблокированы в текущей сессии: пользователь
+    /// ввёл пароль активного профиля (или вошёл с паролем через окно авторизации).
+    /// Session-флаг — сбрасывается при смене профиля; при выходе теряется сам.
+    /// </summary>
+    bool IsPrivateBasesUnlocked { get; }
+
+    /// <summary>
+    /// true, если приватные базы должны показываться в списках: профиль без пароля
+    /// (защищать нечем — приватность не действует) либо профиль с паролем уже
+    /// разблокирован (<see cref="IsPrivateBasesUnlocked"/>).
+    /// </summary>
+    bool CanShowPrivateBases { get; }
+
+    /// <summary>
+    /// Разблокирует приватные базы верным паролем активного профиля. Для профиля
+    /// без пароля флаг взводится без проверки (приватность не действует).
+    /// </summary>
+    /// <returns>True, если разблокировка выполнена (пароль верен или пароль не задан).</returns>
+    bool UnlockPrivateBases(string password);
+
+    /// <summary>
+    /// Отмечает приватные базы разблокированными после успешного входа через
+    /// <c>LoginWindow</c> с паролем профиля (авто-разблокировка при запуске/смене
+    /// пользователя). Вызывается ПОСЛЕ <see cref="SetCurrentProfile"/>, который
+    /// сбрасывает флаг для нового профиля.
+    /// </summary>
+    void MarkPrivateBasesUnlocked();
+
+    /// <summary>Сбрасывает разблокировку приватных баз (при смене профиля).</summary>
+    void ResetPrivateBasesUnlock();
+
     /// <summary>Делает профиль активным и запоминает его как использованный последним.</summary>
     void SetCurrentProfile(string id);
 

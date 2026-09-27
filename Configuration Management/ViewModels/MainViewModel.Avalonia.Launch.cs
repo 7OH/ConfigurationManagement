@@ -377,9 +377,12 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Упорядоченный список ключей слотов, для окна настроек.</summary>
     public IReadOnlyList<string> FavoriteHotkeyIds => _favoriteHotkeyIds;
 
-    /// <summary>Возвращает базу по ключу слота.</summary>
+    /// <summary>
+    /// Возвращает базу по ключу слота. Приватная база заблокированного профиля
+    /// не возвращается: она не запускается ни горячей клавишей, ни из трея (0.3.9.85).
+    /// </summary>
     public Infobase? FindByFavoriteKey(string key) =>
-        _allInfobases.FirstOrDefault(ib => FavoriteKey(ib) == key);
+        _allInfobases.FirstOrDefault(ib => FavoriteKey(ib) == key && IsVisibleForPrivateFilter(ib));
 
     /// <summary>
     /// Избранные базы в порядке слотов 1…9 (для меню трея и командной палитры):

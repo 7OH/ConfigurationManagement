@@ -121,9 +121,17 @@ public static class CommandLineHandler
             var repository = AppServices.GetRequiredService<IInfobaseRepository>();
             var logger = AppServices.GetRequiredService<IAppLogger>();
 
+            // Приватные базы заблокированного профиля не показываются и в списке,
+            // и не запускаются (0.3.9.85): CLI работает без окна входа, поэтому
+            // разблокировка паролем здесь невозможна по построению.
+            var profileService = AppServices.GetRequiredService<IProfileService>();
+            bool IsPrivateVisible(Models.Infobase ib) => !ib.IsPrivate || profileService.CanShowPrivateBases;
+
             if (action == CommandLineAction.List)
             {
-                foreach (var ib in repository.Load().OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase))
+                foreach (var ib in repository.Load()
+                             .Where(IsPrivateVisible)
+                             .OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase))
                 {
                     var kind = ib.Connection?.Type switch
                     {
@@ -150,6 +158,18 @@ public static class CommandLineHandler
                 Console.Error.WriteLine($"[cli] База не найдена: '{target}'");
                 logger.Warn($"[cli] База не найдена: '{target}'");
                 exitCode = 1;
+                return true;
+            }
+
+            // Приватная база заблокированного профиля: запуск из CLI запрещён (0.3.9.85).
+            // Разблокировать её можно только в работающем приложении паролем профиля.
+            if (!IsPrivateVisible(infobase))
+            {
+                Console.Error.WriteLine(
+                    $"[cli] База «{infobase.Name}» приватная: откройте приложение и разблокируйте " +
+                    "приватные базы паролем профиля (меню «Утилиты» → «Открыть приватные базы»).");
+                logger.Warn($"[cli] Отказ запуска приватной базы «{infobase.Name}» (профиль не разблокирован)");
+                exitCode = 4;
                 return true;
             }
 

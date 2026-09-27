@@ -54,6 +54,11 @@ public class ProfileService : IProfileService
     private UserProfile? _currentProfile;
     private bool _initialized;
 
+    // Session-флаг разблокировки приватных баз (0.3.9.85): взводится верным паролем
+    // активного профиля (или входом с паролем через LoginWindow), сбрасывается при
+    // смене профиля. При завершении приложения значение теряется само.
+    private bool _isPrivateBasesUnlocked;
+
     /// <summary>
     /// Оповещает подписчиков об изменении реестра учётных записей (создание/переименование/
     /// удаление профиля, смена пароля или активной записи). Используется для актуализации
@@ -252,9 +257,55 @@ public class ProfileService : IProfileService
         var profile = FindProfile(id) ?? throw new InvalidOperationException("Профиль не найден.");
         _currentProfile = profile;
         _lastProfileId = profile.Id;
+        // Приватные базы нового профиля разблокируются только его собственным
+        // паролем: флаг чужой сессии не переносится (0.3.9.85).
+        ResetPrivateBasesUnlock();
         SaveRegistry();
         NotifyProfilesChanged();
     }
+
+    // ------------------------------------------------------- приватные базы (0.3.9.85)
+
+    /// <inheritdoc />
+    public bool IsPrivateBasesUnlocked => _isPrivateBasesUnlocked;
+
+    /// <inheritdoc />
+    public bool CanShowPrivateBases
+    {
+        get
+        {
+            EnsureInitialized();
+            // Профиль без пароля защищать нечем: приватность для него не действует,
+            // базы показываются всегда. Для профиля с паролем нужна разблокировка.
+            return _currentProfile?.HasPassword != true || _isPrivateBasesUnlocked;
+        }
+    }
+
+    /// <inheritdoc />
+    public bool UnlockPrivateBases(string password)
+    {
+        EnsureInitialized();
+
+        if (_currentProfile?.HasPassword != true)
+        {
+            _isPrivateBasesUnlocked = true;
+            return true;
+        }
+
+        if (VerifyPassword(_currentProfile.Id, password ?? string.Empty))
+        {
+            _isPrivateBasesUnlocked = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc />
+    public void MarkPrivateBasesUnlocked() => _isPrivateBasesUnlocked = true;
+
+    /// <inheritdoc />
+    public void ResetPrivateBasesUnlock() => _isPrivateBasesUnlocked = false;
 
     // ---------------------------------------------------------------- internals
 

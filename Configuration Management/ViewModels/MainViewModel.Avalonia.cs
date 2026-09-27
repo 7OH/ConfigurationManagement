@@ -827,7 +827,8 @@ public partial class MainViewModel : ViewModelBase
         pinnedNode.SetNotificationsSuppressed(true);
         noGroupNode.SetNotificationsSuppressed(true);
 
-        foreach (var infobase in ApplyCurrentSort(_allInfobases))
+        // Приватные базы заблокированного профиля в дерево не раскладываются (0.3.9.85).
+        foreach (var infobase in ApplyCurrentSort(_allInfobases).Where(IsVisibleForPrivateFilter))
         {
             if (infobase.IsPinned)
                 pinnedNode.Infobases.Add(infobase);
@@ -875,6 +876,26 @@ public partial class MainViewModel : ViewModelBase
     private bool IsFilterModeActive() =>
         !string.IsNullOrWhiteSpace(SearchText) || HasActiveTagFilter || _listMode != "All";
 
+    /// <summary>
+    /// true, если база должна показываться в списках с учётом приватности (0.3.9.85):
+    /// не приватная — всегда; приватная — только когда активный профиль разблокирован
+    /// паролем (или у профиля нет пароля). Сбой получения сервиса (тестовый контекст)
+    /// не скрывает базы — приватность там не задействована.
+    /// </summary>
+    private bool IsVisibleForPrivateFilter(Infobase ib)
+    {
+        if (!ib.IsPrivate)
+            return true;
+        try
+        {
+            return AppServices.GetRequiredService<Services.IProfileService>().CanShowPrivateBases;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
     /// <summary>Применяет фильтр по виду списка и поиску.</summary>
     private void ApplyFilter()
     {
@@ -893,11 +914,15 @@ public partial class MainViewModel : ViewModelBase
         {
             // В режиме «Недавние» порядок задаёт дата запуска, в остальных —
             // выбранное поле сортировки.
+            // Приватные базы заблокированного профиля скрыты и в плоском списке,
+            // и при отключённой группировке (0.3.9.85).
             var matched = filterActive ? _allInfobases.Where(MatchesFilter) : _allInfobases;
             var visible = (_listMode == "Recent"
                 ? matched.OrderByDescending(i => i.LastLaunchDate ?? DateTime.MinValue)
                          .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
-                : ApplyCurrentSort(matched)).ToList();
+                : ApplyCurrentSort(matched))
+                .Where(IsVisibleForPrivateFilter)
+                .ToList();
 
             FlatItems.Clear();
             foreach (var ib in visible)
@@ -947,6 +972,9 @@ public partial class MainViewModel : ViewModelBase
 
     private bool MatchesFilter(Infobase ib)
     {
+        // Приватная база заблокированного профиля не проходит ни один фильтр (0.3.9.85).
+        if (!IsVisibleForPrivateFilter(ib))
+            return false;
         if (_listMode == "Favorites" && !ib.IsFavorite)
             return false;
         if (_listMode == "Recent" && ib.LastLaunchDate is null)
@@ -984,7 +1012,9 @@ public partial class MainViewModel : ViewModelBase
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         TagFilterItems.Clear();
+        // Приватные базы заблокированного профиля скрыты — их теги в панель не попадают (0.3.9.85).
         foreach (var tag in _allInfobases
+                     .Where(IsVisibleForPrivateFilter)
                      .SelectMany(ib => ib.Tags)
                      .Where(t => !string.IsNullOrWhiteSpace(t))
                      .Select(t => t.Trim())
