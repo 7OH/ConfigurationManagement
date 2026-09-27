@@ -9,6 +9,28 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.91] — 2026-09-27
+
+### Добавлено
+
+- **Экспорт списка баз в CSV** (обе платформы) — команда «Экспорт списка баз в CSV…»
+  в меню «Утилиты» главного окна выгружает ВСЕ базы, которые пользователь видит
+  сейчас (приватные базы заблокированного профиля скрыты; учитываются режим списка
+  «Избранное»/«Недавние», поиск и отбор по тегам — тот же набор, что в дереве),
+  в CSV-файл, открываемый в Excel: имя базы, полный путь группы, тип подключения,
+  строка подключения, теги, номер закладки 1–9, признак закрепления, дата изменений
+  файла ИБ (ГГГГ-ММ-ДД ЧЧ:ММ) и размер ИБ. Файл пишется в UTF-8 с BOM (иначе Excel
+  не распознаёт кириллицу), разделитель «;» (стандарт русской локали Excel),
+  экранирование полей по RFC 4180. Логика экранирования — чистый класс
+  [`Services/CsvExporter.cs`](Configuration%20Management/Services/CsvExporter.cs),
+  команды — [`ViewModels/MainViewModel.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs)
+  и [`ViewModels/MainViewModel.Avalonia.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Tools.cs),
+  пункт меню — [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml)
+  и [`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs).
+  Имя файла по умолчанию `Bases_YYYY-MM-DD.csv`, после экспорта — уведомление
+  о количестве выгруженных баз. Класс покрыт unit-тестами
+  ([`ConfigurationManagement.Tests/CsvExporterTests.cs`](ConfigurationManagement.Tests/CsvExporterTests.cs)).
+
 ## [0.3.9.90] — 2026-09-27
 
 ### Добавлено

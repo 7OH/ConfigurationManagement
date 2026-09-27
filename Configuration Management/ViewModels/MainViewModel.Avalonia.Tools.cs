@@ -328,6 +328,101 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Экспортирует ВСЕ базы, которые пользователь видит сейчас (с учётом фильтра
+    /// приватных баз, режима списка, поиска и тегов — тот же набор, что в дереве),
+    /// в CSV-файл, открываемый в Excel (0.3.9.91).
+    /// </summary>
+    public void ExportBasesCsv()
+    {
+        // Тот же набор, что в ApplyFilter: MatchesFilter учитывает приватность,
+        // режим списка («Избранное»/«Недавние»), поиск и отбор по тегам.
+        var visible = _allInfobases.Where(MatchesFilter).ToList();
+        if (visible.Count == 0)
+        {
+            _dialog.ShowInfo(LocalizationManager.T("Main.ExportEmpty"),
+                LocalizationManager.T("ExportCsv.Title"));
+            return;
+        }
+
+        var path = _dialog.SaveFileDialog(
+            LocalizationManager.T("ExportCsv.Title"),
+            $"Bases_{DateTime.Now:yyyy-MM-dd}.csv",
+            LocalizationManager.T("ExportCsv.FileFilter"));
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        try
+        {
+            CsvExporter.WriteFile(path, BuildCsvRows(visible));
+
+            _dialog.ShowInfo(
+                string.Format(LocalizationManager.T("ExportCsv.Success"), visible.Count, path),
+                LocalizationManager.T("ExportCsv.Title"));
+            _logger.Info($"Список баз ({visible.Count}) выгружен в CSV: {path}");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка экспорта списка баз в CSV", ex);
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("ExportCsv.Error"), ex.Message),
+                LocalizationManager.T("Main.ExportErrorTitle"));
+        }
+    }
+
+    /// <summary>Строки CSV-документа: локализованный заголовок + по строке на видимую базу.</summary>
+    private static List<string[]> BuildCsvRows(IEnumerable<Infobase> bases)
+    {
+        var rows = new List<string[]>
+        {
+            new[]
+            {
+                LocalizationManager.T("ExportCsv.ColName"),
+                LocalizationManager.T("ExportCsv.ColGroup"),
+                LocalizationManager.T("ExportCsv.ColType"),
+                LocalizationManager.T("ExportCsv.ColConnection"),
+                LocalizationManager.T("ExportCsv.ColTags"),
+                LocalizationManager.T("ExportCsv.ColFavorite"),
+                LocalizationManager.T("ExportCsv.ColPinned"),
+                LocalizationManager.T("ExportCsv.ColModified"),
+                LocalizationManager.T("ExportCsv.ColSize")
+            }
+        };
+
+        foreach (var ib in bases)
+        {
+            rows.Add(new[]
+            {
+                ib.Name,
+                ib.Group ?? string.Empty,
+                ib.ConnectionTypeDisplay,
+                ib.ConnectionStringDisplay,
+                string.Join(", ", ib.Tags),
+                ib.FavoriteHotkeyNumber >= 1 && ib.FavoriteHotkeyNumber <= 9
+                    ? ib.FavoriteHotkeyNumber.ToString()
+                    : string.Empty,
+                ib.IsPinned ? LocalizationManager.T("ExportCsv.Yes") : LocalizationManager.T("ExportCsv.No"),
+                FormatCsvModified(ib),
+                FormatCsvSize(ib)
+            });
+        }
+        return rows;
+    }
+
+    /// <summary>Дата изменений файла ИБ в формате ГГГГ-ММ-ДД ЧЧ:ММ (локальное время) или пусто.</summary>
+    private static string FormatCsvModified(Infobase ib) =>
+        ib.FileLastWriteTimeUtc.HasValue
+            ? ib.FileLastWriteTimeUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            : string.Empty;
+
+    /// <summary>Размер ИБ в удобочитаемом виде, если известен; иначе пусто.</summary>
+    private static string FormatCsvSize(Infobase ib)
+    {
+        if (ib.ManualSizeBytes.HasValue)
+            return Infobase.FormatSize(ib.ManualSizeBytes.Value);
+        return ib.FileSizeBytes.HasValue ? Infobase.FormatSize(ib.FileSizeBytes.Value) : string.Empty;
+    }
+
     // ======================= Выборочный экспорт/импорт баз =======================
 
     private System.Windows.Input.ICommand? _exportSelectedInfobasesCommand;

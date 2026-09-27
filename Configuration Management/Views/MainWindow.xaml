@@ -714,6 +714,11 @@
                                         <MenuItem Header="{loc:Loc RepoUpdate.Title}" Command="{Binding RepositoryBatchUpdateCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="SourceBranch" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
+                                             в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»). -->
+                                        <MenuItem Header="{loc:Loc Utilities.ExportCsv}" Command="{Binding ExportBasesCsvCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="FileDelimited" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>

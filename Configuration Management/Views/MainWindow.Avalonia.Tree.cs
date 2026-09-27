@@ -1694,6 +1694,9 @@ namespace Configuration_Management
             // Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
             // баз с заполненным хранилищем + последовательный прогон с логом.
             menu.Items.Add(MenuAction("RepoUpdate.Title", _vm.RepositoryBatchUpdateCommand, null, "IconCloudDownload", "#06B6D4"));
+            // Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
+            // в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»).
+            menu.Items.Add(MenuAction("Utilities.ExportCsv", _vm.ExportBasesCsvCommand, null, "IconFileExport", "#22C55E"));
 
             menu.Items.Add(MenuSeparator());
 

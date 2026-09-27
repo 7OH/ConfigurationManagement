@@ -837,6 +837,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Команда копирования строки подключения выбранной базы в буфер обмена.</summary>
     public ICommand CopyConnectionStringCommand { get; }
 
+    /// <summary>Команда «Экспорт списка баз в CSV…»: видимые сейчас базы → CSV для Excel (0.3.9.91).</summary>
+    public ICommand ExportBasesCsvCommand { get; }
+
     /// <summary>Команда очистки локального кеша 1С выбранной базы.</summary>
     public ICommand ClearCacheCommand { get; }
 

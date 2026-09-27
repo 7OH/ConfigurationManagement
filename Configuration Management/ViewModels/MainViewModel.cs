@@ -559,6 +559,8 @@ public partial class MainViewModel : ViewModelBase
         TogglePinCommand = new RelayCommand(TogglePin, _ => SelectedInfobase != null);
         TogglePinForCommand = new RelayCommand(TogglePinFor);
         CopyConnectionStringCommand = new RelayCommand(CopyConnectionString, _ => SelectedInfobase != null);
+        // Экспорт видимого списка баз в CSV (0.3.9.91): команда не требует выделенной базы.
+        ExportBasesCsvCommand = new RelayCommand(ExportBasesCsv);
         // Команда очистки кеша верхней панели действует на выбранную базу: если база не
         // выделена (например, под курсором папка) — окно открывается без предзаполненных
         // галок, и пользователь сам отмечает нужные базы (issue #196). В колонке

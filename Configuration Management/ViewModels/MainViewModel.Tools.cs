@@ -540,6 +540,106 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Экспортирует ВСЕ базы, которые пользователь видит сейчас (с учётом фильтра
+    /// приватных баз, режима списка, поиска и тегов — тот же набор, что в дереве),
+    /// в CSV-файл, открываемый в Excel (0.3.9.91).
+    /// </summary>
+    private void ExportBasesCsv(object? parameter)
+    {
+        // Тот же набор, что в RebuildGroupTree: приватные базы заблокированного
+        // профиля скрыты, режимы «Избранное»/«Недавние», поиск и теги учитываются.
+        var visible = EnumerateFilteredInfobases().ToList();
+        if (visible.Count == 0)
+        {
+            _dialogs.ShowInfo(LocalizationManager.T("Main.ExportEmpty"),
+                LocalizationManager.T("ExportCsv.Title"));
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = LocalizationManager.T("ExportCsv.Title"),
+            Filter = LocalizationManager.T("ExportCsv.FileFilter"),
+            DefaultExt = ".csv",
+            FileName = $"Bases_{DateTime.Now:yyyy-MM-dd}.csv",
+            AddExtension = true
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            CsvExporter.WriteFile(dialog.FileName, BuildCsvRows(visible));
+
+            _dialogs.ShowInfo(
+                string.Format(LocalizationManager.T("ExportCsv.Success"), visible.Count, dialog.FileName),
+                LocalizationManager.T("ExportCsv.Title"));
+            _logger.Info($"Список баз ({visible.Count}) выгружен в CSV: {dialog.FileName}");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка экспорта списка баз в CSV", ex);
+            _dialogs.ShowError(
+                string.Format(LocalizationManager.T("ExportCsv.Error"), ex.Message),
+                LocalizationManager.T("Main.ExportErrorTitle"));
+        }
+    }
+
+    /// <summary>Строки CSV-документа: локализованный заголовок + по строке на видимую базу.</summary>
+    private static List<string[]> BuildCsvRows(IEnumerable<Infobase> bases)
+    {
+        var rows = new List<string[]>
+        {
+            new[]
+            {
+                LocalizationManager.T("ExportCsv.ColName"),
+                LocalizationManager.T("ExportCsv.ColGroup"),
+                LocalizationManager.T("ExportCsv.ColType"),
+                LocalizationManager.T("ExportCsv.ColConnection"),
+                LocalizationManager.T("ExportCsv.ColTags"),
+                LocalizationManager.T("ExportCsv.ColFavorite"),
+                LocalizationManager.T("ExportCsv.ColPinned"),
+                LocalizationManager.T("ExportCsv.ColModified"),
+                LocalizationManager.T("ExportCsv.ColSize")
+            }
+        };
+
+        foreach (var ib in bases)
+        {
+            rows.Add(new[]
+            {
+                ib.Name,
+                ib.Group ?? string.Empty,
+                ib.ConnectionTypeDisplay,
+                ib.ConnectionStringDisplay,
+                string.Join(", ", ib.Tags),
+                ib.FavoriteHotkeyNumber >= 1 && ib.FavoriteHotkeyNumber <= 9
+                    ? ib.FavoriteHotkeyNumber.ToString()
+                    : string.Empty,
+                ib.IsPinned ? LocalizationManager.T("ExportCsv.Yes") : LocalizationManager.T("ExportCsv.No"),
+                FormatCsvModified(ib),
+                FormatCsvSize(ib)
+            });
+        }
+        return rows;
+    }
+
+    /// <summary>Дата изменений файла ИБ в формате ГГГГ-ММ-ДД ЧЧ:ММ (локальное время) или пусто.</summary>
+    private static string FormatCsvModified(Infobase ib) =>
+        ib.FileLastWriteTimeUtc.HasValue
+            ? ib.FileLastWriteTimeUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            : string.Empty;
+
+    /// <summary>Размер ИБ в удобочитаемом виде, если известен; иначе пусто.</summary>
+    private static string FormatCsvSize(Infobase ib)
+    {
+        if (ib.ManualSizeBytes.HasValue)
+            return Infobase.FormatSize(ib.ManualSizeBytes.Value);
+        return ib.FileSizeBytes.HasValue ? Infobase.FormatSize(ib.FileSizeBytes.Value) : string.Empty;
+    }
+
+    /// <summary>
     /// Загружает список информационных баз из выбранного JSON-файла,
     /// заменяя текущий список.
     /// </summary>

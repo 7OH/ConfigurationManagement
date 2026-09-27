@@ -52,6 +52,9 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ToggleSessionLaunchPanelCommand { get; private set; } = null!;
     public ICommand ExitCommand { get; private set; } = null!;
     public ICommand CopyConnectionStringCommand { get; private set; } = null!;
+
+    /// <summary>Команда «Экспорт списка баз в CSV…»: видимые сейчас базы → CSV для Excel (0.3.9.91).</summary>
+    public ICommand ExportBasesCsvCommand { get; private set; } = null!;
     public ICommand CheckAvailabilityCommand { get; private set; } = null!;
     public ICommand OpenInfobaseFolderCommand { get; private set; } = null!;
     public ICommand CreateDesktopShortcutCommand { get; private set; } = null!;
@@ -135,6 +138,8 @@ public partial class MainViewModel : ViewModelBase
         ToggleSessionLaunchPanelCommand = new RelayCommand(() => ShowSessionLaunchPanel = !ShowSessionLaunchPanel);
         ExitCommand = new RelayCommand(ExitApplication);
         CopyConnectionStringCommand = new RelayCommand(_ => CopyConnectionString(), _ => SelectedInfobase is not null);
+        // Экспорт видимого списка баз в CSV (0.3.9.91): команда не требует выделенной базы.
+        ExportBasesCsvCommand = new RelayCommand(ExportBasesCsv);
         CheckAvailabilityCommand = new RelayCommand(CheckAvailability);
         OpenInfobaseFolderCommand = new RelayCommand(_ => OpenInfobaseFolder(),
             _ => SelectedInfobase?.Connection.Type == ConnectionType.File);
