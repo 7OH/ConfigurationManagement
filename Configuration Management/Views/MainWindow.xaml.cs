@@ -359,7 +359,7 @@ namespace Configuration_Management
 
         private enum TrayIconKind
         {
-            Open, Database, Enterprise, Configurator, Sync, Settings, Exit
+            Open, Database, Enterprise, Configurator, Sync, Settings, Exit, Favorite
         }
 
 

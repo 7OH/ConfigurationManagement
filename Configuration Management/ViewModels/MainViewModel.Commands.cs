@@ -673,6 +673,22 @@ public partial class MainViewModel : ViewModelBase
     // ======================= Закладки (горячие клавиши 1–9) =======================
 
     /// <summary>
+    /// Избранные базы в порядке слотов 1…9 (для меню трея и командной палитры):
+    /// ключи слотов разворачиваются в экземпляры баз, пустые слоты пропускаются.
+    /// </summary>
+    public System.Collections.Generic.List<(Models.Infobase Base, int Slot)> GetFavoriteInfobasesOrdered()
+    {
+        var result = new System.Collections.Generic.List<(Models.Infobase, int)>();
+        for (var i = 0; i < _favoriteHotkeyIds.Count; i++)
+        {
+            var ib = FindByFavoriteKey(_favoriteHotkeyIds[i]);
+            if (ib is not null)
+                result.Add((ib, i + 1));
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Ставит/снимает закладку для выбранной базы (Ctrl+Shift+P, Ctrl+щелчок).
     /// Если у базы уже есть номер — снимает его, иначе назначает первый свободный слот.
     /// </summary>

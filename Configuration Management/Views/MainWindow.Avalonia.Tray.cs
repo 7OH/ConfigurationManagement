@@ -134,6 +134,8 @@ namespace Configuration_Management
 
             var builder = new System.Text.StringBuilder();
             builder.Append(_vm.SelectedInfobase?.Id).Append('|').Append(_vm.SelectedInfobase?.Name);
+            foreach (var (ib, _) in _vm.GetFavoriteInfobasesOrdered())
+                builder.Append('|').Append('F').Append(ib.Id).Append('~').Append(ib.Name);
             foreach (var ib in _vm.RecentInfobases)
                 builder.Append('|').Append(ib.Id).Append('~').Append(ib.Name);
             return builder.ToString();
@@ -145,13 +147,23 @@ namespace Configuration_Management
             menu.Items.Clear();
 
             // Состав и порядок как в Windows-версии (MainWindow.Tray.cs:209):
-            // открыть, недавние базы (или выбранная, если недавних нет),
-            // синхронизация, настройки, выход. У каждой базы своё подменю
-            // «Предприятие / Конфигуратор»: раньше пункт запускал только
-            // Предприятие, а выбора не было.
+            // открыть, избранные базы (закладки), недавние базы (или выбранная,
+            // если недавних нет), синхронизация, настройки, выход. У каждой базы
+            // своё подменю «Предприятие / Конфигуратор»: раньше пункт запускал
+            // только Предприятие, а выбора не было.
             var showItem = new NativeMenuItem(LocalizationManager.T("Main.TrayOpen"));
             showItem.Click += (_, _) => ShowAndActivate();
             menu.Add(showItem);
+
+            // Избранные базы (закладки Alt+1…9): быстрый запуск без открытия окна.
+            var favorites = _vm?.GetFavoriteInfobasesOrdered();
+            if (favorites is { Count: > 0 })
+            {
+                menu.Add(new NativeMenuItemSeparator());
+                menu.Add(TrayHeader(LocalizationManager.T("Main.FavoriteBases")));
+                foreach (var (ib, slot) in favorites)
+                    menu.Add(TrayInfobaseItem(ib, $"{slot}. {TrayItemName(ib.Name, "Main.NoName")}"));
+            }
 
             var recent = _vm?.RecentInfobases;
             if (recent is { Count: > 0 })

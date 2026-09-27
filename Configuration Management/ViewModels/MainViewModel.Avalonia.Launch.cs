@@ -382,6 +382,22 @@ public partial class MainViewModel : ViewModelBase
         _allInfobases.FirstOrDefault(ib => FavoriteKey(ib) == key);
 
     /// <summary>
+    /// Избранные базы в порядке слотов 1…9 (для меню трея и командной палитры):
+    /// ключи слотов разворачиваются в экземпляры баз, пустые слоты пропускаются.
+    /// </summary>
+    public System.Collections.Generic.List<(Infobase Base, int Slot)> GetFavoriteInfobasesOrdered()
+    {
+        var result = new System.Collections.Generic.List<(Infobase, int)>();
+        for (var i = 0; i < _favoriteHotkeyIds.Count; i++)
+        {
+            var ib = FindByFavoriteKey(_favoriteHotkeyIds[i]);
+            if (ib is not null)
+                result.Add((ib, i + 1));
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Раздаёт слоты избранным базам и проставляет номера на самих базах.
     /// Список хранится в настройках, поэтому здесь же переписывается в них:
     /// любое последующее сохранение унесёт его на диск.

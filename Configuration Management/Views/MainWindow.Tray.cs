@@ -212,6 +212,27 @@ namespace Configuration_Management
 
             menu.Items.Add(CreateTrayItem(LocalizationManager.T("Main.TrayOpen"), TrayIconKind.Open, (_, _) => RestoreFromTray()));
 
+            // Избранные базы (закладки Alt+1…9): быстрый запуск без открытия окна.
+            var favorites = _viewModel.GetFavoriteInfobasesOrdered();
+            if (favorites.Count > 0)
+            {
+                menu.Items.Add(new Forms.ToolStripSeparator());
+                menu.Items.Add(CreateTrayHeader(LocalizationManager.T("Main.FavoriteBases")));
+
+                foreach (var (ib, slot) in favorites)
+                {
+                    var name = string.IsNullOrWhiteSpace(ib.Name) ? LocalizationManager.T("Main.NoName") : ib.Name;
+                    if (name.Length > 48)
+                        name = name.Substring(0, 45) + "…";
+
+                    var id = ib.Id;
+                    var favoriteItem = CreateTrayItem($"{slot}. {name}", TrayIconKind.Favorite, (_, _) =>
+                        _viewModel.LaunchInfobaseById(id, isConfigurator: false));
+                    AttachLaunchSubmenu(favoriteItem, menu, id);
+                    menu.Items.Add(favoriteItem);
+                }
+            }
+
             // Недавние базы (по дате последнего запуска)
             var recent = _viewModel.GetRecentInfobases(7).ToList();
             if (recent.Count > 0)
@@ -360,6 +381,7 @@ namespace Configuration_Management
                 TrayIconKind.Sync => Drawing.Color.FromArgb(20, 184, 166),
                 TrayIconKind.Settings => Drawing.Color.FromArgb(100, 116, 139),
                 TrayIconKind.Exit => Drawing.Color.FromArgb(220, 38, 38),
+                TrayIconKind.Favorite => Drawing.Color.FromArgb(245, 158, 11),
                 _ => Drawing.Color.FromArgb(100, 116, 139)
             };
 
@@ -460,6 +482,27 @@ namespace Configuration_Management
                         new Drawing.PointF(s * 0.68f, s * 0.68f)
                     });
                     break;
+
+                case TrayIconKind.Favorite:
+                {
+                    // Пятиконечная звезда закладок (Alt+1…9): внешний радиус 0.36,
+                    // внутренний — 0.382 от внешнего, вершина вверх.
+                    var cx = s * 0.5f;
+                    var cy = s * 0.55f;
+                    var ro = s * 0.36f;
+                    var ri = ro * 0.382f;
+                    var pts = new Drawing.PointF[10];
+                    for (var i = 0; i < 10; i++)
+                    {
+                        var rad = i % 2 == 0 ? ro : ri;
+                        var ang = (-90 + 36 * i) * Math.PI / 180.0;
+                        pts[i] = new Drawing.PointF(
+                            (float)(cx + rad * Math.Cos(ang)),
+                            (float)(cy + rad * Math.Sin(ang)));
+                    }
+                    g.FillPolygon(brush, pts);
+                    break;
+                }
 
                 case TrayIconKind.Open:
                 default:

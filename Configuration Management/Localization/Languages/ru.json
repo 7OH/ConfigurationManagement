@@ -141,6 +141,7 @@
     "Main.RightPanel": "Правая панель",
     "Main.ShowWindow": "Показать окно",
     "Main.RecentBases": "Недавние базы",
+    "Main.FavoriteBases": "Избранные базы (Alt+1…9)",
     "Main.RefreshConfigInfo": "Обновить информацию о конфигурации",
     "Main.RegisterComConnector": "Зарегистрировать COM-коннектор 1С",
     "Main.ClearCache": "Очистить кэш",

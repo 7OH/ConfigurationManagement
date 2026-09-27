@@ -141,6 +141,7 @@
     "Main.RightPanel": "Right panel",
     "Main.ShowWindow": "Show window",
     "Main.RecentBases": "Recent infobases",
+    "Main.FavoriteBases": "Favorite bases (Alt+1…9)",
     "Main.RefreshConfigInfo": "Update configuration info",
     "Main.RegisterComConnector": "Register 1C COM connector",
     "Main.ClearCache": "Clear cache",
