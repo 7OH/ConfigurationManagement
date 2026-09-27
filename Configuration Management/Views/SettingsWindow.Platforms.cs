@@ -171,6 +171,16 @@ namespace Configuration_Management
             _viewModel.ExportInfobasesCommand.Execute(null);
         }
 
+        private void OnExportSelectedInfobases_Click(object sender, RoutedEventArgs e)
+        {
+            _viewModel.ExportSelectedInfobasesCommand.Execute(null);
+        }
+
+        private void OnImportMergeInfobases_Click(object sender, RoutedEventArgs e)
+        {
+            _viewModel.ImportMergeInfobasesCommand.Execute(null);
+        }
+
         private void OnRemoveMissingFileBases_Click(object sender, RoutedEventArgs e)
         {
             _viewModel.RemoveMissingFileBasesCommand.Execute(null);

@@ -1718,6 +1718,16 @@
                                                     <TextBlock Text="{loc:Loc Settings.Bases.ExportList}" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
+                                            <!-- Выборочный экспорт: окно-чеклист баз. -->
+                                            <Button Style="{DynamicResource SecondaryButton}" Margin="0,0,0,8" Padding="10,8"
+                                                    HorizontalAlignment="Stretch"
+                                                    Click="OnExportSelectedInfobases_Click"
+                                                    ToolTip="{loc:Loc ExportSelect.ExportHint}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="Export" Width="16" Height="16" Foreground="#14B8A6" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{loc:Loc ExportSelect.Title}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
                                             <Button Style="{DynamicResource SecondaryButton}" Margin="0,0,0,8" Padding="10,8"
                                                     HorizontalAlignment="Stretch"
                                                     Click="OnImportInfobases_Click"
@@ -1725,6 +1735,16 @@
                                                 <StackPanel Orientation="Horizontal">
                                                     <materialDesign:PackIcon Kind="Import" Width="16" Height="16" Foreground="#F97316" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                                     <TextBlock Text="{loc:Loc Settings.Bases.ImportList}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <!-- Добавляющий импорт: окно-чеклист, слияние по Id. -->
+                                            <Button Style="{DynamicResource SecondaryButton}" Margin="0,0,0,8" Padding="10,8"
+                                                    HorizontalAlignment="Stretch"
+                                                    Click="OnImportMergeInfobases_Click"
+                                                    ToolTip="{loc:Loc ExportSelect.ImportHint}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="Import" Width="16" Height="16" Foreground="#14B8A6" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{loc:Loc ExportSelect.ImportTitle}" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button Style="{DynamicResource SecondaryButton}" Margin="0,0,0,8" Padding="10,8"

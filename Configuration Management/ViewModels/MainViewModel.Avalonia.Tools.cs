@@ -328,6 +328,187 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    // ======================= Выборочный экспорт/импорт баз =======================
+
+    private System.Windows.Input.ICommand? _exportSelectedInfobasesCommand;
+
+    /// <summary>Команда «Экспорт выбранных баз…»: окно-чеклист + сохранение в JSON.</summary>
+    public System.Windows.Input.ICommand ExportSelectedInfobasesCommand =>
+        _exportSelectedInfobasesCommand ??= new RelayCommand(_ => ExecuteExportSelectedInfobases(),
+            _ => _allInfobases.Count > 0);
+
+    private void ExecuteExportSelectedInfobases()
+    {
+        if (_allInfobases.Count == 0)
+        {
+            _dialog.ShowInfo(LocalizationManager.T("Main.ExportEmpty"),
+                LocalizationManager.T("Main.ExportBasesTitle"));
+            return;
+        }
+
+        var items = _allInfobases
+            .Select(b => new BaseSelectionItem(b.Name, b.GroupDisplay) { Tag = b })
+            .ToList();
+        var selector = new Configuration_Management.BaseSelectionWindow(
+            LocalizationManager.T("ExportSelect.Title"),
+            LocalizationManager.T("ExportSelect.ExportHint"),
+            items);
+        if (!selector.ShowDialogSync(OwnerWindow()))
+            return;
+
+        var selected = selector.GetSelected().Select(i => (Infobase)i.Tag!).ToList();
+        if (selected.Count == 0)
+            return;
+
+        var path = _dialog.SaveFileDialog(
+            LocalizationManager.T("Main.ExportBasesDialogTitle"),
+            BuildExportFileName("infobases_selected", ".json", _settings.AddTimestampToExportFileName, _settings.ExportTimestampFormat),
+            LocalizationManager.T("Main.JsonFileFilter"));
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(
+                new InfobaseExportData
+                {
+                    Version = 1,
+                    Infobases = selected,
+                    Groups = _groups.ToList()
+                },
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+            File.WriteAllText(path, json);
+
+            _dialog.ShowInfo(
+                string.Format(LocalizationManager.T("ExportSelect.ExportDone"), selected.Count, path),
+                LocalizationManager.T("Main.ExportBasesTitle"));
+            _logger.Info($"Выбранные базы ({selected.Count}) выгружены в {path}");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка выгрузки выбранных баз", ex);
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("Main.ErrExportFailed"), ex.Message),
+                LocalizationManager.T("Main.ExportErrorTitle"));
+        }
+    }
+
+    private System.Windows.Input.ICommand? _importMergeInfobasesCommand;
+
+    /// <summary>Команда «Импорт баз (добавлением)…»: выбор файла, чеклист, слияние по Id.</summary>
+    public System.Windows.Input.ICommand ImportMergeInfobasesCommand =>
+        _importMergeInfobasesCommand ??= new RelayCommand(_ => ExecuteImportMergeInfobases());
+
+    private void ExecuteImportMergeInfobases()
+    {
+        var path = _dialog.OpenFileDialog(
+            LocalizationManager.T("Main.ImportBasesDialogTitle"),
+            LocalizationManager.T("Main.JsonFileFilter"));
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        List<Infobase> loaded;
+        List<Group> loadedGroups;
+        try
+        {
+            var json = File.ReadAllText(path);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            InfobaseExportData? exportData = null;
+            try { exportData = JsonSerializer.Deserialize<InfobaseExportData>(json, options); }
+            catch (JsonException) { }
+
+            if (exportData is not null && exportData.Infobases.Count > 0)
+            {
+                loaded = exportData.Infobases;
+                loadedGroups = exportData.Groups;
+            }
+            else
+            {
+                loaded = JsonSerializer.Deserialize<List<Infobase>>(json, options) ?? new List<Infobase>();
+                loadedGroups = new List<Group>();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка чтения файла импорта", ex);
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("Main.ErrLoadFailed"), ex.Message),
+                LocalizationManager.T("Main.LoadErrorTitle"));
+            return;
+        }
+
+        if (loaded.Count == 0)
+        {
+            _dialog.ShowWarning(LocalizationManager.T("Main.ImportNoBases"),
+                LocalizationManager.T("Main.LoadBasesTitle"));
+            return;
+        }
+
+        // Уже существующие базы снимаются с флажков: импорт их пропустит.
+        var existingKeys = new HashSet<string>(
+            _allInfobases.Select(InfobaseExportMerge.DuplicateKey), StringComparer.OrdinalIgnoreCase);
+        var items = loaded
+            .Select(b =>
+            {
+                var duplicate = existingKeys.Contains(InfobaseExportMerge.DuplicateKey(b));
+                var subtitle = duplicate
+                    ? LocalizationManager.T("ExportSelect.AlreadyExists")
+                    : b.GroupDisplay;
+                return new BaseSelectionItem(b.Name, subtitle, !duplicate) { Tag = b };
+            })
+            .ToList();
+
+        var selector = new Configuration_Management.BaseSelectionWindow(
+            LocalizationManager.T("ExportSelect.ImportTitle"),
+            LocalizationManager.T("ExportSelect.ImportHint"),
+            items);
+        if (!selector.ShowDialogSync(OwnerWindow()))
+            return;
+
+        var chosen = selector.GetSelected().Select(i => (Infobase)i.Tag!).ToList();
+        if (chosen.Count == 0)
+            return;
+
+        var merge = InfobaseExportMerge.SelectNew(_allInfobases, chosen);
+
+        _allInfobases.AddRange(merge.Added);
+        SyncFavoriteHotkeys();
+
+        // Группы из файла, которых ещё нет (по имени), добавляются целиком.
+        var existingGroupNames = new HashSet<string>(
+            _groups.Select(g => (g.Name ?? "").Trim()), StringComparer.OrdinalIgnoreCase);
+        var newGroups = loadedGroups
+            .Where(g => !string.IsNullOrWhiteSpace(g.Name) && existingGroupNames.Add(g.Name.Trim()))
+            .ToList();
+        if (newGroups.Count > 0)
+            _groups.AddRange(newGroups);
+
+        SelectedInfobase = null;
+        var saved = SaveSilently();
+        saved &= SaveGroupsSilently();
+        RebuildTree();
+
+        if (!saved)
+        {
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("Main.ErrLoadFailed"),
+                    LocalizationManager.T("Main.SaveFailedHint")),
+                LocalizationManager.T("Main.LoadErrorTitle"));
+            return;
+        }
+
+        _dialog.ShowInfo(
+            string.Format(LocalizationManager.T("ExportSelect.ImportDone"),
+                merge.Added.Count, chosen.Count - merge.Added.Count),
+            LocalizationManager.T("Main.LoadBasesTitle"));
+        _logger.Info($"Импорт добавлением: добавлено {merge.Added.Count}, пропущено {chosen.Count - merge.Added.Count}");
+    }
+
     /// <summary>
     /// Загружает список баз и групп из JSON-файла, заменяя текущий.
     /// Понимает и старый формат, где в файле лежит только список баз.

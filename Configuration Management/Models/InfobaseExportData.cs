@@ -6,6 +6,12 @@ namespace Configuration_Management.Models;
 /// </summary>
 public class InfobaseExportData
 {
+    /// <summary>
+    /// Версия формата файла (1 — базы + группы). Файлы старых версий без этого
+    /// поля импортируются как и раньше (в поле останется 0).
+    /// </summary>
+    public int Version { get; set; }
+
     /// <summary>Список информационных баз.</summary>
     public List<Infobase> Infobases { get; set; } = new();
 

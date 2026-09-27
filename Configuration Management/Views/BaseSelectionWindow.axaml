@@ -1,0 +1,31 @@
+<!-- Окно выбора баз (выборочный экспорт/импорт) (Avalonia/Linux).
+     Windows-аналог: Views/BaseSelectionWindow.xaml. -->
+<local:ModalWindowBase xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:local="clr-namespace:Configuration_Management"
+                       x:Class="Configuration_Management.BaseSelectionWindow"
+                       Width="480" Height="480"
+                       FontSize="13"
+                       CanResize="True"
+                       SystemDecorations="None">
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto">
+        <TextBlock Grid.Row="0" x:Name="HintText" Margin="0,0,0,10" TextWrapping="Wrap" Opacity="0.75"/>
+        <ListBox Grid.Row="1" x:Name="ItemsList" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <CheckBox IsChecked="{Binding IsChecked}" Margin="2,4">
+                        <StackPanel Orientation="Vertical">
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Subtitle}" FontSize="11" Opacity="0.65"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </CheckBox>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <ContentControl Grid.Row="2" x:Name="BulkHost" Margin="0,10,0,0"/>
+        <ContentControl Grid.Row="3" x:Name="ButtonsHost" Margin="0,16,0,0"
+                        HorizontalAlignment="Right"/>
+    </Grid>
+</local:ModalWindowBase>

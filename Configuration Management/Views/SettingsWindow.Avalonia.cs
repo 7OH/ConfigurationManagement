@@ -2074,6 +2074,16 @@ namespace Configuration_Management
             ToolTip.SetTip(importList, LocalizationManager.T("Settings.Bases.ImportListTooltip"));
             importList.Click += (_, _) => _viewModel.ImportInfobases();
 
+            // Выборочный экспорт: окно-чеклист баз (0.3.9.84).
+            var exportSelected = new Button { Content = LocalizationManager.T("ExportSelect.Title") };
+            ToolTip.SetTip(exportSelected, LocalizationManager.T("ExportSelect.ExportHint"));
+            exportSelected.Click += (_, _) => _viewModel.ExportSelectedInfobasesCommand.Execute(null);
+
+            // Добавляющий импорт: окно-чеклист, слияние по Id (0.3.9.84).
+            var importMerge = new Button { Content = LocalizationManager.T("ExportSelect.ImportTitle") };
+            ToolTip.SetTip(importMerge, LocalizationManager.T("ExportSelect.ImportHint"));
+            importMerge.Click += (_, _) => _viewModel.ImportMergeInfobasesCommand.Execute(null);
+
             var importV8i = new Button { Content = LocalizationManager.T("Settings.Bases.ImportV8i") };
             ToolTip.SetTip(importV8i, LocalizationManager.T("Settings.Bases.ImportV8iTooltip"));
             importV8i.Click += (_, _) => _viewModel.ImportFromIbasesV8i();
@@ -2124,7 +2134,9 @@ namespace Configuration_Management
             };
 
             listButtons.Children.Add(exportList);
+            listButtons.Children.Add(exportSelected);
             listButtons.Children.Add(importList);
+            listButtons.Children.Add(importMerge);
             listButtons.Children.Add(importV8i);
             listButtons.Children.Add(importStartManager);
             listButtons.Children.Add(detectAll);
