@@ -2245,5 +2245,29 @@ public partial class MainViewModel : ViewModelBase
         };
         window.ShowDialog();
     }
+
+    // ======================= Центр обслуживания (0.3.9.89) =======================
+
+    private ICommand? _maintenanceCenterCommand;
+
+    /// <summary>
+    /// Команда «Центр обслуживания…»: окно-дашборд со сводкой состояния всех баз
+    /// (доступность, последняя копия, размер, кэш, конфигурация, возраст данных,
+    /// проверка обновлений). Работает со всем списком, поэтому активна всегда.
+    /// </summary>
+    public ICommand MaintenanceCenterCommand =>
+        _maintenanceCenterCommand ??= new RelayCommand(_ => ExecuteMaintenanceCenter());
+
+    private void ExecuteMaintenanceCenter()
+    {
+        var window = new MaintenanceCenterWindow(
+            Infobases.ToList(),
+            () => CheckAvailabilityCommand.Execute(null),
+            ib => FindInListCommand.Execute(ib))
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        window.ShowDialog();
+    }
 }
 #endif

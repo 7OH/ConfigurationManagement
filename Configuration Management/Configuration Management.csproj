@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.88</Version>
-    <AssemblyVersion>0.3.9.88</AssemblyVersion>
-    <FileVersion>0.3.9.88</FileVersion>
-    <InformationalVersion>0.3.9.88</InformationalVersion>
+    <Version>0.3.9.89</Version>
+    <AssemblyVersion>0.3.9.89</AssemblyVersion>
+    <FileVersion>0.3.9.89</FileVersion>
+    <InformationalVersion>0.3.9.89</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -236,6 +236,9 @@
     <!-- Окно пакетного обновления из хранилищ (0.3.9.88): WPF code-behind исключается,
          Avalonia-версия (RepositoryBatchUpdateWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\RepositoryBatchUpdateWindow.xaml.cs" />
+    <!-- Окно «Центр обслуживания» (0.3.9.89): WPF code-behind исключается,
+         Avalonia-версия (MaintenanceCenterWindow.Avalonia.cs) подключается глобом ниже. -->
+    <Compile Remove="Views\MaintenanceCenterWindow.xaml.cs" />
     <!-- Кастомные контролы (WPF) исключаем, но возвращаем Avalonia-версии (*.Avalonia.cs) -->
     <Compile Remove="Controls\**\*.cs" />
     <Compile Include="Controls\*.Avalonia.cs" />
@@ -327,6 +330,10 @@
          платформенных зависимостей, используется обеими платформами — на Linux
          подключается явно (имя не совпадает с глобом *.Avalonia.cs). -->
     <Compile Include="ViewModels\RepositoryBatchUpdateViewModel.cs" />
+    <!-- ViewModel окна «Центр обслуживания» (0.3.9.89): чистый .NET без
+         платформенных зависимостей, используется обеими платформами — на Linux
+         подключается явно (имя не совпадает с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\MaintenanceCenterViewModel.cs" />
     <!-- Чистая логика ротации резервных копий (0.3.9.86): используется и Windows,
          и Linux; на Linux подключается явно паттерном Remove+Include, как остальные
          общие файлы сервисов (дефолтный глоб уже включает файл — Remove снимает его). -->

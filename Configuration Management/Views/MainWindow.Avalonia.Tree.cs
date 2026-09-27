@@ -1625,6 +1625,10 @@ namespace Configuration_Management
             // строке списка или без выбора (issue #295).
             menu.Items.Add(MenuSeparator());
             menu.Items.Add(MenuAction("Admin.ServerConsole", _vm.OpenServerConsoleCommand, _vm.HotkeyServerConsole, "IconServer", "#14B8A6"));
+            // Центр обслуживания (0.3.9.89): сводная панель состояния всех баз —
+            // доступность, последняя копия, размер, кэш, конфигурация, возраст данных,
+            // проверка обновлений. Стоит сразу после «Консоли серверов».
+            menu.Items.Add(MenuAction("Maintenance.Title", _vm.MaintenanceCenterCommand, null, "IconMonitoring", "#0EA5E9"));
             menu.Items.Add(MenuSeparator());
 
             menu.Items.Add(MenuAction("AppLock.LockTitle", _vm.LockAppCommand, _vm.HotkeyLockApp, "IconExitToApp", "#8B5CF6", "AppLock.MenuTooltip"));
