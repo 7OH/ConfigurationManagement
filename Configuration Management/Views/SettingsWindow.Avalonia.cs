@@ -406,14 +406,21 @@ namespace Configuration_Management
             // резервная копия, задание по расписанию, найденное обновление приложения.
             var notificationsCheck = SettingsSwitch(
                 "Settings.General.ShowSystemNotifications", _viewModel.ShowSystemNotifications, "IconInformationOutline", "#14B8A6");
+            // Догоняющее выполнение пропущенных заданий (функция №7): задания, чьё
+            // плановое время наступило, пока приложение было выключено, выполняются
+            // сразу при следующем старте — один раз (только свежие пропуски).
+            var catchUpCheck = SettingsSwitch(
+                "Settings.General.CatchUpMissedTasks", _viewModel.CatchUpMissedTasks, "IconHistory", "#6366F1");
             trayIconCheck.Margin = new Thickness(0, 0, 0, 6);
             closeToTrayCheck.Margin = new Thickness(0, 0, 0, 6);
             escapeToTrayCheck.Margin = new Thickness(0, 0, 0, 6);
             notificationsCheck.Margin = new Thickness(0, 0, 0, 6);
+            catchUpCheck.Margin = new Thickness(0, 0, 0, 6);
             settings.Children.Add(trayIconCheck);
             settings.Children.Add(closeToTrayCheck);
             settings.Children.Add(escapeToTrayCheck);
             settings.Children.Add(notificationsCheck);
+            settings.Children.Add(catchUpCheck);
 
 
             // Параметры текущей сессии
@@ -3054,6 +3061,8 @@ namespace Configuration_Management
                     closeToTrayCheck.IsChecked == true,
                     escapeToTrayCheck.IsChecked == true,
                     notificationsCheck.IsChecked == true);
+                // Догоняющее выполнение пропущенных заданий (функция №7).
+                _viewModel.ApplyScheduleSettings(catchUpCheck.IsChecked == true);
                 _viewModel.ApplyTemplateCatalogPaths(templatePaths);
                 ApplyExportFileNameSettings();
 

@@ -2210,6 +2210,7 @@ public partial class MainViewModel : ViewModelBase
         bool closeToTray = false,
         bool showTrayIcon = true,
         bool showSystemNotifications = true,
+        bool catchUpMissedTasks = true,
         string? hotkeyEnterprise = null,
         string? hotkeyConfigurator = null,
         string? hotkeyFavorite = null,
@@ -2245,6 +2246,7 @@ public partial class MainViewModel : ViewModelBase
         _closeToTray = closeToTray;
         _showTrayIcon = showTrayIcon;
         _showSystemNotifications = showSystemNotifications;
+        _catchUpMissedTasks = catchUpMissedTasks;
         _escapeToTray = escapeToTray;
         _rememberWindowLayout = rememberWindowLayout;
         _afterLaunchAction = afterLaunchAction;

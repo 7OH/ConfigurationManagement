@@ -1386,6 +1386,12 @@
                                 <TextBlock Text="{loc:Loc Settings.General.ShowSystemNotifications}" VerticalAlignment="Center"/>
                             </StackPanel>
                         </ToggleButton>
+                        <ToggleButton Style="{DynamicResource SettingsToggle}" x:Name="CatchUpMissedTasksCheck" Margin="0,0,0,6">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="History" Width="16" Height="16" Foreground="#6366F1" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc Settings.General.CatchUpMissedTasks}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </ToggleButton>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,6">
                             <materialDesign:PackIcon Kind="RocketLaunch" Width="16" Height="16" Foreground="#22C55E" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <TextBlock Text="{loc:Loc Settings.General.AfterLaunchAction}" VerticalAlignment="Center" Margin="0,0,10,0"/>

@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.97] — 2026-09-27
+
+### Добавлено
+
+- **Догоняющее выполнение пропущенных заданий по расписанию** (обе платформы, функция №7) —
+  если компьютер был выключен в момент, когда задание должно было выполниться, при следующем
+  запуске приложение выполняет его сразу — один раз. Задание считается пропущенным, если оно
+  включено, тип допускает догоняние (кроме «Обновить приложение» — найденное обновление
+  установится при очередной авто-проверке), последнее наступившее плановое время позже
+  последнего фактического запуска и с него прошло не больше 7 суток (константа
+  `ScheduleCatchUpCalculator.DefaultMaxAge`, чтобы не выполнять «древние» пропуски).
+  Чистая логика вынесена в
+  [`Services/ScheduleCatchUpCalculator.cs`](Configuration%20Management/Services/ScheduleCatchUpCalculator.cs)
+  (переиспользует те же поля расписания — время «HH:mm» и дни недели, что и
+  [`Services/ScheduleCalculator.cs`](Configuration%20Management/Services/ScheduleCalculator.cs));
+  запуск догоняния — [`Services/SchedulerService.cs`](Configuration%20Management/Services/SchedulerService.cs)
+  (`RunCatchUpAsync`, вызывается один раз после старта планировщика из
+  [`App.xaml.cs`](Configuration%20Management/App.xaml.cs) и
+  [`App.axaml.cs`](Configuration%20Management/App.axaml.cs)); момент последнего запуска
+  дополнительно фиксируется в UTC — поле `ScheduledTask.LastRunUtc`
+  ([`Models/ScheduledTask.cs`](Configuration%20Management/Models/ScheduledTask.cs),
+  старые файлы без поля читаются через прежний `LastRunAt`). При выполнении хотя бы одного
+  задания показывается системное уведомление «Выполнено пропущенных заданий: N»
+  (`INotificationService`), результат, как обычно, попадает в задание и журнал.
+  Переключатель «Выполнять пропущенные задания по расписанию при старте» — настройка
+  `AppSettings.CatchUpMissedTasks` (по умолчанию включена,
+  [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs)) и окно настроек
+  ([`Views/SettingsWindow.xaml`](Configuration%20Management/Views/SettingsWindow.xaml) /
+  [`Views/SettingsWindow.Avalonia.cs`](Configuration%20Management/Views/SettingsWindow.Avalonia.cs)).
+  Логика покрыта unit-тестами
+  ([`ConfigurationManagement.Tests/ScheduleCatchUpTests.cs`](ConfigurationManagement.Tests/ScheduleCatchUpTests.cs)).
+
 ## [0.3.9.96] — 2026-09-27
 
 ### Добавлено

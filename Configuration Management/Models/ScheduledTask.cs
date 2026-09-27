@@ -61,8 +61,19 @@ public class ScheduledTask
     /// <summary>Путь к файлу .cf с новой конфигурацией (для UpdateConfig / BackupThenUpdateConfig).</summary>
     public string? ConfigFilePath { get; set; }
 
-    /// <summary>Момент последнего запуска задания (null — ещё не выполнялось).</summary>
+    /// <summary>
+    /// Момент последнего запуска задания (null — ещё не выполнялось).
+    /// Локальное время, используется для отображения в списке заданий.
+    /// </summary>
     public DateTime? LastRunAt { get; set; }
+
+    /// <summary>
+    /// Момент последнего запуска задания в UTC (функция №7 «догоняющее выполнение»).
+    /// Дублирует <see cref="LastRunAt"/> в UTC, чтобы сравнивать с плановым временем
+    /// без зависимости от часового пояса машины. null — ещё не выполнялось; у старых
+    /// сохранённых заданий поле отсутствует, и догоняние опирается на LastRunAt.
+    /// </summary>
+    public DateTime? LastRunUtc { get; set; }
 
     /// <summary>Успешно ли завершился последний запуск.</summary>
     public bool LastRunSuccess { get; set; }

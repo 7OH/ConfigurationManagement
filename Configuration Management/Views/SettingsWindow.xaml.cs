@@ -542,6 +542,7 @@ namespace Configuration_Management
                 CloseToTrayCheck.IsChecked ?? false,
                 ShowTrayIconCheck.IsChecked ?? true,
                 ShowSystemNotificationsCheck.IsChecked ?? true,
+                CatchUpMissedTasksCheck.IsChecked ?? true,
                 hkEnterprise,
                 hkConfigurator,
                 hkFavorite,

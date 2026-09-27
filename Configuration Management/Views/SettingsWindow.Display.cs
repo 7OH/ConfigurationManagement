@@ -192,6 +192,8 @@ namespace Configuration_Management
                 EscapeToTrayCheck.IsChecked = _viewModel.EscapeToTray;
             if (ShowSystemNotificationsCheck != null)
                 ShowSystemNotificationsCheck.IsChecked = _viewModel.ShowSystemNotifications;
+            if (CatchUpMissedTasksCheck != null)
+                CatchUpMissedTasksCheck.IsChecked = _viewModel.CatchUpMissedTasks;
             if (AfterLaunchActionCombo != null)
             {
                 AfterLaunchActionCombo.ItemsSource = new[]

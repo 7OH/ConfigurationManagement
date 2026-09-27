@@ -539,6 +539,7 @@ public partial class MainViewModel : ViewModelBase
             AfterLaunchAction = _afterLaunchAction,
             ShowTrayIcon = _showTrayIcon,
             ShowSystemNotifications = _showSystemNotifications,
+            CatchUpMissedTasks = _catchUpMissedTasks,
             MaintenanceFreeSpaceWarningGb = _maintenanceFreeSpaceWarningGb,
             EscapeToTray = _escapeToTray,
             CompactMode = _compactMode,

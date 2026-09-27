@@ -216,6 +216,23 @@ public partial class MainViewModel : ViewModelBase
     public bool ShowSystemNotifications => _settings.ShowSystemNotifications;
 
     /// <summary>
+    /// Догоняющее выполнение пропущенных заданий по расписанию при старте (функция №7):
+    /// задания, чьё плановое время наступило, пока приложение было выключено, выполняются
+    /// сразу при следующем запуске (один раз, только свежие пропуски — не старше 7 суток).
+    /// </summary>
+    public bool CatchUpMissedTasks => _settings.CatchUpMissedTasks;
+
+    /// <summary>Применяет настройку догоняющего выполнения пропущенных заданий из окна настроек.</summary>
+    public void ApplyScheduleSettings(bool catchUpMissedTasks)
+    {
+        if (_settings.CatchUpMissedTasks == catchUpMissedTasks)
+            return;
+        _settings.CatchUpMissedTasks = catchUpMissedTasks;
+        SaveSettingsSilently();
+        OnPropertyChanged(nameof(CatchUpMissedTasks));
+    }
+
+    /// <summary>
     /// Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96),
     /// ГБ. 0 — не предупреждать.
     /// </summary>

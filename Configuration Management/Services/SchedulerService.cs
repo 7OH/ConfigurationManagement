@@ -10,8 +10,9 @@ namespace Configuration_Management.Services;
 /// Планировщик заданий по расписанию (issue #286). Работает, пока приложение запущено:
 /// периодически проверяет наступление времени заданий (время «HH:mm» + дни недели) и
 /// выполняет их последовательно (одна операция 1С за раз). Момент запуска вычисляется
-/// чистым классом <see cref="ScheduleCalculator"/>; пропущенные запуски (приложение было
-/// выключено) не «догоняются». Результаты записываются в задание и в журнал.
+/// чистым классом <see cref="ScheduleCalculator"/>. Пропущенные запуски (приложение было
+/// выключено) «догоняются» при старте — см. <see cref="RunCatchUpAsync"/> и
+/// <see cref="ScheduleCatchUpCalculator"/>. Результаты записываются в задание и в журнал.
 /// </summary>
 public class SchedulerService : IDisposable
 {
@@ -81,10 +82,92 @@ public class SchedulerService : IDisposable
         if (task is null)
             return null;
         var result = await ExecuteAsync(task).ConfigureAwait(false);
-        task.LastRunAt = DateTime.Now;
+        MarkRun(task);
         SaveResult(task, result);
         NotifyJobFinished(task, result);
         return result;
+    }
+
+    /// <summary>
+    /// Догоняющее выполнение пропущенных заданий (функция №7): вызывается один раз при
+    /// старте приложения после запуска планировщика. Для каждого задания, чьё плановое
+    /// время наступило, пока приложение было выключено (см. <see cref="ScheduleCatchUpCalculator.IsMissed"/>),
+    /// выполняет его сразу — один раз, переиспользуя общий путь выполнения
+    /// (<see cref="ExecuteAsync"/>), с записью результата и отметкой времени запуска.
+    /// Возвращает число выполненных заданий; любая ошибка не роняет старт приложения.
+    /// </summary>
+    /// <param name="catchUpEnabled">Глобальная настройка «догонять пропущенные задания».</param>
+    public async Task<int> RunCatchUpAsync(bool catchUpEnabled)
+    {
+        if (!catchUpEnabled)
+            return 0;
+
+        // Не конфликтуем с фоновым тиком: одна операция 1С за раз.
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var now = DateTime.Now;
+            var executed = 0;
+            foreach (var task in _tasks.LoadAll())
+            {
+                if (!ScheduleCatchUpCalculator.IsMissed(task, now))
+                    continue;
+
+                _logger?.Info($"Догоняющее выполнение пропущенного задания «{task.Name}» ({task.Kind}).");
+                var result = await ExecuteAsync(task).ConfigureAwait(false);
+                MarkRun(task);
+                SaveResult(task, result);
+                NotifyJobFinished(task, result);
+                // Следующий момент — с запасом в минуту, чтобы тик не выполнил задание дважды.
+                _nextRuns[task.Id] = ScheduleCalculator.ComputeNextRun(task, now.AddMinutes(1));
+                executed++;
+            }
+
+            if (executed > 0)
+            {
+                _logger?.Info($"Догоняющее выполнение завершено: выполнено пропущенных заданий — {executed}.");
+                NotifyCatchUpDone(executed);
+            }
+
+            return executed;
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("Ошибка догоняющего выполнения пропущенных заданий", ex);
+            return 0;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Фиксирует момент фактического запуска задания: локальное время — для отображения
+    /// в списке заданий, UTC — для сравнения с плановым временем при догонянии (функция №7).
+    /// </summary>
+    private static void MarkRun(ScheduledTask task)
+    {
+        task.LastRunAt = DateTime.Now;
+        task.LastRunUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Системное уведомление о выполненном догонянии (функция №7): только когда число
+    /// выполненных заданий больше нуля. Ошибки уведомления не влияют на планировщик.
+    /// </summary>
+    private void NotifyCatchUpDone(int count)
+    {
+        try
+        {
+            _notifications.Show(
+                LocalizationManager.T("App.Title"),
+                string.Format(LocalizationManager.T("Schedule.CatchUpDone"), count));
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("Не удалось показать системное уведомление о догоняющем выполнении", ex);
+        }
     }
 
     private void Tick()
@@ -120,11 +203,11 @@ public class SchedulerService : IDisposable
 
             _logger?.Info($"Расписание: наступило время задания «{task.Name}» ({task.Kind}).");
             var result = await ExecuteAsync(task).ConfigureAwait(false);
-            task.LastRunAt = DateTime.Now;
+            MarkRun(task);
             SaveResult(task, result);
             NotifyJobFinished(task, result);
             // Следующий момент — с запасом в минуту, чтобы не выполнить задание дважды подряд.
-            _nextRuns[task.Id] = ScheduleCalculator.ComputeNextRun(task, DateTime.Now.AddMinutes(1));
+            _nextRuns[task.Id] = ScheduleCalculator.ComputeNextRun(task, now.AddMinutes(1));
         }
     }
 

@@ -578,6 +578,8 @@
     "Settings.General.CloseToTray": "Minimize to tray on close",
     "Settings.General.EscapeToTray": "Minimize to tray on Esc",
     "Settings.General.ShowSystemNotifications": "System notifications about completed background operations (backup, scheduled task, application update)",
+    "Settings.General.CatchUpMissedTasks": "Run missed scheduled tasks on startup",
+    "Settings.General.CatchUpMissedTasksTooltip": "If the computer was off when a task was due, the program runs the task immediately on the next startup — once. Not applied to application updates (the updater finds them on its own); misses older than 7 days are not caught up.",
     "Main.AfterLaunchTrayUnavailable": "No tray icon is available, the window was minimized instead of hiding: a hidden window could not be restored.",
     "Settings.General.RememberWindowLayout": "Remember window position, size and monitor",
     "Settings.General.AfterLaunchAction": "After launching an infobase or configurator:",
@@ -1933,6 +1935,7 @@
     "Schedule.Kind.BackupThenUpdateConfig": "Backup → update configuration",
     "Schedule.Kind.CheckIntegrity": "Check integrity (chdbfl)",
     "Schedule.Kind.UpdateApp": "Update the application",
+    "Schedule.CatchUpDone": "Missed scheduled tasks executed: {0}",
 
     "Notify.BackupDone": "Backup created: {0} — {1}",
     "Notify.BackupError": "Backup failed: {0} — {1}",

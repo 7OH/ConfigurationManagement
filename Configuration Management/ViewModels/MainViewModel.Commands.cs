@@ -1036,6 +1036,21 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Догоняющее выполнение пропущенных заданий по расписанию при старте (функция №7):
+    /// задания, чьё плановое время наступило, пока приложение было выключено, выполняются
+    /// сразу при следующем запуске (один раз, только свежие пропуски — не старше 7 суток).
+    /// </summary>
+    public bool CatchUpMissedTasks
+    {
+        get => _catchUpMissedTasks;
+        set
+        {
+            if (SetProperty(ref _catchUpMissedTasks, value))
+                ScheduleSaveSettings();
+        }
+    }
+
+    /// <summary>
     /// Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96),
     /// ГБ. 0 — не предупреждать.
     /// </summary>

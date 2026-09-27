@@ -335,7 +335,12 @@ namespace Configuration_Management
                     // запущено; остановка выполняется при завершении приложения.
                     try
                     {
-                        AppServices.GetRequiredService<SchedulerService>().Start();
+                        var scheduler = AppServices.GetRequiredService<SchedulerService>();
+                        scheduler.Start();
+                        // Догоняющее выполнение пропущенных заданий (функция №7): задания,
+                        // чьё плановое время наступило, пока приложение было выключено,
+                        // выполняются сразу — один раз (если включено в настройках).
+                        _ = scheduler.RunCatchUpAsync(settings.CatchUpMissedTasks);
                     }
                     catch (Exception ex)
                     {

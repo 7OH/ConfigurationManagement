@@ -145,6 +145,8 @@ public partial class MainViewModel : ViewModelBase
     private bool _showTrayIcon = true;
     // Системные уведомления ОС о завершении фоновых операций (функция №4).
     private bool _showSystemNotifications = true;
+    // Догоняющее выполнение пропущенных заданий при старте (функция №7).
+    private bool _catchUpMissedTasks = true;
     // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96), ГБ.
     private int _maintenanceFreeSpaceWarningGb = Services.DiskFreeSpaceHelper.DefaultWarningGb;
     private bool _compactMode;
@@ -376,6 +378,7 @@ public partial class MainViewModel : ViewModelBase
         _closeToTray = settings.CloseToTray;
         _showTrayIcon = settings.ShowTrayIcon;
         _showSystemNotifications = settings.ShowSystemNotifications;
+        _catchUpMissedTasks = settings.CatchUpMissedTasks;
         _maintenanceFreeSpaceWarningGb = Math.Max(0, settings.MaintenanceFreeSpaceWarningGb);
         _escapeToTray = settings.EscapeToTray;
         _afterLaunchAction = settings.AfterLaunchAction ?? "None";
