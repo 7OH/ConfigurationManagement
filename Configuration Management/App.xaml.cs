@@ -159,6 +159,15 @@ namespace Configuration_Management
                 // эта команда обрабатывается здесь, а затем запускается ещё один полноценный процесс.
                 ExplorerCommandLine.TryHandle(e.Args);
 
+                // CLI-команды ярлыков и скриптов (--run "База" [--designer], --list):
+                // выполняются вторым процессом напрямую (запуск базы не требует UI),
+                // после чего приложение завершается, не показывая окно.
+                if (Services.CommandLineHandler.TryHandle(e.Args, out var cliExitCode))
+                {
+                    Shutdown(cliExitCode);
+                    return;
+                }
+
                 // Инициализируем локализацию: выбираем сохранённый язык, иначе язык
                 // системы. Внешние языки (.json) подгружаются из папки Languages.
                 try
