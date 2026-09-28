@@ -542,15 +542,15 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Кнопка копирования у поля «Наименование» (issue #306): переносит
-        /// значение «Имя базы на сервере» (RefBox) в наименование ИБ.
-        /// Пустое значение Ref наименование не затирает.
+        /// Кнопка копирования у поля «Имя базы данных» (issue #306): переносит
+        /// значение «Имя базы на сервере» (RefBox) в имя базы данных (DbNameBox).
+        /// Пустое значение Ref имя базы данных не затирает.
         /// </summary>
-        private void OnCopyRefToName_Click(object sender, RoutedEventArgs e)
+        private void OnCopyRefToDbName_Click(object sender, RoutedEventArgs e)
         {
             var refName = RefBox.Text?.Trim();
             if (!string.IsNullOrWhiteSpace(refName))
-                NameBox.Text = refName;
+                DbNameBox.Text = refName;
         }
 
         // ================= Живая подсказка формата DBSrvr (issue #305) =================

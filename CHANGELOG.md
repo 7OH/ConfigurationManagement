@@ -9,6 +9,20 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.118] — 2026-09-28
+
+### Исправлено
+
+- **Окно создания ИБ: кнопка копирования перенесена к полю «Имя базы данных» (#306)** —
+  по замечанию автора issue кнопка-иконка (ContentCopy) теперь стоит не у поля
+  «Наименование», а у поля «Имя базы данных» и копирует значение из «Имя базы на
+  сервере» (RefBox) в «Имя базы данных» (DbNameBox). Поле «Наименование» больше не
+  задействуется. Пустое значение Ref приёмник не затирает (поведение сохранено).
+  Windows/WPF — [`Views/CreateInfobaseWindow.xaml`](Configuration%20Management/Views/CreateInfobaseWindow.xaml)
+  (`DbNameBox` обёрнут в Grid с кнопкой `OnCopyRefToDbName_Click`, у `NameBox`
+  кнопка убрана); Linux/Avalonia — [`Views/CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs)
+  (кнопка `copyRefToDb` у строки `_dbNameBox`, `CopyRefToName()` → `CopyRefToDbName()`).
+
 ## [0.3.9.117] — 2026-09-28
 
 ### Исправлено

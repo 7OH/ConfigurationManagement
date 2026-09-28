@@ -201,26 +201,8 @@ namespace Configuration_Management
             _typeBox.SelectionChanged += (_, _) => OnTypeChanged();
             fields.Children.Add(Field(LocalizationManager.T("CreateInfobase.TypeLabel"), _typeBox));
 
-            // Наименование с кнопкой «скопировать из имени базы на сервере» (issue #306).
-            var nameRow = new Grid();
-            nameRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            nameRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            Grid.SetColumn(_nameBox, 0);
-            nameRow.Children.Add(_nameBox);
-            var copyRef = new Button
-            {
-                Content = IconHelper.MakeIcon("IconCopy", 16),
-                Width = 30,
-                Height = 30,
-                Padding = new Thickness(0),
-                Margin = new Thickness(6, 0, 0, 0)
-            };
-            copyRef.Styled(ControlThemes.IconButton);
-            ToolTip.SetTip(copyRef, LocalizationManager.T("CreateInfobase.CopyRefToName"));
-            copyRef.Click += (_, _) => CopyRefToName();
-            Grid.SetColumn(copyRef, 1);
-            nameRow.Children.Add(copyRef);
-            fields.Children.Add(Field(LocalizationManager.T("CreateInfobase.NameLabel"), nameRow));
+            // Наименование (кнопка копирования перенесена к полю «Имя базы данных», issue #306).
+            fields.Children.Add(Field(LocalizationManager.T("CreateInfobase.NameLabel"), _nameBox));
 
             // Группа
             var groupRow = new Grid();
@@ -358,7 +340,26 @@ namespace Configuration_Management
             dbServerField.Children.Add(dbServerRow);
             rightCol.Children.Add(dbServerField);
             rightCol.Children.Add(_dbServerHint);
-            rightCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbNameLabel"), _dbNameBox));
+            // «Имя базы данных» с кнопкой «скопировать из имени базы на сервере» (issue #306).
+            var dbNameRow = new Grid();
+            dbNameRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            dbNameRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            Grid.SetColumn(_dbNameBox, 0);
+            dbNameRow.Children.Add(_dbNameBox);
+            var copyRefToDb = new Button
+            {
+                Content = IconHelper.MakeIcon("IconCopy", 16),
+                Width = 30,
+                Height = 30,
+                Padding = new Thickness(0),
+                Margin = new Thickness(6, 0, 0, 0)
+            };
+            copyRefToDb.Styled(ControlThemes.IconButton);
+            ToolTip.SetTip(copyRefToDb, LocalizationManager.T("CreateInfobase.CopyRefToDbName"));
+            copyRefToDb.Click += (_, _) => CopyRefToDbName();
+            Grid.SetColumn(copyRefToDb, 1);
+            dbNameRow.Children.Add(copyRefToDb);
+            rightCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbNameLabel"), dbNameRow));
             rightCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbUserLabel"), _dbUserBox));
             rightCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbPasswordLabel"), _dbPwdBox));
 
@@ -836,15 +837,15 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Кнопка копирования у поля «Наименование» (issue #306): переносит
-        /// значение «Имя базы на сервере» (RefBox) в наименование ИБ.
-        /// Пустое значение Ref наименование не затирает.
+        /// Кнопка копирования у поля «Имя базы данных» (issue #306): переносит
+        /// значение «Имя базы на сервере» (RefBox) в имя базы данных (DbNameBox).
+        /// Пустое значение Ref имя базы данных не затирает.
         /// </summary>
-        private void CopyRefToName()
+        private void CopyRefToDbName()
         {
             var refName = _refBox.Text?.Trim();
             if (!string.IsNullOrWhiteSpace(refName))
-                _nameBox.Text = refName;
+                _dbNameBox.Text = refName;
         }
 
         /// <summary>

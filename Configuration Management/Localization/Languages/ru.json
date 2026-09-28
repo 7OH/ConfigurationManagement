@@ -1261,7 +1261,7 @@
     "CreateInfobase.TypeClientServer": "Клиент-серверная",
     "CreateInfobase.ServerLabel": "Сервер 1С:",
     "CreateInfobase.RefLabel": "Имя базы на сервере:",
-    "CreateInfobase.CopyRefToName": "Скопировать имя базы на сервере в наименование ИБ",
+    "CreateInfobase.CopyRefToDbName": "Скопировать имя базы на сервере в имя базы данных",
     "CreateInfobase.DbmsLabel": "СУБД:",
     "CreateInfobase.DbServerLabel": "Сервер СУБД:",
     "CreateInfobase.DbPortTooltip": "Порт сервера СУБД (пусто — порт по умолчанию)",

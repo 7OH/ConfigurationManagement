@@ -1261,7 +1261,7 @@
     "CreateInfobase.TypeClientServer": "Client-server",
     "CreateInfobase.ServerLabel": "1C server:",
     "CreateInfobase.RefLabel": "Base name on the server:",
-    "CreateInfobase.CopyRefToName": "Copy the base name on the server to the infobase name",
+    "CreateInfobase.CopyRefToDbName": "Copy the server base name to the database name",
     "CreateInfobase.DbmsLabel": "DBMS:",
     "CreateInfobase.DbServerLabel": "DBMS server:",
     "CreateInfobase.DbPortTooltip": "DBMS server port (empty — default port)",

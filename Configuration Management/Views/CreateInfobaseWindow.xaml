@@ -44,19 +44,7 @@
             </ComboBox>
 
             <TextBlock Text="{loc:Loc CreateInfobase.NameLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
-            <!-- Кнопка «скопировать имя базы на сервере» стоит у поля «Наименование» (issue #306). -->
-            <Grid Margin="0,0,0,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBox x:Name="NameBox" Style="{DynamicResource ModernTextBox}"/>
-                <Button Grid.Column="1" Width="30" Height="30" Margin="6,0,0,0"
-                        Style="{DynamicResource IconButton}" Click="OnCopyRefToName_Click"
-                        ToolTip="{loc:Loc CreateInfobase.CopyRefToName}">
-                    <materialDesign:PackIcon Kind="ContentCopy" Width="16" Height="16"/>
-                </Button>
-            </Grid>
+            <TextBox x:Name="NameBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,12"/>
 
             <StackPanel x:Name="FilePanel">
                 <TextBlock Text="{loc:Loc CreateInfobase.DirLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
@@ -130,7 +118,19 @@
                         <TextBlock x:Name="DbServerHint" FontSize="11" Margin="0,0,0,8" TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.DbNameLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
-                        <TextBox x:Name="DbNameBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,10"/>
+                        <!-- Кнопка «скопировать имя базы на сервере» у поля «Имя базы данных» (issue #306). -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="DbNameBox" Style="{DynamicResource ModernTextBox}"/>
+                            <Button Grid.Column="1" Width="30" Height="30" Margin="6,0,0,0"
+                                    Style="{DynamicResource IconButton}" Click="OnCopyRefToDbName_Click"
+                                    ToolTip="{loc:Loc CreateInfobase.CopyRefToDbName}">
+                                <materialDesign:PackIcon Kind="ContentCopy" Width="16" Height="16"/>
+                            </Button>
+                        </Grid>
                         <TextBlock Text="{loc:Loc CreateInfobase.DbUserLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <TextBox x:Name="DbUserBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,10"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.DbPasswordLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
