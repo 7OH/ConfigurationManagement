@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Configuration_Management.Localization;
 using Configuration_Management.Services;
+using Configuration_Management.Themes;
 
 namespace Configuration_Management
 {
@@ -47,6 +48,7 @@ namespace Configuration_Management
                 TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(20, 0, 20, 12)
             };
+            ThemeBrushes.Bind(_stageText, TextBlock.ForegroundProperty, "TextPrimaryBrush");
 
             var panel = new StackPanel();
             panel.Children.Add(bar);

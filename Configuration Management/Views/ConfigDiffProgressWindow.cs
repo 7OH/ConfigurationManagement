@@ -39,6 +39,10 @@ namespace Configuration_Management
                 TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(20, 0, 20, 12)
             };
+            // Цвет текста — из темы (TextPrimaryBrush), как у остальных окон ConfigDiff:
+            // у программного окна нет XAML-стиля, а DynamicResource-ссылка обновляет
+            // цвет при смене светлой/тёмной темы (issue #316).
+            _stageText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
 
             var panel = new StackPanel();
             panel.Children.Add(bar);

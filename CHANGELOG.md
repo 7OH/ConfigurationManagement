@@ -9,6 +9,26 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.117] — 2026-09-28
+
+### Исправлено
+
+- **Окна сравнения конфигураций (ConfigDiff): надписи читаются в обеих темах (#316)** —
+  цвета текста всех надписей привязаны к теме приложения. На Linux/Avalonia текстовые
+  блоки собираются в коде и не наследовали цвет темы, из-за чего в светлой схеме текст
+  выглядел белым на светлой подложке (и наоборот в тёмной): теперь `Foreground` заголовков,
+  описаний, меток полей, подсказок, строк результата и сводки привязывается через
+  `ThemeBrushes.Bind(..., "TextPrimaryBrush"/"TextSecondaryBrush")`, как в остальных окнах.
+  Статусы объектов («Добавлен»/«Изменён»/«Удалён») оставлены фирменными жёсткими цветами
+  (`#22C55E`/`#F59E0B`/`#EF4444`) — они читаемы в обеих схемах. На Windows/WPF оконные
+  стили `Style TargetType="TextBlock"` уже задавали цвет из динамического ресурса
+  `TextPrimaryBrush` (определён в светлой и тёмной теме); дополнительно привязан цвет
+  текста этапа в окне прогресса (`ConfigDiffProgressWindow`), у которого нет XAML-стиля.
+  Linux/Avalonia — [`Views/ConfigDiffSetupWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffSetupWindow.Avalonia.cs),
+  [`Views/ConfigDiffResultWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffResultWindow.Avalonia.cs),
+  [`Views/ConfigDiffProgressWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffProgressWindow.Avalonia.cs);
+  Windows/WPF — [`Views/ConfigDiffProgressWindow.cs`](Configuration%20Management/Views/ConfigDiffProgressWindow.cs).
+
 ## [0.3.9.116] — 2026-09-28
 
 ### Добавлено

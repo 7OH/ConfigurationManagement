@@ -12,6 +12,7 @@ using Avalonia.Media;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
+using Configuration_Management.Themes;
 
 namespace Configuration_Management
 {
@@ -69,13 +70,14 @@ namespace Configuration_Management
             var root = new StackPanel { Margin = new Thickness(16), Spacing = 6 };
 
             // Описание
-            root.Children.Add(new TextBlock
+            var description = new TextBlock
             {
                 Text = LocalizationManager.T("ConfigDiff.Description"),
                 TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.7,
                 Margin = new Thickness(0, 0, 0, 6)
-            });
+            };
+            ThemeBrushes.Bind(description, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            root.Children.Add(description);
 
             // Режим сравнения
             _modeBaseRadio.Content = LocalizationManager.T("ConfigDiff.ModeBaseVsCf");
@@ -88,9 +90,15 @@ namespace Configuration_Management
 
             // База (режим «База ↔ .cf»)
             _basePanel.Spacing = 4;
-            _basePanel.Children.Add(new TextBlock { Text = LocalizationManager.T("ConfigDiff.SelectBase") });
+            var selectBaseLabel = new TextBlock { Text = LocalizationManager.T("ConfigDiff.SelectBase") };
+            ThemeBrushes.Bind(selectBaseLabel, TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            _basePanel.Children.Add(selectBaseLabel);
             _basesBox.ItemTemplate = new FuncDataTemplate<Infobase>((ib, _) =>
-                new TextBlock { Text = ib.Name, VerticalAlignment = VerticalAlignment.Center });
+            {
+                var tb = new TextBlock { Text = ib.Name, VerticalAlignment = VerticalAlignment.Center };
+                ThemeBrushes.Bind(tb, TextBlock.ForegroundProperty, "TextPrimaryBrush");
+                return tb;
+            });
             foreach (var ib in _infobases)
                 _basesBox.Items.Add(ib);
             if (selectedBase is not null && _infobases.Contains(selectedBase))
@@ -103,21 +111,27 @@ namespace Configuration_Management
 
             // Левый .cf (режим «.cf ↔ .cf»)
             _cfLeftPanel.Spacing = 4;
-            _cfLeftPanel.Children.Add(new TextBlock { Text = LocalizationManager.T("ConfigDiff.SelectCfLeft") });
+            var selectCfLeftLabel = new TextBlock { Text = LocalizationManager.T("ConfigDiff.SelectCfLeft") };
+            ThemeBrushes.Bind(selectCfLeftLabel, TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            _cfLeftPanel.Children.Add(selectCfLeftLabel);
             _cfLeftPanel.Children.Add(BuildCfRow(_leftCfBox));
             root.Children.Add(_cfLeftPanel);
 
             // Правый .cf
-            root.Children.Add(new TextBlock { Text = LocalizationManager.T("ConfigDiff.SelectCfRight") });
+            var selectCfRightLabel = new TextBlock { Text = LocalizationManager.T("ConfigDiff.SelectCfRight") };
+            ThemeBrushes.Bind(selectCfRightLabel, TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            root.Children.Add(selectCfRightLabel);
             root.Children.Add(BuildCfRow(_rightCfBox));
 
             // Платформа 1С
-            root.Children.Add(new TextBlock { Text = LocalizationManager.T("ConfigDiff.Platform") });
+            var platformLabel = new TextBlock { Text = LocalizationManager.T("ConfigDiff.Platform") };
+            ThemeBrushes.Bind(platformLabel, TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            root.Children.Add(platformLabel);
             _platformBox.IsEditable = true;
             root.Children.Add(_platformBox);
             _platformHint.FontSize = 11;
-            _platformHint.Opacity = 0.65;
             _platformHint.TextWrapping = TextWrapping.Wrap;
+            ThemeBrushes.Bind(_platformHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
             root.Children.Add(_platformHint);
 
             // Ошибка

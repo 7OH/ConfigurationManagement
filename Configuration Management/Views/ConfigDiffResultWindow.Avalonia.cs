@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
+using Configuration_Management.Themes;
 using Configuration_Management.ViewModels;
 
 namespace Configuration_Management
@@ -46,11 +47,15 @@ namespace Configuration_Management
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 6)
             };
+            ThemeBrushes.Bind(header, TextBlock.ForegroundProperty, "TextPrimaryBrush");
 
             var meta = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 0, 0, 4) };
-            meta.Children.Add(new TextBlock { Text = _vm.ElapsedText, FontSize = 12, Opacity = 0.65 });
-            meta.Children.Add(new TextBlock { Text = "\u00b7", FontSize = 12, Opacity = 0.65 });
-            meta.Children.Add(new TextBlock { Text = _vm.RootChangedText, FontSize = 12, Opacity = 0.65 });
+            foreach (var text in new[] { _vm.ElapsedText, "\u00b7", _vm.RootChangedText })
+            {
+                var tb = new TextBlock { Text = text, FontSize = 12 };
+                ThemeBrushes.Bind(tb, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+                meta.Children.Add(tb);
+            }
 
             var summary = new TextBlock
             {
@@ -60,19 +65,21 @@ namespace Configuration_Management
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 8)
             };
+            ThemeBrushes.Bind(summary, TextBlock.ForegroundProperty, "TextPrimaryBrush");
 
             // Группировка по типам: заголовок типа и строки объектов.
             var list = new StackPanel { Spacing = 2 };
             foreach (var typeNode in _vm.Types)
             {
-                list.Children.Add(new TextBlock
+                var typeHeader = new TextBlock
                 {
                     Text = typeNode.Header,
                     FontSize = 13,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = new SolidColorBrush(Color.Parse("#94A3B8")),
                     Margin = new Thickness(0, 8, 0, 4)
-                });
+                };
+                ThemeBrushes.Bind(typeHeader, TextBlock.ForegroundProperty, "TextPrimaryBrush");
+                list.Children.Add(typeHeader);
                 foreach (var obj in typeNode.Objects)
                     list.Children.Add(BuildObjectRow(obj));
             }
@@ -142,6 +149,7 @@ namespace Configuration_Management
             };
 
             var name = new TextBlock { Text = obj.Name, TextTrimming = TextTrimming.CharacterEllipsis };
+            ThemeBrushes.Bind(name, TextBlock.ForegroundProperty, "TextPrimaryBrush");
             grid.Children.Add(name);
 
             var status = new TextBlock
@@ -153,11 +161,13 @@ namespace Configuration_Management
             Grid.SetColumn(status, 1);
             grid.Children.Add(status);
 
-            var files = new TextBlock { Text = obj.FileCount.ToString(), TextAlignment = TextAlignment.Right, Opacity = 0.65 };
+            var files = new TextBlock { Text = obj.FileCount.ToString(), TextAlignment = TextAlignment.Right };
+            ThemeBrushes.Bind(files, TextBlock.ForegroundProperty, "TextSecondaryBrush");
             Grid.SetColumn(files, 2);
             grid.Children.Add(files);
 
-            var size = new TextBlock { Text = obj.SizeText, TextAlignment = TextAlignment.Right, Opacity = 0.65 };
+            var size = new TextBlock { Text = obj.SizeText, TextAlignment = TextAlignment.Right };
+            ThemeBrushes.Bind(size, TextBlock.ForegroundProperty, "TextSecondaryBrush");
             Grid.SetColumn(size, 3);
             grid.Children.Add(size);
 
