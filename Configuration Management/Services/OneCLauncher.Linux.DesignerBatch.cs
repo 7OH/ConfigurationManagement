@@ -38,7 +38,12 @@ namespace Configuration_Management.Services
             /// (/ConfigurationRepositoryF … /ConfigurationRepositoryUpdateCfg /UpdateDBCfg).
             /// Пакетное обновление из хранилищ (0.3.9.88): последовательный прогон выбранных баз.
             /// </summary>
-            RepositoryUpdate
+            RepositoryUpdate,
+            /// <summary>
+            /// Выгрузка конфигурации в каталог XML-файлов (/DumpConfigToFiles"dir") для сравнения
+            /// конфигураций (0.3.9.99, функция №9): каноническое дерево, одинаковое для базы и .cf.
+            /// </summary>
+            DumpConfigToFiles
         }
 
         /// <summary>Информация о запущенной пакетной операции DESIGNER.</summary>
@@ -73,6 +78,7 @@ namespace Configuration_Management.Services
                 DesignerBatchOperation.LockIB => LocalizationManager.T("Launcher.OperationLockIB"),
                 DesignerBatchOperation.UnlockIB => LocalizationManager.T("Launcher.OperationUnlockIB"),
                 DesignerBatchOperation.RepositoryUpdate => LocalizationManager.T("Launcher.OperationRepositoryUpdate"),
+                DesignerBatchOperation.DumpConfigToFiles => LocalizationManager.T("Launcher.OperationDumpConfigToFiles"),
                 _ => LocalizationManager.T("Launcher.OperationGeneric")
             };
         }
@@ -103,6 +109,21 @@ namespace Configuration_Management.Services
                 {
                     try { Directory.CreateDirectory(dir); }
                     catch { return false; }
+                }
+            }
+            else if (operation == DesignerBatchOperation.DumpConfigToFiles)
+            {
+                // Каталог выгрузки должен существовать заранее (создаётся здесь): платформа
+                // сама каталог не создаёт, а без него /DumpConfigToFiles завершится ошибкой.
+                if (string.IsNullOrWhiteSpace(outputPath))
+                    return false;
+                try
+                {
+                    Directory.CreateDirectory(outputPath);
+                }
+                catch
+                {
+                    return false;
                 }
             }
             else if (operation is DesignerBatchOperation.RestoreIB or DesignerBatchOperation.LoadCfg)
@@ -140,6 +161,9 @@ namespace Configuration_Management.Services
                 // хранилища и флаги /ConfigurationRepositoryUpdateCfg /UpdateDBCfg
                 // собираются общим методом (см. OneCLauncher.Arguments.Shared.cs).
                 DesignerBatchOperation.RepositoryUpdate => BuildRepositoryUpdateArgument(infobase),
+                // Выгрузка конфигурации в каталог XML-файлов (0.3.9.99): каталог создан выше.
+                DesignerBatchOperation.DumpConfigToFiles when IsSafeCliValue(outputPath) =>
+                    $"/DumpConfigToFiles\"{outputPath}\"",
                 _ => ""
             };
             if (string.IsNullOrEmpty(opArg))
@@ -222,6 +246,15 @@ namespace Configuration_Management.Services
                      File.Exists(info.OutputPath) &&
                      new FileInfo(info.OutputPath).Length > 0;
             }
+
+        else if (ok && info.Operation == DesignerBatchOperation.DumpConfigToFiles)
+        {
+            // Успех выгрузки в каталог: каталог существует и содержит служебный файл
+            // выгрузки ConfigDumpInfo.xml (признак корректно созданного дерева).
+            ok = !string.IsNullOrWhiteSpace(info.OutputPath) &&
+                 Directory.Exists(info.OutputPath) &&
+                 File.Exists(Path.Combine(info.OutputPath, "ConfigDumpInfo.xml"));
+        }
 
             info.Success = ok;
             if (ok)

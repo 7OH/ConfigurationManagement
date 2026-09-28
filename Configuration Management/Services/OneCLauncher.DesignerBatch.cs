@@ -37,7 +37,12 @@ public static partial class OneCLauncher
         /// (/ConfigurationRepositoryF … /ConfigurationRepositoryUpdateCfg /UpdateDBCfg).
         /// Пакетное обновление из хранилищ (0.3.9.88): последовательный прогон выбранных баз.
         /// </summary>
-        RepositoryUpdate
+        RepositoryUpdate,
+        /// <summary>
+        /// Выгрузка конфигурации в каталог XML-файлов (/DumpConfigToFiles"dir") для сравнения
+        /// конфигураций (0.3.9.99, функция №9): каноническое дерево, одинаковое для базы и .cf.
+        /// </summary>
+        DumpConfigToFiles
     }
 
     /// <summary>
@@ -92,6 +97,7 @@ public static partial class OneCLauncher
             DesignerBatchOperation.LockIB => LocalizationManager.T("Launcher.OperationLockIB"),
             DesignerBatchOperation.UnlockIB => LocalizationManager.T("Launcher.OperationUnlockIB"),
             DesignerBatchOperation.RepositoryUpdate => LocalizationManager.T("Launcher.OperationRepositoryUpdate"),
+            DesignerBatchOperation.DumpConfigToFiles => LocalizationManager.T("Launcher.OperationDumpConfigToFiles"),
             _ => LocalizationManager.T("Launcher.OperationGeneric")
         };
     }
@@ -150,6 +156,23 @@ public static partial class OneCLauncher
                         string.Format(LocalizationManager.T("Launcher.CreateDirFailedFormat"), dir, ex.Message), ex);
                     return false;
                 }
+            }
+        }
+        else if (operation == DesignerBatchOperation.DumpConfigToFiles)
+        {
+            // Каталог выгрузки должен существовать заранее (создаётся здесь): платформа
+            // сама каталог не создаёт, а без него /DumpConfigToFiles завершится ошибкой.
+            if (string.IsNullOrWhiteSpace(outputPath))
+                return false;
+            try
+            {
+                Directory.CreateDirectory(outputPath);
+            }
+            catch (Exception ex)
+            {
+                GetLogger()?.Error(
+                    string.Format(LocalizationManager.T("Launcher.CreateDirFailedFormat"), outputPath, ex.Message), ex);
+                return false;
             }
         }
         else if (operation is DesignerBatchOperation.RestoreIB or DesignerBatchOperation.LoadCfg)
@@ -279,6 +302,13 @@ public static partial class OneCLauncher
             ok = !string.IsNullOrWhiteSpace(info.OutputPath) &&
                  File.Exists(info.OutputPath) &&
                  new FileInfo(info.OutputPath).Length > 0;
+        }
+
+        else if (ok && info.Operation == DesignerBatchOperation.DumpConfigToFiles)
+        {
+            ok = !string.IsNullOrWhiteSpace(info.OutputPath) &&
+                 Directory.Exists(info.OutputPath) &&
+                 File.Exists(Path.Combine(info.OutputPath, "ConfigDumpInfo.xml"));
         }
 
         info.Success = ok;

@@ -9,6 +9,41 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.99] — 2026-09-28
+
+### Добавлено
+
+- **Сравнение конфигураций (Config-Diff)** (обе платформы, функция №9) — команда
+  «Сравнение конфигураций…» в меню «Утилиты»: сравнение конфигурации выбранной базы
+  с эталонным файлом `.cf` ИЛИ двух файлов `.cf` между собой; результат — отчёт об
+  отличиях по объектам метаданных (добавленные / изменённые / удалённые, сгруппированные
+  по типам) с экспортом в CSV и TXT. Механизм — универсальный конвейер «выгрузка →
+  XML-файлы»: каждый `.cf` распаковывается во временную файловую ИБ (`CREATEINFOBASE`
+  с `/UseTemplate`, переиспользуется [`Services/OneCLauncher.Arguments.cs`](Configuration%20Management/Services/OneCLauncher.Arguments.cs));
+  из временной ИБ и реальной базы конфигурация выгружается новым ключом
+  `/DumpConfigToFiles` (значение `DesignerBatchOperation.DumpConfigToFiles` в
+  [`Services/OneCLauncher.DesignerBatch.cs`](Configuration%20Management/Services/OneCLauncher.DesignerBatch.cs)
+  и [`Services/OneCLauncher.Linux.DesignerBatch.cs`](Configuration%20Management/Services/OneCLauncher.Linux.DesignerBatch.cs),
+  успех — по наличию `ConfigDumpInfo.xml`); сравнение деревьев — чистое, без 1С: объекты
+  по путям `Configuration/<Тип>/<Имя>`, содержимое — SHA-256
+  ([`Services/ConfigurationDiffEngine.cs`](Configuration%20Management/Services/ConfigurationDiffEngine.cs)).
+  Оркестрация — [`Services/ConfigurationDiffService.cs`](Configuration%20Management/Services/ConfigurationDiffService.cs)
+  (временный каталог `%TEMP%\cm_configdiff_*`, обязательная очистка в `finally`, таймауты,
+  человекочитаемые ошибки из лога 1С; таймаут `CreateInfoBase` вынесен в параметр
+  `timeoutMs`). Локализация типов метаданных — [`Services/MetadataTypeLocalizer.cs`](Configuration%20Management/Services/MetadataTypeLocalizer.cs),
+  форматы отчёта — [`Services/ConfigurationDiffReporter.cs`](Configuration%20Management/Services/ConfigurationDiffReporter.cs)
+  (CSV через [`Services/CsvExporter.cs`](Configuration%20Management/Services/CsvExporter.cs)). UI: окно
+  настройки ([`Views/ConfigDiffSetupWindow.xaml`](Configuration%20Management/Views/ConfigDiffSetupWindow.xaml) /
+  [`Views/ConfigDiffSetupWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffSetupWindow.Avalonia.cs)),
+  окно прогресса ([`Views/ConfigDiffProgressWindow.cs`](Configuration%20Management/Views/ConfigDiffProgressWindow.cs) /
+  [`Views/ConfigDiffProgressWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffProgressWindow.Avalonia.cs)),
+  окно отчёта с деревом «Тип → объекты» и экспортом
+  ([`Views/ConfigDiffResultWindow.xaml`](Configuration%20Management/Views/ConfigDiffResultWindow.xaml) /
+  [`Views/ConfigDiffResultWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffResultWindow.Avalonia.cs));
+  ViewModel отчёта — [`ViewModels/ConfigDiffResultViewModel.cs`](Configuration%20Management/ViewModels/ConfigDiffResultViewModel.cs).
+  Логика покрыта unit-тестами
+  ([`ConfigurationManagement.Tests/ConfigurationDiffTests.cs`](ConfigurationManagement.Tests/ConfigurationDiffTests.cs)).
+
 ## [0.3.9.98] — 2026-09-27
 
 ### Добавлено

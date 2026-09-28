@@ -1,0 +1,216 @@
+#if LINUX
+using System;
+using System.IO;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Configuration_Management.Localization;
+using Configuration_Management.Models;
+using Configuration_Management.Services;
+using Configuration_Management.ViewModels;
+
+namespace Configuration_Management
+{
+    /// <summary>
+    /// Окно отчёта о сравнении конфигураций (0.3.9.99, функция №9, Avalonia/Linux):
+    /// шапка «что с чем сравнивали», сводка, группировка объектов по типам метаданных
+    /// со статусами (добавлен/изменён/удалён/без изменений) и экспорт в CSV/TXT.
+    /// Вся логика — в чистой ViewModel <see cref="ConfigDiffResultViewModel"/>.
+    /// </summary>
+    public sealed class ConfigDiffResultWindow : ModalWindowBase
+    {
+        private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
+        private readonly ConfigDiffResultViewModel _vm;
+
+        public ConfigDiffResultWindow(ConfigurationDiffResult result)
+        {
+            Title = LocalizationManager.T("ConfigDiff.Title");
+            Width = 900;
+            Height = 640;
+            MinWidth = 700;
+            MinHeight = 420;
+            CanResize = true;
+            FontSize = 13;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            ShowInTaskbar = false;
+
+            _vm = new ConfigDiffResultViewModel(result);
+
+            var header = new TextBlock
+            {
+                Text = _vm.HeaderText,
+                FontSize = 15,
+                FontWeight = FontWeight.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+
+            var meta = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 0, 0, 4) };
+            meta.Children.Add(new TextBlock { Text = _vm.ElapsedText, FontSize = 12, Opacity = 0.65 });
+            meta.Children.Add(new TextBlock { Text = "\u00b7", FontSize = 12, Opacity = 0.65 });
+            meta.Children.Add(new TextBlock { Text = _vm.RootChangedText, FontSize = 12, Opacity = 0.65 });
+
+            var summary = new TextBlock
+            {
+                Text = _vm.SummaryText,
+                FontSize = 13,
+                FontWeight = FontWeight.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+
+            // Группировка по типам: заголовок типа и строки объектов.
+            var list = new StackPanel { Spacing = 2 };
+            foreach (var typeNode in _vm.Types)
+            {
+                list.Children.Add(new TextBlock
+                {
+                    Text = typeNode.Header,
+                    FontSize = 13,
+                    FontWeight = FontWeight.SemiBold,
+                    Foreground = new SolidColorBrush(Color.Parse("#94A3B8")),
+                    Margin = new Thickness(0, 8, 0, 4)
+                });
+                foreach (var obj in typeNode.Objects)
+                    list.Children.Add(BuildObjectRow(obj));
+            }
+
+            var scroll = new ScrollViewer
+            {
+                Content = list,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            };
+
+            var buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Spacing = 8,
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+            var exportCsv = new Button { Content = LocalizationManager.T("ConfigDiff.ExportCsv"), Width = 140 };
+            exportCsv.Click += (_, _) => ExportCsv();
+            var exportTxt = new Button { Content = LocalizationManager.T("ConfigDiff.ExportTxt"), Width = 140 };
+            exportTxt.Click += (_, _) => ExportTxt();
+            var close = new Button { Content = LocalizationManager.T("ConfigDiff.Close"), Width = 100, IsCancel = true };
+            close.Click += (_, _) => Close();
+            buttons.Children.Add(exportCsv);
+            buttons.Children.Add(exportTxt);
+            buttons.Children.Add(close);
+
+            var grid = new Grid
+            {
+                Margin = new Thickness(16),
+                RowDefinitions =
+                {
+                    new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Star),
+                    new RowDefinition(GridLength.Auto)
+                }
+            };
+            Grid.SetRow(header, 0);
+            grid.Children.Add(header);
+            Grid.SetRow(meta, 1);
+            grid.Children.Add(meta);
+            Grid.SetRow(summary, 2);
+            grid.Children.Add(summary);
+            Grid.SetRow(scroll, 3);
+            grid.Children.Add(scroll);
+            Grid.SetRow(buttons, 4);
+            grid.Children.Add(buttons);
+            Content = grid;
+        }
+
+        /// <summary>Строка объекта: Имя | Статус | Файлов | Размер.</summary>
+        private static Control BuildObjectRow(ConfigDiffObjectItemViewModel obj)
+        {
+            var grid = new Grid
+            {
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition(new GridLength(1, GridUnitType.Star)),
+                    new ColumnDefinition(new GridLength(110)),
+                    new ColumnDefinition(new GridLength(70)),
+                    new ColumnDefinition(new GridLength(90))
+                },
+                Margin = new Thickness(2, 1)
+            };
+
+            var name = new TextBlock { Text = obj.Name, TextTrimming = TextTrimming.CharacterEllipsis };
+            grid.Children.Add(name);
+
+            var status = new TextBlock
+            {
+                Text = obj.StatusText,
+                TextAlignment = TextAlignment.Right,
+                Foreground = StatusBrush(obj.Kind)
+            };
+            Grid.SetColumn(status, 1);
+            grid.Children.Add(status);
+
+            var files = new TextBlock { Text = obj.FileCount.ToString(), TextAlignment = TextAlignment.Right, Opacity = 0.65 };
+            Grid.SetColumn(files, 2);
+            grid.Children.Add(files);
+
+            var size = new TextBlock { Text = obj.SizeText, TextAlignment = TextAlignment.Right, Opacity = 0.65 };
+            Grid.SetColumn(size, 3);
+            grid.Children.Add(size);
+
+            return grid;
+        }
+
+        private static IBrush StatusBrush(DiffChangeKind kind) => kind switch
+        {
+            DiffChangeKind.Added => new SolidColorBrush(Color.Parse("#22C55E")),
+            DiffChangeKind.Changed => new SolidColorBrush(Color.Parse("#F59E0B")),
+            DiffChangeKind.Removed => new SolidColorBrush(Color.Parse("#EF4444")),
+            _ => new SolidColorBrush(Color.Parse("#94A3B8"))
+        };
+
+        private void ExportCsv()
+        {
+            var path = _dialogs.SaveFileDialog(
+                LocalizationManager.T("ConfigDiff.ExportCsv"),
+                $"ConfigDiff_{DateTime.Now:yyyy-MM-dd}.csv",
+                LocalizationManager.T("ConfigDiff.CsvFileFilter"));
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+            try
+            {
+                CsvExporter.WriteFile(path, _vm.BuildCsvRows());
+            }
+            catch (Exception ex)
+            {
+                _dialogs.ShowError(
+                    string.Format(LocalizationManager.T("ConfigDiff.ExportFailedFormat"), ex.Message),
+                    LocalizationManager.T("ConfigDiff.Title"));
+            }
+        }
+
+        private void ExportTxt()
+        {
+            var path = _dialogs.SaveFileDialog(
+                LocalizationManager.T("ConfigDiff.ExportTxt"),
+                $"ConfigDiff_{DateTime.Now:yyyy-MM-dd}.txt",
+                LocalizationManager.T("ConfigDiff.TxtFileFilter"));
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+            try
+            {
+                File.WriteAllText(path, _vm.BuildTextReport(), System.Text.Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                _dialogs.ShowError(
+                    string.Format(LocalizationManager.T("ConfigDiff.ExportFailedFormat"), ex.Message),
+                    LocalizationManager.T("ConfigDiff.Title"));
+            }
+        }
+    }
+}
+#endif

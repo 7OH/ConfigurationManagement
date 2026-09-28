@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.98</Version>
-    <AssemblyVersion>0.3.9.98</AssemblyVersion>
-    <FileVersion>0.3.9.98</FileVersion>
-    <InformationalVersion>0.3.9.98</InformationalVersion>
+    <Version>0.3.9.99</Version>
+    <AssemblyVersion>0.3.9.99</AssemblyVersion>
+    <FileVersion>0.3.9.99</FileVersion>
+    <InformationalVersion>0.3.9.99</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -245,6 +245,11 @@
     <!-- Окно «Статистика использования» (0.3.9.95): WPF code-behind исключается,
          Avalonia-версия (UsageStatisticsWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\UsageStatisticsWindow.xaml.cs" />
+    <!-- Окна «Сравнение конфигураций» (0.3.9.99): WPF code-behind исключается,
+         Avalonia-версии (*Window.Avalonia.cs) подключаются глобом ниже. -->
+    <Compile Remove="Views\ConfigDiffProgressWindow.cs" />
+    <Compile Remove="Views\ConfigDiffSetupWindow.xaml.cs" />
+    <Compile Remove="Views\ConfigDiffResultWindow.xaml.cs" />
     <!-- Кастомные контролы (WPF) исключаем, но возвращаем Avalonia-версии (*.Avalonia.cs) -->
     <Compile Remove="Controls\**\*.cs" />
     <Compile Include="Controls\*.Avalonia.cs" />
@@ -350,6 +355,25 @@
          подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
     <Compile Include="ViewModels\UsageStatisticsViewModel.cs" />
     <Compile Include="ViewModels\UsageStatisticsRowViewModel.cs" />
+    <!-- ViewModels окна «Сравнение конфигураций» (0.3.9.99, функция №9): чистый .NET
+         без платформенных зависимостей, используется обеими платформами — на Linux
+         подключается явно (имя не совпадает с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\ConfigDiffResultViewModel.cs" />
+    <!-- Модель отчёта о сравнении конфигураций (0.3.9.99): чистая, без зависимостей,
+         используется обеими платформами — подключается явно. -->
+    <Compile Remove="Models\ConfigurationDiffModel.cs" />
+    <Compile Include="Models\ConfigurationDiffModel.cs" />
+    <!-- Чистые сервисы сравнения конфигураций (0.3.9.99, функция №9): используются
+         и Windows, и Linux; на Linux подключаются явно паттерном Remove+Include,
+         как CsvExporter. -->
+    <Compile Remove="Services\ConfigurationDiffEngine.cs" />
+    <Compile Include="Services\ConfigurationDiffEngine.cs" />
+    <Compile Remove="Services\MetadataTypeLocalizer.cs" />
+    <Compile Include="Services\MetadataTypeLocalizer.cs" />
+    <Compile Remove="Services\ConfigurationDiffReporter.cs" />
+    <Compile Include="Services\ConfigurationDiffReporter.cs" />
+    <Compile Remove="Services\ConfigurationDiffService.cs" />
+    <Compile Include="Services\ConfigurationDiffService.cs" />
     <!-- Мультивыделение (0.3.9.90): общая логика набора «для выделенных» — чистый
          .NET без платформенных зависимостей, используется обеими платформами.
          Платформенные пакетные команды лежат отдельно: MainViewModel.BatchCommands.cs
@@ -393,7 +417,7 @@
          паттерном Remove+Include, как DiskFreeSpaceHelper. -->
     <Compile Remove="Services\ScheduleCatchUpCalculator.cs" />
     <Compile Include="Services\ScheduleCatchUpCalculator.cs" />
-    <!-- Выполнение пользовательских команд при запуске базы (0.3.9.98, функция №8):
+    <!-- Выполнение пользовательских команд при запуске базы (0.3.9.99, функция №8):
          чистый .NET без WPF-зависимостей (выбор shell через #if), используется
          и Windows, и Linux; подключается явно паттерном Remove+Include. -->
     <Compile Remove="Services\ExternalCommandRunner.cs" />

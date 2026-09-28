@@ -1703,6 +1703,9 @@ namespace Configuration_Management
             // Статистика использования баз (0.3.9.95): аналитика по истории запусков —
             // число запусков, первый/последний запуск, сводка и распределение по дням недели.
             menu.Items.Add(MenuAction("Stats.Title", _vm.UsageStatisticsCommand, null, "IconHistory", "#14B8A6"));
+            // Сравнение конфигураций (0.3.9.99): сравнение конфигурации базы с .cf
+            // или двух .cf между собой; отчёт об отличиях по типам метаданных.
+            menu.Items.Add(MenuAction("ConfigDiff.Title", _vm.ConfigDiffCommand, null, "IconCompare", "#06B6D4"));
 
             menu.Items.Add(MenuSeparator());
 

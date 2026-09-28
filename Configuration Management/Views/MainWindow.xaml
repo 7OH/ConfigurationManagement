@@ -732,6 +732,11 @@
                                         <MenuItem Header="{loc:Loc Stats.Title}" Command="{Binding UsageStatisticsCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="History" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Сравнение конфигураций (0.3.9.99): сравнение конфигурации базы с .cf
+                                             или двух .cf между собой; отчёт об отличиях по типам метаданных. -->
+                                        <MenuItem Header="{loc:Loc ConfigDiff.Title}" Command="{Binding ConfigDiffCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Compare" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>

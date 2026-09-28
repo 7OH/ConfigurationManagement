@@ -239,7 +239,8 @@ public static partial class OneCLauncher
         string? dbUser = null,
         string? dbPassword = null,
         bool createSqlDatabase = false,
-        bool blockScheduledJobs = false)
+        bool blockScheduledJobs = false,
+        int timeoutMs = 5 * 60 * 1000)
     {
         var exePath = FindExecutable(platformVersion, OneCArchitecture.x64, OneCClientType.Thick, OneCLaunchMode.Configurator);
         if (string.IsNullOrEmpty(exePath) ||
@@ -350,7 +351,7 @@ public static partial class OneCLauncher
                 return (false, LocalizationManager.T("Launcher.CreateProcessFailed"));
             }
 
-            if (!process.WaitForExit(5 * 60 * 1000))
+            if (!process.WaitForExit(timeoutMs))
             {
                 try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
                 CleanupCreatedDir(createdDirPath);

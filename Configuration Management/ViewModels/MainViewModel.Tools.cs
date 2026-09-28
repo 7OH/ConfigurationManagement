@@ -2420,5 +2420,35 @@ public partial class MainViewModel : ViewModelBase
         };
         window.ShowDialog();
     }
+
+    // ======================= Сравнение конфигураций (0.3.9.99) =======================
+
+    private ICommand? _configDiffCommand;
+
+    /// <summary>
+    /// Команда «Сравнение конфигураций…»: сравнение конфигурации выбранной базы
+    /// с эталонным .cf или двух .cf между собой; результат — отчёт об отличиях
+    /// по типам метаданных с экспортом CSV/TXT (0.3.9.99, функция №9).
+    /// Работает со всем списком, поэтому активна всегда.
+    /// </summary>
+    public ICommand ConfigDiffCommand =>
+        _configDiffCommand ??= new RelayCommand(_ => ExecuteConfigDiff());
+
+    private void ExecuteConfigDiff()
+    {
+        List<string> installed;
+        try { installed = PlatformVersionService.FindInstalledVersions(); }
+        catch { installed = new List<string>(); }
+
+        var window = new ConfigDiffSetupWindow(
+            Infobases.ToList(),
+            SelectedInfobase,
+            installed,
+            _repository.LoadSettings().LastFileCreatePlatformVersion ?? string.Empty)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        window.ShowDialog();
+    }
 }
 #endif

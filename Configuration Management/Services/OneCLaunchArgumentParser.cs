@@ -37,6 +37,7 @@ public static class OneCLaunchArgumentParser
         "/LoadCfg",
         "/CheckConfig",
         "/UpdateConfigDumpCfg",
+        "/DumpConfigToFiles",
         "/CreateInfobase",
         "/Command",
         "/ManagedClient",

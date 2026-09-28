@@ -1,0 +1,126 @@
+<Window x:Class="Configuration_Management.ConfigDiffResultWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        xmlns:models="clr-namespace:Configuration_Management.Models"
+        xmlns:vm="clr-namespace:Configuration_Management.ViewModels"
+        mc:Ignorable="d"
+        Title="{loc:Loc ConfigDiff.Title}"
+        Icon="{StaticResource AppIcon}"
+        Height="640" Width="860"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
+
+        <!-- Статус объекта: «Добавлен» зелёный, «Изменён» янтарный, «Удалён» красный -->
+        <Style x:Key="StatusTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:DiffChangeKind.Added}">
+                    <Setter Property="Foreground" Value="#22C55E"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:DiffChangeKind.Changed}">
+                    <Setter Property="Foreground" Value="#F59E0B"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:DiffChangeKind.Removed}">
+                    <Setter Property="Foreground" Value="#EF4444"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Шапка: что с чем сравнивали -->
+        <TextBlock x:Name="HeaderTextBlock" FontSize="15" FontWeight="SemiBold"
+                   TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+        <!-- Время и флаг «конфигурация в целом» -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
+            <TextBlock x:Name="ElapsedTextBlock" FontSize="12"
+                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock x:Name="RootChangedTextBlock" FontSize="12"
+                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
+
+        <!-- Сводка -->
+        <TextBlock x:Name="SummaryTextBlock" Grid.Row="2" FontSize="13" FontWeight="SemiBold"
+                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+        <!-- Дерево «Тип → объекты» -->
+        <TreeView x:Name="DiffTree" Grid.Row="3" BorderThickness="1"
+                  BorderBrush="{DynamicResource DividerBrush}"
+                  Background="{DynamicResource ContentBackgroundBrush}"
+                  Padding="4" VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling">
+            <TreeView.ItemContainerStyle>
+                <Style TargetType="TreeViewItem">
+                    <Setter Property="IsExpanded" Value="True"/>
+                </Style>
+            </TreeView.ItemContainerStyle>
+            <TreeView.Resources>
+                <!-- Уровень типа: «Тип (N)» -->
+                <HierarchicalDataTemplate DataType="{x:Type vm:ConfigDiffTypeNodeViewModel}"
+                                          ItemsSource="{Binding Objects}">
+                    <Grid Margin="2,1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="70"/>
+                            <ColumnDefinition Width="90"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Count}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextAlignment="Right"/>
+                    </Grid>
+                </HierarchicalDataTemplate>
+                <!-- Уровень объекта: Имя | Статус | Файлов | Размер -->
+                <DataTemplate DataType="{x:Type vm:ConfigDiffObjectItemViewModel}">
+                    <Grid Margin="2,1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="70"/>
+                            <ColumnDefinition Width="90"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                                   Style="{StaticResource StatusTextStyle}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="2" Text="{Binding FileCount}" TextAlignment="Right"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        <TextBlock Grid.Column="3" Text="{Binding SizeText}" TextAlignment="Right"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </Grid>
+                </DataTemplate>
+            </TreeView.Resources>
+        </TreeView>
+
+        <!-- Кнопки экспорта -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="{loc:Loc ConfigDiff.ExportCsv}" Width="140" Margin="0,0,8,0"
+                    Click="OnExportCsv_Click"/>
+            <Button Content="{loc:Loc ConfigDiff.ExportTxt}" Width="140" Margin="0,0,8,0"
+                    Click="OnExportTxt_Click"/>
+            <Button Content="{loc:Loc ConfigDiff.Close}" Width="100" IsCancel="True"
+                    Click="OnClose_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

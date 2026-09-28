@@ -1,0 +1,88 @@
+<Window x:Class="Configuration_Management.ConfigDiffSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        mc:Ignorable="d"
+        Title="{loc:Loc ConfigDiff.Title}"
+        Icon="{StaticResource AppIcon}"
+        Height="520" Width="560"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}"/>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}"/>
+        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
+    </Window.Resources>
+
+    <StackPanel Margin="16">
+        <!-- ============ Описание ============ -->
+        <TextBlock Text="{loc:Loc ConfigDiff.Description}" TextWrapping="Wrap" Margin="0,0,0,12"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+        <!-- ============ Режим сравнения ============ -->
+        <RadioButton x:Name="ModeBaseVsCfRadio" GroupName="Mode" Content="{loc:Loc ConfigDiff.ModeBaseVsCf}"
+                     Checked="OnModeChanged" Margin="0,0,0,6"/>
+        <RadioButton x:Name="ModeCfVsCfRadio" GroupName="Mode" Content="{loc:Loc ConfigDiff.ModeCfVsCf}"
+                     Checked="OnModeChanged" Margin="0,0,0,12"/>
+
+        <!-- ============ База (режим «База ↔ .cf») ============ -->
+        <StackPanel x:Name="BasePanel">
+            <TextBlock Text="{loc:Loc ConfigDiff.SelectBase}" Margin="0,0,0,4"/>
+            <ComboBox x:Name="BasesBox" Padding="6,4" Margin="0,0,0,12"
+                      DisplayMemberPath="Name" SelectionChanged="OnBaseChanged"/>
+        </StackPanel>
+
+        <!-- ============ Левый .cf (режим «.cf ↔ .cf») ============ -->
+        <StackPanel x:Name="CfLeftPanel">
+            <TextBlock Text="{loc:Loc ConfigDiff.SelectCfLeft}" Margin="0,0,0,4"/>
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="LeftCfBox" Padding="6,4"/>
+                <Button Grid.Column="1" Content="{loc:Loc ConfigDiff.Browse}" Width="90" Margin="8,0,0,0"
+                        Click="OnBrowseLeft_Click"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- ============ Правый .cf ============ -->
+        <TextBlock Text="{loc:Loc ConfigDiff.SelectCfRight}" Margin="0,0,0,4"/>
+        <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="RightCfBox" Padding="6,4"/>
+            <Button Grid.Column="1" Content="{loc:Loc ConfigDiff.Browse}" Width="90" Margin="8,0,0,0"
+                    Click="OnBrowseRight_Click"/>
+        </Grid>
+
+        <!-- ============ Платформа 1С ============ -->
+        <TextBlock Text="{loc:Loc ConfigDiff.Platform}" Margin="0,0,0,4"/>
+        <ComboBox x:Name="PlatformBox" Padding="6,4" Margin="0,0,0,4" IsEditable="True"/>
+        <TextBlock x:Name="PlatformHint" Text="{loc:Loc ConfigDiff.PlatformHint}" FontSize="11" TextWrapping="Wrap"
+                   Margin="0,0,0,10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+        <!-- ============ Ошибка ============ -->
+        <TextBlock x:Name="ErrorText" Foreground="#EF4444" TextWrapping="Wrap" FontSize="12"
+                   MaxHeight="120" Visibility="Collapsed" Margin="0,0,0,10"/>
+
+        <!-- ============ Кнопки ============ -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CompareButton" Content="{loc:Loc ConfigDiff.Compare}" Width="130"
+                    Margin="0,0,8,0" Click="OnCompare_Click"/>
+            <Button Content="{loc:Loc ConfigDiff.Cancel}" Width="100" IsCancel="True" Click="OnCancel_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

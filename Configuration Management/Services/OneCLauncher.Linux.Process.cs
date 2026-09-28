@@ -385,7 +385,8 @@ namespace Configuration_Management.Services
             string? dbUser = null,
             string? dbPassword = null,
             bool createSqlDatabase = false,
-            bool blockScheduledJobs = false)
+            bool blockScheduledJobs = false,
+            int timeoutMs = 5 * 60 * 1000)
         {
             PlatformVersionService.ParseVariant(platformVersion, out var version, out var arch);
             var exe = FindExecutable(version, arch == "64" ? OneCArchitecture.x64 : OneCArchitecture.x86,
@@ -490,7 +491,7 @@ namespace Configuration_Management.Services
                     return (false, LocalizationManager.T("Launcher.CreateProcessFailed"));
                 }
 
-                if (!proc.WaitForExit(5 * 60 * 1000))
+                if (!proc.WaitForExit(timeoutMs))
                 {
                     try { proc.Kill(entireProcessTree: true); } catch { }
                     CleanupCreatedDir(createdDirPath);

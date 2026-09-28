@@ -1397,5 +1397,28 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Предупреждение в журнал из окна: журнал живёт во вьюмодели.</summary>
     public void LogWarning(string message) => _logger.Warn(message);
+
+    // ======================= Сравнение конфигураций (0.3.9.99) =======================
+
+    private System.Windows.Input.ICommand? _configDiffCommand;
+
+    /// <summary>
+    /// Команда «Сравнение конфигураций…»: сравнение конфигурации выбранной базы
+    /// с эталонным .cf или двух .cf между собой; результат — отчёт об отличиях
+    /// по типам метаданных с экспортом CSV/TXT (0.3.9.99, функция №9).
+    /// Работает со всем списком, поэтому активна всегда.
+    /// </summary>
+    public System.Windows.Input.ICommand ConfigDiffCommand =>
+        _configDiffCommand ??= new RelayCommand(_ => ExecuteConfigDiff());
+
+    private void ExecuteConfigDiff()
+    {
+        var window = new Configuration_Management.ConfigDiffSetupWindow(
+            _allInfobases.ToList(),
+            SelectedInfobase,
+            InstalledPlatformVersions(),
+            _settings.LastFileCreatePlatformVersion ?? string.Empty);
+        window.ShowDialogSync(OwnerWindow());
+    }
 }
 #endif
