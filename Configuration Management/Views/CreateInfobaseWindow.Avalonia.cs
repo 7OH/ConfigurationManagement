@@ -29,6 +29,7 @@ namespace Configuration_Management
         private readonly bool _fromTemplate;
         private readonly IReadOnlyList<string> _platformVersions;
         private readonly IReadOnlyList<Group> _groups;
+        private readonly IReadOnlyList<string> _availableServers;
         private string _selectedGroupPath;
         private readonly IDialogService _dialogs;
         private readonly IInfobaseRepository _repository =
@@ -46,7 +47,8 @@ namespace Configuration_Management
 
         // Поля клиент-серверного варианта.
         private readonly StackPanel _serverPanel = new() { Spacing = 8 };
-        private readonly TextBox _serverBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+        // Редактируемый ComboBox: выбор из списка известных серверов 1С + свободный ввод (issue #305).
+        private readonly ComboBox _serverBox = new() { IsEditable = true };
         private readonly TextBox _refBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly ComboBox _dbmsBox = new() { IsEditable = true };
         private readonly TextBox _dbServerBox = new TextBox().Styled(ControlThemes.ModernTextBox);
@@ -97,11 +99,13 @@ namespace Configuration_Management
             bool fromTemplate,
             IEnumerable<string> platformVersions,
             string defaultGroupPath = "",
-            IEnumerable<Group>? groups = null)
+            IEnumerable<Group>? groups = null,
+            IEnumerable<string>? availableServers = null)
         {
             _fromTemplate = fromTemplate;
             _platformVersions = platformVersions?.ToList() ?? new List<string>();
             _groups = groups?.ToList() ?? new List<Group>();
+            _availableServers = availableServers?.ToList() ?? new List<string>();
             _selectedGroupPath = defaultGroupPath ?? string.Empty;
             _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -111,9 +115,10 @@ namespace Configuration_Management
             Width = 560;
             if (fromTemplate)
             {
-                // С деревом шаблонов окно высокое, поэтому размеры берутся
-                // из разметки WPF, вместе с возможностью его уменьшить.
-                Height = 640;
+                // Авторазмер по содержимому (issue #305): высота подстраивается под
+                // контент и растёт при раскрытии дерева шаблонов; MaxHeight не даёт
+                // окну вытянуться слишком высоко, MinHeight — слишком сжаться.
+                SizeToContent = SizeToContent.Height;
                 MinHeight = 420;
                 MaxHeight = 800;
                 CanResize = true;
@@ -291,6 +296,11 @@ namespace Configuration_Management
             serverGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
 
             var leftCol = new StackPanel { Spacing = 8 };
+            // Список известных серверов 1С из зарегистрированных клиент-серверных
+            // баз — выпадающий список поля «Сервер 1С» (issue #305).
+            _serverBox.Items.Clear();
+            foreach (var s in _availableServers)
+                _serverBox.Items.Add(new ComboBoxItem { Content = s });
             leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), _serverBox));
             // Имя базы на сервере (кнопка «скопировать в наименование» — у поля «Наименование», issue #306).
             leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), _refBox));

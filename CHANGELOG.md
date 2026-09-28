@@ -9,6 +9,31 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.113] — 2026-09-28
+
+### Исправлено
+
+- **Окно создания серверной ИБ: авторазмер под содержимое + выбор сервера 1С из списка (#305)** —
+  окно больше не имеет фиксированной высоты и само подгоняет размер под содержимое:
+  при переключении типа «Файловая ↔ Клиент-серверная» (и при показе/скрытии панели шаблона)
+  высота пересчитывается, всё влезает без вертикальной прокрутки; сохранены
+  `MinHeight=420`, `MaxHeight=800` и возможность изменения размера. Поле «Сервер 1С»
+  стало редактируемым выпадающим списком (как «СУБД»): в нём можно выбрать уже известный
+  сервер из зарегистрированных клиент-серверных баз (список формируется так же, как в окне
+  настройки подключения) или ввести адрес вручную. Компактный макет 0.3.9.108, живая
+  подсказка формата DBSrvr и порт СУБД не затронуты.
+  Windows/WPF — [`Views/CreateInfobaseWindow.xaml`](Configuration%20Management/Views/CreateInfobaseWindow.xaml)
+  (`SizeToContent="Height"`, `ServerBox` → редактируемый `ComboBox`),
+  [`Views/CreateInfobaseWindow.xaml.cs`](Configuration%20Management/Views/CreateInfobaseWindow.xaml.cs)
+  (параметр `availableServers`), Linux/Avalonia —
+  [`Views/CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs)
+  (шаблонный режим — `SizeToContent.Height` + `MaxHeight=800`, `_serverBox` → редактируемый `ComboBox`);
+  список серверов пробрасывается из
+  [`ViewModels/MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs)
+  (`GetAvailableServers()`) и
+  [`ViewModels/MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs)
+  (`AvailableServers()`).
+
 ## [0.3.9.112] — 2026-09-28
 
 ### Исправлено

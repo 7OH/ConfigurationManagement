@@ -6,7 +6,7 @@
         xmlns:loc="clr-namespace:Configuration_Management.Localization"
         Title="{loc:Loc CreateInfobase.Title}"
         Icon="{StaticResource AppIcon}"
-        Width="620" Height="640" MinHeight="420"
+        Width="620" MinHeight="420" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
         MaxHeight="800"
@@ -85,7 +85,8 @@
                     <!-- Колонка 1: сервер 1С, имя базы, СУБД, галочки. -->
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="{loc:Loc CreateInfobase.ServerLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
-                        <TextBox x:Name="ServerBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,10"/>
+                        <!-- Редактируемый ComboBox: выбор из списка известных серверов 1С + свободный ввод (issue #305). -->
+                        <ComboBox x:Name="ServerBox" IsEditable="True" Margin="0,0,0,10"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.RefLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <TextBox x:Name="RefBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,10"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.DbmsLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>

@@ -23,6 +23,7 @@ namespace Configuration_Management
         private readonly bool _fromTemplate;
         private readonly IReadOnlyList<string> _platformVersions;
         private readonly IReadOnlyList<Group> _groups;
+        private readonly IReadOnlyList<string> _availableServers;
         private string _selectedGroupPath;
         private readonly IInfobaseRepository _repository =
             AppServices.GetRequiredService<IInfobaseRepository>();
@@ -37,13 +38,19 @@ namespace Configuration_Management
             bool fromTemplate,
             IEnumerable<string> platformVersions,
             string defaultGroupPath = "",
-            IEnumerable<Group>? groups = null)
+            IEnumerable<Group>? groups = null,
+            IEnumerable<string>? availableServers = null)
         {
             _fromTemplate = fromTemplate;
             _platformVersions = platformVersions?.ToList() ?? new List<string>();
             _groups = groups?.ToList() ?? new List<Group>();
+            _availableServers = availableServers?.ToList() ?? new List<string>();
             _selectedGroupPath = defaultGroupPath ?? string.Empty;
             InitializeComponent();
+
+            // Список известных серверов 1С из зарегистрированных клиент-серверных
+            // баз — выпадающий список поля «Сервер 1С» (issue #305).
+            ServerBox.ItemsSource = _availableServers;
 
             // ESC сначала закрывает открытые всплывающие подсказки, а только потом окно (issue #270).
             ToolTipCloser.Register();

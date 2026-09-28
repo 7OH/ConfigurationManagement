@@ -1366,7 +1366,8 @@ public partial class MainViewModel : ViewModelBase
                 fromTemplate,
                 InstalledPlatformVersions(),
                 defaultGroupPath,
-                _groups);
+                _groups,
+                AvailableServers());
         }
         catch (Exception ex)
         {

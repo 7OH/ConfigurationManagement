@@ -74,7 +74,8 @@ public partial class MainViewModel : ViewModelBase
                     fromTemplate: addDialog.SelectedType == "CreateFromTemplate",
                     platformVersions: _installedPlatformVersions,
                     defaultGroupPath: defaultGroupPath,
-                    groups: Groups)
+                    groups: Groups,
+                    availableServers: GetAvailableServers())
                 {
                     Owner = Application.Current.MainWindow
                 };
