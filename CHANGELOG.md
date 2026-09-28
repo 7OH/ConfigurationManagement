@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.122] — 2026-09-28
+
+### Добавлено
+
+- **Импорт/экспорт списка баз в JSON (меню «Утилиты»)** — полный round-trip состояния
+  списка баз: команды «Экспорт списка баз (JSON)» и «Импорт списка баз (JSON)».
+  В отличие от CSV-экспорта (только видимые базы, без импорта) JSON переносит ВСЁ:
+  - **Экспорт** — базы со всеми полями (строка подключения файловая/клиент-серверная/веб,
+    имя, группа с иерархией, теги, закладка 1–9, закрепление, приватность, внешняя
+    обработка, скрипты pre/post запуска, раздельные учётные данные запуска/хранилища,
+    параметры запуска, порядок сортировки), иерархию групп целиком ([`Models/Group.cs`](Configuration%20Management/Models/Group.cs)),
+    избранное и закрепление. Приватные базы экспортируются только при разблокированном
+    профиле (иначе скрыты, как в CSV-экспорте).
+  - **Импорт** — режим «добавить»: дубликаты по строке подключения пропускаются,
+    новые базы/группы/теги добавляются; перед импортом показывается сводка (сколько
+    баз/групп/тегов будет добавлено, сколько пропущено дубликатов) с подтверждением;
+    выбор файла — стандартный диалог JSON.
+  - Чистая логика — [`Services/InfobaseJsonTransfer.cs`](Configuration%20Management/Services/InfobaseJsonTransfer.cs)
+    и модель [`Models/InfobaseListSnapshot.cs`](Configuration%20Management/Models/InfobaseListSnapshot.cs),
+    покрыты юнит-тестами [`ConfigurationManagement.Tests/InfobaseJsonTransferTests.cs`](ConfigurationManagement.Tests/InfobaseJsonTransferTests.cs);
+    команды — [`ViewModels/MainViewModel.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs)
+    (Windows/WPF) и [`ViewModels/MainViewModel.Avalonia.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Tools.cs)
+    (Linux/Avalonia); пункты меню «Утилиты» на обеих платформах
+    ([`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml),
+    [`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs)).
+
 ## [0.3.9.121] — 2026-09-28
 
 ### Исправлено

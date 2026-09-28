@@ -56,6 +56,13 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Команда «Экспорт списка баз в CSV…»: видимые сейчас базы → CSV для Excel (0.3.9.91).</summary>
     public ICommand ExportBasesCsvCommand { get; private set; } = null!;
+
+    /// <summary>Команда «Экспорт списка баз (JSON)…»: полное состояние списка → JSON (0.3.9.122).</summary>
+    public ICommand ExportBasesJsonCommand { get; private set; } = null!;
+
+    /// <summary>Команда «Импорт списка баз (JSON)…»: добавляющий импорт из JSON (0.3.9.122).</summary>
+    public ICommand ImportBasesJsonCommand { get; private set; } = null!;
+
     public ICommand CheckAvailabilityCommand { get; private set; } = null!;
     public ICommand OpenInfobaseFolderCommand { get; private set; } = null!;
     public ICommand CreateDesktopShortcutCommand { get; private set; } = null!;
@@ -141,6 +148,10 @@ public partial class MainViewModel : ViewModelBase
         CopyConnectionStringCommand = new RelayCommand(_ => CopyConnectionString(), _ => SelectedInfobase is not null);
         // Экспорт видимого списка баз в CSV (0.3.9.91): команда не требует выделенной базы.
         ExportBasesCsvCommand = new RelayCommand(ExportBasesCsv);
+        // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): команды
+        // не требуют выделенной базы; импорт — добавляющий, дубликаты пропускаются.
+        ExportBasesJsonCommand = new RelayCommand(ExportBasesJson);
+        ImportBasesJsonCommand = new RelayCommand(ImportBasesJson);
         CheckAvailabilityCommand = new RelayCommand(CheckAvailability);
         OpenInfobaseFolderCommand = new RelayCommand(_ => OpenInfobaseFolder(),
             _ => SelectedInfobase?.Connection.Type == ConnectionType.File);

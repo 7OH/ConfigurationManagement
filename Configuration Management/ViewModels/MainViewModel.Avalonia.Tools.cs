@@ -370,6 +370,145 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Экспортирует ВСЁ состояние списка баз в JSON (0.3.9.122): базы со всеми полями
+    /// (строка подключения, имя, группа, теги, закладка 1–9, закрепление, приватность,
+    /// внешняя обработка, скрипты pre/post запуска, раздельные учётные данные,
+    /// параметры запуска, порядок сортировки) и иерархию групп целиком. В отличие
+    /// от CSV-экспорта переносит и избранное, и закрепление. Приватные базы
+    /// включаются только при разблокированном профиле (иначе скрыты, как в CSV).
+    /// </summary>
+    public void ExportBasesJson()
+    {
+        // Приватные базы заблокированного профиля в выгрузку не попадают (как в CSV).
+        var exportable = _allInfobases.Where(IsVisibleForPrivateFilter).ToList();
+        if (exportable.Count == 0)
+        {
+            _dialog.ShowInfo(LocalizationManager.T("Main.ExportEmpty"),
+                LocalizationManager.T("ExportJson.Title"));
+            return;
+        }
+
+        var path = _dialog.SaveFileDialog(
+            LocalizationManager.T("ExportJson.Title"),
+            BuildExportFileName("infobases_full_export", ".json",
+                _settings.AddTimestampToExportFileName, _settings.ExportTimestampFormat),
+            LocalizationManager.T("Main.JsonFileFilter"));
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        try
+        {
+            var snapshot = InfobaseJsonTransfer.BuildSnapshot(exportable, _groups);
+            var json = InfobaseJsonTransfer.Serialize(snapshot);
+            File.WriteAllText(path, json);
+
+            _dialog.ShowInfo(
+                string.Format(LocalizationManager.T("ExportJson.Success"),
+                    snapshot.Infobases.Count, snapshot.Groups.Count, path),
+                LocalizationManager.T("ExportJson.Title"));
+            _logger.Info($"Список баз ({snapshot.Infobases.Count}) и групп ({snapshot.Groups.Count}) " +
+                         $"выгружен в JSON: {path}");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка экспорта списка баз в JSON", ex);
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("ExportJson.Error"), ex.Message),
+                LocalizationManager.T("Main.ExportErrorTitle"));
+        }
+    }
+
+    /// <summary>
+    /// Импорт списка баз из JSON с режимом «добавить» (0.3.9.122): дубликаты по строке
+    /// подключения пропускаются, новые базы/группы/теги добавляются. Перед импортом
+    /// показывается сводка (сколько баз/групп/тегов будет добавлено, сколько пропущено
+    /// дубликатов) с подтверждением.
+    /// </summary>
+    public void ImportBasesJson()
+    {
+        var path = _dialog.OpenFileDialog(
+            LocalizationManager.T("ImportJson.Title"),
+            LocalizationManager.T("Main.JsonFileFilter"));
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        InfobaseListSnapshot? snapshot;
+        try
+        {
+            var json = File.ReadAllText(path);
+            snapshot = InfobaseJsonTransfer.Deserialize(json);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка чтения файла импорта списка баз (JSON)", ex);
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("ImportJson.Error"), ex.Message),
+                LocalizationManager.T("Main.ImportErrorTitle"));
+            return;
+        }
+
+        if (snapshot is null || snapshot.Infobases.Count == 0)
+        {
+            _dialog.ShowWarning(LocalizationManager.T("ImportJson.NoBases"),
+                LocalizationManager.T("ImportJson.Title"));
+            return;
+        }
+
+        // Сводка перед импортом: сколько добавится, сколько пропустится.
+        var plan = InfobaseJsonTransfer.PlanImport(
+            _allInfobases,
+            _groups,
+            _allInfobases.SelectMany(i => i.Tags),
+            snapshot);
+
+        if (plan.BasesToAdd.Count == 0 && plan.GroupsToAdd.Count == 0)
+        {
+            _dialog.ShowInfo(LocalizationManager.T("ImportJson.NothingNew"),
+                LocalizationManager.T("ImportJson.Title"));
+            return;
+        }
+
+        if (!_dialog.Confirm(
+                string.Format(LocalizationManager.T("ImportJson.Confirm"),
+                    plan.BasesToAdd.Count, plan.GroupsToAdd.Count, plan.TagsToAdd.Count,
+                    plan.DuplicatesSkipped),
+                LocalizationManager.T("ImportJson.Title")))
+            return;
+
+        _allInfobases.AddRange(plan.BasesToAdd);
+        SyncFavoriteHotkeys();
+
+        // Группы из файла, которых ещё нет (по имени), добавляются вместе с иерархией
+        // ParentId; конфликтующие Id переименовываются без потери связей.
+        var mergedGroups = InfobaseJsonTransfer.MergeNewGroups(_groups, plan.GroupsToAdd);
+        if (mergedGroups.Count > 0)
+            _groups.AddRange(mergedGroups);
+
+        SelectedInfobase = null;
+        var saved = SaveSilently();
+        saved &= SaveGroupsSilently();
+        RebuildTree();
+
+        if (!saved)
+        {
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("Main.ErrLoadFailed"),
+                    LocalizationManager.T("Main.SaveFailedHint")),
+                LocalizationManager.T("Main.LoadErrorTitle"));
+            return;
+        }
+
+        _dialog.ShowInfo(
+            string.Format(LocalizationManager.T("ImportJson.Done"),
+                plan.BasesToAdd.Count, plan.GroupsToAdd.Count, plan.TagsToAdd.Count,
+                plan.DuplicatesSkipped),
+            LocalizationManager.T("ImportJson.Title"));
+        _logger.Info($"Импорт списка баз из JSON: добавлено {plan.BasesToAdd.Count} баз, " +
+                     $"{plan.GroupsToAdd.Count} групп, {plan.TagsToAdd.Count} тегов, " +
+                     $"пропущено дубликатов {plan.DuplicatesSkipped}");
+    }
+
     /// <summary>Строки CSV-документа: локализованный заголовок + по строке на видимую базу.</summary>
     private static List<string[]> BuildCsvRows(IEnumerable<Infobase> bases)
     {

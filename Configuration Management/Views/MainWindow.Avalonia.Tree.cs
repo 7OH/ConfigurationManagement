@@ -1714,6 +1714,12 @@ namespace Configuration_Management
             // Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
             // в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»).
             menu.Items.Add(MenuAction("Utilities.ExportCsv", _vm.ExportBasesCsvCommand, null, "IconFileExport", "#22C55E"));
+            // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): в отличие
+            // от CSV переносится всё — базы со всеми полями, иерархия групп, теги,
+            // закладки 1–9, закрепление, приватные базы (при разблокированном профиле);
+            // импорт — добавляющий, дубликаты по строке подключения пропускаются.
+            menu.Items.Add(MenuAction("Utilities.ExportJson", _vm.ExportBasesJsonCommand, null, "IconFileExport", "#06B6D4"));
+            menu.Items.Add(MenuAction("Utilities.ImportJson", _vm.ImportBasesJsonCommand, null, "IconImport", "#06B6D4"));
             // Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов платформы
             // с режимом, пользователем, PID и завершением выбранного процесса.
             menu.Items.Add(MenuAction("ProcessInspector.Title", _vm.ProcessInspectorCommand, null, "IconApplicationCog", "#0EA5E9"));

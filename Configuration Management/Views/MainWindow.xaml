@@ -735,6 +735,17 @@
                                         <MenuItem Header="{loc:Loc Utilities.ExportCsv}" Command="{Binding ExportBasesCsvCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="FileDelimited" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122):
+                                             в отличие от CSV переносится всё — базы со всеми полями, иерархия
+                                             групп, теги, закладки 1–9, закрепление, приватные базы (при
+                                             разблокированном профиле); импорт — добавляющий, дубликаты по
+                                             строке подключения пропускаются. -->
+                                        <MenuItem Header="{loc:Loc Utilities.ExportJson}" Command="{Binding ExportBasesJsonCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="FileExport" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:Loc Utilities.ImportJson}" Command="{Binding ImportBasesJsonCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseImport" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <!-- Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов 1С
                                              с режимом, пользователем, PID и завершением выбранного процесса. -->
                                         <MenuItem Header="{loc:Loc ProcessInspector.Title}" Command="{Binding ProcessInspectorCommand}" Style="{DynamicResource ModernMenuItem}">

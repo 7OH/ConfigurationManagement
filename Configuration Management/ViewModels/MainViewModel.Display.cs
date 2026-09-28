@@ -840,6 +840,12 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Команда «Экспорт списка баз в CSV…»: видимые сейчас базы → CSV для Excel (0.3.9.91).</summary>
     public ICommand ExportBasesCsvCommand { get; }
 
+    /// <summary>Команда «Экспорт списка баз (JSON)…»: полное состояние списка → JSON (0.3.9.122).</summary>
+    public ICommand ExportBasesJsonCommand { get; }
+
+    /// <summary>Команда «Импорт списка баз (JSON)…»: добавляющий импорт из JSON (0.3.9.122).</summary>
+    public ICommand ImportBasesJsonCommand { get; }
+
     /// <summary>Команда очистки локального кеша 1С выбранной базы.</summary>
     public ICommand ClearCacheCommand { get; }
 

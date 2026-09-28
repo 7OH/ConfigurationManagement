@@ -570,6 +570,10 @@ public partial class MainViewModel : ViewModelBase
         CopyConnectionStringCommand = new RelayCommand(CopyConnectionString, _ => SelectedInfobase != null);
         // Экспорт видимого списка баз в CSV (0.3.9.91): команда не требует выделенной базы.
         ExportBasesCsvCommand = new RelayCommand(ExportBasesCsv);
+        // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): команды
+        // не требуют выделенной базы; импорт — добавляющий, дубликаты пропускаются.
+        ExportBasesJsonCommand = new RelayCommand(ExportBasesJson);
+        ImportBasesJsonCommand = new RelayCommand(ImportBasesJson);
         // Команда очистки кеша верхней панели действует на выбранную базу: если база не
         // выделена (например, под курсором папка) — окно открывается без предзаполненных
         // галок, и пользователь сам отмечает нужные базы (issue #196). В колонке
