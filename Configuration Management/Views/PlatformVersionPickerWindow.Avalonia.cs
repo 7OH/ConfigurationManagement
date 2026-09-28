@@ -26,7 +26,7 @@ namespace Configuration_Management
     {
         private string _selectedVersion = string.Empty;
         private List<PlatformVersionInfo> _allInfos = new();
-        private readonly string _currentVersion;
+        private string _currentVersion = string.Empty;
         private bool _sortAscending; // по умолчанию — свежие версии сверху
         private string _archFilter = "all";
 
@@ -193,6 +193,10 @@ namespace Configuration_Management
                 if (_tree.SelectedItem is PlatformVersionGroup node)
                 {
                     _selectedVersion = BuildResult(node);
+                    // Запоминаем выбранную версию и как «текущую»: RefreshTree() (переключение
+                    // фильтра разрядности, сортировка) повторно выделяет узел по _currentVersion,
+                    // и без обновления выбор «перескакивал» на старую версию (issue #304).
+                    _currentVersion = _selectedVersion;
                     _selectButton.IsEnabled = !string.IsNullOrWhiteSpace(_selectedVersion);
                 }
                 else

@@ -147,6 +147,10 @@ namespace Configuration_Management
             if (e.NewValue is PlatformVersionGroup node)
             {
                 _selectedVersion = BuildResult(node);
+                // Запоминаем выбранную версию и как «текущую»: RefreshTree() (переключение
+                // фильтра разрядности, сортировка) повторно выделяет узел по _currentVersion,
+                // и без обновления выбор «перескакивал» на старую версию (issue #304).
+                _currentVersion = _selectedVersion;
                 SelectButton.IsEnabled = !string.IsNullOrWhiteSpace(_selectedVersion);
             }
             else
