@@ -339,8 +339,12 @@ public class GroupNodeViewModel : ViewModelBase
                 if (includeEmptyGroups || child.ContainsInfobases)
                     Items.Add(child);
             }
+            // Закреплённые базы в узле «Закреплённые» кладём обёрткой (уникальные данные
+            // строки), как в Avalonia-версии (issue #301): иначе одна и та же база
+            // присутствует в дереве дважды одним объектом, и выделение строки или
+            // восстановление выбора подсвечивают копию в «Закреплённых» (issue #314).
             foreach (var infobase in Infobases)
-                Items.Add(infobase);
+                Items.Add(Marker == PinnedMarker ? new PinnedInfobaseItem(infobase) : infobase);
             _containsInfobasesCache = Infobases.Count > 0 || Children.Any(c => c.ContainsInfobases);
         }
         finally

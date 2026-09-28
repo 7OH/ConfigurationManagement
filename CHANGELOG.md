@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.115] — 2026-09-28
+
+### Исправлено
+
+- **Выделение строки больше не подсвечивает её копию в «Закреплённых» (#314)** —
+  закреплённая база попадала в дерево дважды одним и тем же объектом данных
+  (узел «Закреплённые» и собственная группа), из-за чего выделение строки в списке
+  подсвечивало копию в «Закреплённых» (TreeView синхронизирует выбор по данным,
+  а восстановление выбора после пересборки искало контейнер по данным — первой
+  всегда оказывалась копия вверху), а при выделении одной закреплённой базы
+  подсвечивались все закреплённые. Теперь у строки узла «Закреплённые» уникальные
+  данные — обёртка `PinnedInfobaseItem` (как в Linux/Avalonia с issue #301): клик
+  по строке в списке и по строке в «Закреплённых» подсвечивает ровно одну строку,
+  команды правой панели и контекстного меню работают по реальной базе. Мультивыделение
+  (Ctrl+Click), Shift-диапазон, «Найти в списке» (#285) и клавиатурная навигация
+  не изменены.
+  Windows/WPF — [`ViewModels/PinnedInfobaseItem.cs`](Configuration%20Management/ViewModels/PinnedInfobaseItem.cs)
+  (новая обёртка), [`ViewModels/GroupNodeViewModel.cs`](Configuration%20Management/ViewModels/GroupNodeViewModel.cs)
+  (`PopulateItems` оборачивает базы узла «Закреплённые»),
+  [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml)
+  (шаблон строки обёртки через `ContentControl` + `Base`),
+  [`Views/MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs)
+  (`UnwrapInfobase`, поиск/восстановление выбора), `MainWindow.Events.cs`, `MainWindow.DragDrop.cs`,
+  `MainWindow.Tags.cs`, `MainWindow.Columns.cs` (разворачивание обёртки до реальной базы);
+  Linux/Avalonia — проверено: обёртка `PinnedInfobaseItem.Avalonia.cs` уже действует
+  с 0.3.9.70 (#301), контейнерная подсветка строки (`SelectRow`) и гашение
+  `ContainerForItemPreparedOverride` корректны.
+
 ## [0.3.9.114] — 2026-09-28
 
 ### Исправлено

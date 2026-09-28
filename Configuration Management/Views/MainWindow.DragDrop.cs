@@ -257,7 +257,9 @@ namespace Configuration_Management
             if (item is null)
                 return;
 
-            if (item.DataContext is Infobase ib)
+            // Строка узла «Закреплённые» несёт обёртку PinnedInfobaseItem
+            // (уникальные данные, issue #314) — разворачиваем до реальной базы.
+            if (UnwrapInfobase(item.DataContext) is { } ib)
             {
                 insertBefore = ib;
                 var parentItem = FindAncestor<TreeViewItem>(VisualTreeHelper.GetParent(item));

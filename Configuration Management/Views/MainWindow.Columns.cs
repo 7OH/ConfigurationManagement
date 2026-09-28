@@ -611,7 +611,9 @@ namespace Configuration_Management
         /// </summary>
         private static TreeViewItem? FindFirstInfobaseItem(DependencyObject parent)
         {
-            if (parent is TreeViewItem tvi && tvi.DataContext is Infobase)
+            // Строка узла «Закреплённые» несёт обёртку PinnedInfobaseItem
+            // (уникальные данные, issue #314) — распознаём и её как строку базы.
+            if (parent is TreeViewItem tvi && UnwrapInfobase(tvi.DataContext) is not null)
                 return tvi;
 
             for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)

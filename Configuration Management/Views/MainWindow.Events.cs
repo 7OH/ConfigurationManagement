@@ -556,9 +556,13 @@ namespace Configuration_Management
             var treeViewItem = source is null ? null : FindAncestor<TreeViewItem>(source);
             switch (treeViewItem?.DataContext)
             {
-                case Infobase infobase:
+                // Закреплённая база в узле «Закреплённые» приходит обёрткой
+                // PinnedInfobaseItem (уникальные данные строки, issue #314) —
+                // разворачиваем до реальной базы для команд правой панели и меню.
+                case Infobase:
+                case PinnedInfobaseItem:
                     treeViewItem.IsSelected = true;
-                    _viewModel.SelectedInfobase = infobase;
+                    _viewModel.SelectedInfobase = UnwrapInfobase(treeViewItem.DataContext);
                     break;
                 case GroupNodeViewModel groupNode when groupNode.Group is not null:
                     treeViewItem.IsSelected = true;
@@ -614,7 +618,16 @@ namespace Configuration_Management
 
             switch (treeViewItem.DataContext)
             {
-                case Infobase infobase:
+                // Закреплённая база в узле «Закреплённые» приходит обёрткой
+                // PinnedInfobaseItem (уникальные данные строки, issue #314) —
+                // разворачиваем до реальной базы, дальше логика не меняется.
+                case Infobase:
+                case PinnedInfobaseItem:
+                {
+                    var infobase = UnwrapInfobase(treeViewItem.DataContext);
+                    if (infobase is null)
+                        return;
+
                     // Ctrl+щелчок — точечное переключение мультивыделения (0.3.9.90):
                     // строка помечается вторичным фоном «для выделенных» и попадает
                     // в набор пакетных операций. Закладка (номер Alt+N) ставится
@@ -642,6 +655,7 @@ namespace Configuration_Management
                     _viewModel.ClearBatchSelection();
                     ApplySelection(treeViewItem, infobase);
                     break;
+                }
                 case GroupNodeViewModel groupNode when groupNode.Group is not null:
                     _draggedData = groupNode;
                     ApplyGroupSelection(treeViewItem, groupNode);

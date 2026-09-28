@@ -81,7 +81,9 @@ namespace Configuration_Management
             var result = new List<Infobase>();
             foreach (var item in GetVisibleTreeViewItems())
             {
-                if (item.DataContext is Infobase ib && !result.Contains(ib))
+                // Строка узла «Закреплённые» несёт обёртку PinnedInfobaseItem
+                // (уникальные данные, issue #314) — разворачиваем до реальной базы.
+                if (UnwrapInfobase(item.DataContext) is { } ib && !result.Contains(ib))
                     result.Add(ib);
             }
             return result;
@@ -112,7 +114,7 @@ namespace Configuration_Management
                     return i;
 
             return rows.FindIndex(item =>
-                (item.DataContext is Infobase ib && ReferenceEquals(ib, _viewModel.SelectedInfobase)) ||
+                (UnwrapInfobase(item.DataContext) is { } ib && ReferenceEquals(ib, _viewModel.SelectedInfobase)) ||
                 (item.DataContext is GroupNodeViewModel gn && ReferenceEquals(gn, _viewModel.SelectedGroupNode)));
         }
 
@@ -165,8 +167,12 @@ namespace Configuration_Management
         {
             switch (item.DataContext)
             {
-                case Infobase infobase:
-                    ApplySelection(item, infobase);
+                // Закреплённая база в узле «Закреплённые» приходит обёрткой
+                // PinnedInfobaseItem — разворачиваем до реальной базы (issue #314).
+                case Infobase:
+                case PinnedInfobaseItem:
+                    if (UnwrapInfobase(item.DataContext) is { } infobase)
+                        ApplySelection(item, infobase);
                     break;
                 case GroupNodeViewModel group when group.Group is not null:
                     ApplyGroupSelection(item, group);
@@ -599,7 +605,10 @@ namespace Configuration_Management
                 if (parent.ItemContainerGenerator.ContainerFromIndex(i) is not TreeViewItem tvi)
                     continue;
 
-                if (ReferenceEquals(tvi.DataContext, data))
+                // Данные строки узла «Закреплённые» — обёртка PinnedInfobaseItem
+                // (issue #314): сравниваем по реальной базе, иначе контейнер
+                // закреплённой строки не находился бы по данным обычной базы.
+                if (ReferenceEquals(UnwrapInfobase(tvi.DataContext), UnwrapInfobase(data)))
                     return tvi;
 
                 if (tvi.Items.Count > 0)
@@ -611,6 +620,19 @@ namespace Configuration_Management
             }
             return null;
         }
+
+        /// <summary>
+        /// Разворачивает данные строки дерева до реальной базы: строка узла
+        /// «Закреплённые» несёт обёртку <see cref="PinnedInfobaseItem"/> (уникальные
+        /// данные каждой строки, issue #314), а выбор, команды и поиск работают
+        /// с моделью <see cref="Infobase"/>, как раньше.
+        /// </summary>
+        private static Infobase? UnwrapInfobase(object? data) => data switch
+        {
+            Infobase ib => ib,
+            PinnedInfobaseItem pinned => pinned.Base,
+            _ => null
+        };
 
         /// <summary>
         /// Находит узел группы, в котором размещена указанная база.
@@ -634,7 +656,7 @@ namespace Configuration_Management
                 if (found is not null)
                     return found;
             }
-            if (node.Infobases.Any(ib => ReferenceEquals(ib, infobase)))
+            if (node.Infobases.Any(ib => ReferenceEquals(UnwrapInfobase(ib), infobase)))
                 return node;
             return null;
         }
@@ -672,7 +694,7 @@ namespace Configuration_Management
             // Ранее двухсторонняя привязка IsSelected к модели порождала каскад событий
             // SelectedItemChanged (база дублируется в «Закреплённых» и в своей группе),
             // что приводило к бесконечной рекурсии и StackOverflowException.
-            if (e.NewValue is Infobase infobase)
+            if (UnwrapInfobase(e.NewValue) is { } infobase)
             {
                 _viewModel.SelectedInfobase = infobase;
                 // Выбор базы снимает выбор группы.

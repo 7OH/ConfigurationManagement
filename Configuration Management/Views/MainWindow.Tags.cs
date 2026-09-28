@@ -89,9 +89,11 @@ namespace Configuration_Management
             if (sender is not Button button)
                 return;
 
-            // База определяется через общий предок TreeViewItem.
+            // База определяется через общий предок TreeViewItem. Строка узла
+            // «Закреплённые» несёт обёртку PinnedInfobaseItem (issue #314) —
+            // разворачиваем до реальной базы.
             var treeViewItem = FindAncestor<TreeViewItem>(button);
-            if (treeViewItem?.DataContext is not Infobase infobase)
+            if (UnwrapInfobase(treeViewItem?.DataContext) is not { } infobase)
                 return;
 
             // Тег — это DataContext кнопки (кнопка находится в ItemsControl.ItemTemplate тегов).

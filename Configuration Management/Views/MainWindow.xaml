@@ -1594,8 +1594,11 @@
                                 </Border>
                             </HierarchicalDataTemplate>
 
-                            <!-- Строка информационной базы -->
-                            <DataTemplate DataType="{x:Type models:Infobase}">
+                            <!-- Строка информационной базы. x:Key нужен, чтобы шаблон
+                                 переиспользовала строка узла «Закреплённые» (обёртка
+                                 PinnedInfobaseItem, issue #314): там тот же шаблон
+                                 применяется к реальной базе через ContentControl. -->
+                            <DataTemplate x:Key="InfobaseRowTemplate" DataType="{x:Type models:Infobase}">
                                 <Border>
                                     <Border.Style>
                                         <Style TargetType="Border">
@@ -2122,6 +2125,17 @@
                                     </Grid>
                                     </Grid>
                                 </Border>
+                            </DataTemplate>
+
+                            <!-- Строка узла «Закреплённые» (issue #314): элемент дерева имеет
+                                 УНИКАЛЬНЫЕ данные (PinnedInfobaseItem), а сам вид строки —
+                                 обычный шаблон базы, применённый к реальной базе (Base):
+                                 привязки, кнопки и команды строки работают как раньше.
+                                 Раньше в узел клался прямой экземпляр Infobase, и выбор
+                                 строки подсвечивал её копию в «Закреплённых» (и наоборот). -->
+                            <DataTemplate DataType="{x:Type vm:PinnedInfobaseItem}">
+                                <ContentControl Content="{Binding Base}"
+                                                ContentTemplate="{StaticResource InfobaseRowTemplate}"/>
                             </DataTemplate>
                         </controls:LeveledTreeView.Resources>
 
