@@ -17,8 +17,11 @@
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
+        <!-- Стиль ListBox НЕ задаём: именованного ресурса ModernListBox нет, а ссылка
+             на него роняла окно при открытии (Ctrl+K, issue #312) XamlParseException.
+             Темы (DarkTheme/LightTheme) дают неявный стиль ListBox с фоном, рамкой,
+             прокрутками и строкой ModernListBoxItem — он применяется автоматически. -->
         <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}"/>
-        <Style TargetType="ListBox" BasedOn="{StaticResource ModernListBox}"/>
     </Window.Resources>
 
     <Grid Margin="10">

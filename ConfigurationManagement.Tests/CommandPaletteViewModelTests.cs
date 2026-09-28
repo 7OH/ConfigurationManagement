@@ -140,4 +140,102 @@ public sealed class CommandPaletteViewModelTests
         Assert.Empty(vm.VisibleItems);
         Assert.Null(vm.Current);
     }
+
+    // ===== Пустой и null-источник (issue #312): палитра не должна падать =====
+
+    [Fact]
+    public void EmptySource_AllOperationsSafe()
+    {
+        var vm = new CommandPaletteViewModel();
+        vm.SetSource(System.Array.Empty<CommandPaletteItem>(), System.Array.Empty<CommandPaletteItem>());
+
+        vm.ApplyQuery("");
+        Assert.Empty(vm.VisibleItems);
+        Assert.Null(vm.Current);
+        Assert.False(vm.MoveDown());
+        Assert.False(vm.MoveUp());
+        // Пустой список: выделения нет (SelectedIndex = -1), Current возвращает null.
+        Assert.Equal(-1, vm.SelectedIndex);
+
+        vm.ApplyQuery("бух");
+        Assert.Empty(vm.VisibleItems);
+        Assert.Null(vm.Current);
+
+        vm.Reset();
+        Assert.Equal("", vm.Query);
+        Assert.Empty(vm.VisibleItems);
+    }
+
+    [Fact]
+    public void NullSource_TreatedAsEmpty()
+    {
+        var vm = new CommandPaletteViewModel();
+        vm.SetSource(null!, null!);
+
+        Assert.Empty(vm.VisibleItems);
+        vm.ApplyQuery("что-нибудь");
+        Assert.Empty(vm.VisibleItems);
+        Assert.Null(vm.Current);
+    }
+
+    [Fact]
+    public void NullQuery_TreatedAsEmpty()
+    {
+        var vm = CreateVm();
+        vm.ApplyQuery(null!);
+
+        Assert.Equal(5, vm.VisibleItems.Count);
+        Assert.Equal(0, vm.SelectedIndex);
+    }
+
+    [Fact]
+    public void SetSource_ReplacesPreviousContent()
+    {
+        var vm = CreateVm();
+        Assert.Equal(5, vm.VisibleItems.Count);
+
+        vm.SetSource(new[] { Base("Новая база") }, System.Array.Empty<CommandPaletteItem>());
+        Assert.Single(vm.VisibleItems);
+        Assert.Equal("Новая база", vm.VisibleItems[0].Title);
+    }
+
+    // ===== Enter/Esc-семантика на чистой логике (окно опирается на неё) =====
+
+    [Fact]
+    public void Enter_ExecutesCurrentSelection()
+    {
+        var vm = CreateVm();
+        vm.ApplyQuery("настройки");
+
+        // Enter в окне берёт именно Current — выбранный отфильтрованный элемент.
+        Assert.Equal("Настройки", vm.Current!.Title);
+        Assert.Equal(CommandPaletteItemKind.Command, vm.Current.Kind);
+    }
+
+    [Fact]
+    public void Esc_ClosesWithoutSelection_AndResetRestoresState()
+    {
+        var vm = CreateVm();
+        vm.ApplyQuery("архив");
+        Assert.Single(vm.VisibleItems);
+
+        // Reset — состояние при следующем открытии палитры: пустой запрос, полный список.
+        vm.Reset();
+        Assert.Equal("", vm.Query);
+        Assert.Equal(0, vm.SelectedIndex);
+        Assert.Equal(5, vm.VisibleItems.Count);
+    }
+
+    [Fact]
+    public void EmptySource_EnterIsNull_EscIsSafe()
+    {
+        var vm = new CommandPaletteViewModel();
+        vm.SetSource(System.Array.Empty<CommandPaletteItem>(), System.Array.Empty<CommandPaletteItem>());
+
+        // Enter на пустой палитре не имеет выбранного элемента (окно просто закроется),
+        // Esc ничего не выбирает — оба пути безопасны.
+        Assert.Null(vm.Current);
+        vm.Reset();
+        Assert.Empty(vm.VisibleItems);
+    }
 }

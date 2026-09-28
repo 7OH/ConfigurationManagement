@@ -12,8 +12,9 @@
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
+        <!-- Стиль ListBox не задаём: именованного ресурса ModernListBox нет (падало
+             при открытии окна), тема даёт неявный стиль ListBox автоматически (issue #312). -->
         <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}"/>
-        <Style TargetType="ListBox" BasedOn="{StaticResource ModernListBox}"/>
     </Window.Resources>
 
     <Grid Margin="16">

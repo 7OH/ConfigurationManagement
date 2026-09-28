@@ -1432,26 +1432,38 @@ public string HotkeyEnterprise
     /// <summary>Открывает палитру и исполняет выбранный элемент.</summary>
     private void ExecuteShowCommandPalette()
     {
-        var (bases, commands) = BuildPaletteSource();
-        var (item, useConfigurator) = CommandPaletteWindow.ShowDialogFor(bases, commands);
-        if (item is null)
-            return;
-
-        if (item.Kind == CommandPaletteItemKind.Base)
+        try
         {
-            var ib = Infobases.FirstOrDefault(b => b.Id == item.Id);
-            if (ib is null)
+            var (bases, commands) = BuildPaletteSource();
+            var (item, useConfigurator) = CommandPaletteWindow.ShowDialogFor(bases, commands);
+            if (item is null)
                 return;
-            SelectedInfobase = ib;
 
-            // Запуск напрямую через лаунчер — не зависит от CanExecute команд UI
-            // (тот же подход, что у закладок Alt+N и меню трея). Пользовательские
-            // скрипты (функция №8, 0.3.9.98) выполняются в асинхронном ядре.
-            _ = LaunchFromPaletteCoreAsync(ib, useConfigurator);
-            return;
+            if (item.Kind == CommandPaletteItemKind.Base)
+            {
+                var ib = Infobases.FirstOrDefault(b => b.Id == item.Id);
+                if (ib is null)
+                    return;
+                SelectedInfobase = ib;
+
+                // Запуск напрямую через лаунчер — не зависит от CanExecute команд UI
+                // (тот же подход, что у закладок Alt+N и меню трея). Пользовательские
+                // скрипты (функция №8, 0.3.9.98) выполняются в асинхронном ядре.
+                _ = LaunchFromPaletteCoreAsync(ib, useConfigurator);
+                return;
+            }
+
+            ExecutePaletteCommand(item.Id);
         }
-
-        ExecutePaletteCommand(item.Id);
+        catch (Exception ex)
+        {
+            // Палитра не должна ронять приложение (issue #312): любая ошибка
+            // построения источника или открытия окна логируется и показывается.
+            _logger.Error("[palette] Ошибка открытия командной палитры", ex);
+            _dialogs.ShowError(
+                string.Format(LocalizationManager.T("Palette.OpenError"), ex.Message),
+                LocalizationManager.T("Palette.Title"));
+        }
     }
 
     /// <summary>Асинхронное ядро запуска базы из командной палитры: pre → запуск → post.</summary>
@@ -1508,6 +1520,8 @@ public string HotkeyEnterprise
 
         // Команды палитры: идентификатор → локализованное название → команда VM.
         // Исполняются без параметров — как из меню/хоткеев.
+        // Сама «Командная палитра» в список команд НЕ включается — иначе выбор её
+        // из палитры открывал бы палитру заново (рекурсия, issue #312).
         var commands = new (string Id, string TitleKey, ICommand Command)[]
         {
             ("palette.settings", "Main.Settings", OpenSettingsCommand),

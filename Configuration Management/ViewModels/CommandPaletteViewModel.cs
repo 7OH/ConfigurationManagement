@@ -57,13 +57,13 @@ public sealed class CommandPaletteViewModel
     /// <summary>Текущий запрос (для восстановления состояния окна).</summary>
     public string Query { get; private set; } = "";
 
-    /// <summary>Заменяет источник элементов: базы и команды.</summary>
-    public void SetSource(IEnumerable<CommandPaletteItem> bases, IEnumerable<CommandPaletteItem> commands)
+    /// <summary>Заменяет источник элементов: базы и команды. Null/пустые источники безопасны.</summary>
+    public void SetSource(IEnumerable<CommandPaletteItem>? bases, IEnumerable<CommandPaletteItem>? commands)
     {
         _bases.Clear();
-        _bases.AddRange(bases);
+        if (bases is not null) _bases.AddRange(bases);
         _commands.Clear();
-        _commands.AddRange(commands);
+        if (commands is not null) _commands.AddRange(commands);
         ApplyQuery(Query);
     }
 

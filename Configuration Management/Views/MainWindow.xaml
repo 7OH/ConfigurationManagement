@@ -659,6 +659,14 @@
                                 </StackPanel>
                                 <Button.ContextMenu>
                                     <ContextMenu Style="{DynamicResource ModernContextMenu}">
+                                        <!-- Командная палитра (Ctrl+K, issue #312): быстрый поиск баз
+                                             и команд интерфейса. Стоит первым пунктом «Утилит», чтобы
+                                             о функции было легко вспомнить; сама в список команд
+                                             палитры не добавляется (иначе рекурсия). -->
+                                        <MenuItem Header="{loc:Loc Main.CommandPalette}" Command="{Binding CommandPaletteCommand}" InputGestureText="{Binding HotkeyCommandPalette}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Magnify" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <Separator/>
                                         <MenuItem Header="{loc:Loc Updates.ActualReleasesTitle}" Command="{Binding ShowActualReleasesCommand}" InputGestureText="{Binding HotkeyActualReleases}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                         </MenuItem>

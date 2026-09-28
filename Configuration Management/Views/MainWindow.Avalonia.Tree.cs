@@ -1635,6 +1635,12 @@ namespace Configuration_Management
             if (_vm is null)
                 return menu;
 
+            // Командная палитра (Ctrl+K, issue #312): быстрый поиск баз и команд
+            // интерфейса. Стоит первым пунктом «Утилит», чтобы о функции было легко
+            // вспомнить; сама в список команд палитры не добавляется (иначе рекурсия).
+            menu.Items.Add(MenuAction("Main.CommandPalette", _vm.CommandPaletteCommand, _vm.HotkeyCommandPalette, "IconSearch", "#3B82F6"));
+            menu.Items.Add(MenuSeparator());
+
             // Общие команды, перенесённые из контекстного меню базы.
             menu.Items.Add(MenuAction("Updates.ActualReleasesTitle", _vm.ShowActualReleasesCommand, _vm.HotkeyActualReleases, "IconCloudDownload", "#14B8A6"));
 

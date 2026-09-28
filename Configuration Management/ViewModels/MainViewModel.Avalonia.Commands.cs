@@ -232,26 +232,38 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Открывает палитру и исполняет выбранный элемент.</summary>
     private void ExecuteShowCommandPalette()
     {
-        var (bases, commands) = BuildPaletteSource();
-        var win = new Configuration_Management.CommandPaletteWindow(bases, commands);
-        win.ShowDialogSync(OwnerWindow());
-
-        var item = win.Result;
-        if (item is null)
-            return;
-
-        if (item.Kind == CommandPaletteItemKind.Base)
+        try
         {
-            var ib = Infobases.FirstOrDefault(b => b.Id == item.Id);
-            if (ib is null)
+            var (bases, commands) = BuildPaletteSource();
+            var win = new Configuration_Management.CommandPaletteWindow(bases, commands);
+            win.ShowDialogSync(OwnerWindow());
+
+            var item = win.Result;
+            if (item is null)
                 return;
 
-            // Запуск с записью истории и сохранением — общий путь запуска из трея.
-            LaunchFromTray(ib, win.UseConfigurator);
-            return;
-        }
+            if (item.Kind == CommandPaletteItemKind.Base)
+            {
+                var ib = Infobases.FirstOrDefault(b => b.Id == item.Id);
+                if (ib is null)
+                    return;
 
-        ExecutePaletteCommand(item.Id);
+                // Запуск с записью истории и сохранением — общий путь запуска из трея.
+                LaunchFromTray(ib, win.UseConfigurator);
+                return;
+            }
+
+            ExecutePaletteCommand(item.Id);
+        }
+        catch (Exception ex)
+        {
+            // Палитра не должна ронять приложение (issue #312): любая ошибка
+            // построения источника или открытия окна логируется и показывается.
+            _logger.Error("[palette] Ошибка открытия командной палитры", ex);
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("Palette.OpenError"), ex.Message),
+                LocalizationManager.T("Palette.Title"));
+        }
     }
 
     /// <summary>Источник элементов палитры: базы (избранные — выше) и команды интерфейса.</summary>
@@ -275,6 +287,8 @@ public partial class MainViewModel : ViewModelBase
             })
             .ToList();
 
+        // Сама «Командная палитра» в список команд НЕ включается — иначе выбор её
+        // из палитры открывал бы палитру заново (рекурсия, issue #312).
         var commands = new (string Id, string TitleKey, ICommand Command)[]
         {
             ("palette.settings", "Main.Settings", OpenSettingsCommand),
