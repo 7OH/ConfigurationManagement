@@ -9,6 +9,55 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.130] — 2026-09-28
+
+### Добавлено
+
+- **Обозреватель хранилища конфигурации — этап 4: захват/отмена захвата и финализация**
+  (цикл 0.3.9.127–0.3.9.130): действия «Захватить все» / «Отменить захват» над объектами
+  хранилища конфигурации в окне «Хранилище конфигурации…» на обеих платформах
+  (Windows/WPF + Linux/Avalonia), документация и финальные проверки цикла.
+  - **ViewModel** — [`ViewModels/RepositoryBrowserViewModel.cs`](Configuration%20Management/ViewModels/RepositoryBrowserViewModel.cs):
+    команды `LockAllCommand` / `UnlockAllCommand` (захват/отмена захвата всех объектов
+    хранилища через `IRepositoryStorageService.LockAsync/UnlockAsync` с
+    `objectsXmlPath = null`); подтверждение через `IDialogService.Confirm` (захват
+    блокирует объекты для других пользователей; отмена захвата при изменённых локальных
+    объектах перезаписывает их из хранилища); поле комментария операции `LockComment`
+    (локально: статус-строка окна + `AddLaunchHistory("RepositoryBrowser", …)` + сохранение
+    списка баз; платформе при Lock/Unlock комментарий НЕ передаётся — ограничение плана
+    §3.3); после операции состав выбранной версии перезагружается; ошибки — статус-строка
+    + `ShowWarning`. Выборочный захват (`LockSelected`/`UnlockSelected`) НЕ реализуется:
+    формат XML-файла списка `-objects` платформой не документирован и на этапе 1 не
+    установлен экспериментально (ограничение плана §3.3) — в UI только «Захватить все».
+  - **Окна** — [`Views/RepositoryBrowserWindow.xaml`](Configuration%20Management/Views/RepositoryBrowserWindow.xaml)
+    + `.xaml.cs` (WPF: панель захвата — поле комментария + кнопки «Захватить все»/
+    «Отменить захват», доступность по `CanExecute` команд) и
+    [`Views/RepositoryBrowserWindow.Avalonia.cs`](Configuration%20Management/Views/RepositoryBrowserWindow.Avalonia.cs)
+    (Linux: те же элементы, `RefreshActionButtons` по `CanExecute`); прогресс операций —
+    существующее `RepositoryProgressWindow`.
+  - **Локализация** — ключи `RepositoryBrowser.LockAll/UnlockAll/LockComment/LockCommentHint`,
+    `LockConfirm/UnlockConfirm`, `Status.Locking/Unlocking/LockOkFormat/UnlockOkFormat/
+    LockFailed/UnlockFailed`, `HistoryLockFormat/HistoryUnlockFormat`, `NoComment` в
+    ru.json/en.json (наборы ключей совпадают); обновлён `Hint` (захват больше не «в
+    следующей версии»).
+  - **Документация** — [`README.md`](README.md): пункт «Хранилище конфигурации (меню
+    „Утилиты“)» в разделе «Возможности» (подключение, версии и состав, сравнение с базой
+    и между версиями с экспортом CSV/TXT, выгрузка .cf, захват/отмена захвата; механика —
+    пакетный режим конфигуратора с ключами `/ConfigurationRepositoryF/N/P`,
+    `/ConfigurationRepositoryDumpCfg -v`, `/ConfigurationRepositoryReport`,
+    `/ConfigurationRepositoryLock`/`Unlock`; безопасность пароля — не сохраняется;
+    ограничение по истории — при недоступности текстового формата отчёта показывается
+    актуальная версия и сравнение двух версий недоступно).
+  - **Тесты** — [`ConfigurationManagement.Tests/RepositoryBrowserViewModelTests.cs`](ConfigurationManagement.Tests/RepositoryBrowserViewModelTests.cs):
+    `LockAllAsync`/`UnlockAllAsync` — подтверждение через mock `IDialogService` (отказ —
+    операция не выполняется), вызов `LockAsync`/`UnlockAsync` с `objectsXmlPath = null`,
+    запись `AddLaunchHistory` и сохранение списка, ошибки → статус-строка +
+    `ShowWarning`; доступность команд по `HasConnected`/`IsBusy`.
+  - **Проверки** — `dotnet test` зелёный (526 + новые), `dotnet build -p:BuildLinux=true`
+    без ошибок; ручной чек-лист на Windows и Linux (светлая/тёмная тема, ru/en):
+    подключение, версии/состав, сравнение «версия ↔ база» и «версия ↔ версия»,
+    выгрузка .cf, захват всех/отмена захвата, ошибки, закрытие окна без утечек.
+
 ## [0.3.9.129] — 2026-09-28
 
 ### Добавлено

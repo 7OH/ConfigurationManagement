@@ -32,6 +32,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -124,8 +125,36 @@
             </Button>
         </StackPanel>
 
+        <!-- Панель захвата/отмены захвата (этап 4): комментарий операции + кнопки.
+             Комментарий хранится локально (журнал окна + история запусков) и платформе
+             при /ConfigurationRepositoryLock|Unlock не передаётся (ограничение плана §3.3).
+             Доступность кнопок — по CanExecute команд (HasConnected и !IsBusy). -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,12,0,0">
+            <TextBlock Style="{StaticResource FieldLabel}" Margin="0,0,6,0"
+                       Text="{loc:Loc RepositoryBrowser.LockComment}"/>
+            <TextBox Width="300" Padding="4,3" Margin="0,0,12,0"
+                     Background="{DynamicResource CardBackgroundBrush}"
+                     BorderBrush="{DynamicResource BorderBrush}"
+                     Text="{Binding LockComment, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTipService.ToolTip="{loc:Loc RepositoryBrowser.LockCommentHint}"/>
+            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0"
+                    Command="{Binding LockAllCommand}" Background="{DynamicResource ItemHoverBrush}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔒" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc RepositoryBrowser.LockAll}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0"
+                    Command="{Binding UnlockAllCommand}" Background="{DynamicResource ItemHoverBrush}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔓" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc RepositoryBrowser.UnlockAll}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
         <!-- Версии и состав выбранной версии -->
-        <Grid Grid.Row="3" Margin="0,14,0,0">
+        <Grid Grid.Row="4" Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="5*"/>
                 <ColumnDefinition Width="6*"/>
@@ -219,13 +248,13 @@
         </Grid>
 
         <!-- Статус-строка -->
-        <TextBlock Grid.Row="4" Margin="0,10,0,0" FontSize="12"
+        <TextBlock Grid.Row="5" Margin="0,10,0,0" FontSize="12"
                    Foreground="{DynamicResource TextSecondaryBrush}"
                    Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
                    ToolTipService.ToolTip="{Binding ErrorMessage}"/>
 
         <!-- Подсказка: при ограниченной истории — пояснение ограничения, иначе — общий hint -->
-        <StackPanel Grid.Row="5" Margin="0,8,0,0">
+        <StackPanel Grid.Row="6" Margin="0,8,0,0">
             <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
                        TextWrapping="Wrap" Text="{loc:Loc RepositoryBrowser.Hint}">
                 <TextBlock.Style>

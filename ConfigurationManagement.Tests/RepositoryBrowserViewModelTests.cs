@@ -10,12 +10,15 @@ using Xunit;
 namespace ConfigurationManagement.Tests;
 
 /// <summary>
-/// Тесты ViewModel «Обозревателя хранилища конфигурации» (0.3.9.128, этап 2 цикла
-/// 0.3.9.127–0.3.9.130): дефолты (пустые коллекции, адрес/пользователь из свойств базы),
-/// подключение через fake-сервис (GetHistoryAsync с корректными параметрами и эффективным
-/// паролем), выбор версии → LoadVersionObjectsAsync, ошибки в статус-строку (окно не
-/// роняем), пароль НЕ попадает в настройки (новых полей в AppSettings нет) и
-/// CanExecute-предикат команды меню. Образец — ServerMonitorViewModelTests.
+/// Тесты ViewModel «Обозревателя хранилища конфигурации» (цикл 0.3.9.127–0.3.9.130,
+/// этапы 2–4): дефолты (пустые коллекции, адрес/пользователь из свойств базы), подключение
+/// через fake-сервис (GetHistoryAsync с корректными параметрами и эффективным паролем),
+/// выбор версии → LoadVersionObjectsAsync, ошибки в статус-строку (окно не роняем), пароль
+/// НЕ попадает в настройки (новых полей в AppSettings нет), CanExecute-предикат команды
+/// меню, действия этапа 3 (сравнение/выгрузка .cf) и захват/отмена захвата этапа 4
+/// (подтверждение через mock IDialogService, LockAsync/UnlockAsync с objectsXmlPath = null,
+/// локальный комментарий в историю запусков, ошибки → статус/диалог).
+/// Образец — ServerMonitorViewModelTests.
 /// </summary>
 public sealed class RepositoryBrowserViewModelTests
 {
@@ -534,6 +537,176 @@ public sealed class RepositoryBrowserViewModelTests
         Assert.False(vm.IsBusy);
     }
 
+    // ===================== Захват/отмена захвата (этап 4) =====================
+
+    [Fact]
+    public async Task LockAll_Confirms_CallsLockAsyncNullObjects_AddsHistory_ReloadsObjects()
+    {
+        var ib = CreateBase();
+        var fake = new FakeRepositoryStorageService
+        {
+            HistoryResult = new[] { Version(1, "Первая"), Version(2, "Вторая") },
+            ObjectsResult = new[] { new RepositoryObjectInfo("Catalog", "Справочник1", string.Empty, IsTopLevel: true) }
+        };
+        var dialogs = new RecordingDialogs(); // ConfirmResult = true — пользователь подтверждает
+        var persisted = false;
+        var vm = new RepositoryBrowserViewModel(ib, fake, dialogs, null, persistChanges: () => persisted = true);
+        await vm.ConnectAsync();
+        vm.SelectedVersion = vm.Versions[1]; // первый вызов LoadObjectsAsync (состав выбранной версии)
+        Assert.Single(fake.LoadObjectsCalls);
+
+        vm.LockComment = "Плановые работы";
+        await vm.LockAllAsync();
+
+        // Подтверждение показано (захват блокирует объекты для других пользователей)…
+        Assert.Single(dialogs.Confirms);
+
+        // …сервис получил захват ВСЕХ объектов (objectsXmlPath == null) с эффективной базой
+        // (пароль не менялся — передаётся оригинал; выборочный захват не реализуется).
+        var call = Assert.Single(fake.LockCalls);
+        Assert.Null(call.objectsXmlPath);
+        Assert.Same(ib, call.infobase);
+        Assert.Empty(fake.UnlockCalls);
+
+        // Состав выбранной версии перезагружен после операции.
+        Assert.Equal(2, fake.LoadObjectsCalls.Count);
+
+        // Комментарий — в историю запусков базы (режим RepositoryBrowser) + сохранение списка.
+        // Текст деталей формируется локализацией (формат HistoryLockFormat: комментарий и время);
+        // в тестовой среде LocalizationManager не инициализирован и возвращает ключ как есть,
+        // поэтому проверяем режим и непустоту деталей (образец DumpVersionToCf_...).
+        var entry = Assert.Single(ib.LaunchHistory);
+        Assert.Equal("RepositoryBrowser", entry.Mode);
+        Assert.NotEmpty(entry.Details);
+        Assert.True(persisted);
+
+        Assert.False(vm.IsBusy);
+        Assert.NotEmpty(vm.StatusText);
+        Assert.Empty(vm.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task LockAll_ConfirmDeclined_DoesNotCallService()
+    {
+        var fake = new FakeRepositoryStorageService { HistoryResult = new[] { Version(1, "Первая") } };
+        var dialogs = new RecordingDialogs { ConfirmResult = false }; // пользователь отказался
+        var vm = new RepositoryBrowserViewModel(CreateBase(), fake, dialogs, null);
+        await vm.ConnectAsync();
+
+        await vm.LockAllAsync();
+
+        Assert.Single(dialogs.Confirms);
+        Assert.Empty(fake.LockCalls);
+        Assert.Empty(fake.UnlockCalls);
+        Assert.Empty(vm.ErrorMessage);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
+    public async Task UnlockAll_Confirms_CallsUnlockAsyncNullObjects_AddsHistory()
+    {
+        var ib = CreateBase();
+        var fake = new FakeRepositoryStorageService { HistoryResult = new[] { Version(1, "Первая") } };
+        var dialogs = new RecordingDialogs();
+        var vm = new RepositoryBrowserViewModel(ib, fake, dialogs, null);
+        await vm.ConnectAsync();
+
+        vm.LockComment = "Отмена плановых работ";
+        await vm.UnlockAllAsync();
+
+        Assert.Single(dialogs.Confirms);
+        var call = Assert.Single(fake.UnlockCalls);
+        Assert.Null(call.objectsXmlPath);
+        Assert.Same(ib, call.infobase);
+        Assert.Empty(fake.LockCalls);
+
+        var entry = Assert.Single(ib.LaunchHistory);
+        Assert.Equal("RepositoryBrowser", entry.Mode);
+        Assert.NotEmpty(entry.Details);
+
+        Assert.False(vm.IsBusy);
+        Assert.Empty(vm.ErrorMessage);
+        Assert.NotEmpty(vm.StatusText);
+    }
+
+    [Fact]
+    public async Task UnlockAll_ConfirmDeclined_DoesNotCallService()
+    {
+        var fake = new FakeRepositoryStorageService { HistoryResult = new[] { Version(1, "Первая") } };
+        var dialogs = new RecordingDialogs { ConfirmResult = false };
+        var vm = new RepositoryBrowserViewModel(CreateBase(), fake, dialogs, null);
+        await vm.ConnectAsync();
+
+        await vm.UnlockAllAsync();
+
+        Assert.Single(dialogs.Confirms);
+        Assert.Empty(fake.LockCalls);
+        Assert.Empty(fake.UnlockCalls);
+        Assert.Empty(vm.ErrorMessage);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
+    public async Task LockAll_OnError_WarnsAndKeepsWindowAlive()
+    {
+        var ib = CreateBase();
+        var fake = new FakeRepositoryStorageService
+        {
+            HistoryResult = new[] { Version(1, "Первая") },
+            LockException = new RepositoryStorageException("Объекты уже захвачены другим пользователем")
+        };
+        var dialogs = new RecordingDialogs();
+        var vm = new RepositoryBrowserViewModel(ib, fake, dialogs, null);
+        await vm.ConnectAsync();
+
+        await vm.LockAllAsync();
+
+        // Ошибка — статус-строка + предупреждение, окно не падает, операция не записана в историю.
+        Assert.Single(dialogs.Confirms);
+        Assert.Single(dialogs.Warnings);
+        Assert.Contains("Объекты уже захвачены", vm.ErrorMessage);
+        Assert.NotEmpty(vm.StatusText);
+        Assert.False(vm.IsBusy);
+        Assert.Empty(vm.Objects);
+        Assert.Empty(ib.LaunchHistory);
+    }
+
+    [Fact]
+    public async Task UnlockAll_OnError_WarnsAndKeepsWindowAlive()
+    {
+        var fake = new FakeRepositoryStorageService
+        {
+            HistoryResult = new[] { Version(1, "Первая") },
+            UnlockException = new RepositoryStorageException("Хранилище недоступно")
+        };
+        var dialogs = new RecordingDialogs();
+        var vm = new RepositoryBrowserViewModel(CreateBase(), fake, dialogs, null);
+        await vm.ConnectAsync();
+
+        await vm.UnlockAllAsync();
+
+        Assert.Single(dialogs.Confirms);
+        Assert.Single(dialogs.Warnings);
+        Assert.Contains("Хранилище недоступно", vm.ErrorMessage);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
+    public async Task LockUnlockCommands_CanExecute_OnlyAfterConnection()
+    {
+        var fake = new FakeRepositoryStorageService { HistoryResult = new[] { Version(1, "Первая") } };
+        var vm = new RepositoryBrowserViewModel(CreateBase(), fake, new RecordingDialogs());
+
+        // До подключения команды захвата недоступны (как и остальные действия).
+        Assert.False(vm.LockAllCommand.CanExecute(null));
+        Assert.False(vm.UnlockAllCommand.CanExecute(null));
+
+        await vm.ConnectAsync();
+
+        Assert.True(vm.LockAllCommand.CanExecute(null));
+        Assert.True(vm.UnlockAllCommand.CanExecute(null));
+    }
+
     /// <summary>Fake-сравнение: фиксирует запрос и возвращает пустой отчёт (без запуска 1С).</summary>
     private static Task<ConfigurationDiffResult> StubCompare(ConfigurationDiffRequest request, List<ConfigurationDiffRequest> sink)
     {
@@ -586,11 +759,27 @@ public sealed class RepositoryBrowserViewModelTests
             return Task.FromResult(cfPath);
         }
 
+        public List<(Infobase infobase, string? objectsXmlPath)> LockCalls { get; } = new();
+        public List<(Infobase infobase, string? objectsXmlPath)> UnlockCalls { get; } = new();
+
+        public Exception? LockException { get; set; }
+        public Exception? UnlockException { get; set; }
+
         public Task LockAsync(Infobase infobase, string? objectsXmlPath = null, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Этап 4");
+        {
+            LockCalls.Add((infobase, objectsXmlPath));
+            if (LockException is not null)
+                throw LockException;
+            return Task.CompletedTask;
+        }
 
         public Task UnlockAsync(Infobase infobase, string? objectsXmlPath = null, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Этап 4");
+        {
+            UnlockCalls.Add((infobase, objectsXmlPath));
+            if (UnlockException is not null)
+                throw UnlockException;
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>Запись диалогов для тестов: ничего не показывает, подтверждение — настраиваемое.</summary>

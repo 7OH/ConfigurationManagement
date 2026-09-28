@@ -37,6 +37,8 @@ namespace Configuration_Management
         private readonly Button _compareWithBaseButton;
         private readonly Button _compareVersionsButton;
         private readonly Button _dumpCfButton;
+        private readonly Button _lockAllButton;
+        private readonly Button _unlockAllButton;
         private RepositoryProgressWindow? _progress;
 
         /// <param name="infobase">Выбранная база с заполненным адресом хранилища.</param>
@@ -130,6 +132,36 @@ namespace Configuration_Management
                 () => _vm.DumpVersionToCfCommand.Execute(null), "⇩");
             var closeButton = BuildCloseButton();
             RefreshActionButtons();
+
+            // ---- Панель захвата (этап 4): комментарий операции + «Захватить все» / «Отменить захват».
+            // Комментарий хранится локально (журнал окна + история запусков) и платформе
+            // при /ConfigurationRepositoryLock|Unlock не передаётся (ограничение плана §3.3). ----
+            var commentBox = new TextBox
+            {
+                Width = 300,
+                Padding = new Thickness(4, 3)
+            };
+            commentBox.Bind(TextBox.TextProperty, new Binding("LockComment"));
+            ToolTip.SetTip(commentBox, LocalizationManager.T("RepositoryBrowser.LockCommentHint"));
+
+            _lockAllButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.LockAll"),
+                () => _vm.LockAllCommand.Execute(null), "🔒");
+            _unlockAllButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.UnlockAll"),
+                () => _vm.UnlockAllCommand.Execute(null), "🔓");
+
+            var lockPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 12, 0, 0),
+                Children =
+                {
+                    FieldLabel(LocalizationManager.T("RepositoryBrowser.LockComment")),
+                    commentBox,
+                    _lockAllButton,
+                    _unlockAllButton
+                }
+            };
 
             var buttons = new StackPanel
             {
@@ -237,6 +269,7 @@ namespace Configuration_Management
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Star),
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto)
@@ -245,9 +278,10 @@ namespace Configuration_Management
             Place(root, title, 0);
             Place(root, connectPanel, 1);
             Place(root, buttons, 2);
-            Place(root, tables, 3);
-            Place(root, status, 4);
-            Place(root, StackHints(hint, historyHint), 5);
+            Place(root, lockPanel, 3);
+            Place(root, tables, 4);
+            Place(root, status, 5);
+            Place(root, StackHints(hint, historyHint), 6);
             Content = root;
         }
 
@@ -296,6 +330,8 @@ namespace Configuration_Management
             _compareWithBaseButton.IsEnabled = _vm.CompareWithBaseCommand.CanExecute(null);
             _compareVersionsButton.IsEnabled = _vm.CompareVersionsCommand.CanExecute(null);
             _dumpCfButton.IsEnabled = _vm.DumpVersionToCfCommand.CanExecute(null);
+            _lockAllButton.IsEnabled = _vm.LockAllCommand.CanExecute(null);
+            _unlockAllButton.IsEnabled = _vm.UnlockAllCommand.CanExecute(null);
         }
 
         private void OnStageChanged(string stage) => _progress?.SetStage(stage);

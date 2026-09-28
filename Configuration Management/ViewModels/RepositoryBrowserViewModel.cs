@@ -21,8 +21,14 @@ namespace Configuration_Management.ViewModels;
 /// с текущей конфигурацией базы (<see cref="CompareWithBaseAsync"/>, BaseVsCf), сравнение
 /// двух версий между собой (<see cref="CompareVersionsAsync"/>, CfVsCf, выбранная ↔
 /// предыдущая; недоступно при ограниченной истории) и выгрузка версии в .cf
-/// (<see cref="DumpVersionToCfAsync"/>). Чистый .NET без платформенных зависимостей —
-/// обе платформы (WPF и Avalonia); окна только привязываются и открывают окна результата.
+/// (<see cref="DumpVersionToCfAsync"/>). Этап 4: захват всех объектов хранилища и отмена
+/// захвата (<see cref="LockAllAsync"/> / <see cref="UnlockAllAsync"/> через
+/// <c>IRepositoryStorageService.LockAsync/UnlockAsync</c> с objectsXmlPath = null —
+/// выборочный захват не реализуется: формат XML-списка -objects не документирован,
+/// ограничение плана §3.3); комментарий операции ведётся локально (журнал окна +
+/// <see cref="Infobase.AddLaunchHistory"/>), платформе при Lock/Unlock не передаётся.
+/// Чистый .NET без платформенных зависимостей — обе платформы (WPF и Avalonia);
+/// окна только привязываются и открывают окна результата.
 /// Образец — ServerMonitorViewModel / ProcessInspectorViewModel.
 /// </summary>
 public sealed class RepositoryBrowserViewModel : ViewModelBase
@@ -56,6 +62,9 @@ public sealed class RepositoryBrowserViewModel : ViewModelBase
     private ICommand? _compareWithBaseCommand;
     private ICommand? _compareVersionsCommand;
     private ICommand? _dumpVersionToCfCommand;
+    private ICommand? _lockAllCommand;
+    private ICommand? _unlockAllCommand;
+    private string _lockComment = string.Empty;
 
     /// <param name="infobase">Выбранная в главном окне база (с заполненным адресом хранилища).</param>
     /// <param name="service">Сервис операций с хранилищем (история, состав версии).</param>
@@ -125,6 +134,18 @@ public sealed class RepositoryBrowserViewModel : ViewModelBase
     {
         get => _password;
         set => SetProperty(ref _password, value ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Комментарий операции захвата/отмены захвата. Хранится ТОЛЬКО локально: пишется
+    /// в журнал окна (статус-строка) и историю запусков базы (<see cref="Infobase.AddLaunchHistory"/>);
+    /// платформа при /ConfigurationRepositoryLock|Unlock комментарий не принимает
+    /// (ограничение плана §3.3). На диск не сохраняется.
+    /// </summary>
+    public string LockComment
+    {
+        get => _lockComment;
+        set => SetProperty(ref _lockComment, value ?? string.Empty);
     }
 
     /// <summary>Выполняется ли сейчас подключение/перезагрузка истории (флаг занятости, образец ProcessInspectorViewModel:80).</summary>
@@ -208,6 +229,27 @@ public sealed class RepositoryBrowserViewModel : ViewModelBase
     public ICommand DumpVersionToCfCommand =>
         _dumpVersionToCfCommand ??= new RelayCommand(async () => await DumpVersionToCfAsync(),
             () => HasConnected && SelectedVersion is not null && !IsBusy);
+
+    /// <summary>
+    /// «Захватить все» (этап 4): захват всех объектов конфигурации хранилища
+    /// (/ConfigurationRepositoryLock без -objects; выборочный захват не реализуется —
+    /// формат XML-списка -objects не документирован, ограничение плана §3.3).
+    /// Подтверждение — <see cref="IDialogService.Confirm"/>; комментарий
+    /// (<see cref="LockComment"/>) пишется локально в журнал окна и историю запусков
+    /// (<see cref="Infobase.AddLaunchHistory"/>), платформе НЕ передаётся (ограничение 3.3).
+    /// </summary>
+    public ICommand LockAllCommand =>
+        _lockAllCommand ??= new RelayCommand(async () => await LockAllAsync(),
+            () => HasConnected && !IsBusy);
+
+    /// <summary>
+    /// «Отменить захват» (этап 4): отмена захвата всех объектов хранилища
+    /// (/ConfigurationRepositoryUnlock без -objects). Подтверждение, локальный комментарий
+    /// и история запусков — как в <see cref="LockAllCommand"/>.
+    /// </summary>
+    public ICommand UnlockAllCommand =>
+        _unlockAllCommand ??= new RelayCommand(async () => await UnlockAllAsync(),
+            () => HasConnected && !IsBusy);
 
     // ===================== Статус =====================
 
@@ -506,6 +548,89 @@ public sealed class RepositoryBrowserViewModel : ViewModelBase
         }
     }
 
+    // ===================== Действия (этап 4): захват и отмена захвата =====================
+
+    /// <summary>
+    /// «Захватить все»: захват всех объектов конфигурации хранилища
+    /// (/ConfigurationRepositoryLock без -objects — формат XML-списка выборочного захвата
+    /// не документирован, ограничение плана §3.3). Подтверждение
+    /// (<see cref="IDialogService.Confirm"/>: объекты блокируются для других пользователей);
+    /// комментарий — локально (статус-строка окна + <see cref="Infobase.AddLaunchHistory"/>,
+    /// платформе НЕ передаётся); после операции состав выбранной версии перезагружается
+    /// (<see cref="LoadObjectsAsync"/>); ошибки — статус-строка + ShowWarning.
+    /// </summary>
+    public async Task LockAllAsync()
+    {
+        if (!HasConnected)
+            return;
+        if (!_dialogs.Confirm(
+                LocalizationManager.T("RepositoryBrowser.LockConfirm"),
+                LocalizationManager.T("RepositoryBrowser.Title")))
+            return; // пользователь отказался
+        if (!TryEnterBusy())
+            return;
+
+        try
+        {
+            ErrorMessage = string.Empty;
+            StatusText = LocalizationManager.T("RepositoryBrowser.Status.Locking");
+            await _service.LockAsync(WithEffectivePassword(), objectsXmlPath: null).ConfigureAwait(false);
+
+            RecordLockUnlockHistory("RepositoryBrowser.HistoryLockFormat");
+            await ReloadObjectsAfterOperationAsync().ConfigureAwait(false);
+            ApplyStatus(string.Format(
+                LocalizationManager.T("RepositoryBrowser.Status.LockOkFormat"),
+                FormatLockComment()));
+        }
+        catch (Exception ex)
+        {
+            ApplyActionError(ex, LocalizationManager.T("RepositoryBrowser.Status.LockFailed"));
+        }
+        finally
+        {
+            ExitBusy();
+        }
+    }
+
+    /// <summary>
+    /// «Отменить захват»: отмена захвата всех объектов хранилища
+    /// (/ConfigurationRepositoryUnlock без -objects). Подтверждение предупреждает, что при
+    /// изменённых локальных объектах отмена захвата перезаписывает их из хранилища;
+    /// остальное — как в <see cref="LockAllAsync"/>.
+    /// </summary>
+    public async Task UnlockAllAsync()
+    {
+        if (!HasConnected)
+            return;
+        if (!_dialogs.Confirm(
+                LocalizationManager.T("RepositoryBrowser.UnlockConfirm"),
+                LocalizationManager.T("RepositoryBrowser.Title")))
+            return; // пользователь отказался
+        if (!TryEnterBusy())
+            return;
+
+        try
+        {
+            ErrorMessage = string.Empty;
+            StatusText = LocalizationManager.T("RepositoryBrowser.Status.Unlocking");
+            await _service.UnlockAsync(WithEffectivePassword(), objectsXmlPath: null).ConfigureAwait(false);
+
+            RecordLockUnlockHistory("RepositoryBrowser.HistoryUnlockFormat");
+            await ReloadObjectsAfterOperationAsync().ConfigureAwait(false);
+            ApplyStatus(string.Format(
+                LocalizationManager.T("RepositoryBrowser.Status.UnlockOkFormat"),
+                FormatLockComment()));
+        }
+        catch (Exception ex)
+        {
+            ApplyActionError(ex, LocalizationManager.T("RepositoryBrowser.Status.UnlockFailed"));
+        }
+        finally
+        {
+            ExitBusy();
+        }
+    }
+
     // ===================== Внутреннее =====================
 
     /// <summary>
@@ -683,6 +808,8 @@ public sealed class RepositoryBrowserViewModel : ViewModelBase
         (_compareWithBaseCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (_compareVersionsCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (_dumpVersionToCfCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (_lockAllCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (_unlockAllCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
 
     /// <summary>Номер версии для сервиса: -1 (служебная запись «актуальная версия») → null (DumpCfg без -v).</summary>
@@ -769,6 +896,31 @@ public sealed class RepositoryBrowserViewModel : ViewModelBase
         {
             // Временные файлы могут удерживаться процессом 1cv8 — уборка следующего запуска.
         }
+    }
+
+    /// <summary>Запись операции захвата/отмены в историю запусков базы: режим «RepositoryBrowser»,
+    /// детали — комментарий и время; список баз сохраняется колбэком окна.</summary>
+    private void RecordLockUnlockHistory(string formatKey)
+    {
+        _infobase.AddLaunchHistory("RepositoryBrowser",
+            string.Format(LocalizationManager.T(formatKey),
+                FormatLockComment(), DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")));
+        _persistChanges?.Invoke();
+    }
+
+    /// <summary>Комментарий операции для журнала/истории: «без комментария» при пустом поле.</summary>
+    private string FormatLockComment() =>
+        string.IsNullOrWhiteSpace(LockComment)
+            ? LocalizationManager.T("RepositoryBrowser.NoComment")
+            : LockComment;
+
+    /// <summary>Перезагрузка состава выбранной версии после Lock/Unlock (состав мог измениться).</summary>
+    private async Task ReloadObjectsAfterOperationAsync()
+    {
+        var row = SelectedVersion;
+        if (row is null || !HasConnected)
+            return;
+        await LoadObjectsAsync(row).ConfigureAwait(false);
     }
 
     /// <summary>Заменяет символы, недопустимые в имени файла, на '_' (имя базы в имени .cf).</summary>
