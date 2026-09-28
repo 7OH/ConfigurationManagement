@@ -1649,12 +1649,15 @@ namespace Configuration_Management
             manageItem.Click += (_, _) => _vm.OpenConfigTypesEdit();
             menu.Items.Add(manageItem);
 
-            // Консоль администрирования серверов 1С не связана с конкретной базой, поэтому
-            // перенесена из контекстного меню базы в «Утилиты», сразу после «Списка типовых
-            // конфигураций» и с разделителями вокруг (issue #287); активна при любой выбранной
-            // строке списка или без выбора (issue #295).
+            // Встроенный монитор серверов 1С (0.3.9.124, цикл 0.3.9.123–126): подключение
+            // к серверу через rac, кластеры/процессы/сеансы/соединения/блокировки. Не связан
+            // с конкретной базой — активен при любой строке (issue #295). Хоткей Ctrl+Alt+S
+            // передан встроенному монитору (решение планирования, раздел 5).
             menu.Items.Add(MenuSeparator());
-            menu.Items.Add(MenuAction("Admin.ServerConsole", _vm.OpenServerConsoleCommand, _vm.HotkeyServerConsole, "IconServer", "#14B8A6"));
+            menu.Items.Add(MenuAction("ServerMonitor.Title", _vm.ServerMonitorCommand, _vm.HotkeyServerConsole, "IconServer", "#14B8A6"));
+            // Внешняя оснастка осталась (решение планирования): «Консоль администрирования
+            // серверов (внешняя)» — без хоткея.
+            menu.Items.Add(MenuAction("Admin.ServerConsoleExternal", _vm.OpenServerConsoleCommand, null, "IconServer", "#64748B"));
             // Центр обслуживания (0.3.9.89): сводная панель состояния всех баз —
             // доступность, последняя копия, размер, кэш, конфигурация, возраст данных,
             // проверка обновлений. Стоит сразу после «Консоли серверов».

@@ -671,12 +671,18 @@
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
-                                        <!-- Консоль администрирования серверов не связана с конкретной базой,
-                                             поэтому перенесена из контекстного меню базы в «Утилиты» (issue #287)
-                                             и активна при любой выбранной строке списка (issue #295). -->
+                                        <!-- Встроенный монитор серверов 1С (0.3.9.124, цикл 0.3.9.123–126):
+                                             подключение к серверу через rac, кластеры/процессы/сеансы/соединения/
+                                             блокировки. Не связан с конкретной базой — активен при любой строке.
+                                             Хоткей Ctrl+Alt+S передан встроенному монитору (решение планирования). -->
                                         <Separator/>
-                                        <MenuItem Header="{loc:Loc Admin.ServerConsole}" Command="{Binding OpenServerConsoleCommand}" InputGestureText="{Binding HotkeyServerConsole}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Server" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                        <MenuItem Header="{loc:Loc ServerMonitor.Title}" Command="{Binding ServerMonitorCommand}" InputGestureText="{Binding HotkeyServerConsole}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="ServerNetwork" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <!-- Внешняя оснастка осталась (решение планирования, раздел 5): пункт
+                                             «Консоль администрирования серверов (внешняя)» — без хоткея. -->
+                                        <MenuItem Header="{loc:Loc Admin.ServerConsoleExternal}" Command="{Binding OpenServerConsoleCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Server" Width="16" Height="16" Foreground="#64748B"/></MenuItem.Icon>
                                         </MenuItem>
                                         <!-- Центр обслуживания (0.3.9.89): сводная панель состояния всех баз —
                                              доступность, последняя копия, размер, кэш, конфигурация, возраст данных,

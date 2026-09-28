@@ -1,0 +1,300 @@
+<Window x:Class="Configuration_Management.ServerMonitorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Icon="{StaticResource AppIcon}"
+        Height="680" Width="1280" MinHeight="480" MinWidth="980"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <!-- Вертикальное выравнивание содержимого ячеек по центру (как в ProcessInspectorWindow). -->
+        <Style x:Key="CenteredCellText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+
+        <Style x:Key="CellTextAccent" TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Панель подключения: адрес, порт, логин, пароль, кнопки. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="{loc:Loc ServerMonitor.Address}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox Width="140" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                     Text="{Binding ServerAddress, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="{loc:Loc ServerMonitor.Port}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+            <TextBox Width="60" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                     Text="{Binding ServerPort, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="{loc:Loc ServerMonitor.User}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+            <TextBox Width="120" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                     Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="{loc:Loc ServerMonitor.Password}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+            <PasswordBox x:Name="PasswordBox" Width="120" Padding="6,3"/>
+
+            <Button x:Name="ConnectButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="14,0,8,0"
+                    Click="OnConnect_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔌" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc ServerMonitor.Connect}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="RefreshButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
+                    Click="OnRefresh_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⟳" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc ServerMonitor.Refresh}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="CloseButton" Style="{StaticResource ModernButton}" IsCancel="True"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
+                    Click="OnClose_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc Common.Close}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <!-- Выбор кластера -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="{loc:Loc ServerMonitor.Cluster}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="ClusterCombo" Width="360" Style="{StaticResource ModernComboBox}"
+                      ItemsSource="{Binding ClusterRows}" DisplayMemberPath="DisplayText"
+                      SelectedValuePath="Id" SelectedValue="{Binding SelectedClusterId}"
+                      VerticalContentAlignment="Center" Padding="6,2"/>
+            <TextBlock x:Name="StatusSummary" VerticalAlignment="Center" Margin="14,0,0,0"
+                       FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                       Text="{Binding StatusText}"/>
+        </StackPanel>
+
+        <!-- Вкладки данных кластера -->
+        <TabControl Grid.Row="2" Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+            <!-- Рабочие процессы -->
+            <TabItem Header="{loc:Loc ServerMonitor.Tabs.Processes}">
+                <DataGrid x:Name="ProcessesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
+                          RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                          BorderThickness="0">
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Process.Type}"
+                                            Binding="{Binding Type}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="1.2*" Header="{loc:Loc ServerMonitor.Columns.Process.Host}"
+                                            Binding="{Binding Host}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="70" Header="PID"
+                                            Binding="{Binding Pid}" ElementStyle="{StaticResource CellTextAccent}"/>
+                        <DataGridTextColumn Width="60" Header="{loc:Loc ServerMonitor.Columns.Process.Port}"
+                                            Binding="{Binding Port}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="130" Header="{loc:Loc ServerMonitor.Columns.Process.StartedAt}"
+                                            Binding="{Binding StartedAtText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Process.Memory}"
+                                            Binding="{Binding MemorySizeText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="80" Header="{loc:Loc ServerMonitor.Columns.Process.Threads}"
+                                            Binding="{Binding Threads}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="80" Header="{loc:Loc ServerMonitor.Columns.Process.Cpu}"
+                                            Binding="{Binding CpuText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="80" Header="{loc:Loc ServerMonitor.Columns.Process.Running}"
+                                            Binding="{Binding RunningText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="60" Header="{loc:Loc ServerMonitor.Columns.Process.Infobases}"
+                                            Binding="{Binding Infobases}" ElementStyle="{StaticResource CenteredCellText}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- Сеансы -->
+            <TabItem Header="{loc:Loc ServerMonitor.Tabs.Sessions}">
+                <DataGrid x:Name="SessionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
+                          RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                          BorderThickness="0">
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Width="1.2*" Header="{loc:Loc ServerMonitor.Columns.Session.User}"
+                                            Binding="{Binding User}" ElementStyle="{StaticResource CellTextAccent}"/>
+                        <DataGridTextColumn Width="1.1*" Header="{loc:Loc ServerMonitor.Columns.Session.Host}"
+                                            Binding="{Binding Host}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Session.App}"
+                                            Binding="{Binding AppId}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="130" Header="{loc:Loc ServerMonitor.Columns.Session.StartedAt}"
+                                            Binding="{Binding StartedAtText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="130" Header="{loc:Loc ServerMonitor.Columns.Session.LastActive}"
+                                            Binding="{Binding LastActiveAtText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="100" Header="{loc:Loc ServerMonitor.Columns.Session.State}"
+                                            Binding="{Binding StateText}">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+                                    <Setter Property="Foreground" Value="#64748B"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding State}" Value="active">
+                                            <Setter Property="Foreground" Value="#16A34A"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="dead">
+                                            <Setter Property="Foreground" Value="#DC2626"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="sleep">
+                                            <Setter Property="Foreground" Value="#D97706"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="call">
+                                            <Setter Property="Foreground" Value="#D97706"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="wait">
+                                            <Setter Property="Foreground" Value="#D97706"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Width="80" Header="{loc:Loc ServerMonitor.Columns.Session.Blocked}"
+                                            Binding="{Binding BlockedSymbol}" ElementStyle="{StaticResource CenteredCellText}"
+                                            CanUserSort="False"/>
+                        <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Session.Memory}"
+                                            Binding="{Binding MemoryText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Session.Duration}"
+                                            Binding="{Binding DurationAllText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Session.DurationCurrent}"
+                                            Binding="{Binding DurationCurrentText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="80" Header="{loc:Loc ServerMonitor.Columns.Session.Hibernate}"
+                                            Binding="{Binding HibernateText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- Соединения -->
+            <TabItem Header="{loc:Loc ServerMonitor.Tabs.Connections}">
+                <DataGrid x:Name="ConnectionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
+                          RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                          BorderThickness="0">
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Width="1.2*" Header="{loc:Loc ServerMonitor.Columns.Connection.Host}"
+                                            Binding="{Binding Host}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="70" Header="{loc:Loc ServerMonitor.Columns.Connection.Port}"
+                                            Binding="{Binding Port}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="100" Header="{loc:Loc ServerMonitor.Columns.Connection.Connector}"
+                                            Binding="{Binding Connector}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="130" Header="{loc:Loc ServerMonitor.Columns.Connection.Established}"
+                                            Binding="{Binding EstablishedAtText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="130" Header="{loc:Loc ServerMonitor.Columns.Connection.LastActive}"
+                                            Binding="{Binding LastConnectionTimeText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="100" Header="{loc:Loc ServerMonitor.Columns.Connection.Duration}"
+                                            Binding="{Binding DurationText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="110" Header="{loc:Loc ServerMonitor.Columns.Connection.Blocked}"
+                                            Binding="{Binding BlockedText}">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+                                    <Setter Property="Foreground" Value="#64748B"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Blocked}" Value="True">
+                                            <Setter Property="Foreground" Value="#D97706"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- Блокировки -->
+            <TabItem Header="{loc:Loc ServerMonitor.Tabs.Locks}">
+                <DataGrid x:Name="LocksGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
+                          RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                          BorderThickness="0">
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Width="2*" Header="{loc:Loc ServerMonitor.Columns.Lock.Object}"
+                                            Binding="{Binding Object}" ElementStyle="{StaticResource CellTextAccent}"/>
+                        <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Lock.Waiting}"
+                                            Binding="{Binding WaitingSymbol}">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+                                    <Setter Property="Foreground" Value="#D97706"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Lock.Blocking}"
+                                            Binding="{Binding BlockingSymbol}">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+                                    <Setter Property="Foreground" Value="#DC2626"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Width="1.1*" Header="{loc:Loc ServerMonitor.Columns.Lock.Session}"
+                                            Binding="{Binding SessionId}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="1.1*" Header="{loc:Loc ServerMonitor.Columns.Lock.Connection}"
+                                            Binding="{Binding ConnectionId}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="1.1*" Header="{loc:Loc ServerMonitor.Columns.Lock.Transaction}"
+                                            Binding="{Binding TransactionId}" ElementStyle="{StaticResource CenteredCellText}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- Информация о кластере -->
+            <TabItem Header="{loc:Loc ServerMonitor.Tabs.Info}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
+                    <TextBlock x:Name="InfoText" FontFamily="Consolas" FontSize="12"
+                               Text="{Binding ClusterInfoText}"/>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Строка состояния и ошибки (пустой ErrorMessage ничего не показывает) -->
+        <TextBlock Grid.Row="3" Margin="0,10,0,0" FontSize="12"
+                   Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding StatusText}"/>
+        <TextBlock Grid.Row="4" Margin="0,4,0,0" FontSize="12"
+                   Foreground="#DC2626" Text="{Binding ErrorMessage}"
+                   TextWrapping="Wrap"/>
+    </Grid>
+</Window>

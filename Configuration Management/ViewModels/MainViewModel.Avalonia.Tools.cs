@@ -1516,6 +1516,27 @@ public partial class MainViewModel : ViewModelBase
         window.ShowDialogSync(OwnerWindow());
     }
 
+    // ======================= Монитор серверов 1С (0.3.9.124) =======================
+
+    private System.Windows.Input.ICommand? _serverMonitorCommand;
+
+    /// <summary>
+    /// Команда «Серверы 1С…»: встроенный монитор серверов 1С через утилиту rac
+    /// (0.3.9.124, цикл 0.3.9.123–0.3.9.126) — подключение к серверу (адрес/порт/
+    /// логин/пароль), просмотр кластеров, рабочих процессов, сеансов, соединений,
+    /// блокировок и информации о кластере. Пароль администратора кластера не
+    /// сохраняется на диск (решение планирования). Активна всегда — сервер 1С
+    /// не привязан к конкретной базе списка.
+    /// </summary>
+    public System.Windows.Input.ICommand ServerMonitorCommand =>
+        _serverMonitorCommand ??= new RelayCommand(_ => ExecuteServerMonitor());
+
+    private void ExecuteServerMonitor()
+    {
+        var window = new Configuration_Management.ServerMonitorWindow();
+        window.ShowDialogSync(OwnerWindow());
+    }
+
     // ======================= Статистика использования баз (0.3.9.95) =======================
 
     private System.Windows.Input.ICommand? _usageStatisticsCommand;

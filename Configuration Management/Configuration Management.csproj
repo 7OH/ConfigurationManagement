@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.123</Version>
-    <AssemblyVersion>0.3.9.123</AssemblyVersion>
-    <FileVersion>0.3.9.123</FileVersion>
-    <InformationalVersion>0.3.9.123</InformationalVersion>
+    <Version>0.3.9.124</Version>
+    <AssemblyVersion>0.3.9.124</AssemblyVersion>
+    <FileVersion>0.3.9.124</FileVersion>
+    <InformationalVersion>0.3.9.124</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -242,6 +242,9 @@
     <!-- Окно «Инспектор процессов 1С» (0.3.9.93): WPF code-behind исключается,
          Avalonia-версия (ProcessInspectorWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\ProcessInspectorWindow.xaml.cs" />
+    <!-- Окно «Серверы 1С» (0.3.9.124): WPF code-behind исключается, Avalonia-версия
+         (ServerMonitorWindow.Avalonia.cs) подключается глобом *Window.Avalonia.cs ниже. -->
+    <Compile Remove="Views\ServerMonitorWindow.xaml.cs" />
     <!-- Окно «Статистика использования» (0.3.9.95): WPF code-behind исключается,
          Avalonia-версия (UsageStatisticsWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\UsageStatisticsWindow.xaml.cs" />
@@ -362,6 +365,15 @@
          подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
     <Compile Include="ViewModels\ProcessInspectorViewModel.cs" />
     <Compile Include="ViewModels\ProcessRowViewModel.cs" />
+    <!-- ViewModels окна «Серверы 1С» (0.3.9.124, цикл 0.3.9.123–126): чистый .NET
+         без платформенных зависимостей, используются обеими платформами — на Linux
+         подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\ServerMonitorViewModel.cs" />
+    <Compile Include="ViewModels\RacClusterRow.cs" />
+    <Compile Include="ViewModels\RacProcessRow.cs" />
+    <Compile Include="ViewModels\RacSessionRow.cs" />
+    <Compile Include="ViewModels\RacConnectionRow.cs" />
+    <Compile Include="ViewModels\RacLockRow.cs" />
     <!-- ViewModels окна «Статистика использования» (0.3.9.95): чистый .NET без
          платформенных зависимостей, используются обеими платформами — на Linux
          подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->

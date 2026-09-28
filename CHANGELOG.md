@@ -58,6 +58,67 @@
     сборка аргументов команд (порядок, `--cluster`, опускание пустых логина/пароля, значения
     с пробелами одним токеном) и отсутствие пароля в журналируемой строке.
 
+## [0.3.9.124] — 2026-09-28
+
+### Добавлено
+
+- **Встроенный монитор серверов 1С — этап 2: окно и ViewModel** (цикл 0.3.9.123–0.3.9.126):
+  рабочее окно «Серверы 1С» (меню «Утилиты», горячая клавиша **Ctrl+Alt+S**) на обеих
+  платформах — подключение к серверу 1С через `rac`, выбор кластера, просмотр рабочих
+  процессов, сеансов, соединений, блокировок и информации о кластере, ручное обновление.
+  - **ViewModel** — [`ViewModels/ServerMonitorViewModel.cs`](Configuration%20Management/ViewModels/ServerMonitorViewModel.cs):
+    чистая VM (образец — `ProcessInspectorViewModel`): свойства подключения `ServerAddress`/
+    `ServerPort` (по умолчанию 1540)/`UserName`/`Password` (пароль только в памяти; сеттер
+    открытый для тестов, в UI пароль передаётся из PasswordBox вручную), список кластеров
+    `Clusters` + форматированные строки `ClusterRows`, `SelectedClusterId` (при выборе —
+    автоматическая загрузка данных кластера), команды `ConnectCommand`/`RefreshCommand`,
+    вкладки-коллекции `Processes`/`Sessions`/`Connections`/`Locks`, `ClusterInfoText`/`ClusterInfo`,
+    статус-строка `StatusText`, флаг занятости `IsBusy` через `Interlocked`, `HasConnected`,
+    `ErrorMessage`; `LoadClusterDataAsync(clusterId, ct)` параллельно грузит процессы/сеансы/
+    соединения/блокировки/инфо и применяет через `_dispatchToUi` (null — тесты); DI —
+    `IRacClient`, `IDialogService`.
+  - **Роу-модели** — [`ViewModels/RacProcessRow.cs`](Configuration%20Management/ViewModels/RacProcessRow.cs),
+    [`ViewModels/RacSessionRow.cs`](Configuration%20Management/ViewModels/RacSessionRow.cs),
+    [`ViewModels/RacConnectionRow.cs`](Configuration%20Management/ViewModels/RacConnectionRow.cs),
+    [`ViewModels/RacLockRow.cs`](Configuration%20Management/ViewModels/RacLockRow.cs),
+    [`ViewModels/RacClusterRow.cs`](Configuration%20Management/ViewModels/RacClusterRow.cs):
+    форматирование для отображения — память «МБ», время «HH:mm:ss», даты локально
+    («dd.MM.yyyy HH:mm:ss»), состояния/цвета статусов (#16A34A/#D97706/#DC2626/#64748B).
+  - **Окно WPF** — [`Views/ServerMonitorWindow.xaml`](Configuration%20Management/Views/ServerMonitorWindow.xaml) +
+    [`Views/ServerMonitorWindow.xaml.cs`](Configuration%20Management/Views/ServerMonitorWindow.xaml.cs):
+    панель подключения (адрес, порт, логин, PasswordBox, кнопки «Подключиться»/«Обновить»/
+    «Закрыть»), ComboBox кластеров, TabControl с DataGrid на каждой вкладке и вкладкой
+    «Информация о кластере», статус-строка; стили `{DynamicResource ...}`;
+    **PasswordBox не биндится** — код-бихайнд передаёт `PasswordBox.Password` в VM при
+    подключении. **Окно Avalonia** — [`Views/ServerMonitorWindow.Avalonia.cs`](Configuration%20Management/Views/ServerMonitorWindow.Avalonia.cs):
+    `ModalWindowBase`, ListBox + `FuncDataTemplate<...>` на каждой вкладке, `ThemeBrushes.Bind`,
+    `BuildActionButton` — по образцу `ProcessInspectorWindow.Avalonia.cs`.
+  - **Команды меню** — `ServerMonitorCommand` → `ExecuteServerMonitor` в
+    [`ViewModels/MainViewModel.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs)
+    (WPF, рядом с `ProcessInspectorCommand`) и
+    [`ViewModels/MainViewModel.Avalonia.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Tools.cs)
+    (Linux, `ShowDialogSync(OwnerWindow())`).
+  - **Пункты «Утилит»** — новый «Серверы 1С…» (`ServerMonitor.Title`, команда
+    `ServerMonitorCommand`, хоткей `HotkeyServerConsole`) на месте старого пункта консоли
+    в [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml) и
+    [`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs);
+    старый пункт переименован в **«Консоль администрирования серверов (внешняя)»** без хоткея
+    (решение планирования, раздел 5: хоткей Ctrl+Alt+S переходит встроенному монитору).
+  - **Настройки** — [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs):
+    поля `RacServerAddress` (""), `RacServerPort` (1540), `RacUserName` (""); **пароль НЕ
+    добавляется** (решение планирования: rac требует открытый пароль, PBKDF2 необратим;
+    пароль живёт только в памяти окна).
+  - **Локализация и темизация** — ключи `ServerMonitor.*` (Title, Address, Port, User, Password,
+    Connect, Refresh, Cluster, Tabs.*, Columns.*, Status.*, Empty*, Errors.*, Hint,
+    `Admin.ServerConsoleExternal`) в
+    [`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json)
+    и [`Localization/Languages/en.json`](Configuration%20Management/Localization/Languages/en.json);
+    WPF — DynamicResource (`TextPrimaryBrush`/`TextSecondaryBrush`/`CardBackgroundBrush`/
+    `ItemHoverBrush`/`BorderBrush`), Avalonia — `ThemeBrushes.Bind`, статусные цвета
+    #16A34A/#D97706/#DC2626/#64748B.
+  - Подпись хоткея в настройках обновлена: `Settings.Hotkeys.ServerConsole` → «Серверы 1С
+    (встроенный монитор)». Тест-минимум дефолтов VM — `ConfigurationManagement.Tests/ServerMonitorViewModelTests.cs`.
+
 ## [0.3.9.122] — 2026-09-28
 
 ### Добавлено
