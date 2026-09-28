@@ -587,6 +587,54 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Экспортирует видимые базы (тот же набор, что в CSV-экспорте: приватные базы
+    /// заблокированного профиля скрыты, режимы «Избранное»/«Недавние», поиск и теги
+    /// учтены) в самодостаточный HTML-отчёт (0.3.9.131): шапка с датой/временем и
+    /// профилем, сводка по последним известным данным, таблицы по группам с подсветкой
+    /// проблемных баз по критериям Центра обслуживания. Стили встроены — файл открывается
+    /// в любом браузере и пригоден для печати/рассылки.
+    /// </summary>
+    private void ExportBasesHtml(object? parameter)
+    {
+        var visible = EnumerateFilteredInfobases().ToList();
+        if (visible.Count == 0)
+        {
+            _dialogs.ShowInfo(LocalizationManager.T("Main.ExportEmpty"),
+                LocalizationManager.T("ExportHtml.Title"));
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = LocalizationManager.T("ExportHtml.Title"),
+            Filter = LocalizationManager.T("ExportHtml.FileFilter"),
+            DefaultExt = ".html",
+            FileName = $"Bases_{DateTime.Now:yyyy-MM-dd}.html",
+            AddExtension = true
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            HtmlReportExporter.WriteFile(dialog.FileName, BuildHtmlReportData(visible));
+
+            _dialogs.ShowInfo(
+                string.Format(LocalizationManager.T("ExportHtml.Success"), visible.Count, dialog.FileName),
+                LocalizationManager.T("ExportHtml.Title"));
+            _logger.Info($"HTML-отчёт по базам ({visible.Count}) сформирован: {dialog.FileName}");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка формирования HTML-отчёта по базам", ex);
+            _dialogs.ShowError(
+                string.Format(LocalizationManager.T("ExportHtml.Error"), ex.Message),
+                LocalizationManager.T("Main.ExportErrorTitle"));
+        }
+    }
+
+    /// <summary>
     /// Экспортирует ВСЁ состояние списка баз в JSON (0.3.9.122): базы со всеми полями
     /// (строка подключения, имя, группа, теги, закладка 1–9, закрепление, приватность,
     /// внешняя обработка, скрипты pre/post запуска, раздельные учётные данные,

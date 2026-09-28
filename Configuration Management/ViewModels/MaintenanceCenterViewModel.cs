@@ -290,8 +290,12 @@ public sealed class MaintenanceCenterViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasBases));
     }
 
-    /// <summary>Читает кэш проверок обновлений конфигураций из настроек приложения.</summary>
-    private static IReadOnlyDictionary<string, ConfigUpdateCheckResult> LoadUpdateCache()
+    /// <summary>
+    /// Читает кэш проверок обновлений конфигураций из настроек приложения.
+    /// Публичный для переиспользования HTML-отчётом по базам (0.3.9.131) — тот же
+    /// источник «без пересчёта», что и окно «Центр обслуживания».
+    /// </summary>
+    public static IReadOnlyDictionary<string, ConfigUpdateCheckResult> LoadUpdateCache()
     {
         try
         {
@@ -306,8 +310,11 @@ public sealed class MaintenanceCenterViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Находит последний результат проверки обновлений по коду связи конфигурации.</summary>
-    private static ConfigUpdateCheckResult? ResolveUpdateResult(
+    /// <summary>
+    /// Находит последний результат проверки обновлений по коду связи конфигурации.
+    /// Публичный для переиспользования HTML-отчётом по базам (0.3.9.131).
+    /// </summary>
+    public static ConfigUpdateCheckResult? ResolveUpdateResult(
         Infobase ib, IReadOnlyDictionary<string, ConfigUpdateCheckResult> cache)
     {
         var code = ib.UpdateConfigCode;

@@ -840,6 +840,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Команда «Экспорт списка баз в CSV…»: видимые сейчас базы → CSV для Excel (0.3.9.91).</summary>
     public ICommand ExportBasesCsvCommand { get; }
 
+    /// <summary>Команда «Экспорт отчёта по базам (HTML)…»: видимые базы → самодостаточный HTML-отчёт (0.3.9.131).</summary>
+    public ICommand ExportBasesHtmlCommand { get; }
+
     /// <summary>Команда «Экспорт списка баз (JSON)…»: полное состояние списка → JSON (0.3.9.122).</summary>
     public ICommand ExportBasesJsonCommand { get; }
 

@@ -570,6 +570,9 @@ public partial class MainViewModel : ViewModelBase
         CopyConnectionStringCommand = new RelayCommand(CopyConnectionString, _ => SelectedInfobase != null);
         // Экспорт видимого списка баз в CSV (0.3.9.91): команда не требует выделенной базы.
         ExportBasesCsvCommand = new RelayCommand(ExportBasesCsv);
+        // Экспорт отчёта по базам в HTML (0.3.9.131): видимые базы + сводка по данным
+        // Центра обслуживания; команда не требует выделенной базы.
+        ExportBasesHtmlCommand = new RelayCommand(ExportBasesHtml);
         // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): команды
         // не требуют выделенной базы; импорт — добавляющий, дубликаты пропускаются.
         ExportBasesJsonCommand = new RelayCommand(ExportBasesJson);

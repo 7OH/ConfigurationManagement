@@ -57,6 +57,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Команда «Экспорт списка баз в CSV…»: видимые сейчас базы → CSV для Excel (0.3.9.91).</summary>
     public ICommand ExportBasesCsvCommand { get; private set; } = null!;
 
+    /// <summary>Команда «Экспорт отчёта по базам (HTML)…»: видимые базы → самодостаточный HTML-отчёт (0.3.9.131).</summary>
+    public ICommand ExportBasesHtmlCommand { get; private set; } = null!;
+
     /// <summary>Команда «Экспорт списка баз (JSON)…»: полное состояние списка → JSON (0.3.9.122).</summary>
     public ICommand ExportBasesJsonCommand { get; private set; } = null!;
 
@@ -148,6 +151,9 @@ public partial class MainViewModel : ViewModelBase
         CopyConnectionStringCommand = new RelayCommand(_ => CopyConnectionString(), _ => SelectedInfobase is not null);
         // Экспорт видимого списка баз в CSV (0.3.9.91): команда не требует выделенной базы.
         ExportBasesCsvCommand = new RelayCommand(ExportBasesCsv);
+        // Экспорт отчёта по базам в HTML (0.3.9.131): видимые базы + сводка по данным
+        // Центра обслуживания; команда не требует выделенной базы.
+        ExportBasesHtmlCommand = new RelayCommand(ExportBasesHtml);
         // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): команды
         // не требуют выделенной базы; импорт — добавляющий, дубликаты пропускаются.
         ExportBasesJsonCommand = new RelayCommand(ExportBasesJson);

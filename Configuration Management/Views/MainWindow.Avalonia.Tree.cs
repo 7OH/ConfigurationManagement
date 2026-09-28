@@ -1720,6 +1720,9 @@ namespace Configuration_Management
             // Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
             // в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»).
             menu.Items.Add(MenuAction("Utilities.ExportCsv", _vm.ExportBasesCsvCommand, null, "IconFileExport", "#22C55E"));
+            // Экспорт отчёта по базам в HTML (0.3.9.131): самодостаточный файл со сводкой
+            // и таблицами по группам, открывается в любом браузере.
+            menu.Items.Add(MenuAction("Utilities.ExportHtml", _vm.ExportBasesHtmlCommand, null, "IconFileDocument", "#F59E0B"));
             // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): в отличие
             // от CSV переносится всё — базы со всеми полями, иерархия групп, теги,
             // закладки 1–9, закрепление, приватные базы (при разблокированном профиле);
