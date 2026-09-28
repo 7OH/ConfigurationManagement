@@ -77,6 +77,8 @@ namespace Configuration_Management
         private Grid? _columnHeaderRow;
         private ColumnDefinition? _headerOffsetColumn;
         private Grid? _listContent;
+        /// <summary>Текущая сумма ширин видимых колонок списка (минимум области, issue #309).</summary>
+        private double _listMinWidth;
         /// <summary>Шаг прокрутки колесом, как у штатного ScrollContentPresenter.</summary>
         private const double WheelScrollStep = 50;
 
@@ -1293,6 +1295,13 @@ namespace Configuration_Management
                 Content = _listContent
             };
             _listScroll = listArea;
+
+            // Ширина контента ведётся по максимуму «сумма колонок ↔ вьюпорт»: внешний
+            // ScrollViewer меряет контент с бесконечной шириной, где MinWidth в Avalonia
+            // не увеличивает DesiredSize, и без явной ширины extent не дотягивал бы до
+            // последней колонки (issue #309). Пересчёт на каждое изменение вьюпорта.
+            listArea.GetObservable(ScrollViewer.ViewportProperty)
+                .Subscribe(new PropertyObserver<Size>(_ => SyncListWidthToViewport()));
 
             // Вертикальная полоса вынесена из области горизонтальной прокрутки
             // и стоит отдельным столбцом справа. Собственная полоса дерева

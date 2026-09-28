@@ -670,23 +670,61 @@ namespace Configuration_Management
                 return;
 
             var definitions = _columnHeaderRow.ColumnDefinitions;
-            // Считаются все ведущие колонки, включая нулевую с местом под кнопки
-            // групп: без неё минимум занижался, и правые колонки подрезались
-            // раньше, чем включалась горизонтальная прокрутка.
-            double lead = 0;
+
+            // Ведущие колонки, включая нулевую с местом под кнопки групп: без неё
+            // минимум занижался, и правые колонки подрезались раньше, чем включалась
+            // горизонтальная прокрутка.
+            var leading = new List<ListMinWidthCalculator.Column>(NameHeaderColumn);
             for (var i = 0; i < NameHeaderColumn; i++)
-                lead += definitions[i].Width.IsAbsolute ? definitions[i].Width.Value : 0;
+                leading.Add(ColumnSpec(definitions[i]));
 
-            var nameWidth = definitions[NameHeaderColumn].Width.IsAbsolute
-                ? definitions[NameHeaderColumn].Width.Value
-                : NameColumnMinWidth;
+            var nameDef = definitions[NameHeaderColumn];
+            var nameWidth = nameDef.Width.IsAbsolute ? nameDef.Width.Value : 0;
 
-            double values = 0;
+            // Колонки значений вместе с «Действиями»: они лежат в тех же определениях,
+            // что и заголовок, поэтому состав суммы всегда совпадает с фактическим
+            // набором колонок (включая добавленные позже — issue #309).
+            var values = new List<ListMinWidthCalculator.Column>(definitions.Count - NameHeaderColumn - 1);
             for (var i = NameHeaderColumn + 1; i < definitions.Count; i++)
-                values += definitions[i].Width.IsAbsolute ? definitions[i].Width.Value : 0;
+                values.Add(ColumnSpec(definitions[i]));
 
-            _listContent.MinWidth = nameWidth + lead
-                + UiMetrics.PaddingControl * 2 + values;
+            _listMinWidth = ListMinWidthCalculator.Compute(
+                nameWidth, NameColumnMinWidth, leading, UiMetrics.PaddingControl, values);
+
+            // MinWidth держит жёсткую границу при конечном измерении (сужение окна),
+            // а явная ширина — при измерении контента от ScrollViewer с бесконечной
+            // шириной, где MinWidth в Avalonia не увеличивает DesiredSize, и extent
+            // внешней полосы не дотягивал бы до последней колонки (issue #309).
+            _listContent.MinWidth = _listMinWidth;
+            SyncListWidthToViewport();
+        }
+
+        /// <summary>
+        /// Спецификация колонки для расчёта минимума: скрытые и звёздные колонки
+        /// места не занимают (звёздная «Название» отдельно берётся по минимуму).
+        /// </summary>
+        private static ListMinWidthCalculator.Column ColumnSpec(ColumnDefinition d)
+            => new(
+                d.Width.IsAbsolute ? d.Width.Value : 0,
+                d.Width.IsAbsolute && d.Width.Value > 0);
+
+        /// <summary>
+        /// Приравнивает ширину контента списка максимуму из суммы колонок и вьюпорта
+        /// внешней прокрутки. Внешний ScrollViewer меряет контент с бесконечной
+        /// шириной, где MinWidth не влияет на DesiredSize, поэтому без явной ширины
+        /// горизонтальный extent был бы меньше суммы колонок (issue #309). Тот же
+        /// приём, что в <see cref="SyncHeaderWidthWithList"/> для заголовка.
+        /// </summary>
+        private void SyncListWidthToViewport()
+        {
+            if (_listContent is null || _listScroll is null)
+                return;
+            var viewport = _listScroll.Viewport.Width;
+            if (viewport <= 0)
+                return;
+            var target = Math.Max(_listMinWidth, viewport);
+            if (Math.Abs(_listContent.Width - target) > 0.5)
+                _listContent.Width = target;
         }
 
         /// <summary>Делает заголовок колонки кликабельным: клик меняет поле сортировки.</summary>

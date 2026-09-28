@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.111] — 2026-09-28
+
+### Исправлено
+
+- **Горизонтальный скролл списка не доходит до последней колонки (#309)** —
+  завершено исправление 0.3.9.102: полоса прокрутки появилась, но её extent был меньше
+  фактической ширины колонок — прокрутить список до последней (новой) колонки,
+  например «Последняя копия», было нельзя. Причина (Linux/Avalonia): внешний
+  ScrollViewer, общий с заголовком, меряет контент с бесконечной шириной, где
+  `MinWidth` в Avalonia не увеличивает желаемый размер — минимальная ширина
+  `_listContent` задавалась, но extent внешней полосы оставался по содержимому строк.
+  Теперь ширина контента держится по максимуму «сумма колонок ↔ вьюпорт» и
+  пересчитывается на каждое изменение вьюпорта (тот же приём, что у заголовка);
+  сумма колонок считается общим helper'ом из ВСЕХ видимых колонок — ведущие кнопки,
+  «Название» (по минимуму), колонки значений и «Действия».
+  Windows/WPF — [`Views/MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs)
+  (`UpdateTreeMinWidth`), Linux/Avalonia —
+  [`Views/MainWindow.Avalonia.Columns.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Columns.cs)
+  (`UpdateListMinWidth`/`SyncListWidthToViewport`),
+  [`Views/MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs).
+  Расчёт вынесен в чистый helper
+  [`Views/ListMinWidthCalculator.cs`](Configuration%20Management/Views/ListMinWidthCalculator.cs)
+  и покрыт юнит-тестами
+  ([`ConfigurationManagement.Tests/ListMinWidthCalculatorTests.cs`](ConfigurationManagement.Tests/ListMinWidthCalculatorTests.cs)).
+  Заголовок колонок по-прежнему синхронен с данными при горизонтальной прокрутке
+  (#214/#255), колонка «Название» остаётся фиксированной и достижимой, вертикальный
+  скролл и Shift+колесо не затронуты.
+
 ## [0.3.9.110] — 2026-09-28
 
 ### Исправлено

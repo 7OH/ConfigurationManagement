@@ -685,23 +685,27 @@ namespace Configuration_Management
             if (defs.Count <= HeaderFirstDataColumn)
                 return;
 
-            double total = 0;
-            foreach (var d in defs)
-            {
-                // Скрытая колонка получает нулевую абсолютную ширину (конвертер ColumnVis).
-                // Суммируем только видимые колонки (issue #255): иначе на старте, пока привязки
-                // ширин/видимости ещё не установились, сумма по всем определениям переоценивала
-                // реальную потребность и появлялся ложный горизонтальный скролл списка.
-                if (d.Width.IsAbsolute && d.Width.Value <= 0)
-                    continue;
+            // «Название» стоит перед первой колонкой данных (HeaderFirstDataColumn):
+            // 0–3 — ведущие, 4 — имя, 5+ — значения, включая «Действия». Тот же
+            // порядок, что в Linux/Avalonia (MainWindow.Avalonia.Columns.cs).
+            var nameIndex = HeaderFirstDataColumn - 1;
 
-                if (ReferenceEquals(d, NameColumn))
-                    total += d.Width.IsAbsolute ? d.Width.Value : NameColumnMinWidth;
-                else if (d.Width.IsAbsolute)
-                    total += d.Width.Value;
-                else
-                    total += d.MinWidth;
-            }
+            var leading = new List<ListMinWidthCalculator.Column>(nameIndex);
+            for (var i = 0; i < nameIndex; i++)
+                leading.Add(HeaderColumnSpec(defs[i]));
+
+            var nameDef = defs[nameIndex];
+            var nameWidth = nameDef.Width.IsAbsolute ? nameDef.Width.Value : 0;
+
+            var values = new List<ListMinWidthCalculator.Column>(defs.Count - HeaderFirstDataColumn);
+            for (var i = HeaderFirstDataColumn; i < defs.Count; i++)
+                values.Add(HeaderColumnSpec(defs[i]));
+
+            // Сумма ВСЕХ видимых колонок заголовка: скрытая колонка получает нулевую
+            // абсолютную ширину (конвертер ColumnVis) и места не занимает (issue #255).
+            // Расчёт общий с Linux/Avalonia (ListMinWidthCalculator), чтобы сумма не
+            // расходилась с фактическим набором колонок (issue #309).
+            var total = ListMinWidthCalculator.Compute(nameWidth, NameColumnMinWidth, leading, 0, values);
 
             // Минимум задаём КОНТЕНТУ прокрутки (внутреннему ScrollContentPresenter дерева),
             // а не самому MainTree: у дерева собственный внутренний ScrollViewer, и MinWidth
@@ -714,6 +718,12 @@ namespace Configuration_Management
             if (presenter is not null)
                 presenter.MinWidth = total;
         }
+
+        /// <summary>Спецификация колонки заголовка для расчёта минимальной ширины.</summary>
+        private static ListMinWidthCalculator.Column HeaderColumnSpec(ColumnDefinition d)
+            => new(
+                d.Width.IsAbsolute ? d.Width.Value : d.MinWidth,
+                d.Width.IsAbsolute && d.Width.Value > 0);
 
         /// <summary>
         /// Внутренний ScrollContentPresenter шаблона TreeView — контент его ScrollViewer.
