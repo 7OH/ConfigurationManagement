@@ -1494,7 +1494,8 @@ public partial class MainViewModel : ViewModelBase
         if (SelectedInfobase is not { Repository.HasServer: true } infobase)
             return;
 
-        var window = new Configuration_Management.RepositoryBrowserWindow(infobase);
+        // persistChanges: выгрузка .cf добавляет запись в историю запусков базы — сохраняем список.
+        var window = new Configuration_Management.RepositoryBrowserWindow(infobase, () => SaveSilently());
         window.ShowDialogSync(OwnerWindow());
     }
 

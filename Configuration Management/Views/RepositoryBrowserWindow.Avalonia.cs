@@ -19,22 +19,32 @@ using Configuration_Management.ViewModels;
 namespace Configuration_Management
 {
     /// <summary>
-    /// Окно «Хранилище конфигурации…» (0.3.9.128, этап 2, Avalonia/Linux): панель подключения
-    /// (адрес и пользователь readonly из свойств базы, пароль — в памяти окна), список версий
-    /// хранилища (№/дата/автор/комментарий) и состав выбранной версии (тип/имя/владелец),
+    /// Окно «Хранилище конфигурации…» (цикл 0.3.9.127–0.3.9.130, Avalonia/Linux): панель
+    /// подключения (адрес и пользователь readonly из свойств базы, пароль — в памяти окна),
+    /// список версий хранилища (№/дата/автор/комментарий) и состав выбранной версии
+    /// (тип/имя/владелец), действия этапа 3 (сравнение с базой / между версиями, выгрузка .cf),
     /// статус-строка и подсказка. Вся логика — в чистой ViewModel
     /// <see cref="RepositoryBrowserViewModel"/>; окно прогресса операций —
-    /// <see cref="RepositoryProgressWindow"/>. Пароль не биндится — передаётся в VM
-    /// из кода при нажатии «Подключить». Образец построения — ProcessInspectorWindow.Avalonia.cs.
+    /// <see cref="RepositoryProgressWindow"/>; результат сравнения — существующее
+    /// <see cref="ConfigDiffResultWindow"/> с экспортом CSV/TXT. Пароль не биндится —
+    /// передаётся в VM из кода при нажатии «Подключить». Образец построения —
+    /// ProcessInspectorWindow.Avalonia.cs.
     /// </summary>
     public sealed class RepositoryBrowserWindow : ModalWindowBase
     {
         private readonly RepositoryBrowserViewModel _vm;
         private readonly TextBox _passwordBox;
+        private readonly Button _compareWithBaseButton;
+        private readonly Button _compareVersionsButton;
+        private readonly Button _dumpCfButton;
         private RepositoryProgressWindow? _progress;
 
         /// <param name="infobase">Выбранная база с заполненным адресом хранилища.</param>
-        public RepositoryBrowserWindow(Infobase infobase)
+        /// <param name="persistChanges">
+        /// Сохранение списка баз после записи в историю запусков (передаёт главное окно);
+        /// null — без сохранения.
+        /// </param>
+        public RepositoryBrowserWindow(Infobase infobase, Action? persistChanges = null)
         {
             Title = LocalizationManager.T("RepositoryBrowser.Title");
             Width = 1180;
@@ -51,7 +61,13 @@ namespace Configuration_Management
                 infobase,
                 service,
                 dialogs,
-                action => Dispatcher.UIThread.Post(action));
+                action => Dispatcher.UIThread.Post(action),
+                showDiffResult: result =>
+                {
+                    var window = new ConfigDiffResultWindow(result);
+                    window.ShowDialogSync(this);
+                },
+                persistChanges: persistChanges);
             DataContext = _vm;
 
             // Окно прогресса: показывается, пока идёт подключение/загрузка состава версии.
@@ -103,16 +119,17 @@ namespace Configuration_Management
             PlaceColumn(connectPanel, FieldLabel(LocalizationManager.T("RepositoryBrowser.Password")), 4);
             PlaceColumn(connectPanel, _passwordBox, 5);
 
-            // ---- Кнопки: Подключить / Обновить / [заготовки этапов 3–4] / Закрыть ----
+            // ---- Кнопки: Подключить / Обновить / действия этапа 3 / Закрыть ----
             var connectButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.Connect"), OnConnectClick, "🔗");
             var refreshButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.Refresh"), OnRefreshClick, "⟳");
-            var compareWithBaseButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.CompareWithBase"), () => { }, "");
-            compareWithBaseButton.IsEnabled = false;
-            var compareVersionsButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.CompareVersions"), () => { }, "");
-            compareVersionsButton.IsEnabled = false;
-            var dumpCfButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.DumpToCf"), () => { }, "");
-            dumpCfButton.IsEnabled = false;
+            _compareWithBaseButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.CompareWithBase"),
+                () => _vm.CompareWithBaseCommand.Execute(null), "⇄");
+            _compareVersionsButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.CompareVersions"),
+                () => _vm.CompareVersionsCommand.Execute(null), "⇅");
+            _dumpCfButton = BuildActionButton(LocalizationManager.T("RepositoryBrowser.DumpToCf"),
+                () => _vm.DumpVersionToCfCommand.Execute(null), "⇩");
             var closeButton = BuildCloseButton();
+            RefreshActionButtons();
 
             var buttons = new StackPanel
             {
@@ -120,7 +137,7 @@ namespace Configuration_Management
                 HorizontalAlignment = HorizontalAlignment.Left,
                 Spacing = 8,
                 Margin = new Thickness(0, 14, 0, 0),
-                Children = { connectButton, refreshButton, compareWithBaseButton, compareVersionsButton, dumpCfButton, closeButton }
+                Children = { connectButton, refreshButton, _compareWithBaseButton, _compareVersionsButton, _dumpCfButton, closeButton }
             };
 
             // ---- Версии (левая колонка) ----
@@ -247,20 +264,38 @@ namespace Configuration_Management
 
         private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            // Доступность действий зависит от SelectedVersion/HasConnected/IsHistoryLimited/IsBusy.
+            RefreshActionButtons();
+
             if (e.PropertyName != nameof(RepositoryBrowserViewModel.IsBusy) &&
                 e.PropertyName != nameof(RepositoryBrowserViewModel.IsObjectsLoading))
                 return;
 
             if (_vm.IsBusy || _vm.IsObjectsLoading)
             {
+                // Текст этапа берём из статуса VM: подключение, сравнение, выгрузка…
                 ShowProgress(_vm.IsObjectsLoading
                     ? LocalizationManager.T("RepositoryBrowser.Status.ObjectsLoading")
-                    : LocalizationManager.T("RepositoryBrowser.Status.Connecting"));
+                    : string.IsNullOrWhiteSpace(_vm.StatusText)
+                        ? LocalizationManager.T("RepositoryBrowser.Status.Connecting")
+                        : _vm.StatusText);
             }
             else
             {
                 HideProgress();
             }
+        }
+
+        /// <summary>
+        /// Доступность кнопок действий по CanExecute команд VM: «Сравнить с базой»/«Выгрузить в .cf»
+        /// — при выбранной версии после подключения; «Сравнить версии» — дополнительно только при
+        /// полной истории (<see cref="RepositoryBrowserViewModel.IsHistoryLimited"/> = false).
+        /// </summary>
+        private void RefreshActionButtons()
+        {
+            _compareWithBaseButton.IsEnabled = _vm.CompareWithBaseCommand.CanExecute(null);
+            _compareVersionsButton.IsEnabled = _vm.CompareVersionsCommand.CanExecute(null);
+            _dumpCfButton.IsEnabled = _vm.DumpVersionToCfCommand.CanExecute(null);
         }
 
         private void OnStageChanged(string stage) => _progress?.SetStage(stage);

@@ -86,22 +86,26 @@
                     <TextBlock Text="{loc:Loc RepositoryBrowser.Refresh}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
-            <!-- Действия этапов 3–4 (сравнение и выгрузка .cf) — заготовки, подключаются позже. -->
-            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0" IsEnabled="False"
+            <!-- Действия этапа 3 (сравнение с базой/между версиями, выгрузка .cf): доступность по
+                 SelectedVersion / IsHistoryLimited управляется CanExecute команд ViewModel. -->
+            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0"
+                    Command="{Binding CompareWithBaseCommand}"
                     Background="{DynamicResource ItemHoverBrush}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="⇄" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBlock Text="{loc:Loc RepositoryBrowser.CompareWithBase}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
-            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0" IsEnabled="False"
+            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0"
+                    Command="{Binding CompareVersionsCommand}"
                     Background="{DynamicResource ItemHoverBrush}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="⇅" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBlock Text="{loc:Loc RepositoryBrowser.CompareVersions}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
-            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0" IsEnabled="False"
+            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0"
+                    Command="{Binding DumpVersionToCfCommand}"
                     Background="{DynamicResource ItemHoverBrush}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="⇩" Margin="0,0,6,0" VerticalAlignment="Center"/>

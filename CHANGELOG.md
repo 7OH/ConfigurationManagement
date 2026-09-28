@@ -9,6 +9,51 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.129] — 2026-09-28
+
+### Добавлено
+
+- **Обозреватель хранилища конфигурации — этап 3: сравнение версий и выгрузка .cf**
+  (цикл 0.3.9.127–0.3.9.130): действия над выбранной версией хранилища в окне
+  «Хранилище конфигурации…» на обеих платформах (Windows/WPF + Linux/Avalonia).
+  - **ViewModel** — [`ViewModels/RepositoryBrowserViewModel.cs`](Configuration%20Management/ViewModels/RepositoryBrowserViewModel.cs):
+    новые команды действий `CompareWithBaseCommand` (выбранная версия ↔ текущая
+    конфигурация базы, режим `BaseVsCf`; левая сторона — версия хранилища, правая —
+    база), `CompareVersionsCommand` (выбранная ↔ предыдущая версия, режим `CfVsCf`;
+    недоступна при ограниченной истории `IsHistoryLimited`) и `DumpVersionToCfCommand`
+    (выгрузка версии в файл .cf через диалог сохранения, имя по образцу
+    `<ИмяБД>_v<N>.cf`). Подготовка .cf версий — через
+    `IRepositoryStorageService.DumpVersionToCfAsync` во временный каталог
+    `%TEMP%\cm_repo_<guid>` (удаляется в `finally`); сравнение — переиспользование
+    `ConfigurationDiffService` (платформа: база → `LastFileCreatePlatformVersion` →
+    установленные; подписи «Хранилище vN»/«Актуальная версия» и «База <имя>»);
+    результат — существующее окно `ConfigDiffResultWindow` с экспортом CSV/TXT;
+    прогресс — через `RepositoryProgressWindow` (приёмы `ConfigDiffSetupWindow`).
+    После успешной выгрузки — запись в историю запусков базы
+    `AddLaunchHistory("RepositoryBrowser", …)` с путём и временем и сохранение списка.
+    Ошибки (`RepositoryStorageException`/`ConfigurationDiffException`) — статус-строка
+    + `ShowWarning`, окно не роняется; флаг занятости через `Interlocked`;
+    доставка в UI-поток — через `dispatchToUi`.
+  - **Окна** — [`Views/RepositoryBrowserWindow.xaml`](Configuration%20Management/Views/RepositoryBrowserWindow.xaml)
+    + `.xaml.cs` (WPF: кнопки команд действий, `SaveFileDialog` через
+    `Microsoft.Win32.SaveFileDialog` в `WpfDialogService`) и
+    [`Views/RepositoryBrowserWindow.Avalonia.cs`](Configuration%20Management/Views/RepositoryBrowserWindow.Avalonia.cs)
+    (Linux: те же кнопки, доступность по `CanExecute` команд, `RefreshActionButtons`);
+    доступность по `SelectedVersion` и наличию истории (сравнение версий недоступно
+    при ограниченной истории); главное окно передаёт сохранение списка баз после
+    записи в историю запусков.
+  - **Локализация** — ключи `RepositoryBrowser.CompareWithBase/CompareVersions/DumpToCf`,
+    `NoTwoVersions`, `Status.Comparing/Dumping/CompareOkFormat/DumpOkFormat/CompareFailed/DumpFailed`,
+    `DumpCfTitle`, `CfFilter`, `DiffVersionLabelFormat/DiffCurrentVersionLabel/DiffBaseLabelFormat`,
+    `HistoryDumpFormat` в ru.json/en.json (наборы ключей совпадают).
+  - **Тесты** — [`ConfigurationManagement.Tests/RepositoryBrowserViewModelTests.cs`](ConfigurationManagement.Tests/RepositoryBrowserViewModelTests.cs):
+    доступность команд по состоянию, сравнение с базой (fake-сервис: `DumpVersionToCfAsync`
+    с номером версии; при ограниченной истории — `version = null`), сравнение версий
+    (две выгрузки с номерами N1/N2, недоступность при `IsHistoryLimited`), выгрузка .cf
+    (диалог сохранения мокается через `IDialogService`, `AddLaunchHistory` и сохранение),
+    ошибки → статус/предупреждение; реальный `ConfigurationDiffService` не запускается
+    (делегат сравнения подменяется; сам сервис покрыт `ConfigurationDiffTests`).
+
 ## [0.3.9.128] — 2026-09-28
 
 ### Добавлено

@@ -9,13 +9,15 @@ using Configuration_Management.ViewModels;
 namespace Configuration_Management
 {
     /// <summary>
-    /// Окно «Хранилище конфигурации…» (0.3.9.128, этап 2, Windows/WPF): панель подключения
-    /// (адрес и пользователь readonly из свойств базы, пароль — в памяти окна), список версий
-    /// хранилища (№/дата/автор/комментарий) и состав выбранной версии (тип/имя/владелец),
+    /// Окно «Хранилище конфигурации…» (цикл 0.3.9.127–0.3.9.130, Windows/WPF): панель
+    /// подключения (адрес и пользователь readonly из свойств базы, пароль — в памяти окна),
+    /// список версий хранилища (№/дата/автор/комментарий) и состав выбранной версии
+    /// (тип/имя/владелец), действия этапа 3 (сравнение с базой / между версиями, выгрузка .cf),
     /// статус-строка и подсказка. Вся логика — в чистой ViewModel
     /// <see cref="RepositoryBrowserViewModel"/>; окно прогресса операций —
-    /// <see cref="RepositoryProgressWindow"/>. PasswordBox в WPF не биндится — пароль
-    /// передаётся в VM из кода при нажатии «Подключить».
+    /// <see cref="RepositoryProgressWindow"/>; результат сравнения — существующее
+    /// <see cref="ConfigDiffResultWindow"/> с экспортом CSV/TXT. PasswordBox в WPF не биндится —
+    /// пароль передаётся в VM из кода при нажатии «Подключить».
     /// </summary>
     public partial class RepositoryBrowserWindow : Window
     {
@@ -23,7 +25,11 @@ namespace Configuration_Management
         private RepositoryProgressWindow? _progress;
 
         /// <param name="infobase">Выбранная база с заполненным адресом хранилища.</param>
-        public RepositoryBrowserWindow(Infobase infobase)
+        /// <param name="persistChanges">
+        /// Сохранение списка баз после записи в историю запусков (передаёт главное окно);
+        /// null — без сохранения.
+        /// </param>
+        public RepositoryBrowserWindow(Infobase infobase, Action? persistChanges = null)
         {
             InitializeComponent();
 
@@ -34,7 +40,13 @@ namespace Configuration_Management
                 infobase,
                 service,
                 dialogs,
-                action => Application.Current?.Dispatcher.BeginInvoke(action));
+                action => Application.Current?.Dispatcher.BeginInvoke(action),
+                showDiffResult: result =>
+                {
+                    var window = new ConfigDiffResultWindow(result) { Owner = this };
+                    window.ShowDialog();
+                },
+                persistChanges: persistChanges);
 
             DataContext = _vm;
             Title = LocalizationManager.T("RepositoryBrowser.Title");
@@ -67,9 +79,13 @@ namespace Configuration_Management
 
             if (_vm.IsBusy || _vm.IsObjectsLoading)
             {
+                // Текст этапа берём из статуса VM: подключение, сравнение, выгрузка…
+                // (последний установленный перед операцией, см. ConnectAsync/Compare*Async/DumpVersionToCfAsync).
                 ShowProgress(_vm.IsObjectsLoading
                     ? LocalizationManager.T("RepositoryBrowser.Status.ObjectsLoading")
-                    : LocalizationManager.T("RepositoryBrowser.Status.Connecting"));
+                    : string.IsNullOrWhiteSpace(_vm.StatusText)
+                        ? LocalizationManager.T("RepositoryBrowser.Status.Connecting")
+                        : _vm.StatusText);
             }
             else
             {
