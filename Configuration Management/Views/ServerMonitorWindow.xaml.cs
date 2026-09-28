@@ -40,6 +40,9 @@ namespace Configuration_Management
             SessionsGrid.ItemsSource = _vm.Sessions;
             ConnectionsGrid.ItemsSource = _vm.Connections;
             LocksGrid.ItemsSource = _vm.Locks;
+
+            // Таймер автообновления останавливается при закрытии окна (без утечки).
+            Closed += (_, _) => _vm.Dispose();
         }
 
         private async void OnConnect_Click(object sender, RoutedEventArgs e)
@@ -52,6 +55,12 @@ namespace Configuration_Management
         }
 
         private void OnRefresh_Click(object sender, RoutedEventArgs e) => _vm.Refresh();
+
+        private void OnTerminateSession_Click(object sender, RoutedEventArgs e) =>
+            _vm.TerminateSessionCommand.Execute(null);
+
+        private void OnDisconnectConnection_Click(object sender, RoutedEventArgs e) =>
+            _vm.DisconnectConnectionCommand.Execute(null);
 
         private void OnClose_Click(object sender, RoutedEventArgs e) => Close();
 

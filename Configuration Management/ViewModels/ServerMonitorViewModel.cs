@@ -11,16 +11,21 @@ namespace Configuration_Management.ViewModels;
 /// <summary>
 /// ViewModel окна «Серверы 1С» (0.3.9.124, цикл 0.3.9.123–0.3.9.126): подключение
 /// к серверу 1С через rac (адрес/порт/логин/пароль), список кластеров, вкладки
-/// «Рабочие процессы / Сеансы / Соединения / Блокировки / Информация о кластере»
-/// и ручное обновление. Чистый .NET без платформенных зависимостей — обе платформы
-/// (WPF и Avalonia); окна только привязываются. Действия (завершение сеанса,
-/// разрыв соединения) и автообновление — этап 3 (0.3.9.125).
+/// «Рабочие процессы / Сеансы / Соединения / Блокировки / Информация о кластере»,
+/// ручное обновление, действия (завершение сеанса / разрыв соединения с
+/// подтверждением) и автообновление по таймеру 5 с (этап 3, 0.3.9.125).
+/// Чистый .NET без платформенных зависимостей — обе платформы (WPF и Avalonia);
+/// окна только привязываются.
 /// </summary>
-public sealed class ServerMonitorViewModel : ViewModelBase
+public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
 {
+    /// <summary>Период автообновления данных кластера, миллисекунды (~5 секунд).</summary>
+    public const int AutoRefreshIntervalMs = 5000;
+
     private readonly IRacClient _rac;
     private readonly IDialogService _dialogs;
     private readonly Action<Action>? _dispatchToUi;
+    private Timer? _autoRefreshTimer;
     private int _busy;
 
     private string _serverAddress = "localhost";
@@ -33,9 +38,13 @@ public sealed class ServerMonitorViewModel : ViewModelBase
     private bool _hasConnected;
     private RacClusterInfo? _clusterInfo;
     private string _clusterInfoText = string.Empty;
+    private RacSessionRow? _selectedSession;
+    private RacConnectionRow? _selectedConnection;
 
     private ICommand? _connectCommand;
     private ICommand? _refreshCommand;
+    private ICommand? _terminateSessionCommand;
+    private ICommand? _disconnectConnectionCommand;
 
     /// <param name="rac">Клиент rac (список кластеров, данные кластера).</param>
     /// <param name="dialogs">Диалоги (сообщения об ошибках; подтверждения действий — этап 3).</param>
@@ -124,6 +133,16 @@ public sealed class ServerMonitorViewModel : ViewModelBase
     public ICommand RefreshCommand =>
         _refreshCommand ??= new RelayCommand(Refresh);
 
+    // ===================== Действия =====================
+
+    /// <summary>«Завершить сеанс»: подтверждение → session terminate → обновление списков.</summary>
+    public ICommand TerminateSessionCommand =>
+        _terminateSessionCommand ??= new RelayCommand(async () => await TerminateSessionAsync());
+
+    /// <summary>«Разорвать соединение»: подтверждение → connection disconnect → обновление списков.</summary>
+    public ICommand DisconnectConnectionCommand =>
+        _disconnectConnectionCommand ??= new RelayCommand(async () => await DisconnectConnectionAsync());
+
     // ===================== Вкладки =====================
 
     /// <summary>Рабочие процессы кластера (rphost/rmngr).</summary>
@@ -151,6 +170,30 @@ public sealed class ServerMonitorViewModel : ViewModelBase
         get => _clusterInfoText;
         private set => SetProperty(ref _clusterInfoText, value);
     }
+
+    /// <summary>Выбранный сеанс на вкладке «Сеансы» (кнопка «Завершить сеанс»).</summary>
+    public RacSessionRow? SelectedSession
+    {
+        get => _selectedSession;
+        set => SetProperty(ref _selectedSession, value);
+    }
+
+    /// <summary>Выбранное соединение на вкладке «Соединения» (кнопка «Разорвать соединение»).</summary>
+    public RacConnectionRow? SelectedConnection
+    {
+        get => _selectedConnection;
+        set => SetProperty(ref _selectedConnection, value);
+    }
+
+    // ===================== Автообновление =====================
+
+    /// <summary>Запущен ли таймер автообновления (после успешного подключения).</summary>
+    public bool AutoRefreshActive => _autoRefreshTimer is not null;
+
+    /// <summary>Подпись состояния автообновления для подсказки окна.</summary>
+    public string AutoRefreshText => AutoRefreshActive
+        ? LocalizationManager.T("ServerMonitor.AutoRefreshOn")
+        : LocalizationManager.T("ServerMonitor.AutoRefreshOff");
 
     // ===================== Статус =====================
 
@@ -203,6 +246,9 @@ public sealed class ServerMonitorViewModel : ViewModelBase
                 ? LocalizationManager.T("ServerMonitor.Status.NoClusters")
                 : string.Format(LocalizationManager.T("ServerMonitor.Status.ConnectedFormat"), clusters.Count);
 
+            // Автообновление запускается только после успешного подключения.
+            StartAutoRefresh();
+
             // Первый кластер выбираем автоматически — он же запускает загрузку данных.
             if (SelectedClusterId is null && ClusterRows.Count > 0)
                 SelectedClusterId = ClusterRows[0].Id;
@@ -212,6 +258,8 @@ public sealed class ServerMonitorViewModel : ViewModelBase
             HasConnected = false;
             ErrorMessage = BuildErrorMessage(ex);
             StatusText = LocalizationManager.T("ServerMonitor.Status.ConnectFailed");
+            // Без подключения таймер автообновления не работает.
+            StopAutoRefresh();
         }
         finally
         {
@@ -280,6 +328,122 @@ public sealed class ServerMonitorViewModel : ViewModelBase
         _ = LoadClusterDataAsync(id);
     }
 
+    /// <summary>
+    /// «Завершить сеанс»: подтверждение (предупреждение о потере несохранённых данных),
+    /// команда rac «session terminate», обновление списков; ошибка — предупреждение +
+    /// статус-строка. Образец — KillSelected из ProcessInspectorViewModel.
+    /// </summary>
+    public async Task TerminateSessionAsync()
+    {
+        var row = SelectedSession;
+        if (row is null || !HasConnected || SelectedClusterId is not Guid clusterId)
+            return;
+
+        if (!_dialogs.Confirm(
+                string.Format(LocalizationManager.T("ServerMonitor.TerminateConfirmFormat"), row.User),
+                LocalizationManager.T("ServerMonitor.TerminateTitle")))
+            return;
+
+        try
+        {
+            var ok = await _rac.TerminateSessionAsync(BuildParams(), clusterId, row.Id).ConfigureAwait(false);
+            if (!ok)
+            {
+                var detail = BuildActionError(_rac.LastActionError);
+                _dialogs.ShowWarning(
+                    string.Format(LocalizationManager.T("ServerMonitor.TerminateFailedFormat"), row.User) + "\n" + detail,
+                    LocalizationManager.T("ServerMonitor.TerminateTitle"));
+                StatusText = detail;
+                return;
+            }
+
+            StatusText = string.Format(
+                LocalizationManager.T("ServerMonitor.Status.TerminatedFormat"), row.User);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowWarning(
+                string.Format(LocalizationManager.T("ServerMonitor.TerminateFailedFormat"), row.User) + "\n" + BuildErrorMessage(ex),
+                LocalizationManager.T("ServerMonitor.TerminateTitle"));
+            StatusText = BuildErrorMessage(ex);
+        }
+        finally
+        {
+            // После действия списки перечитываются (сеанс мог исчезнуть).
+            Refresh();
+        }
+    }
+
+    /// <summary>
+    /// «Разорвать соединение»: подтверждение, команда rac «connection disconnect»,
+    /// обновление списков; ошибка — предупреждение + статус-строка.
+    /// </summary>
+    public async Task DisconnectConnectionAsync()
+    {
+        var row = SelectedConnection;
+        if (row is null || !HasConnected || SelectedClusterId is not Guid clusterId)
+            return;
+
+        if (!_dialogs.Confirm(
+                string.Format(LocalizationManager.T("ServerMonitor.DisconnectConfirmFormat"), row.Host),
+                LocalizationManager.T("ServerMonitor.DisconnectTitle")))
+            return;
+
+        try
+        {
+            var ok = await _rac.DisconnectConnectionAsync(BuildParams(), clusterId, row.Id).ConfigureAwait(false);
+            if (!ok)
+            {
+                var detail = BuildActionError(_rac.LastActionError);
+                _dialogs.ShowWarning(
+                    string.Format(LocalizationManager.T("ServerMonitor.DisconnectFailedFormat"), row.Host) + "\n" + detail,
+                    LocalizationManager.T("ServerMonitor.DisconnectTitle"));
+                StatusText = detail;
+                return;
+            }
+
+            StatusText = string.Format(
+                LocalizationManager.T("ServerMonitor.Status.DisconnectedFormat"), row.Host);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowWarning(
+                string.Format(LocalizationManager.T("ServerMonitor.DisconnectFailedFormat"), row.Host) + "\n" + BuildErrorMessage(ex),
+                LocalizationManager.T("ServerMonitor.DisconnectTitle"));
+            StatusText = BuildErrorMessage(ex);
+        }
+        finally
+        {
+            Refresh();
+        }
+    }
+
+    /// <summary>
+    /// Запускает таймер автообновления данных выбранного кластера (5 с). Создаётся при
+    /// успешном подключении; повторный запуск — no-op. Тик идёт через <see cref="Refresh"/>
+    /// с тем же флагом занятости, что и ручное «Обновить» (наложение исключено).
+    /// </summary>
+    private void StartAutoRefresh()
+    {
+        _autoRefreshTimer ??= new Timer(
+            _ => Refresh(), null, AutoRefreshIntervalMs, AutoRefreshIntervalMs);
+        OnPropertyChanged(nameof(AutoRefreshActive));
+        OnPropertyChanged(nameof(AutoRefreshText));
+    }
+
+    /// <summary>Останавливает таймер автообновления (Dispose окна, ошибка подключения).</summary>
+    private void StopAutoRefresh()
+    {
+        _autoRefreshTimer?.Dispose();
+        _autoRefreshTimer = null;
+        OnPropertyChanged(nameof(AutoRefreshActive));
+        OnPropertyChanged(nameof(AutoRefreshText));
+    }
+
+    /// <inheritdoc />
+    /// <summary>Останавливает таймер автообновления (вызывается окном при закрытии).</summary>
+    public void Dispose() => StopAutoRefresh();
+
     // ===================== Внутреннее =====================
 
     private RacConnectionParams BuildParams() => new()
@@ -318,12 +482,20 @@ public sealed class ServerMonitorViewModel : ViewModelBase
     {
         void Apply()
         {
+            // Выбор сохраняем по идентификатору: после автообновления строка с тем же
+            // Id остаётся выбранной, исчезнувшая (завершённый сеанс) — сбрасывается.
+            var sessionId = SelectedSession?.Id;
+            var connectionId = SelectedConnection?.Id;
+
             ReplaceRows(Processes, processes.Select(p => new RacProcessRow(p)));
             ReplaceRows(Sessions, sessions.Select(s => new RacSessionRow(s)));
             ReplaceRows(Connections, connections.Select(c => new RacConnectionRow(c)));
             ReplaceRows(Locks, locks.Select(l => new RacLockRow(l)));
             ClusterInfo = info;
             ClusterInfoText = FormatClusterInfo(info);
+
+            SelectedSession = sessionId is Guid s ? Sessions.FirstOrDefault(x => x.Id == s) : null;
+            SelectedConnection = connectionId is Guid c ? Connections.FirstOrDefault(x => x.Id == c) : null;
         }
 
         if (_dispatchToUi is null)
@@ -376,6 +548,12 @@ public sealed class ServerMonitorViewModel : ViewModelBase
             ? LocalizationManager.T("ServerMonitor.Errors.Unknown")
             : message;
     }
+
+    /// <summary>Текст ошибки действия rac (из <see cref="IRacClient.LastActionError"/>).</summary>
+    private static string BuildActionError(string? lastActionError) =>
+        string.IsNullOrWhiteSpace(lastActionError)
+            ? LocalizationManager.T("ServerMonitor.Errors.Unknown")
+            : lastActionError;
 
     private bool TryEnterBusy()
     {

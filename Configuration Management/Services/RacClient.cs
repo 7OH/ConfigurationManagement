@@ -90,24 +90,19 @@ public sealed class RacClient : IRacClient
     /// <inheritdoc />
     public Task<bool> TerminateSessionAsync(
         RacConnectionParams parameters, Guid clusterId, Guid sessionId,
-        CancellationToken cancellationToken = default)
-    {
-        // Реализация — этап 3 (0.3.9.125): session terminate --cluster=... --session=...
-        // с подтверждением в ViewModel. Сигнатура заложена на этапе 1, чтобы не менять
-        // интерфейс дважды.
-        throw new NotImplementedException("TerminateSessionAsync реализуется на этапе 3 (0.3.9.125).");
-    }
+        CancellationToken cancellationToken = default) =>
+        RunActionAsync(parameters, cancellationToken, "session", "terminate",
+            $"--cluster={clusterId}", $"--session={sessionId}");
 
     /// <inheritdoc />
     public Task<bool> DisconnectConnectionAsync(
         RacConnectionParams parameters, Guid clusterId, Guid connectionId,
-        CancellationToken cancellationToken = default)
-    {
-        // Реализация — этап 3 (0.3.9.125): connection disconnect --cluster=... --connection=...
-        // с подтверждением в ViewModel. Сигнатура заложена на этапе 1, чтобы не менять
-        // интерфейс дважды.
-        throw new NotImplementedException("DisconnectConnectionAsync реализуется на этапе 3 (0.3.9.125).");
-    }
+        CancellationToken cancellationToken = default) =>
+        RunActionAsync(parameters, cancellationToken, "connection", "disconnect",
+            $"--cluster={clusterId}", $"--connection={connectionId}");
+
+    /// <inheritdoc />
+    public string LastActionError { get; private set; } = string.Empty;
 
     /// <summary>
     /// Собирает аргументы командной строки rac:
@@ -129,6 +124,36 @@ public sealed class RacClient : IRacClient
             args.Add($"--password={parameters.Password}");
         args.AddRange(commandAndArgs);
         return args;
+    }
+
+    /// <summary>
+    /// Выполняет rac-команду действия (завершение сеанса / разрыв соединения).
+    /// Возвращает true при ExitCode 0; при неудаче — false и текст ошибки
+    /// (сообщение rac + stderr) в <see cref="LastActionError"/>. Исключения наружу
+    /// не пробрасываются: ViewModel показывает пользователю LastActionError.
+    /// </summary>
+    private async Task<bool> RunActionAsync(
+        RacConnectionParams parameters, CancellationToken cancellationToken,
+        params string[] commandAndArgs)
+    {
+        try
+        {
+            await RunAsync(parameters, cancellationToken, commandAndArgs).ConfigureAwait(false);
+            LastActionError = string.Empty;
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            LastActionError = "Операция отменена.";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            LastActionError = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Неизвестная ошибка rac."
+                : ex.Message;
+            return false;
+        }
     }
 
     /// <summary>

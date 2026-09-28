@@ -83,7 +83,8 @@ public interface IRacClient
 
     /// <summary>
     /// Завершение сеанса пользователя (команда «session terminate --cluster=... --session=...»).
-    /// Сигнатура заложена на этапе 1; реализация — этап 3 (0.3.9.125).
+    /// Реализация — этап 3 (0.3.9.125): возвращает true при ExitCode 0; при неудаче — false
+    /// и текст ошибки (включая stderr rac) в <see cref="LastActionError"/>.
     /// </summary>
     Task<bool> TerminateSessionAsync(
         RacConnectionParams parameters, Guid clusterId, Guid sessionId,
@@ -91,9 +92,17 @@ public interface IRacClient
 
     /// <summary>
     /// Разрыв соединения клиента (команда «connection disconnect --cluster=... --connection=...»).
-    /// Сигнатура заложена на этапе 1; реализация — этап 3 (0.3.9.125).
+    /// Реализация — этап 3 (0.3.9.125): возвращает true при ExitCode 0; при неудаче — false
+    /// и текст ошибки (включая stderr rac) в <see cref="LastActionError"/>.
     /// </summary>
     Task<bool> DisconnectConnectionAsync(
         RacConnectionParams parameters, Guid clusterId, Guid connectionId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Текст последней ошибки действия (<see cref="TerminateSessionAsync"/> /
+    /// <see cref="DisconnectConnectionAsync"/>): сообщение rac со stderr при неудаче,
+    /// пустая строка при успехе или пока действие не выполнялось.
+    /// </summary>
+    string LastActionError { get; }
 }

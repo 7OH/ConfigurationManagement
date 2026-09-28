@@ -56,6 +56,7 @@ namespace Configuration_Management
 
             DataContext = _vm;
             _vm.PropertyChanged += OnVmPropertyChanged;
+            Closed += (_, _) => _vm.Dispose();
 
             // ---- Панель подключения: адрес, порт, логин, пароль, кнопки. ----
             var addressBox = Tb("ServerAddress", 150);
@@ -132,12 +133,18 @@ namespace Configuration_Management
             tabs.Items.Add(new TabItem
             {
                 Header = LocalizationManager.T("ServerMonitor.Tabs.Sessions"),
-                Content = BuildList("Sessions", BuildSessionRow)
+                Content = BuildTabWithAction(
+                    BuildList("Sessions", BuildSessionRow, "SelectedSession"),
+                    BuildActionButton(LocalizationManager.T("ServerMonitor.TerminateSession"), "✕",
+                        () => _vm.TerminateSessionCommand.Execute(null)))
             });
             tabs.Items.Add(new TabItem
             {
                 Header = LocalizationManager.T("ServerMonitor.Tabs.Connections"),
-                Content = BuildList("Connections", BuildConnectionRow)
+                Content = BuildTabWithAction(
+                    BuildList("Connections", BuildConnectionRow, "SelectedConnection"),
+                    BuildActionButton(LocalizationManager.T("ServerMonitor.DisconnectConnection"), "⛓",
+                        () => _vm.DisconnectConnectionCommand.Execute(null)))
             });
             tabs.Items.Add(new TabItem
             {
@@ -149,6 +156,9 @@ namespace Configuration_Management
                 Header = LocalizationManager.T("ServerMonitor.Tabs.Info"),
                 Content = BuildInfoPane()
             });
+
+            var autoRefreshHint = new TextBlock { FontSize = 11, Opacity = 0.65, TextWrapping = TextWrapping.Wrap };
+            autoRefreshHint.Bind(TextBlock.TextProperty, new Binding("AutoRefreshText"));
 
             var root = new Grid
             {
@@ -166,7 +176,7 @@ namespace Configuration_Management
             Place(root, buttons, 1);
             Place(root, clusterPanel, 2);
             Place(root, tabs, 3);
-            Place(root, new StackPanel { Children = { status, error }, Spacing = 2 }, 4);
+            Place(root, new StackPanel { Children = { status, error, autoRefreshHint }, Spacing = 2 }, 4);
             Content = root;
         }
 
@@ -214,14 +224,28 @@ namespace Configuration_Management
             return tb;
         }
 
-        private static ListBox BuildList(string binding, Func<object, Control> rowFactory)
+        private static ListBox BuildList(string binding, Func<object, Control> rowFactory, string? selectedBinding = null)
         {
             var list = new ListBox
             {
                 ItemTemplate = new FuncDataTemplate<object>((item, _) => rowFactory(item))
             };
             list.Bind(ListBox.ItemsSourceProperty, new Binding(binding));
+            if (selectedBinding is not null)
+                list.Bind(ListBox.SelectedItemProperty, new Binding(selectedBinding, BindingMode.TwoWay));
             return list;
+        }
+
+        /// <summary>Вкладка с действием: кнопка снизу (завершение сеанса / разрыв соединения), список заполняет остальное.</summary>
+        private static Control BuildTabWithAction(Control content, Button button)
+        {
+            var dock = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(button, Dock.Bottom);
+            button.HorizontalAlignment = HorizontalAlignment.Left;
+            button.Margin = new Thickness(0, 8, 0, 0);
+            dock.Children.Add(button);
+            dock.Children.Add(content);
+            return dock;
         }
 
         private static Button BuildActionButton(string text, string icon, System.Action onClick)

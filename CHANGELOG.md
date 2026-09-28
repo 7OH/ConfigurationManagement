@@ -9,6 +9,52 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.125] — 2026-09-28
+
+### Добавлено
+
+- **Встроенный монитор серверов 1С — этап 3: действия и автообновление** (цикл
+  0.3.9.123–0.3.9.126): завершение сеансов и разрыв соединений с подтверждением,
+  автообновление данных выбранного кластера по таймеру (5 с).
+  - **Клиент rac** — [`Services/IRacClient.cs`](Configuration%20Management/Services/IRacClient.cs) +
+    [`Services/RacClient.cs`](Configuration%20Management/Services/RacClient.cs):
+    реализованы `TerminateSessionAsync` (команда `session terminate --cluster=... --session=...`)
+    и `DisconnectConnectionAsync` (команда `connection disconnect --cluster=... --connection=...`);
+    успех — по ExitCode 0, при неудаче возвращается `false` и текст ошибки (включая stderr rac)
+    в новом свойстве `IRacClient.LastActionError`; исключения наружу не пробрасываются.
+  - **ViewModel** — [`ViewModels/ServerMonitorViewModel.cs`](Configuration%20Management/ViewModels/ServerMonitorViewModel.cs):
+    команды `TerminateSessionCommand`/`DisconnectConnectionCommand` (по `SelectedSession`/
+    `SelectedConnection`): подтверждение через `IDialogService.Confirm` с предупреждением о
+    потере несохранённых данных сеанса, выполнение, перечитывание списков после действия,
+    ошибка — `_dialogs.ShowWarning` + статус-строка (образец `KillSelected` из
+    `ProcessInspectorViewModel`); выбор строк сохраняется по идентификатору при автообновлении.
+  - **Автообновление** — константа `AutoRefreshIntervalMs = 5000`, `System.Threading.Timer`
+    создаётся при успешном подключении (`StartAutoRefresh`) и останавливается при ошибке
+    подключения и при закрытии окна (`Dispose`, `Closed → vm.Dispose()` в обоих окнах);
+    тик идёт через тот же `Refresh()`/`LoadClusterDataAsync`, что и ручная кнопка «Обновить»,
+    с общим флагом занятости `Interlocked` — наложение запросов исключено, пропущенный тик
+    не копится; без подключения таймер не запускается; ошибки фонового опроса — только в
+    статус-строку, окно не роняется.
+  - **Окна** — [`Views/ServerMonitorWindow.xaml`](Configuration%20Management/Views/ServerMonitorWindow.xaml)
+    (WPF): кнопки «Завершить сеанс»/«Разорвать соединение» на вкладках «Сеансы»/«Соединения»
+    (DockPanel снизу, выбор строки через `SelectedItem="{Binding SelectedSession/SelectedConnection}"`),
+    подсказка про автообновление внизу окна (`AutoRefreshText`);
+    [`Views/ServerMonitorWindow.Avalonia.cs`](Configuration%20Management/Views/ServerMonitorWindow.Avalonia.cs)
+    (Linux): те же кнопки + `ListBox.SelectedItem` (TwoWay) на вкладках, hint — по образцу
+    `ProcessInspectorWindow`.
+  - **Локализация** — ключи `ServerMonitor.TerminateSession`/`DisconnectConnection`/`TerminateTitle`/
+    `DisconnectTitle`/`TerminateConfirmFormat`/`DisconnectConfirmFormat`/`TerminateFailedFormat`/
+    `DisconnectFailedFormat`/`Status.TerminatedFormat`/`Status.DisconnectedFormat`/
+    `AutoRefreshOn`/`AutoRefreshOff` в [`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json)
+    и [`Localization/Languages/en.json`](Configuration%20Management/Localization/Languages/en.json).
+  - **Тесты** — [`ConfigurationManagement.Tests/ServerMonitorViewModelTests.cs`](ConfigurationManagement.Tests/ServerMonitorViewModelTests.cs):
+    подтверждение действий (mock `IDialogService` с записью вызовов: confirm/отмена/ошибка),
+    вызов клиента с верными аргументами (fake `IRacClient` c регистрацией вызовов), обновление
+    списков после действия, таймер автообновления (стартует после подключения, не стартует без
+    него и при ошибке подключения, останавливается в `Dispose`), флаг занятости не даёт
+    наложиться запросам (fake с задержкой — повторный вызов пропускается), форматирование
+    роу-строк (память МБ, время HH:mm:ss, состояния/цвета).
+
 ## [0.3.9.123] — 2026-09-28
 
 ### Добавлено

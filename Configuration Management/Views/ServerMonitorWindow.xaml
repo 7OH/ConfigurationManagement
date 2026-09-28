@@ -32,6 +32,7 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Панель подключения: адрес, порт, логин, пароль, кнопки. -->
@@ -131,8 +132,20 @@
 
             <!-- Сеансы -->
             <TabItem Header="{loc:Loc ServerMonitor.Tabs.Sessions}">
-                <DataGrid x:Name="SessionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                <DockPanel>
+                    <!-- Действие: завершить выбранный сеанс (подтверждение — в VM). -->
+                    <Button DockPanel.Dock="Bottom" Style="{StaticResource ModernButton}"
+                            Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                            Margin="0,8,0,0" HorizontalAlignment="Left"
+                            Click="OnTerminateSession_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✕" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Loc ServerMonitor.TerminateSession}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <DataGrid x:Name="SessionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectedItem="{Binding SelectedSession}"
+                              HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
                           SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
                           RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
                           BorderThickness="0">
@@ -192,12 +205,25 @@
                                             Binding="{Binding HibernateText}" ElementStyle="{StaticResource CenteredCellText}"/>
                     </DataGrid.Columns>
                 </DataGrid>
+                </DockPanel>
             </TabItem>
 
             <!-- Соединения -->
             <TabItem Header="{loc:Loc ServerMonitor.Tabs.Connections}">
-                <DataGrid x:Name="ConnectionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                <DockPanel>
+                    <!-- Действие: разорвать выбранное соединение (подтверждение — в VM). -->
+                    <Button DockPanel.Dock="Bottom" Style="{StaticResource ModernButton}"
+                            Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                            Margin="0,8,0,0" HorizontalAlignment="Left"
+                            Click="OnDisconnectConnection_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⛓" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Loc ServerMonitor.DisconnectConnection}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <DataGrid x:Name="ConnectionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectedItem="{Binding SelectedConnection}"
+                              HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
                           SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
                           RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
                           BorderThickness="0">
@@ -236,6 +262,7 @@
                         </DataGridTextColumn>
                     </DataGrid.Columns>
                 </DataGrid>
+                </DockPanel>
             </TabItem>
 
             <!-- Блокировки -->
@@ -296,5 +323,9 @@
         <TextBlock Grid.Row="4" Margin="0,4,0,0" FontSize="12"
                    Foreground="#DC2626" Text="{Binding ErrorMessage}"
                    TextWrapping="Wrap"/>
+        <!-- Подсказка про автообновление (по образцу ProcessInspectorWindow.Hint). -->
+        <TextBlock Grid.Row="5" Margin="0,8,0,0" FontSize="11"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Text="{Binding AutoRefreshText}"/>
     </Grid>
 </Window>

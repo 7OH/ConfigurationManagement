@@ -1,3 +1,4 @@
+using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
@@ -6,16 +7,18 @@ using Xunit;
 namespace ConfigurationManagement.Tests;
 
 /// <summary>
-/// Тесты встроенного монитора серверов 1С — ViewModel (этап 2, 0.3.9.124):
-/// дефолты подключения, подключение с fake-клиентом rac (кластеры) и загрузка
-/// данных кластера во вкладки. Действия и автообновление — этап 3 (0.3.9.125).
+/// Тесты встроенного монитора серверов 1С — ViewModel (этапы 2–3, 0.3.9.124–125):
+/// дефолты подключения, подключение с fake-клиентом rac (кластеры), загрузка данных
+/// кластера во вкладки, команды действий (завершение сеанса / разрыв соединения с
+/// подтверждением), автообновление по таймеру и флаг занятости, форматирование
+/// роу-строк (память, время, состояния).
 /// </summary>
 public sealed class ServerMonitorViewModelTests
 {
     [Fact]
     public void Defaults_PortIs1540_AddressLocalhost_CommandsExist()
     {
-        var vm = new ServerMonitorViewModel(new FakeRacClient(), new StubDialogs());
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
 
         Assert.Equal("localhost", vm.ServerAddress);
         Assert.Equal(IRacClient.DefaultPort, vm.ServerPort);
@@ -24,8 +27,11 @@ public sealed class ServerMonitorViewModelTests
         Assert.Equal(string.Empty, vm.Password);
         Assert.False(vm.HasConnected);
         Assert.False(vm.IsBusy);
+        Assert.False(vm.AutoRefreshActive);
         Assert.NotNull(vm.ConnectCommand);
         Assert.NotNull(vm.RefreshCommand);
+        Assert.NotNull(vm.TerminateSessionCommand);
+        Assert.NotNull(vm.DisconnectConnectionCommand);
         Assert.Empty(vm.Processes);
         Assert.Empty(vm.Sessions);
         Assert.Empty(vm.Connections);
@@ -37,7 +43,7 @@ public sealed class ServerMonitorViewModelTests
     [Fact]
     public async Task ConnectAsync_WithClusters_SetsConnected_AndSelectsFirst()
     {
-        var vm = new ServerMonitorViewModel(new FakeRacClient(), new StubDialogs());
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
 
         await vm.ConnectAsync();
 
@@ -52,7 +58,7 @@ public sealed class ServerMonitorViewModelTests
     [Fact]
     public async Task ConnectAsync_OnClientFailure_ReportsError_WithoutConnected()
     {
-        var vm = new ServerMonitorViewModel(new FakeRacClient(throwOnClusters: true), new StubDialogs());
+        var vm = new ServerMonitorViewModel(new FakeRacClient(throwOnClusters: true), new RecordingDialogs());
 
         await vm.ConnectAsync();
 
@@ -64,7 +70,7 @@ public sealed class ServerMonitorViewModelTests
     [Fact]
     public async Task LoadClusterDataAsync_FillsTabs_AndClusterInfo()
     {
-        var vm = new ServerMonitorViewModel(new FakeRacClient(), new StubDialogs());
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
 
         await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
 
@@ -80,7 +86,7 @@ public sealed class ServerMonitorViewModelTests
     [Fact]
     public void Refresh_WithoutConnection_DoesNothing()
     {
-        var vm = new ServerMonitorViewModel(new FakeRacClient(), new StubDialogs());
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
         vm.Refresh();
         Assert.Empty(vm.Processes);
         Assert.False(vm.IsBusy);
@@ -89,9 +95,292 @@ public sealed class ServerMonitorViewModelTests
     [Fact]
     public void Password_Settable_InMemory()
     {
-        var vm = new ServerMonitorViewModel(new FakeRacClient(), new StubDialogs());
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
         vm.Password = "secret";
         Assert.Equal("secret", vm.Password);
+    }
+
+    // ===================== Действия: завершение сеанса =====================
+
+    [Fact]
+    public async Task TerminateSession_Confirm_CallsClient_WithCorrectArguments_AndRefreshes()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        var session = vm.Sessions.Single();
+        vm.SelectedSession = session;
+        await vm.TerminateSessionAsync();
+
+        // Подтверждение запрошено ровно один раз.
+        Assert.Single(dialogs.Confirms);
+        Assert.Empty(dialogs.Warnings);
+
+        // Клиент вызван с верными аргументами: кластер + id выбранного сеанса.
+        Assert.Single(client.TerminateCalls);
+        Assert.Equal(FakeRacClient.FirstClusterId, client.TerminateCalls[0].clusterId);
+        Assert.Equal(session.Id, client.TerminateCalls[0].sessionId);
+        Assert.Empty(client.LastActionError);
+
+        // После действия списки перечитаны (Refresh в finally).
+        Assert.NotEmpty(vm.StatusText);
+        Assert.Empty(vm.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task TerminateSession_WithoutSelection_DoesNothing()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+
+        await vm.TerminateSessionAsync();
+
+        Assert.Empty(dialogs.Confirms);
+        Assert.Empty(client.TerminateCalls);
+    }
+
+    [Fact]
+    public async Task TerminateSession_Cancelled_DoesNotCallClient()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs { ConfirmResult = false };
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedSession = vm.Sessions.Single();
+        await vm.TerminateSessionAsync();
+
+        Assert.Single(dialogs.Confirms);
+        Assert.Empty(client.TerminateCalls);
+    }
+
+    [Fact]
+    public async Task TerminateSession_ClientReturnsFalse_ShowsWarning_AndSetsStatus()
+    {
+        var client = new FakeRacClient(actionFails: true);
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedSession = vm.Sessions.Single();
+        await vm.TerminateSessionAsync();
+
+        Assert.Single(client.TerminateCalls);
+        Assert.Single(dialogs.Warnings);
+        Assert.NotEmpty(vm.StatusText);
+    }
+
+    [Fact]
+    public async Task TerminateSession_ClientThrows_ShowsWarning_AndDoesNotCrash()
+    {
+        var client = new FakeRacClient(throwOnAction: true);
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedSession = vm.Sessions.Single();
+        await vm.TerminateSessionAsync();
+
+        Assert.Single(dialogs.Warnings);
+        Assert.NotEmpty(vm.StatusText);
+        Assert.False(vm.IsBusy);
+    }
+
+    // ===================== Действия: разрыв соединения =====================
+
+    [Fact]
+    public async Task DisconnectConnection_Confirm_CallsClient_WithCorrectArguments()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        var connection = vm.Connections.Single();
+        vm.SelectedConnection = connection;
+        await vm.DisconnectConnectionAsync();
+
+        Assert.Single(dialogs.Confirms);
+        Assert.Empty(dialogs.Warnings);
+        Assert.Single(client.DisconnectCalls);
+        Assert.Equal(FakeRacClient.FirstClusterId, client.DisconnectCalls[0].clusterId);
+        Assert.Equal(connection.Id, client.DisconnectCalls[0].connectionId);
+        Assert.NotEmpty(vm.StatusText);
+    }
+
+    [Fact]
+    public async Task DisconnectConnection_Cancelled_DoesNotCallClient()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs { ConfirmResult = false };
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedConnection = vm.Connections.Single();
+        await vm.DisconnectConnectionAsync();
+
+        Assert.Single(dialogs.Confirms);
+        Assert.Empty(client.DisconnectCalls);
+    }
+
+    [Fact]
+    public async Task DisconnectConnection_ClientFails_ShowsWarning_AndSetsStatus()
+    {
+        var client = new FakeRacClient(actionFails: true);
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedConnection = vm.Connections.Single();
+        await vm.DisconnectConnectionAsync();
+
+        Assert.Single(client.DisconnectCalls);
+        Assert.Single(dialogs.Warnings);
+        Assert.NotEmpty(vm.StatusText);
+    }
+
+    // ===================== Автообновление =====================
+
+    [Fact]
+    public void AutoRefresh_NotStarted_WithoutConnection()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
+        Assert.False(vm.AutoRefreshActive);
+    }
+
+    [Fact]
+    public async Task AutoRefresh_StartsAfterConnect_AndStopsOnDispose()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
+
+        Assert.False(vm.AutoRefreshActive);
+
+        await vm.ConnectAsync();
+
+        Assert.True(vm.HasConnected);
+        Assert.True(vm.AutoRefreshActive);
+        Assert.Equal(ServerMonitorViewModel.AutoRefreshIntervalMs, 5000);
+
+        vm.Dispose();
+
+        Assert.False(vm.AutoRefreshActive);
+    }
+
+    [Fact]
+    public async Task AutoRefresh_DoesNotStart_OnFailedConnect()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(throwOnClusters: true), new RecordingDialogs());
+
+        await vm.ConnectAsync();
+
+        Assert.False(vm.HasConnected);
+        Assert.False(vm.AutoRefreshActive);
+    }
+
+    [Fact]
+    public async Task LoadClusterDataAsync_BusyFlag_SkipsOverlappingRequests()
+    {
+        // Fake-клиент с задержкой: пока первый запрос выполняется, второй не должен
+        // наложиться (флаг занятости через Interlocked пропускает его).
+        var client = new FakeRacClient(delay: TimeSpan.FromMilliseconds(300));
+        var vm = new ServerMonitorViewModel(client, new RecordingDialogs());
+
+        var first = vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+        // Первый вызов синхронно устанавливает флаг занятости до первого await.
+        Assert.True(vm.IsBusy);
+
+        var second = vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+        // Второй вызов сразу возвращается: флаг занятости уже установлен.
+        Assert.True(second.IsCompleted);
+        await second;
+
+        await first;
+
+        Assert.False(vm.IsBusy);
+        // Данные прочитаны ровно один раз.
+        Assert.Equal(1, client.ProcessCalls);
+    }
+
+    // ===================== Форматирование роу-строк =====================
+
+    [Fact]
+    public void SessionRow_FormatsMemory_Duration_State()
+    {
+        var row = new RacSessionRow(new RacSessionInfo
+        {
+            Id = Guid.NewGuid(),
+            User = "Иванов",
+            Memory = 512 * 1024 * 1024,
+            DurationAll = 3600_000,
+            DurationCurrent = 90_000,
+            State = "active"
+        });
+
+        Assert.Contains("512", row.MemoryText);
+        Assert.EndsWith(LocalizationManager.T("ServerMonitor.Mb"), row.MemoryText);
+        Assert.Equal("01:00:00", row.DurationAllText);
+        Assert.Equal("00:01:30", row.DurationCurrentText);
+        Assert.Equal("#16A34A", row.StateColorHex);
+        Assert.False(string.IsNullOrWhiteSpace(row.StateText));
+        Assert.Equal("—", new RacSessionRow(new RacSessionInfo { State = "sleep" }).StartedAtText);
+    }
+
+    [Fact]
+    public void SessionRow_StateColors_AndBlockedSymbol()
+    {
+        Assert.Equal("#DC2626", new RacSessionRow(new RacSessionInfo { State = "dead" }).StateColorHex);
+        Assert.Equal("#D97706", new RacSessionRow(new RacSessionInfo { State = "wait" }).StateColorHex);
+        Assert.Equal("#64748B", new RacSessionRow(new RacSessionInfo { State = "unknown" }).StateColorHex);
+        Assert.Equal("●", new RacSessionRow(new RacSessionInfo { BlockedByLs = true }).BlockedSymbol);
+        Assert.Equal("●", new RacSessionRow(new RacSessionInfo { BlockedByDeadlock = true }).BlockedSymbol);
+        Assert.Equal(string.Empty, new RacSessionRow(new RacSessionInfo()).BlockedSymbol);
+    }
+
+    [Fact]
+    public void ProcessRow_FormatsMemory_Cpu_Running()
+    {
+        var row = new RacProcessRow(new RacProcessInfo
+        {
+            Id = Guid.NewGuid(),
+            Pid = 1234,
+            MemorySize = 1024 * 1024 * 1024,
+            Cpu = 12.5,
+            Running = true,
+            Threads = 8
+        });
+
+        Assert.Contains("1024", row.MemorySizeText);
+        Assert.EndsWith(LocalizationManager.T("ServerMonitor.Mb"), row.MemorySizeText);
+        Assert.Contains("12", row.CpuText);
+        Assert.EndsWith("%", row.CpuText);
+        Assert.Equal("#16A34A", row.StateColorHex);
+        Assert.Equal(1234, row.Pid);
+    }
+
+    [Fact]
+    public void ConnectionRow_FormatsDuration_Blocked()
+    {
+        var row = new RacConnectionRow(new RacConnectionInfo
+        {
+            Id = Guid.NewGuid(),
+            Duration = 1800_000,
+            Blocked = true
+        });
+
+        Assert.Equal("00:30:00", row.DurationText);
+        Assert.Equal("#D97706", row.BlockedColorHex);
+        Assert.Equal("—", new RacConnectionRow(new RacConnectionInfo()).EstablishedAtText);
     }
 
     // ===================== Fakes =====================
@@ -103,8 +392,31 @@ public sealed class ServerMonitorViewModelTests
         private static readonly System.Guid SecondClusterId = System.Guid.Parse("22222222-2222-2222-2222-222222222222");
 
         private readonly bool _throwOnClusters;
+        private readonly bool _throwOnAction;
+        private readonly bool _actionFails;
+        private readonly TimeSpan _delay;
 
-        public FakeRacClient(bool throwOnClusters = false) => _throwOnClusters = throwOnClusters;
+        public FakeRacClient(
+            bool throwOnClusters = false, bool throwOnAction = false,
+            bool actionFails = false, TimeSpan? delay = null)
+        {
+            _throwOnClusters = throwOnClusters;
+            _throwOnAction = throwOnAction;
+            _actionFails = actionFails;
+            _delay = delay ?? TimeSpan.Zero;
+        }
+
+        /// <summary>Текст последней ошибки действия (как в реальном клиенте).</summary>
+        public string LastActionError { get; private set; } = string.Empty;
+
+        /// <summary>Вызовы «session terminate»: (clusterId, sessionId).</summary>
+        public List<(System.Guid clusterId, System.Guid sessionId)> TerminateCalls { get; } = new();
+
+        /// <summary>Вызовы «connection disconnect»: (clusterId, connectionId).</summary>
+        public List<(System.Guid clusterId, System.Guid connectionId)> DisconnectCalls { get; } = new();
+
+        /// <summary>Сколько раз запрошены рабочие процессы (для проверки флага занятости).</summary>
+        public int ProcessCalls { get; private set; }
 
         public Task<IReadOnlyList<RacCluster>> GetClustersAsync(
             RacConnectionParams parameters, CancellationToken cancellationToken = default)
@@ -135,10 +447,13 @@ public sealed class ServerMonitorViewModelTests
             });
         }
 
-        public Task<IReadOnlyList<RacProcessInfo>> GetProcessesAsync(
+        public async Task<IReadOnlyList<RacProcessInfo>> GetProcessesAsync(
             RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<RacProcessInfo>>(new[]
+            ProcessCalls++;
+            if (_delay > TimeSpan.Zero)
+                await Task.Delay(_delay, cancellationToken).ConfigureAwait(false);
+            return new[]
             {
                 new RacProcessInfo
                 {
@@ -153,7 +468,7 @@ public sealed class ServerMonitorViewModelTests
                     Running = true,
                     Infobases = 3
                 }
-            });
+            };
         }
 
         public Task<IReadOnlyList<RacSessionInfo>> GetSessionsAsync(
@@ -214,22 +529,54 @@ public sealed class ServerMonitorViewModelTests
 
         public Task<bool> TerminateSessionAsync(
             RacConnectionParams parameters, Guid clusterId, Guid sessionId,
-            CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException("Этап 3 (0.3.9.125).");
+            CancellationToken cancellationToken = default)
+        {
+            TerminateCalls.Add((clusterId, sessionId));
+            if (_throwOnAction)
+                throw new RacClientException("нет прав администратора");
+            if (_actionFails)
+            {
+                LastActionError = "rac: у пользователя нет прав на завершение сеанса";
+                return Task.FromResult(false);
+            }
+            return Task.FromResult(true);
+        }
 
         public Task<bool> DisconnectConnectionAsync(
             RacConnectionParams parameters, Guid clusterId, Guid connectionId,
-            CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException("Этап 3 (0.3.9.125).");
+            CancellationToken cancellationToken = default)
+        {
+            DisconnectCalls.Add((clusterId, connectionId));
+            if (_throwOnAction)
+                throw new RacClientException("нет прав администратора");
+            if (_actionFails)
+            {
+                LastActionError = "rac: у пользователя нет прав на разрыв соединения";
+                return Task.FromResult(false);
+            }
+            return Task.FromResult(true);
+        }
     }
 
-    /// <summary>Заглушка диалогов: методы записывают вызовы, ничего не показывая.</summary>
-    private sealed class StubDialogs : IDialogService
+    /// <summary>
+    /// Запись диалогов для тестов: методы фиксируют вызовы (подтверждения, предупреждения),
+    /// ничего не показывая; результат подтверждения настраивается (<see cref="ConfirmResult"/>).
+    /// </summary>
+    private sealed class RecordingDialogs : IDialogService
     {
+        public bool ConfirmResult { get; set; } = true;
+
+        public List<(string message, string title)> Confirms { get; } = new();
+        public List<(string message, string title)> Warnings { get; } = new();
+
         public void ShowInfo(string message, string title = "") { }
-        public void ShowWarning(string message, string title = "") { }
         public void ShowError(string message, string title = "") { }
-        public bool Confirm(string message, string title = "") => true;
+        public void ShowWarning(string message, string title = "") => Warnings.Add((message, title));
+        public bool Confirm(string message, string title = "")
+        {
+            Confirms.Add((message, title));
+            return ConfirmResult;
+        }
         public string? OpenFileDialog(string title = "", string filter = "", string? initialDirectory = null) => null;
         public string? SaveFileDialog(string title = "", string defaultFileName = "", string filter = "", string? initialDirectory = null) => null;
         public string? OpenFolderDialog(string title = "", string? initialDirectory = null) => null;
