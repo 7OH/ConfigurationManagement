@@ -259,7 +259,26 @@ namespace Configuration_Management
             foreach (var v in DbmsValues)
                 _dbmsBox.Items.Add(new ComboBoxItem { Content = v });
             _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), _serverBox));
-            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), _refBox));
+            // Имя базы на сервере с кнопкой «скопировать в наименование» (issue #306).
+            var refRow = new Grid();
+            refRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            refRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            Grid.SetColumn(_refBox, 0);
+            refRow.Children.Add(_refBox);
+            var copyRef = new Button
+            {
+                Content = IconHelper.MakeIcon("IconCopy", 16),
+                Width = 30,
+                Height = 30,
+                Padding = new Thickness(0),
+                Margin = new Thickness(6, 0, 0, 0)
+            };
+            copyRef.Styled(ControlThemes.IconButton);
+            ToolTip.SetTip(copyRef, LocalizationManager.T("CreateInfobase.CopyRefToName"));
+            copyRef.Click += (_, _) => CopyRefToName();
+            Grid.SetColumn(copyRef, 1);
+            refRow.Children.Add(copyRef);
+            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), refRow));
             _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbmsLabel"), _dbmsBox));
             _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbServerLabel"), _dbServerBox));
             _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbNameLabel"), _dbNameBox));
@@ -744,6 +763,18 @@ namespace Configuration_Management
                 $"{LocalizationManager.T("CreateInfobase.FilterTemplates")}|*.cf;*.dt|{LocalizationManager.T("CreateInfobase.FilterConfig")}|*.cf|{LocalizationManager.T("CreateInfobase.FilterDump")}|*.dt|{LocalizationManager.T("Common.AllFiles")}|*.*");
             if (!string.IsNullOrWhiteSpace(path))
                 _templateBox.Text = path;
+        }
+
+        /// <summary>
+        /// Кнопка копирования рядом с полем «Имя базы на сервере» (issue #306):
+        /// переносит его значение в поле наименования ИБ. Пустое значение Ref
+        /// наименование не затирает.
+        /// </summary>
+        private void CopyRefToName()
+        {
+            var refName = _refBox.Text?.Trim();
+            if (!string.IsNullOrWhiteSpace(refName))
+                _nameBox.Text = refName;
         }
 
         private void OnCreate_Click()

@@ -528,6 +528,18 @@ namespace Configuration_Management
                 TemplateBox.Text = dlg.FileName;
         }
 
+        /// <summary>
+        /// Кнопка копирования рядом с полем «Имя базы на сервере» (issue #306):
+        /// переносит его значение в поле наименования ИБ. Пустое значение Ref
+        /// наименование не затирает.
+        /// </summary>
+        private void OnCopyRefToName_Click(object sender, RoutedEventArgs e)
+        {
+            var refName = RefBox.Text?.Trim();
+            if (!string.IsNullOrWhiteSpace(refName))
+                NameBox.Text = refName;
+        }
+
         private void OnCreate_Click(object sender, RoutedEventArgs e)
         {
             var request = new CreateInfobaseRequest
