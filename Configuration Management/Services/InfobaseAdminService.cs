@@ -40,7 +40,7 @@ public sealed class InfobaseAdminService : IInfobaseAdminService
             return false;
         }
 
-        var binDir = ResolveBinDirectory(infobase);
+        var binDir = OneCPlatformLocator.ResolveBinDirectory(infobase);
         if (binDir is null)
         {
             _logger.Warn(
@@ -48,7 +48,7 @@ public sealed class InfobaseAdminService : IInfobaseAdminService
             return false;
         }
 
-        var exe = FindInBinDir(binDir, "chdbfl");
+        var exe = OneCPlatformLocator.FindInBinDir(binDir, "chdbfl");
         if (exe is null)
         {
             _logger.Warn(
@@ -80,7 +80,7 @@ public sealed class InfobaseAdminService : IInfobaseAdminService
             return result;
         }
 
-        var binDir = ResolveBinDirectory(infobase);
+        var binDir = OneCPlatformLocator.ResolveBinDirectory(infobase);
         if (binDir is null)
         {
             _logger.Warn(
@@ -89,7 +89,7 @@ public sealed class InfobaseAdminService : IInfobaseAdminService
             return result;
         }
 
-        var exe = FindInBinDir(binDir, "chdbfl");
+        var exe = OneCPlatformLocator.FindInBinDir(binDir, "chdbfl");
         if (exe is null)
         {
             _logger.Warn(
@@ -176,7 +176,7 @@ public sealed class InfobaseAdminService : IInfobaseAdminService
         // используется новейшая установленная платформа нужной разрядности.
         var baseLabel = infobase is null ? string.Empty : $" для базы «{infobase.Name}»";
 
-        var binDir = ResolveBinDirectory(infobase);
+        var binDir = OneCPlatformLocator.ResolveBinDirectory(infobase);
         if (binDir is null)
         {
             _logger.Warn(
@@ -196,7 +196,7 @@ public sealed class InfobaseAdminService : IInfobaseAdminService
 
         // Общий (кросс-платформенный) вариант — командный клиент администрирования rac
         // (Remote Administration Client), присутствующий в каталоге платформы обеих ОС.
-        var rac = FindInBinDir(binDir, "rac");
+        var rac = OneCPlatformLocator.FindInBinDir(binDir, "rac");
         if (rac is null)
         {
             _logger.Warn(
@@ -209,102 +209,10 @@ public sealed class InfobaseAdminService : IInfobaseAdminService
     }
 
     /// <summary>
-    /// Разрешает каталог <c>bin</c> установленной платформы нужной разрядности:
-    /// при выбранной базе — по её настройкам (точная версия, затем новейшая
-    /// установленная), без базы — новейшая установленная версия (issue #295).
+    /// Поиск исполняемых файлов платформы (bin-каталог, rac, chdbfl) вынесен в
+    /// <see cref="OneCPlatformLocator"/> (0.3.9.123) и используется совместно
+    /// с клиентом rac встроенного монитора серверов 1С — без дублирования.
     /// </summary>
-    private static string? ResolveBinDirectory(Infobase? infobase)
-    {
-        var arch = OneCLauncher.ResolveArchitecture(infobase?.Architecture, infobase?.PlatformVersion);
-        var archKey = arch == OneCArchitecture.x64 ? "64" : "32";
-
-        PlatformVersionService.ParseVariant(infobase?.PlatformVersion ?? string.Empty,
-            out var cleanVersion, out _);
-        if (!string.IsNullOrWhiteSpace(cleanVersion))
-        {
-            var dir = PlatformVersionService.ResolveVersionBinDirectory(cleanVersion, archKey);
-            if (dir is not null && Directory.Exists(dir))
-                return dir;
-        }
-
-        // Запасной вариант — новейшая из установленных версий нужной разрядности.
-        string? bestDir = null;
-        string bestVersion = string.Empty;
-        foreach (var (version, binDir) in PlatformVersionService.FindPlatformVersionDirs(archKey))
-        {
-            if (bestDir is null || CompareVersions(version, bestVersion) > 0)
-            {
-                bestDir = binDir;
-                bestVersion = version;
-            }
-        }
-        return bestDir;
-    }
-
-    /// <summary>Числовое сравнение версий 1С («8.3.27.1688»). >0 если a новее b.</summary>
-    private static int CompareVersions(string a, string b)
-    {
-        static int[] Parts(string v)
-        {
-            return (v ?? string.Empty)
-                .Split(new[] { '.', ' ', '(' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(p => int.TryParse(p, out _))
-                .Select(int.Parse)
-                .ToArray();
-        }
-
-        var pa = Parts(a);
-        var pb = Parts(b);
-        var len = Math.Max(pa.Length, pb.Length);
-        for (var i = 0; i < len; i++)
-        {
-            var va = i < pa.Length ? pa[i] : 0;
-            var vb = i < pb.Length ? pb[i] : 0;
-            if (va != vb)
-                return va.CompareTo(vb);
-        }
-        return 0;
-    }
-
-    /// <summary>
-    /// Ищет исполняемый файл платформы в каталоге bin с учётом платформенного
-    /// расширения: <c>.exe</c> на Windows, без расширения на Linux.
-    /// </summary>
-    private static string? FindInBinDir(string binDir, string baseName)
-    {
-#if WINDOWS
-        var names = new[] { baseName + ".exe", baseName };
-#else
-        var names = new[] { baseName };
-#endif
-
-        foreach (var name in names)
-        {
-            var candidate = Path.Combine(binDir, name);
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        // Дополнительный регистронезависимый поиск в каталоге (например chdbfl на Linux).
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(binDir))
-            {
-                foreach (var name in names)
-                {
-                    if (Path.GetFileName(file).Equals(name, StringComparison.OrdinalIgnoreCase))
-                        return file;
-                }
-            }
-        }
-        catch
-        {
-            // Каталог может быть недоступен на чтение — просто возвращаем null.
-        }
-
-        return null;
-    }
-
     private bool Launch(string fileName, string arguments, string what, bool shellExecute = false)
     {
         try

@@ -58,6 +58,9 @@ public static class AppServices
         // для проверки целостности файловой ИБ и консоли администрирования серверов 1С
         // для клиент-серверных баз. Чистый сервис — без UI-зависимостей.
         services.AddSingleton<IInfobaseAdminService, InfobaseAdminService>();
+        // Встроенный монитор серверов 1С (цикл 0.3.9.123–0.3.9.126): клиент rac
+        // (Remote Administration Client) — чистый сервис без UI-зависимостей.
+        services.AddSingleton<IRacClient, RacClient>();
         // Индикатор «база сейчас запущена» и инспектор процессов: список процессов 1С
         // с командными строками и подробностями (PID, время старта, владелец).
         // Windows — WMI (Win32_Process), Linux — обход /proc; тип один, реализация

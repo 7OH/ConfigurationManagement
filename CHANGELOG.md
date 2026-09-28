@@ -9,6 +9,55 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.123] — 2026-09-28
+
+### Добавлено
+
+- **Встроенный монитор серверов 1С — этап 1: сервисный слой rac** (цикл 0.3.9.123–0.3.9.126,
+  замена внешней оснастки `1CV8Servers.msc` / запуска `rac` без параметров): чистый, тестируемый
+  слой работы с утилитой rac (Remote Administration Client) без UI — модели данных, парсер
+  текстового вывода и клиент запуска rac.
+  - **Модели** — [`Models/RacModels.cs`](Configuration%20Management/Models/RacModels.cs):
+    кластер (`RacCluster`), рабочий процесс (`RacProcessInfo`: PID, память в байтах, потоки, CPU,
+    признак запуска, число ИБ), сеанс (`RacSessionInfo`: пользователь, база, время старта/активности,
+    флаги блокировок, длительности, память/объёмы, состояние), соединение (`RacConnectionInfo`),
+    блокировка объекта (`RacLockInfo`) и информация о кластере (`RacClusterInfo`: словарь свойств +
+    типизированные частые поля). Набор полей зафиксирован по документированному на ИТС формату
+    вывода rac (на машине разработки установлена только клиентская часть платформы — rac из
+    серверной поставки недоступен, образцы зафиксированы в тестах).
+  - **Парсер** — [`Services/RacOutputParser.cs`](Configuration%20Management/Services/RacOutputParser.cs):
+    чистый статический (без I/O и UI). `ParseTable` (строки, поля через `\t`, пустые строки
+    пропускаются), `ParseInfo` («ключ: значение», ключ обрезается) и типизированные
+    `ToClusters/ToProcesses/ToSessions/ToConnections/ToLocks/ToClusterInfo` — позиционный маппинг
+    по колонкам; лишние колонки справа игнорируются; строки с меньшим числом полей или кривым
+    UUID пропускаются без исключения; даты — `DateTime.TryParse` с инвариантной культурой;
+    булевы поля — «0/1».
+  - **Клиент** — [`Services/IRacClient.cs`](Configuration%20Management/Services/IRacClient.cs) +
+    [`Services/RacClient.cs`](Configuration%20Management/Services/RacClient.cs): поиск `rac`
+    в каталоге `bin` платформы (единый helper
+    [`Services/OneCPlatformLocator.cs`](Configuration%20Management/Services/OneCPlatformLocator.cs) —
+    логика `FindInBinDir`/`ResolveBinDirectory` вынесена из
+    [`Services/InfobaseAdminService.cs`](Configuration%20Management/Services/InfobaseAdminService.cs)
+    и переиспользуется обоими сервисами без дублирования); запуск команд прямым процессом без shell
+    (`UseShellExecute=false`, `CreateNoWindow=true`, `ArgumentList`, stdout/stderr UTF-8 с
+    параллельным чтением), таймаут 30 с; методы `GetClustersAsync`/`GetClusterInfoAsync`/
+    `GetProcessesAsync`/`GetSessionsAsync`/`GetConnectionsAsync`/`GetLocksAsync`; сигнатуры
+    `TerminateSessionAsync`/`DisconnectConnectionAsync` заложены сразу (реализация — этап 3).
+    Параметры подключения [`RacConnectionParams`](Configuration%20Management/Services/IRacClient.cs)
+    (адрес, порт — по умолчанию 1540, логин, пароль): **пароль живёт только в памяти**, не
+    сохраняется на диск и не пишется в журнал (маскируется
+    [`Services/SensitiveDataMasker.cs`](Configuration%20Management/Services/SensitiveDataMasker.cs),
+    метод `MaskRacPassword`).
+  - **Регистрация DI** — [`AppServices.cs`](Configuration%20Management/AppServices.cs):
+    `services.AddSingleton<IRacClient, RacClient>();` в общем блоке для обеих платформ
+    (Windows/WPF + Linux/Avalonia).
+  - **Тесты** — [`ConfigurationManagement.Tests/RacOutputParserTests.cs`](ConfigurationManagement.Tests/RacOutputParserTests.cs):
+    `ParseTable`/`ParseInfo` и типизированные парсеры на образцах вывода (русские имена, пробелы
+    в значениях, пустые поля, лишние колонки), устойчивость к «кривым» строкам (меньше полей,
+    невалидные UUID, мусор); [`ConfigurationManagement.Tests/RacClientTests.cs`](ConfigurationManagement.Tests/RacClientTests.cs) —
+    сборка аргументов команд (порядок, `--cluster`, опускание пустых логина/пароля, значения
+    с пробелами одним токеном) и отсутствие пароля в журналируемой строке.
+
 ## [0.3.9.122] — 2026-09-28
 
 ### Добавлено

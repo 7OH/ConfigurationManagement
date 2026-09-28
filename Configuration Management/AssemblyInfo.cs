@@ -1,6 +1,14 @@
+using System.Runtime.CompilerServices;
+
 #if WINDOWS
 using System.Windows;
+#endif
 
+// Юнит-тесты парсера rac и сборки аргументов RacClient используют internal-члены
+// (RacClient.BuildArguments и SensitiveDataMasker).
+[assembly: InternalsVisibleTo("ConfigurationManagement.Tests")]
+
+#if WINDOWS
 [assembly: ThemeInfo(
     ResourceDictionaryLocation.None,            //where theme specific resource dictionaries are located
                                                 //(used if a resource is not found in the page,
