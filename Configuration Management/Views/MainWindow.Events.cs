@@ -728,21 +728,20 @@ namespace Configuration_Management
 
         // ======================= Пакетные операции (0.3.9.90) =======================
 
-        /// <summary>Назначить тег всем базам мультивыделения.</summary>
+        /// <summary>Назначить теги всем базам мультивыделения (issue #315).</summary>
         private void OnBatchAssignTag_Click(object sender, RoutedEventArgs e)
         {
             if (_viewModel is null || _viewModel.BatchSelectedCount == 0)
                 return;
-            var dlg = new NameInputWindow(
-                LocalizationManager.T("Main.BatchAssignTag"),
-                string.Format(LocalizationManager.T("Main.BatchTagPrompt"), _viewModel.BatchSelectedCount),
-                LocalizationManager.T("Common.Ok"))
+            var dlg = new TagPickWindow(_viewModel.AvailableTags)
             {
                 Owner = this
             };
-            if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.Result))
+            // Пустой выбор (ничего не отмечено и новый тег не добавлен)
+            // трактуется как отмена: назначение не выполняется.
+            if (dlg.ShowDialog() != true || dlg.Result.Count == 0)
                 return;
-            _viewModel.AssignTagToBatch(dlg.Result);
+            _viewModel.AssignTagsToBatch(dlg.Result);
             _viewModel.ClearBatchSelection();
         }
 

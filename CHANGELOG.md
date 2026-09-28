@@ -9,6 +9,27 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.116] — 2026-09-28
+
+### Добавлено
+
+- **Назначение тега для мультивыделения: выбор из списка существующих тегов с мультивыбором (#315)** —
+  вместо однострочного текстового поля окно «Назначить тег» теперь показывает список
+  существующих тегов с флажками (можно отметить сразу несколько), поле ввода нового
+  тега с кнопкой «Добавить» и счётчик «Выбрано: N». Результат применяется всем базам
+  набора: каждый отмеченный тег добавляется каждой базе регистронезависимо и без
+  дублей; пустой выбор (ничего не отмечено и новый тег не введён) трактуется как
+  отмена — назначение не выполняется.
+  Windows/WPF — [`Views/TagPickWindow.xaml`](Configuration%20Management/Views/TagPickWindow.xaml)
+  (+ code-behind [`Views/TagPickWindow.xaml.cs`](Configuration%20Management/Views/TagPickWindow.xaml.cs)),
+  источник тегов `MainViewModel.AvailableTags`, вызов `OnBatchAssignTag_Click`
+  ([`Views/MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs));
+  Linux/Avalonia — [`Views/TagPickWindow.Avalonia.cs`](Configuration%20Management/Views/TagPickWindow.Avalonia.cs)
+  (на `ModalWindowBase`), источник `TagFilterItems.Select(t => t.Name)`, вызов
+  `OnBatchAssignTagClick` ([`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs));
+  VM — `AssignTagsToBatch(IEnumerable<string>)` в `MainViewModel.BatchCommands.cs`
+  и `MainViewModel.Avalonia.BatchCommands.cs`; локализация ru/en (`TagPick.*`).
+
 ## [0.3.9.115] — 2026-09-28
 
 ### Исправлено

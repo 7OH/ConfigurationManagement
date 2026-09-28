@@ -1911,18 +1911,17 @@ namespace Configuration_Management
 
         // ======================= Пакетные операции (0.3.9.90) =======================
 
-        /// <summary>Назначить тег всем базам мультивыделения.</summary>
+        /// <summary>Назначить теги всем базам мультивыделения (issue #315).</summary>
         private void OnBatchAssignTagClick()
         {
             if (_vm is null || _vm.BatchSelectedCount == 0)
                 return;
-            var dlg = new NameInputWindow(
-                LocalizationManager.T("Main.BatchAssignTag"),
-                string.Format(LocalizationManager.T("Main.BatchTagPrompt"), _vm.BatchSelectedCount),
-                LocalizationManager.T("Common.Ok"));
-            if (!dlg.ShowDialogSync(this) || string.IsNullOrWhiteSpace(dlg.Result))
+            var dlg = new TagPickWindow(_vm.TagFilterItems.Select(t => t.Name));
+            // Пустой выбор (ничего не отмечено и новый тег не добавлен)
+            // трактуется как отмена: назначение не выполняется.
+            if (!dlg.ShowDialogSync(this) || dlg.Result.Count == 0)
                 return;
-            _vm.AssignTagToBatch(dlg.Result);
+            _vm.AssignTagsToBatch(dlg.Result);
             _vm.ClearBatchSelection();
         }
 

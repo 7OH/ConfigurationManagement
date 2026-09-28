@@ -46,6 +46,43 @@ public partial class MainViewModel
         RefreshTagFilterItems();
     }
 
+    /// <summary>
+    /// Назначает несколько тегов всем базам мультивыделения (issue #315).
+    /// Каждый тег добавляется каждой базе (регистронезависимо, без дублей);
+    /// пустые/дублирующиеся входные значения игнорируются.
+    /// </summary>
+    public void AssignTagsToBatch(IEnumerable<string> tags)
+    {
+        var list = tags?
+            .Select(t => t?.Trim() ?? string.Empty)
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (list is null || list.Count == 0)
+            return;
+        var bases = BatchSelectedInfobases.ToList();
+        if (bases.Count == 0)
+            return;
+
+        foreach (var ib in bases)
+        {
+            var changed = false;
+            foreach (var tag in list)
+            {
+                if (!ib.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
+                {
+                    ib.Tags.Add(tag);
+                    changed = true;
+                }
+            }
+            if (changed)
+                ib.NotifyTagsChanged();
+        }
+        ScheduleSave();
+        PruneActiveTagFilters();
+        RefreshTagFilterItems();
+    }
+
     /// <summary>Добавляет все базы мультивыделения в избранное (без снятия).</summary>
     public void AddBatchToFavorites()
     {
