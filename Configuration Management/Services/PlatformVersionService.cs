@@ -626,6 +626,40 @@ public static class PlatformVersionService
     }
 
     /// <summary>
+    /// Разбирает строку варианта «8.3.27.2214 (64)», отделяя необязательную разрядность.
+    /// В отличие от <see cref="ParseVariant"/> возвращает architecture == null, если разрядность
+    /// НЕ задана явно (варианты «8.3», «8.3.27»): ParseVariant по умолчанию считает их x32,
+    /// из-за чего такие версии «исчезали» из фильтра x64 и ломали поиск узла (issue #304).
+    /// Распознаются «(64)»/«(x64)» и «(32)»/«(x32)»/«(x86)».
+    /// </summary>
+    public static void ParseVariantOptionalArch(string variant, out string version, out string? architecture)
+    {
+        version = variant;
+        architecture = null;
+
+        if (string.IsNullOrWhiteSpace(variant))
+            return;
+
+        var end = variant.LastIndexOf(')');
+        var start = variant.LastIndexOf('(');
+        if (end < 0 || start < 0 || start > end)
+            return;
+
+        var arch = variant.Substring(start + 1, end - start - 1).Trim().ToLowerInvariant();
+        string? resolved = arch switch
+        {
+            "64" or "x64" => "64",
+            "32" or "x32" or "x86" => "32",
+            _ => null
+        };
+        if (resolved is null)
+            return;
+
+        version = variant.Substring(0, start).Trim();
+        architecture = resolved;
+    }
+
+    /// <summary>
     /// Линия платформы — первые два числа версии: «8.3.27.1688 (64)» → «8.3».
     /// Группировка по двум цифрам (issue #9): берём первые два числовых сегмента,
     /// чтобы даже нестандартный вариант (с нечисловым сегментом) попадал в свою линию.
@@ -725,6 +759,137 @@ public static class PlatformVersionService
         }
 
         return roots;
+    }
+
+    /// <summary>
+    /// Ищет узел дерева, соответствующий текущей версии. Полной версии (4+ частей) — точный
+    /// лист с учётом разрядности; частичной версии («8.5» / «8.5.1») — сама «папка»
+    /// (линия/группа сборок), а не максимальная сборка в ней (issue #251). Если выбранный узел
+    /// отфильтрован (например, при переключении фильтра разрядности), делается fallback на
+    /// доступный узел того же семейства: лист той же версии → группа сборок → линия, чтобы
+    /// выделение не «скакало» и результат диалога не терялся (issue #304).
+    /// </summary>
+    public static Models.PlatformVersionGroup? FindBestNode(
+        IEnumerable<Models.PlatformVersionGroup> nodes, string currentVersion)
+    {
+        if (string.IsNullOrWhiteSpace(currentVersion)) return null;
+
+        ParseVariantOptionalArch(currentVersion, out var version, out _);
+        var parts = version.Split('.', StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length >= 4)
+        {
+            // Полная версия — точный лист (версия + разрядность, #304).
+            var exact = FindExactLeaf(nodes, currentVersion);
+            if (exact is not null) return exact;
+
+            // Лист отфильтрован (другая разрядность) — лист той же версии любой разрядности.
+            var any = FindExactLeaf(nodes, version);
+            if (any is not null) return any;
+
+            // Либо папка группы сборок этой версии.
+            return FindBuildGroup(nodes, string.Join(".", parts.Take(3)));
+        }
+
+        var linePrefix = string.Join(".", parts.Take(2));
+        var line = FindLine(nodes, linePrefix);
+        if (line is null) return null;
+
+        if (parts.Length == 3)
+        {
+            // Группа сборок «8.5.1» → сама папка группы; если она отфильтрована (все её сборки
+            // другой разрядности) — fallback на линию (#304).
+            return FindBuildGroup(line, string.Join(".", parts.Take(3))) ?? line;
+        }
+
+        // Только линия «8.5» → сама папка линии.
+        return line;
+    }
+
+    /// <summary>Ищет узел линии с указанным префиксом («8.3»).</summary>
+    private static Models.PlatformVersionGroup? FindLine(
+        IEnumerable<Models.PlatformVersionGroup> nodes, string prefix)
+        => nodes.FirstOrDefault(n =>
+            !n.IsLeaf && string.Equals(n.Name, prefix, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Ищет группу сборок с указанным префиксом среди детей узла (линии).</summary>
+    private static Models.PlatformVersionGroup? FindBuildGroup(
+        Models.PlatformVersionGroup node, string prefix)
+        => node.Children.FirstOrDefault(n =>
+            !n.IsLeaf && string.Equals(n.Name, prefix, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Ищет узел группы сборок с указанным префиксом («8.3.27») среди переданных узлов.
+    /// </summary>
+    private static Models.PlatformVersionGroup? FindBuildGroup(
+        IEnumerable<Models.PlatformVersionGroup> nodes, string prefix)
+    {
+        foreach (var n in nodes)
+        {
+            if (!n.IsLeaf && string.Equals(n.Name, prefix, StringComparison.OrdinalIgnoreCase))
+                return n;
+            var found = FindBuildGroup(n.Children, prefix);
+            if (found is not null) return found;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Ищет лист, соответствующий строке версии (с учётом разрядности, см. <see cref="MatchesCurrent"/>).
+    /// </summary>
+    public static Models.PlatformVersionGroup? FindExactLeaf(
+        IEnumerable<Models.PlatformVersionGroup> nodes, string currentVersion)
+    {
+        foreach (var n in nodes)
+        {
+            if (n.IsLeaf && MatchesCurrent(n.Variant ?? n.Name, currentVersion))
+                return n;
+            var found = FindExactLeaf(n.Children, currentVersion);
+            if (found is not null) return found;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Совпадает ли вариант листа с искомой строкой версии. Версия сравнивается всегда,
+    /// а разрядность — только если она задана явно в искомой строке: «8.5.1 (32)» должен
+    /// соответствовать листу x32, а «8.5.1» — любому листу той же версии (issue #251/#304).
+    /// </summary>
+    public static bool MatchesCurrent(string variant, string currentVersion)
+    {
+        if (string.IsNullOrWhiteSpace(currentVersion)) return false;
+        if (string.Equals(variant?.Trim(), currentVersion.Trim(), StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        ParseVariantOptionalArch(variant ?? string.Empty, out var version, out var arch);
+        ParseVariantOptionalArch(currentVersion, out var cur, out var curArch);
+        if (!string.Equals(version.Trim(), cur.Trim(), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return curArch is null || string.Equals(arch, curArch, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Фильтрует установленные версии по разрядности. Варианты БЕЗ явного суффикса («8.3.27»,
+    /// частичная версия) показываются в обоих фильтрах: их разрядность неизвестна — ParseVariant
+    /// считает такие x32, но это лишь значение по умолчанию, иначе выбранная версия «исчезала»
+    /// из фильтра x64 и выделение «скакало» (issue #304, #251).
+    /// </summary>
+    public static List<Models.PlatformVersionInfo> FilterByArchitecture(
+        IEnumerable<Models.PlatformVersionInfo> infos, string filter)
+    {
+        if (filter == "all")
+            return infos.ToList();
+
+        return infos.Where(i =>
+        {
+            if (!HasExplicitArchitecture(i.Display))
+                return true;
+
+            ParseVariant(i.Display, out _, out var arch);
+            var label = FormatArchitectureLabel(arch);
+            return filter == "x64" ? label == "x64" : label == "x32";
+        }).ToList();
     }
 
     private static bool IsVersionDirectory(string name)

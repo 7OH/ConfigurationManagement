@@ -29,6 +29,7 @@ namespace Configuration_Management
         private string _currentVersion = string.Empty;
         private bool _sortAscending; // по умолчанию — свежие версии сверху
         private string _archFilter = "all";
+        private bool _isRestoringSelection; // перестроение дерева: гасим SelectionChanged(null) (#304)
 
         // Целевой узел для первичного выделения текущей версии (и его предки).
         private PlatformVersionGroup? _initialLeaf;
@@ -199,8 +200,11 @@ namespace Configuration_Management
                     _currentVersion = _selectedVersion;
                     _selectButton.IsEnabled = !string.IsNullOrWhiteSpace(_selectedVersion);
                 }
-                else
+                else if (!_isRestoringSelection)
                 {
+                    // Реальный сброс выбора пользователем — очищаем результат. Во время же
+                    // перестроения дерева (RefreshTree) сюда приходит null из-за удаления
+                    // старого узла из Items: выбор будет восстановлен отдельно (issue #304).
                     _selectedVersion = string.Empty;
                     _selectButton.IsEnabled = false;
                 }
@@ -309,33 +313,25 @@ namespace Configuration_Management
 
         private void RefreshTree()
         {
-
-            var filtered = FilterByArchitecture(_allInfos, _archFilter);
+            var filtered = PlatformVersionService.FilterByArchitecture(_allInfos, _archFilter);
             var tree = PlatformVersionService.BuildGroupedTree(filtered);
             if (_sortAscending)
                 tree = ReverseTreeOrder(tree);
 
-            _tree.ItemsSource = tree;
-
-            if (!string.IsNullOrWhiteSpace(_currentVersion))
-                SelectCurrent(tree);
-        }
-
-        private static List<PlatformVersionInfo> FilterByArchitecture(IEnumerable<PlatformVersionInfo> infos, string filter)
-        {
-            if (filter == "all")
-                return infos.ToList();
-
-            return infos.Where(i =>
+            // При замене ItemsSource SelectionChanged приходит с null (старый узел удалён):
+            // гасим событие, чтобы не сбрасывать _selectedVersion до восстановления выбора (#304).
+            _isRestoringSelection = true;
+            try
             {
-                PlatformVersionService.ParseVariant(i.Display, out _, out var arch);
-                var label = PlatformVersionService.FormatArchitectureLabel(arch);
-                if (filter == "x64")
-                    return label == "x64" || string.IsNullOrEmpty(label);
-                if (filter == "x32")
-                    return label == "x32";
-                return true;
-            }).ToList();
+                _tree.ItemsSource = tree;
+
+                if (!string.IsNullOrWhiteSpace(_currentVersion))
+                    SelectCurrent(tree);
+            }
+            finally
+            {
+                _isRestoringSelection = false;
+            }
         }
 
         private static List<PlatformVersionGroup> ReverseTreeOrder(List<PlatformVersionGroup> roots)
@@ -356,7 +352,7 @@ namespace Configuration_Management
 
         private void SelectCurrent(IEnumerable<PlatformVersionGroup> roots)
         {
-            var node = FindBestNode(roots, _currentVersion);
+            var node = PlatformVersionService.FindBestNode(roots, _currentVersion);
             if (node is null) return;
             node.IsCurrent = true;
 
@@ -386,94 +382,6 @@ namespace Configuration_Management
                 }
             }
             return false;
-        }
-
-        private static PlatformVersionGroup? FindBestNode(IEnumerable<PlatformVersionGroup> nodes, string currentVersion)
-        {
-            if (string.IsNullOrWhiteSpace(currentVersion)) return null;
-
-            ParseVersionAndArch(currentVersion, out var version, out _);
-            var parts = version.Split('.', StringSplitOptions.RemoveEmptyEntries);
-
-            if (parts.Length >= 4)
-                return FindExactLeaf(nodes, currentVersion);
-
-            var linePrefix = string.Join(".", parts.Take(2));
-            var line = nodes.FirstOrDefault(n =>
-                !n.IsLeaf && string.Equals(n.Name, linePrefix, StringComparison.OrdinalIgnoreCase));
-            if (line is null) return null;
-
-            if (parts.Length == 3)
-            {
-                // группа сборок «8.3.27» → сама папка группы, а не максимальная сборка в ней
-                var buildPrefix = string.Join(".", parts.Take(3));
-                return line.Children.FirstOrDefault(n =>
-                    !n.IsLeaf && string.Equals(n.Name, buildPrefix, StringComparison.OrdinalIgnoreCase));
-            }
-
-            // только линия «8.3» → сама папка линии
-            return line;
-        }
-
-        private static PlatformVersionGroup? FirstLeaf(IEnumerable<PlatformVersionGroup> nodes, string? arch)
-        {
-            foreach (var n in nodes)
-            {
-                if (n.IsLeaf)
-                {
-                    if (arch is null || MatchesArch(n.Variant, arch))
-                        return n;
-                    continue;
-                }
-                var found = FirstLeaf(n.Children, arch);
-                if (found is not null) return found;
-            }
-            return null;
-        }
-
-        private static PlatformVersionGroup? FindExactLeaf(IEnumerable<PlatformVersionGroup> nodes, string currentVersion)
-        {
-            foreach (var n in nodes)
-            {
-                if (n.IsLeaf && MatchesCurrent(n.Variant ?? n.Name, currentVersion))
-                    return n;
-                var found = FindExactLeaf(n.Children, currentVersion);
-                if (found is not null) return found;
-            }
-            return null;
-        }
-
-        private static bool MatchesCurrent(string variant, string currentVersion)
-        {
-            if (string.IsNullOrWhiteSpace(currentVersion)) return false;
-            PlatformVersionService.ParseVariant(variant, out var version, out _);
-            PlatformVersionService.ParseVariant(currentVersion, out var cur, out _);
-            if (string.Equals(version.Trim(), cur.Trim(), StringComparison.OrdinalIgnoreCase))
-                return true;
-            return string.Equals(variant.Trim(), currentVersion.Trim(), StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool MatchesArch(string? variant, string arch)
-        {
-            PlatformVersionService.ParseVariant(variant ?? string.Empty, out _, out var a);
-            return string.Equals(a, arch, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static void ParseVersionAndArch(string variant, out string version, out string? arch)
-        {
-            version = variant.Trim();
-            arch = null;
-            var end = variant.LastIndexOf(')');
-            var start = variant.LastIndexOf('(');
-            if (end >= 0 && start >= 0 && start < end)
-            {
-                var a = variant.Substring(start + 1, end - start - 1).Trim();
-                if (a == "64" || a == "32")
-                {
-                    arch = a;
-                    version = variant.Substring(0, start).Trim();
-                }
-            }
         }
 
         /// <summary>
@@ -509,22 +417,6 @@ namespace Configuration_Management
             // как её обычно показывает родной стартер и колонка списка («8.3.27»).
             // Разрядность в этом случае разрешается при запуске (сессия / приоритет базы).
             return null;
-        }
-
-        /// <summary>Перечисляет разрядность всех листьев поддерева.</summary>
-        private static IEnumerable<string> EnumerateLeafArch(PlatformVersionGroup node)
-        {
-            if (node.IsLeaf)
-            {
-                PlatformVersionService.ParseVariant(node.Variant ?? node.Name ?? string.Empty, out _, out var arch);
-                yield return arch;
-                yield break;
-            }
-            foreach (var c in node.Children)
-            {
-                foreach (var a in EnumerateLeafArch(c))
-                    yield return a;
-            }
         }
 
         /// <summary>

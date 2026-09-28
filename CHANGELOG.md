@@ -9,6 +9,33 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.110] — 2026-09-28
+
+### Исправлено
+
+- **Выбор версии платформы не сбрасывается при переключении фильтра разрядности (#304)** —
+  завершено исправление 0.3.9.101: выбранная «8.5.1» (лист или группа сборок) больше не
+  «скачет» на линию и не теряется при переключении фильтра x32/x64/«Все» и сортировке
+  A→Z/Z→A. Устранены все четыре причины регресса:
+  1. вариант БЕЗ явного суффикса разрядности («8.5.1») снова показывается в обоих фильтрах —
+     `ParseVariant` считал такой вариант x32, и он «исчезал» из фильтра x64;
+  2. поиск точного листа теперь учитывает разрядность: лист x32 и лист x64 одной версии
+     различимы, при двух сборках выбирается правильный;
+  3. если выбранный узел отфильтрован, выделение осмысленно переходит на доступный узел
+     того же семейства (лист той же версии → группа сборок → линия), результат диалога
+     не теряется;
+  4. WPF: `SelectionChanged(null)` во время перестроения дерева больше не сбрасывает
+     выбранную версию до восстановления выбора.
+  Логика поиска узла вынесена в чистый helper
+  [`Services/PlatformVersionService.cs`](Configuration%20Management/Services/PlatformVersionService.cs)
+  (`FindBestNode`/`FindExactLeaf`/`MatchesCurrent`/`FilterByArchitecture`) и покрыта
+  юнит-тестами
+  ([`ConfigurationManagement.Tests/PlatformVersionPickerTests.cs`](ConfigurationManagement.Tests/PlatformVersionPickerTests.cs)).
+  Windows/WPF — [`Views/PlatformVersionPickerWindow.xaml.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.xaml.cs),
+  Linux/Avalonia — [`Views/PlatformVersionPickerWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.Avalonia.cs).
+  Поведение #251 сохранено: для папки в режиме «Все» результат без суффикса разрядности,
+  при активном фильтре x64 — «8.5.1 (64)»; выбор листа и папки (#142) работает как раньше.
+
 ## [0.3.9.109] — 2026-09-28
 
 ### Добавлено
