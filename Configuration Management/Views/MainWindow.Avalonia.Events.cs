@@ -1,8 +1,10 @@
 #if LINUX
 using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.Utilities;
 using Configuration_Management.Models;
 using Configuration_Management.ViewModels;
 
@@ -50,10 +52,37 @@ namespace Configuration_Management
             _vm?.ApplyListZoom();
             _tree.AddHandler(Avalonia.Input.InputElement.PointerWheelChangedEvent, (_, e) =>
             {
-                if (_vm is null || !e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control))
+                if (_vm is null)
                     return;
-                _vm.ZoomListBy(e.Delta.Y > 0 ? 0.1 : -0.1);
-                e.Handled = true;
+                // Ctrl+колесо — масштаб строк списка (issue #303), как в редакторах.
+                if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control))
+                {
+                    _vm.ZoomListBy(e.Delta.Y > 0 ? 0.1 : -0.1);
+                    e.Handled = true;
+                    return;
+                }
+                // Shift+колесо — горизонтальная прокрутка списка (issue #309): её ведёт
+                // внешний ScrollViewer (listArea), общий с заголовком колонок. Обработчик
+                // идёт туннелем раньше штатного скроллера дерева, чтобы тот не «уводил»
+                // Offset.X — содержимое дерева двигает внешний контейнер (AttachVerticalScrollBar).
+                if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift))
+                {
+                    var delta = e.Delta;
+                    if (MathUtilities.IsZero(delta.X))
+                        delta = new Vector(delta.Y, delta.X);
+                    if (_listScroll is { } horizontal)
+                    {
+                        var hidden = Math.Max(0, horizontal.Extent.Width - horizontal.Viewport.Width);
+                        var next = horizontal.Offset.WithX(
+                            Math.Clamp(horizontal.Offset.X - delta.X * WheelScrollStep, 0, hidden));
+                        if (next != horizontal.Offset)
+                        {
+                            horizontal.Offset = next;
+                            e.Handled = true;
+                        }
+                    }
+                    return;
+                }
             }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
             if (_vm is not null)
             {

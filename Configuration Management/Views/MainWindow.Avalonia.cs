@@ -1203,10 +1203,12 @@ namespace Configuration_Management
             // а не только за верхней панелью (иначе стекло выглядело бы пятнами).
             ThemeBrushes.Observe(_tree, "ContentBackgroundColorBrush",
                 brush => _tree.Background = ThemeBrushes.WithAlpha(brush, GlassBackgroundAlpha));
-            // Горизонтальная прокрутка отключена: иначе строка растягивается
-            // по сумме ширин колонок и уезжает за правый край, а заголовки,
-            // живущие вне области прокрутки, перестают совпадать со значениями.
-            ScrollViewer.SetHorizontalScrollBarVisibility(_tree, ScrollBarVisibility.Disabled);
+            // Внутренняя горизонтальная полоса дерева скрыта, но контенту разрешено
+            // быть шире области (Hidden, а не Disabled): строки растягиваются по сумме
+            // ширин колонок, а горизонтальную прокрутку ведёт внешний ScrollViewer
+            // (listArea ниже), общий с заголовком — иначе шапка разъезжалась бы
+            // со значениями (issue #309).
+            ScrollViewer.SetHorizontalScrollBarVisibility(_tree, ScrollBarVisibility.Hidden);
             // Внутренняя прокрутка появляется только вместе с шаблоном, а он
             // применяется заново при каждой пересборке окна компактным режимом.
             _tree.TemplateApplied += (_, _) => AttachVerticalScrollBar();

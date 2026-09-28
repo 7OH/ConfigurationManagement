@@ -37,9 +37,6 @@ namespace Configuration_Management
         private ScrollContentPresenter? _treeScrollContentPresenter;
         private bool _treeScrollHookAttached;
 
-        // Guard от рекурсии при принудительном сбросе горизонтали дерева (issue #255).
-        private bool _resettingTreeHScroll;
-
         /// <summary>Позиция вертикальной прокрутки, запомненная до пересборки дерева (issue #252).</summary>
         private double _treeScrollOffset;
 
@@ -252,17 +249,11 @@ namespace Configuration_Management
             if (DbHeaderScroll is null)
                 return;
 
-            // Горизонтальная прокрутка дерева не используется (её ведёт внешний заголовок),
-            // но при пиксельной виртуализации на старте дерево может получить ненулевую
-            // горизонталь — из-за неё появляется «необоснованный» горизонтальный скролл
-            // (issue #255). Принудительно держим горизонталь дерева на нуле.
-            if (!_resettingTreeHScroll && Math.Abs(e.HorizontalOffset) > 0.01)
-            {
-                _resettingTreeHScroll = true;
-                try { ((ScrollViewer)sender).ScrollToHorizontalOffset(0); }
-                finally { _resettingTreeHScroll = false; }
-            }
-
+            // Горизонтальная прокрутка дерева (issue #309): её ведёт сам список (полоса Auto),
+            // а заголовок синхронно прокручивается следом, чтобы колонки шапки совпадали
+            // со значениями строк. Принудительного сброса горизонтали больше нет: раньше
+            // (issue #255) он гасил ложный скролл при Disabled, теперь полоса появляется
+            // ровно когда сумма ширин колонок превышает ширину области (UpdateTreeMinWidth).
             if (Math.Abs(DbHeaderScroll.HorizontalOffset - e.HorizontalOffset) > 0.01)
                 DbHeaderScroll.ScrollToHorizontalOffset(e.HorizontalOffset);
 

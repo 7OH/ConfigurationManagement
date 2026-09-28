@@ -1231,8 +1231,12 @@
                             </Border>
                         </ScrollViewer>
 
-                    <!-- Прокручиваемая область списка баз. Прокручивается только по вертикали,
-                         заголовок таблицы выше остаётся на месте. -->
+                    <!-- Прокручиваемая область списка баз. Прокручивается по вертикали и
+                         по горизонтали (полоса у дерева, заголовок синхронизируется через
+                         OnTreeScroll_ScrollChanged), сам заголовок при вертикальной прокрутке
+                         остаётся на месте. Полоса появляется ровно тогда, когда сумма ширин
+                         колонок превышает ширину области (минимум контента задаёт
+                         UpdateTreeMinWidth). -->
                     <!-- Список баз в виде дерева «группа в группе» -->
                     <controls:LeveledTreeView x:Name="MainTree"
                               Grid.Row="1"
@@ -1248,7 +1252,7 @@
                               Padding="0"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                               ScrollViewer.CanContentScroll="True"
                               VirtualizingPanel.IsVirtualizing="True"

@@ -49,8 +49,13 @@ namespace Configuration_Management
             // рисуется у правого края содержимого дерева, а когда колонки шире окна
             // и включается горизонтальная прокрутка, оказывается поверх строк списка,
             // а не у правого края области. Полоса прячется, прокрутка остаётся.
+            // Горизонталь тоже скрываем, но НЕ отключаем (Hidden, не Disabled):
+            // контенту нужно разрешение быть шире области, чтобы внешний общий
+            // ScrollViewer (listArea) получил горизонтальный extent и показал полосу
+            // (issue #309). Сам внутренний скроллер по X не прокручивает — его
+            // содержимое двигает внешний контейнер, поэтому Offset.X держится на нуле.
             ScrollViewer.SetVerticalScrollBarVisibility(scroll, ScrollBarVisibility.Hidden);
-            ScrollViewer.SetHorizontalScrollBarVisibility(scroll, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetHorizontalScrollBarVisibility(scroll, ScrollBarVisibility.Hidden);
 
             foreach (var link in _scrollBarLinks)
                 link.Dispose();
