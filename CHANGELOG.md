@@ -9,6 +9,36 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.121] — 2026-09-28
+
+### Исправлено
+
+- **Читаемость надписей окон «Сравнение конфигураций» во всех схемах (#316)** —
+  после 0.3.9.117 автор issue подтвердил, что часть надписей по-прежнему не читается.
+  Устранены оставшиеся нечитаемые места на обеих платформах:
+  - **Радио-кнопки режима сравнения** — Windows/WPF:
+    [`Views/ConfigDiffSetupWindow.xaml`](Configuration%20Management/Views/ConfigDiffSetupWindow.xaml)
+    (стиль `TargetType="RadioButton"` → `Foreground="{DynamicResource TextPrimaryBrush}"`,
+    в светлой схеме без явного стиля текст наследовал системный цвет);
+    Linux/Avalonia:
+    [`Views/ConfigDiffSetupWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffSetupWindow.Avalonia.cs)
+    (`ThemeBrushes.Bind(_modeBaseRadio/_modeCfRadio, ..., "TextPrimaryBrush")`).
+  - **Комбобоксы** — текст выбранного элемента и выпадающего списка
+    (`BasesBox`/`PlatformBox`) привязан к теме на обеих платформах; WPF использует
+    штатные `ModernComboBox`/`ModernComboBoxItem` (`TextPrimaryBrush`), Avalonia —
+    `ThemeBrushes.Bind` на сам `ComboBox` и `ItemTemplate`.
+  - **Статусы объектов в отчёте** — жёсткие цвета заменены на более тёмные оттенки,
+    читаемые и на светлой, и на тёмной схеме: «Добавлен» `#16A34A`, «Изменён»
+    `#D97706`, «Удалён» `#DC2626`, «Без изменений» `#64748B`. Синхронно на обеих
+    платформах: [`Views/ConfigDiffResultWindow.xaml`](Configuration%20Management/Views/ConfigDiffResultWindow.xaml)
+    (`StatusTextStyle`) и [`Views/ConfigDiffResultWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffResultWindow.Avalonia.cs)
+    (`StatusBrush`).
+  - **Имена объектов в дереве отчёта** — явный `Foreground="{DynamicResource TextPrimaryBrush}"`
+    у `TextBlock` уровней «тип» и «объект», чтобы текст не зависел от контекста
+    DataTemplate.
+  - Окна прогресса уже были привязаны к теме (0.3.9.117) — текст этапа и полоса
+    читаемы в обеих схемах, правок не потребовалось.
+
 ## [0.3.9.120] — 2026-09-28
 
 ### Исправлено

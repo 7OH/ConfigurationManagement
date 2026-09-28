@@ -19,6 +19,12 @@
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
+        <!-- Надписи радио-кнопок режима тоже берут цвет из темы: в светлой схеме без
+             явного стиля они наследуют системный Foreground и могут сливаться с фоном
+             (issue #316). -->
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
         <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}"/>
         <Style TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}"/>
         <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>

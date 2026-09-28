@@ -174,12 +174,15 @@ namespace Configuration_Management
             return grid;
         }
 
+        // Тёмные оттенки Tailwind-600 читаются и на светлой, и на тёмной схеме:
+        // прежние (#22C55E/#F59E0B/#EF4444/#94A3B8) на светлом фоне сливались
+        // с подложкой (issue #316). Значения синхронны с WPF StatusTextStyle.
         private static IBrush StatusBrush(DiffChangeKind kind) => kind switch
         {
-            DiffChangeKind.Added => new SolidColorBrush(Color.Parse("#22C55E")),
-            DiffChangeKind.Changed => new SolidColorBrush(Color.Parse("#F59E0B")),
-            DiffChangeKind.Removed => new SolidColorBrush(Color.Parse("#EF4444")),
-            _ => new SolidColorBrush(Color.Parse("#94A3B8"))
+            DiffChangeKind.Added => new SolidColorBrush(Color.Parse("#16A34A")),
+            DiffChangeKind.Changed => new SolidColorBrush(Color.Parse("#D97706")),
+            DiffChangeKind.Removed => new SolidColorBrush(Color.Parse("#DC2626")),
+            _ => new SolidColorBrush(Color.Parse("#64748B"))
         };
 
         private void ExportCsv()

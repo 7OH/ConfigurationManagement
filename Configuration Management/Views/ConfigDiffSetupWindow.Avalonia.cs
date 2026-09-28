@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -85,6 +86,11 @@ namespace Configuration_Management
             _modeCfRadio.Content = LocalizationManager.T("ConfigDiff.ModeCfVsCf");
             _modeBaseRadio.IsCheckedChanged += (_, _) => UpdateMode();
             _modeCfRadio.IsCheckedChanged += (_, _) => UpdateMode();
+            // Надписи радио-кнопок берут цвет из темы: без привязки в светлой схеме
+            // FluentTheme может оставить тёмный текст, плохо читаемый на подложке
+            // окна (issue #316). Синхронно со стилем RadioButton WPF-версии.
+            ThemeBrushes.Bind(_modeBaseRadio, TemplatedControl.ForegroundProperty, "TextPrimaryBrush");
+            ThemeBrushes.Bind(_modeCfRadio, TemplatedControl.ForegroundProperty, "TextPrimaryBrush");
             root.Children.Add(_modeBaseRadio);
             root.Children.Add(_modeCfRadio);
 
@@ -99,6 +105,8 @@ namespace Configuration_Management
                 ThemeBrushes.Bind(tb, TextBlock.ForegroundProperty, "TextPrimaryBrush");
                 return tb;
             });
+            // Текст выбранного элемента в закрытом списке — тоже из темы (issue #316).
+            ThemeBrushes.Bind(_basesBox, TemplatedControl.ForegroundProperty, "TextPrimaryBrush");
             foreach (var ib in _infobases)
                 _basesBox.Items.Add(ib);
             if (selectedBase is not null && _infobases.Contains(selectedBase))
@@ -128,6 +136,8 @@ namespace Configuration_Management
             ThemeBrushes.Bind(platformLabel, TextBlock.ForegroundProperty, "TextPrimaryBrush");
             root.Children.Add(platformLabel);
             _platformBox.IsEditable = true;
+            // Редактируемый текст платформы и её выпадающий список — из темы (issue #316).
+            ThemeBrushes.Bind(_platformBox, TemplatedControl.ForegroundProperty, "TextPrimaryBrush");
             root.Children.Add(_platformBox);
             _platformHint.FontSize = 11;
             _platformHint.TextWrapping = TextWrapping.Wrap;

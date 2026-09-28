@@ -22,18 +22,21 @@
         </Style>
         <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
 
-        <!-- Статус объекта: «Добавлен» зелёный, «Изменён» янтарный, «Удалён» красный -->
+        <!-- Статус объекта: «Добавлен» зелёный, «Изменён» янтарный, «Удалён» красный.
+             Тёмные оттенки Tailwind-600 читаются и на светлой, и на тёмной схеме:
+             прежние (#22C55E/#F59E0B/#EF4444) на белом фоне сливались с подложкой
+             (issue #316). -->
         <Style x:Key="StatusTextStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:DiffChangeKind.Added}">
-                    <Setter Property="Foreground" Value="#22C55E"/>
+                    <Setter Property="Foreground" Value="#16A34A"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:DiffChangeKind.Changed}">
-                    <Setter Property="Foreground" Value="#F59E0B"/>
+                    <Setter Property="Foreground" Value="#D97706"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:DiffChangeKind.Removed}">
-                    <Setter Property="Foreground" Value="#EF4444"/>
+                    <Setter Property="Foreground" Value="#DC2626"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -87,7 +90,8 @@
                             <ColumnDefinition Width="70"/>
                             <ColumnDefinition Width="90"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
                         <TextBlock Grid.Column="1" Text="{Binding Count}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextSecondaryBrush}" TextAlignment="Right"/>
                     </Grid>
@@ -101,7 +105,8 @@
                             <ColumnDefinition Width="70"/>
                             <ColumnDefinition Width="90"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
                         <TextBlock Grid.Column="1" Text="{Binding StatusText}"
                                    Style="{StaticResource StatusTextStyle}" TextAlignment="Right"/>
                         <TextBlock Grid.Column="2" Text="{Binding FileCount}" TextAlignment="Right"
