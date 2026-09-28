@@ -2137,6 +2137,18 @@
                                 <ContentControl Content="{Binding Base}"
                                                 ContentTemplate="{StaticResource InfobaseRowTemplate}"/>
                             </DataTemplate>
+
+                            <!-- Автовыбор для обычных строк базы (регресс 0.3.9.115, issue #317):
+                                 WPF НЕ применяет шаблон по DataType, если задан x:Key. Шаблон
+                                 x:Key="InfobaseRowTemplate" выше остаётся доступным по ключу для
+                                 строки «Закреплённые»; этот безымянный шаблон возвращает авто-выбор
+                                 обычным строкам Infobase во всех узлах (группы, «Без группы»,
+                                 плоский режим), подставляя тот же InfobaseRowTemplate через
+                                 ContentControl (DataContext внутри шаблона = сама база). -->
+                            <DataTemplate DataType="{x:Type models:Infobase}">
+                                <ContentControl Content="{Binding}"
+                                                ContentTemplate="{StaticResource InfobaseRowTemplate}"/>
+                            </DataTemplate>
                         </controls:LeveledTreeView.Resources>
 
                         <controls:LeveledTreeView.ItemContainerStyle>
