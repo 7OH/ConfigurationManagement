@@ -1558,21 +1558,34 @@ public string HotkeyEnterprise
             cmd.Execute(null);
     }
 
-    // ======================= Дублирование файловой ИБ =======================
+    // ====================== Дублирование ИБ (файловой и серверной) ======================
 
     private ICommand? _cloneInfobaseCommand;
 
-    /// <summary>Команда «Дублировать базу» (только для файловых ИБ).</summary>
+    /// <summary>
+    /// Команда «Дублировать базу»: файловая ИБ — копия каталога (0.3.9.83);
+    /// клиент-серверная ИБ — клон на сервере через DumpIB/DumpCfg → CREATEINFOBASE
+    /// → RestoreIB (0.3.9.100, функция №10). Для запущенной базы запрещено.
+    /// </summary>
     public ICommand CloneInfobaseCommand =>
         _cloneInfobaseCommand ??= new RelayCommand(
             _ => ExecuteCloneInfobase(),
-            _ => SelectedInfobase?.Connection?.Type == ConnectionType.File);
+            _ => SelectedInfobase?.Connection?.Type is ConnectionType.File or ConnectionType.ClientServer);
 
-    /// <summary>Клонирует файловую базу: копия каталога + новая запись списка.</summary>
+    /// <summary>Клонирует выбранную базу: файловая — копия каталога, серверная — клон на сервере.</summary>
     private async void ExecuteCloneInfobase()
     {
         var source = SelectedInfobase;
-        if (source?.Connection is not { Type: ConnectionType.File })
+        if (source?.Connection is null)
+            return;
+
+        if (source.Connection.Type == ConnectionType.ClientServer)
+        {
+            await ExecuteCloneServerInfobaseAsync(source);
+            return;
+        }
+
+        if (source.Connection.Type != ConnectionType.File)
             return;
 
         var sourceDir = source.Connection.FilePath ?? "";
@@ -1651,6 +1664,76 @@ public string HotkeyEnterprise
         RefreshRunningFlags();
         _logger.Info($"[clone] «{source.Name}» → «{newName}» ({targetDir})");
         _dialogs.ShowInfo(string.Format(LocalizationManager.T("Clone.Done"), newName, targetDir), LocalizationManager.T("Clone.Title"));
+    }
+
+    /// <summary>
+    /// Клонирует клиент-серверную базу (0.3.9.100, функция №10): диалог параметров
+    /// (имя, сервер/Ref, СУБД, режим) → окно прогресса → <see cref="ServerCloneService"/>
+    /// → новая запись списка рядом с источником + экспорт в ibases.v8i.
+    /// </summary>
+    private async Task ExecuteCloneServerInfobaseAsync(Infobase source)
+    {
+        // Запрет для запущенной базы (как у файлового клона).
+        if (source.IsRunning)
+        {
+            _dialogs.ShowWarning(
+                string.Format(LocalizationManager.T("Clone.SourceRunning"), source.Name),
+                LocalizationManager.T("Clone.Title"));
+            RefreshRunningFlags();
+            return;
+        }
+
+        // Локально известные Ref на том же сервере — для уникализации имени базы клона.
+        var existingRefNames = Infobases
+            .Where(ib => ib.Connection?.Type == ConnectionType.ClientServer &&
+                         string.Equals(ib.Connection.Server, source.Connection.Server, StringComparison.OrdinalIgnoreCase))
+            .Select(ib => ib.Connection.DatabaseName)
+            .ToList();
+
+        var dialog = new CloneServerInfobaseWindow(source, Groups, existingRefNames)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        if (dialog.ShowDialog() != true || dialog.Request is null || dialog.ResultConnection is null)
+            return;
+
+        var request = dialog.Request;
+        var clone = JsonSerializer.Deserialize<Infobase>(JsonSerializer.Serialize(source))!;
+        clone.Id = Guid.NewGuid().ToString("N");
+        clone.Name = request.CloneName;
+        clone.Group = request.GroupPath;
+        clone.Connection = dialog.ResultConnection;
+        // Авторизации записи наследуются от источника (удобство запуска; пользователи
+        // 1С в самой ИБ после RestoreIB пусты — стандартное поведение платформы).
+        clone.Connection.User = source.Connection.User;
+        clone.Connection.Password = source.Connection.Password;
+        clone.Connection.AuthenticationMode = source.Connection.AuthenticationMode;
+        clone.IsFavorite = false;
+        clone.IsPinned = false;
+        clone.IsSelected = false;
+        clone.FavoriteHotkeyNumber = 0;
+        clone.LastLaunchDate = null;
+        clone.LaunchHistory = new List<LaunchHistoryEntry>();
+        clone.FileSizeBytes = null;
+        clone.FileLastWriteTimeUtc = null;
+
+        var index = Infobases.IndexOf(source);
+        if (index >= 0)
+            Infobases.Insert(index + 1, clone);
+        else
+            Infobases.Add(clone);
+
+        Save();
+        RebuildGroupTree();
+        ExportToIbasesAfterLocalChange();
+        SelectedInfobase = clone;
+        RefreshRunningFlags();
+        _logger.Info($"[clone] серверная ИБ «{source.Name}» → «{request.CloneName}» ({request.Server}\\{request.DatabaseName})");
+        _dialogs.ShowInfo(
+            string.Format(
+                LocalizationManager.T("CloneServer.DoneFormat"),
+                request.CloneName, request.Server, request.DatabaseName),
+            LocalizationManager.T("CloneServer.Title"));
     }
 
     /// <summary>

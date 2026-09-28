@@ -1,0 +1,143 @@
+<Window x:Class="Configuration_Management.CloneServerInfobaseWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Title="{loc:Loc CloneServer.Title}"
+        Icon="{StaticResource AppIcon}"
+        Width="620" Height="640" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        MaxHeight="800"
+        FontFamily="Segoe UI" FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*" MinHeight="200"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=Title}"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      Padding="0,0,4,0">
+        <StackPanel>
+            <!-- Режим копирования: полная копия (данные + конфигурация) по умолчанию
+                 или только конфигурация (без данных). -->
+            <TextBlock Text="{loc:Loc CloneServer.ModeLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <StackPanel Margin="0,0,0,12">
+                <RadioButton x:Name="ModeFullRadio" GroupName="CloneMode" IsChecked="True" Margin="0,0,0,4"
+                             Checked="OnModeChanged" Foreground="{DynamicResource TextPrimaryBrush}"
+                             Content="{loc:Loc CloneServer.ModeFull}"/>
+                <RadioButton x:Name="ModeConfigRadio" GroupName="CloneMode" Margin="0,0,0,4"
+                             Checked="OnModeChanged" Foreground="{DynamicResource TextPrimaryBrush}"
+                             Content="{loc:Loc CloneServer.ModeConfig}"/>
+            </StackPanel>
+
+            <TextBlock Text="{loc:Loc Clone.NamePrompt}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="NameBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,12"/>
+
+            <TextBlock Text="{loc:Loc CreateInfobase.ServerLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="ServerBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,12"/>
+            <TextBlock Text="{loc:Loc CreateInfobase.RefLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="RefBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,12"/>
+            <TextBlock Text="{loc:Loc CreateInfobase.DbmsLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <ComboBox x:Name="DbmsBox" IsEditable="True" Margin="0,0,0,12">
+                <ComboBoxItem Content="MSSQLServer"/>
+                <ComboBoxItem Content="PostgreSQL"/>
+                <ComboBoxItem Content="IBMDB2"/>
+                <ComboBoxItem Content="OracleDatabase"/>
+                <ComboBoxItem Content="SQLite"/>
+            </ComboBox>
+            <TextBlock Text="{loc:Loc CreateInfobase.DbServerLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="DbServerBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,12"/>
+            <TextBlock Text="{loc:Loc CreateInfobase.DbNameLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="DbNameBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,12"/>
+            <TextBlock Text="{loc:Loc CreateInfobase.DbUserLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="DbUserBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,12"/>
+            <TextBlock Text="{loc:Loc CreateInfobase.DbPasswordLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <PasswordBox x:Name="DbPwdBox" Margin="0,0,0,12" Padding="6,4"/>
+            <CheckBox x:Name="CreateDbCheck" Margin="0,0,0,8" IsChecked="True"
+                      Content="{loc:Loc CreateInfobase.CreateDatabase}"
+                      Foreground="{DynamicResource TextPrimaryBrush}"/>
+            <CheckBox x:Name="BlockJobsCheck" Margin="0,0,0,12"
+                      Content="{loc:Loc CreateInfobase.BlockScheduledJobs}"
+                      Foreground="{DynamicResource TextPrimaryBrush}"/>
+
+            <TextBlock Text="{loc:Loc CreateInfobase.PlatformVersionLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="PlatformBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,12" IsReadOnly="True"/>
+
+            <TextBlock Text="{loc:Loc CreateInfobase.GroupLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="GroupPathBox" IsReadOnly="True" Style="{DynamicResource ModernTextBox}"/>
+                <Button Grid.Column="1" Margin="8,0,0,0" Padding="10,4"
+                        Style="{DynamicResource SecondaryButton}" Click="OnPickGroup_Click"
+                        Content="{loc:Loc CreateInfobase.ChooseGroup}"/>
+            </Grid>
+            <TextBlock x:Name="HintText" TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0"
+                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Width="150" Height="36" Margin="0,0,10,0" IsDefault="True" Click="OnClone_Click"
+                    Background="#16A34A" BorderThickness="0" Cursor="Hand" Foreground="White">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="12,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#15803D"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#166534"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="ContentCopy" Width="16" Height="16" Margin="0,0,8,0"
+                                             VerticalAlignment="Center" Foreground="White"/>
+                    <TextBlock Text="{loc:Loc CloneServer.Create}" VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Button>
+            <Button Width="130" Height="36" IsCancel="True"
+                    Background="Transparent" Cursor="Hand" BorderThickness="1.5"
+                    BorderBrush="#EF4444" Foreground="#EF4444">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="12,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#FEF2F2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="Close" Width="16" Height="16" Foreground="#EF4444"
+                                             Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc CloneServer.Cancel}" VerticalAlignment="Center" Foreground="#EF4444" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

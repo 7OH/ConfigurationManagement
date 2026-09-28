@@ -2373,7 +2373,9 @@
                                     <MenuItem Header="{loc:Loc Main.OpenCatalog}" Command="{Binding OpenInfobaseFolderCommand}" Style="{DynamicResource ModernMenuItem}">
                                         <MenuItem.Icon><materialDesign:PackIcon Kind="FolderOpen" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
                                     </MenuItem>
-                                    <!-- Дублирование файловой ИБ: копия каталога + запись в списке. -->
+                                    <!-- Дублирование базы: файловая ИБ — копия каталога + запись;
+                                         клиент-серверная ИБ — клон на сервере (0.3.9.100, функция №10).
+                                         Доступность пункта управляет CanExecute команды. -->
                                     <MenuItem Header="{loc:Loc Clone.Title}" Command="{Binding CloneInfobaseCommand}" Style="{DynamicResource ModernMenuItem}">
                                         <MenuItem.Icon><materialDesign:PackIcon Kind="ContentCopy" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                     </MenuItem>

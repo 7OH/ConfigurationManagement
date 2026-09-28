@@ -9,6 +9,35 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.100] — 2026-09-28
+
+### Добавлено
+
+- **Клонирование клиент-серверной ИБ** (обе платформы, функция №10) — команда
+  «Дублировать базу» контекстного меню («Администрирование») теперь работает и для
+  **клиент-серверных баз**: диалог
+  ([`Views/CloneServerInfobaseWindow.xaml`](Configuration%20Management/Views/CloneServerInfobaseWindow.xaml) /
+  [`Views/CloneServerInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CloneServerInfobaseWindow.Avalonia.cs))
+  задаёт имя клона, целевой сервер 1С / имя базы на сервере (Ref), СУБД и учётные данные,
+  группу и режим копирования; окно прогресса
+  ([`Views/CloneServerProgressWindow.cs`](Configuration%20Management/Views/CloneServerProgressWindow.cs) /
+  [`Views/CloneServerProgressWindow.Avalonia.cs`](Configuration%20Management/Views/CloneServerProgressWindow.Avalonia.cs))
+  показывает этапы «Выгрузка → Создание → Загрузка». Механизм — только существующие
+  примитивы `OneCLauncher`: полная копия — `DumpIB` (.dt) → `CREATEINFOBASE` (пустая база)
+  → `RestoreIB`; режим «Только конфигурация» — `DumpCfg` (.cf) → `CREATEINFOBASE`
+  с `/UseTemplate` (создание и загрузка конфигурации одним запуском). Чистая логика
+  планировщика — [`Services/ServerClonePlanner.cs`](Configuration%20Management/Services/ServerClonePlanner.cs)
+  (имя/Ref клона, сборка строки подключения, валидация, этапы), оркестрация —
+  [`Services/ServerCloneService.cs`](Configuration%20Management/Services/ServerCloneService.cs)
+  (временный каталог `%TEMP%\cm_clonesrv_*`, обязательная очистка в `finally`, таймауты
+  60/30/60 минут, человекочитаемые ошибки из лога 1С; при сбое после создания ИБ —
+  предупреждение о частично созданной копии без автоудаления); модель запроса —
+  [`Models/ServerCloneRequest.cs`](Configuration%20Management/Models/ServerCloneRequest.cs).
+  Новая запись списка: глубокая копия источника, новый Id, чистая история, подключение
+  ClientServer, наследование авторизаций/тегов/группы, вставка после источника +
+  экспорт в `ibases.v8i`. Поведение файлового клона (0.3.9.83) не изменилось. Тесты —
+  [`ConfigurationManagement.Tests/ServerClonePlannerTests.cs`](ConfigurationManagement.Tests/ServerClonePlannerTests.cs).
+
 ## [0.3.9.99] — 2026-09-28
 
 ### Добавлено

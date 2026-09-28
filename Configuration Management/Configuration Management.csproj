@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.99</Version>
-    <AssemblyVersion>0.3.9.99</AssemblyVersion>
-    <FileVersion>0.3.9.99</FileVersion>
-    <InformationalVersion>0.3.9.99</InformationalVersion>
+    <Version>0.3.9.100</Version>
+    <AssemblyVersion>0.3.9.100</AssemblyVersion>
+    <FileVersion>0.3.9.100</FileVersion>
+    <InformationalVersion>0.3.9.100</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -250,6 +250,11 @@
     <Compile Remove="Views\ConfigDiffProgressWindow.cs" />
     <Compile Remove="Views\ConfigDiffSetupWindow.xaml.cs" />
     <Compile Remove="Views\ConfigDiffResultWindow.xaml.cs" />
+    <!-- Окна «Клонирование клиент-серверной ИБ» (0.3.9.100, функция №10): WPF
+         code-behind/разметка исключаются, Avalonia-версии (*.Avalonia.cs)
+         подключаются глобом ниже. -->
+    <Compile Remove="Views\CloneServerProgressWindow.cs" />
+    <Compile Remove="Views\CloneServerInfobaseWindow.xaml.cs" />
     <!-- Кастомные контролы (WPF) исключаем, но возвращаем Avalonia-версии (*.Avalonia.cs) -->
     <Compile Remove="Controls\**\*.cs" />
     <Compile Include="Controls\*.Avalonia.cs" />
@@ -374,6 +379,15 @@
     <Compile Include="Services\ConfigurationDiffReporter.cs" />
     <Compile Remove="Services\ConfigurationDiffService.cs" />
     <Compile Include="Services\ConfigurationDiffService.cs" />
+    <!-- Клонирование клиент-серверной ИБ (0.3.9.100, функция №10): модель запроса
+         и чистые сервисы планировщика/оркестратора — используются и Windows,
+         и Linux; на Linux подключаются явно паттерном Remove+Include. -->
+    <Compile Remove="Models\ServerCloneRequest.cs" />
+    <Compile Include="Models\ServerCloneRequest.cs" />
+    <Compile Remove="Services\ServerClonePlanner.cs" />
+    <Compile Include="Services\ServerClonePlanner.cs" />
+    <Compile Remove="Services\ServerCloneService.cs" />
+    <Compile Include="Services\ServerCloneService.cs" />
     <!-- Мультивыделение (0.3.9.90): общая логика набора «для выделенных» — чистый
          .NET без платформенных зависимостей, используется обеими платформами.
          Платформенные пакетные команды лежат отдельно: MainViewModel.BatchCommands.cs

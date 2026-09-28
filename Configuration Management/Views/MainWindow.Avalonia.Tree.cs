@@ -1819,8 +1819,8 @@ namespace Configuration_Management
             adminMenu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
             adminMenu.Items.Add(MenuSeparator());
             adminMenu.Items.Add(MenuAction("Main.OpenCatalog", _vm.OpenInfobaseFolderCommand, null, "IconFolderOpen", "#0EA5E9"));
-            // Дублирование файловой ИБ: копия каталога + запись в списке. Для
-            // нефайловых баз команда запрещена (CanExecute) — пункт гаснет.
+            // Дублирование базы (0.3.9.100, функция №10): файловая ИБ — копия каталога,
+            // клиент-серверная — клон на сервере; для запущенной базы пункт гаснет (CanExecute).
             adminMenu.Items.Add(MenuAction("Clone.Title", _vm.CloneInfobaseCommand, null, "IconCopy", "#14B8A6"));
             // Администрирование ИБ (Этап 6, функция №29): проверка целостности файловой ИБ
             // (chdbfl). Консоль серверов перенесена в «Утилиты» (issue #287).
