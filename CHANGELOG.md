@@ -9,6 +9,25 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.114] — 2026-09-28
+
+### Исправлено
+
+- **Мультивыделение Ctrl+Click: правый клик больше не теряет первую базу (#313)** —
+  если набрать набор «для выделенных» Ctrl+кликами и затем щёлкнуть правой кнопкой
+  (нередко всё ещё с зажатым Ctrl) по строке, строка набора снималась повторным
+  toggle — из мультивыделения пропадала первая база, и контекстное меню показывало
+  меньше баз. Теперь правый клик меняет только основное выделение под курсором
+  (IsSelected/SelectedInfobase), а набор «для выделенных» сохраняется до открытия
+  меню: пакетный блок «Для выделенных (N)…» содержит все помеченные базы.
+  Поведение Shift-диапазона и обычного клика не изменилось.
+  Windows/WPF — [`Views/MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs)
+  (`OnInfobaseTree_PreviewMouseRightButtonDown` — только IsSelected/SelectedInfobase,
+  без ToggleBatchSelection/ClearBatchSelection), Linux/Avalonia —
+  [`Controls/LeveledTreeView.Avalonia.cs`](Configuration%20Management/Controls/LeveledTreeView.Avalonia.cs)
+  (`OnRowPointerPressed`: ветка Ctrl теперь требует левую кнопку, правый клик идёт
+  только в SelectRow, набор не трогает).
+
 ## [0.3.9.113] — 2026-09-28
 
 ### Исправлено

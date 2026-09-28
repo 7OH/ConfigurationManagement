@@ -92,10 +92,12 @@ namespace Configuration_Management.Controls
             if (row is null)
                 return;
 
-            // Мультивыделение (0.3.9.90): Ctrl+щелчок — точечное переключение,
-            // Shift+щелчок — диапазон от «якоря» до цели по видимому порядку.
-            // Обычный ЛЕВЫЙ клик снимает мультивыделение (как в WPF-версии);
-            // правый клик его сохраняет, чтобы открылось пакетное меню.
+            // Мультивыделение (0.3.9.90): Ctrl+ЛЕВЫЙ щелчок — точечное переключение,
+            // Shift+левый — диапазон от «якоря» до цели по видимому порядку.
+            // Обычный ЛЕВЫЙ клик снимает мультивыделение (как в WPF-версии).
+            // Правый клик набор НЕ трогает (только SelectRow): иначе при правом
+            // клике с зажатым Ctrl строка набора снималась бы повторным toggle —
+            // из мультивыделения «пропадала первая база» (issue #313).
             var rowBase = row.DataContext switch
             {
                 Infobase ib => ib,
@@ -103,6 +105,7 @@ namespace Configuration_Management.Controls
                 _ => null
             };
             if (rowBase is not null &&
+                point.Properties.IsLeftButtonPressed &&
                 (e.KeyModifiers & KeyModifiers.Control) == KeyModifiers.Control &&
                 (e.KeyModifiers & KeyModifiers.Shift) != KeyModifiers.Shift)
             {

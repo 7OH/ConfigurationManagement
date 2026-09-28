@@ -1246,7 +1246,10 @@ namespace Configuration_Management
 
             // Меню висит на дереве, как в WPF: над группой и над пустым местом
             // оно тоже открывается, а недоступные пункты гасит CanExecute.
-            // Строку под курсором дерево выделяет само, по правому нажатию.
+            // Строку под курсором по правому нажатию выделяет LeveledTreeView
+            // (OnRowPointerPressed → SelectRow); набор «для выделенных» при этом
+            // не меняется (issue #313), чтобы блок «Для выделенных (N)…» в меню
+            // показывал все базы мультивыделения.
             _tree.ContextMenu = BuildRowContextMenu();
 
             _tree.ItemTemplate = new FuncTreeDataTemplate(

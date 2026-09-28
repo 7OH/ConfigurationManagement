@@ -534,6 +534,11 @@ namespace Configuration_Management
         /// <summary>
         /// Выделяет базу или группу под курсором при правом клике в дереве,
         /// чтобы команды контекстного меню применялись именно к этому элементу.
+        /// Мультивыделение (0.3.9.90) правый клик НЕ меняет: набор «для выделенных»
+        /// должен дожить до открытия меню нетронутым, иначе пакетный блок «Для
+        /// выделенных (N)…» теряет базы (issue #313). В отличие от левого клика
+        /// здесь нет ни ToggleBatchSelection, ни ClearBatchSelection — только
+        /// основное выделение под курсором (IsSelected/SelectedInfobase).
         /// </summary>
         private void OnInfobaseTree_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -543,7 +548,10 @@ namespace Configuration_Management
                 return;
             }
 
-            // Если клик попал по строке базы или группы, выделяем её.
+            // Если клик попал по строке базы или группы, выделяем её. Модификаторы
+            // Ctrl/Shift намеренно игнорируются: они меняют мультивыделение только
+            // при ЛЕВОМ клике (OnInfobaseTree_PreviewMouseLeftButtonDown), а правый
+            // клик всегда лишь ставит основное выделение под курсором.
             var source = e.OriginalSource as DependencyObject;
             var treeViewItem = source is null ? null : FindAncestor<TreeViewItem>(source);
             switch (treeViewItem?.DataContext)
