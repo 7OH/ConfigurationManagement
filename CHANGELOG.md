@@ -9,6 +9,49 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.119] — 2026-09-28
+
+### Исправлено
+
+- **Сценарии запуска скриптов: 5 замечаний автора issue (#308)** — финальная доводка
+  функции «Сценарии»:
+  - **Двойной клик по подстановке вставляет только токен** (а) — раньше в поле
+    параметров попадала строка «%name% — имя базы» целиком; теперь список содержит
+    объекты `ScriptTokenHint` с шаблоном отображения «%токен% — описание», а вставка
+    выполняет только сам токен. Windows/WPF — [`Views/ScriptScenarioEditWindow.xaml`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml)
+    (DataTemplate списка), Linux/Avalonia — [`Views/ScriptScenarioEditWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.Avalonia.cs)
+    (ItemTemplate через `FuncDataTemplate<ScriptTokenHint>`).
+  - **Резолвер принимает все ключи подстановок + пароль** (б) — карта значений
+    [`Services/ScriptParameterResolver.cs`](Configuration%20Management/Services/ScriptParameterResolver.cs)
+    дополнена ключами `%connection.password%`/`%password%` и явными ключами
+    `blockScheduledJobs`/`forbidSpeechRecognition`/`authenticationMode`/`useOsAuthentication`,
+    а также динамическим проходом рефлексией по публичным свойствам
+    `ConnectionSettings`/`Infobase` (кэшированные списки свойств): любые текущие
+    и будущие свойства моделей подхватываются автоматически (ключи `connection.<имя>`
+    и плоские `<имя>` в нижнем регистре); явные ключи перезаписывают динамические,
+    поведение неизвестного ключа не изменилось.
+  - **Комбобокс «База для примера подстановок» показывает имя базы** (в) — на
+    Linux/Avalonia задан `DisplayMemberPath = nameof(Infobase.Name)` (раньше отображалось
+    имя типа, т.к. `Infobase` не переопределяет `ToString()`); на Windows/WPF выставляется
+    `SelectedIndex = 0` при открытии, чтобы комбобокс и превью показывали одну базу.
+  - **Редактирование сценария больше не создаёт копию** (г) — окна редактирования
+    (WPF и Avalonia) сохраняют переданный сценарий и применяют поля к нему же
+    (`_sourceScenario`), `Id` сохраняется, `ScriptScenarioStore.Save` перезаписывает
+    тот же файл — дубли в списке не появляются.
+  - **Свойство «Скрывать окно скрипта»** (д) — `ScriptScenario.HideWindow` (по
+    умолчанию `true`), чекбокс в окне редактирования (WPF + Avalonia), прокинут
+    через `ScriptScenarioEditViewModel.ApplyTo`; `ExternalCommandRunner` получил
+    публичный `CreateProcessStartInfo(command, createNoWindow = true)` и параметр
+    `createNoWindow` в `RunAsync`/`RunDetached`; запуск сценариев
+    ([`ViewModels/MainViewModel.Scripts.cs`](Configuration%20Management/ViewModels/MainViewModel.Scripts.cs),
+    [`ViewModels/MainViewModel.Avalonia.Scripts.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Scripts.cs))
+    использует `createNoWindow: !scenario.HideWindow` — при снятой галке на Windows
+    появляется консольное окно cmd. На Linux `/bin/sh` выполняется без терминала,
+    видимое окно зависит от окружения.
+  - **Локализация** — новые ключи `Script.HideWindow`, `Script.TokenConnectionPassword`,
+    `Script.TokenPassword` в ru/en; в списке подстановок появились токены
+    `%connection.password%` и `%password%`.
+
 ## [0.3.9.118] — 2026-09-28
 
 ### Исправлено

@@ -107,6 +107,39 @@ public sealed class ScriptScenarioStoreTests : IDisposable
     }
 
     [Fact]
+    public void LoadAll_SameIdRepeatedSave_NoDuplicates()
+    {
+        // Issue #308: редактирование сценария не должно плодить копию — повторный Save
+        // изменённого объекта (тот же Id, как после ApplyTo) перезаписывает файл,
+        // и LoadAll возвращает один элемент с прежним Id и новыми полями.
+        var scenario = new ScriptScenario
+        {
+            Name = "Сценарий",
+            FilePath = "tool.bat",
+            Parameters = new List<string> { "%name%" },
+            HideWindow = true
+        };
+        _store.Save(scenario);
+        var originalId = scenario.Id;
+
+        scenario.Name = "Сценарий (изменён)";
+        scenario.FilePath = "tool2.bat";
+        scenario.Parameters = new List<string> { "%connection.password%" };
+        scenario.HideWindow = false;
+        _store.Save(scenario);
+
+        var all = _store.LoadAll();
+
+        Assert.Single(all);
+        Assert.Equal(originalId, all[0].Id);
+        Assert.Equal("Сценарий (изменён)", all[0].Name);
+        Assert.Equal("tool2.bat", all[0].FilePath);
+        Assert.Equal(new[] { "%connection.password%" }, all[0].Parameters);
+        Assert.False(all[0].HideWindow);
+        Assert.Single(Directory.GetFiles(_tempDir, "*.script.json"));
+    }
+
+    [Fact]
     public void Delete_RemovesFileAndEntry()
     {
         var scenario = new ScriptScenario { Name = "К удалению", FilePath = "del.bat" };

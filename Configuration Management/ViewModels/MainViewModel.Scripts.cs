@@ -93,7 +93,8 @@ public partial class MainViewModel
         {
             // Запуск без ожидания: пользовательский скрипт может выполняться долго,
             // а результат для приложения не критичен (лог + история запусков).
-            ExternalCommandRunner.RunDetached(commandLine);
+            // Видимость консольного окна — по свойству «Скрывать окно» сценария (issue #308).
+            ExternalCommandRunner.RunDetached(commandLine, createNoWindow: !scenario.HideWindow);
 
             infobase.AddLaunchHistory("Script:" + scenario.Name, commandLine);
             Save();

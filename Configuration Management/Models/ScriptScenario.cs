@@ -23,9 +23,17 @@ public class ScriptScenario
 
     /// <summary>
     /// Параметры запуска (строки). Поддерживаются подстановки: <c>%name%</c> — имя базы,
-    /// <c>%connection.server%</c> и другие свойства подключения через точку,
-    /// <c>%date%</c>/<c>%date:формат%</c> — текущая дата. Неизвестный ключ остаётся
-    /// в строке как есть (см. Services.ScriptParameterResolver).
+    /// <c>%connection.server%</c> и другие свойства подключения через точку (включая
+    /// <c>%connection.password%</c>/<c>%password%</c>), <c>%date%</c>/<c>%date:формат%</c> —
+    /// текущая дата. Неизвестный ключ остаётся в строке как есть
+    /// (см. Services.ScriptParameterResolver).
     /// </summary>
     public List<string> Parameters { get; set; } = new();
+
+    /// <summary>
+    /// Скрывать окно запущенного скрипта: <c>true</c> — окно скрыто (по умолчанию),
+    /// <c>false</c> — консольное окно видимо (Windows: cmd.exe без CreateNoWindow;
+    /// на Linux /bin/sh выполняется без терминала, видимое окно зависит от окружения).
+    /// </summary>
+    public bool HideWindow { get; set; } = true;
 }

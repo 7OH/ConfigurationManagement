@@ -77,6 +77,44 @@ public sealed class ExternalCommandRunnerTests
             arguments);
     }
 
+    // ------------------- CreateProcessStartInfo (issue #308: окно скрипта) -------------------
+
+    [Fact]
+    public void CreateProcessStartInfo_Default_HidesWindowOnWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var startInfo = ExternalCommandRunner.CreateProcessStartInfo("echo hello");
+
+        Assert.Equal("cmd.exe", startInfo.FileName);
+        Assert.True(startInfo.CreateNoWindow);
+    }
+
+    [Fact]
+    public void CreateProcessStartInfo_VisibleWindow_CreateNoWindowFalseOnWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        // Снятая галка «Скрывать окно скрипта» → консольное окно cmd видимо.
+        var startInfo = ExternalCommandRunner.CreateProcessStartInfo("echo hello", createNoWindow: false);
+
+        Assert.Equal("cmd.exe", startInfo.FileName);
+        Assert.False(startInfo.CreateNoWindow);
+    }
+
+    [Fact]
+    public void CreateProcessStartInfo_OnLinux_UsesSh()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        var startInfo = ExternalCommandRunner.CreateProcessStartInfo("echo hello");
+
+        Assert.Equal("/bin/sh", startInfo.FileName);
+    }
+
     // ------------------- Исполнение тривиальных процессов -------------------
 
     [Fact]

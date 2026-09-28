@@ -21,6 +21,12 @@ public partial class ScriptScenarioEditWindow : Window
     private readonly IDialogService _dialogs;
     private readonly List<Infobase> _infobases = new();
 
+    /// <summary>
+    /// Редактируемый сценарий (issue #308): при подтверждении поля применяются к нему же,
+    /// чтобы Store.Save по тому же Id перезаписал файл, а не создавал копию. null — новый.
+    /// </summary>
+    private readonly ScriptScenario? _sourceScenario;
+
     /// <summary>Готовый сценарий при подтверждении, иначе <c>null</c>.</summary>
     public ScriptScenario? Result { get; private set; }
 
@@ -29,6 +35,7 @@ public partial class ScriptScenarioEditWindow : Window
     {
         InitializeComponent();
         _dialogs = AppServices.GetRequiredService<IDialogService>();
+        _sourceScenario = scenario;
         _vm = new ScriptScenarioEditViewModel(scenario);
         DataContext = _vm;
 
@@ -44,9 +51,10 @@ public partial class ScriptScenarioEditWindow : Window
         PreviewLabel.Text = T("Script.CommandLinePreview");
         OkButton.Content = T("Common.Save");
 
-        // Токены подстановок: «%name% — имя базы» и т.д. (описание — из словаря локализации).
+        // Токены подстановок: объекты ScriptTokenHint (issue #308) — в шаблоне списка
+        // отображается «%token% — описание», а двойной клик вставляет ТОЛЬКО токен.
         TokensList.ItemsSource = ScriptScenarioEditViewModel.AvailableTokens
-            .Select(t => t.Token + " — " + T(t.LocalizationKey))
+            .Select(t => new ScriptTokenHint(t.Token, t.LocalizationKey, T(t.LocalizationKey)))
             .ToList();
 
         // Базы для живого примера командной строки.
@@ -60,6 +68,10 @@ public partial class ScriptScenarioEditWindow : Window
         }
         ExampleBaseCombo.ItemsSource = _infobases;
         ExampleBaseCombo.DisplayMemberPath = nameof(Infobase.Name);
+        // Согласованность комбобокса и превью (issue #308): превью строится по первой базе,
+        // поэтому комбобокс должен показывать её же.
+        if (_infobases.Count > 0)
+            ExampleBaseCombo.SelectedIndex = 0;
 
         Loaded += (_, _) =>
         {
@@ -89,8 +101,11 @@ public partial class ScriptScenarioEditWindow : Window
 
     private void TokensList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (TokensList.SelectedItem is not string token || string.IsNullOrEmpty(token))
+        // Двойной клик вставляет ТОЛЬКО токен (issue #308), а не строку «%token% — описание»;
+        // guard по ScriptTokenHint обязателен — двойной клик возможен и по пустому месту списка.
+        if (TokensList.SelectedItem is not ScriptTokenHint hint || string.IsNullOrEmpty(hint.Token))
             return;
+        var token = hint.Token;
         // Вставка токена в позицию курсора поля параметров (план #308: «двойной клик
         // по параметру вставляет его в позицию курсора поля параметров»).
         var text = ParametersBox.Text ?? "";
@@ -129,6 +144,7 @@ public partial class ScriptScenarioEditWindow : Window
         _vm.Name = NameBox.Text ?? "";
         _vm.FilePath = FilePathBox.Text ?? "";
         _vm.ParametersText = ParametersBox.Text ?? "";
+        _vm.HideWindow = HideWindowCheckBox.IsChecked ?? true;
 
         var errorKey = _vm.Validate();
         if (errorKey is not null)
@@ -137,9 +153,19 @@ public partial class ScriptScenarioEditWindow : Window
             return;
         }
 
-        var scenario = new ScriptScenario();
-        _vm.ApplyTo(scenario);
-        Result = scenario;
+        // Issue #308: при редактировании поля применяются к переданному сценарию (Id сохраняется),
+        // иначе создаётся новый — Store.Save по тому же Id перезапишет файл без дублей.
+        if (_sourceScenario is not null)
+        {
+            _vm.ApplyTo(_sourceScenario);
+            Result = _sourceScenario;
+        }
+        else
+        {
+            var created = new ScriptScenario();
+            _vm.ApplyTo(created);
+            Result = created;
+        }
         DialogResult = true;
     }
 

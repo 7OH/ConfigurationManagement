@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Configuration_Management.Models;
 
@@ -8,10 +10,18 @@ namespace Configuration_Management.Services;
 /// <para>
 /// Поддерживаются токены вида <c>%ключ%</c>: имя базы (<c>%name%</c>), свойства
 /// подключения через точку (<c>%connection.server%</c>, <c>%connection.database%</c>,
-/// <c>%connection.filePath%</c> и т.д.) и текущая дата — <c>%date%</c> (по умолчанию
+/// <c>%connection.filePath%</c>, <c>%connection.password%</c> и т.д.), пароль —
+/// также плоский ключ <c>%password%</c>, и текущая дата — <c>%date%</c> (по умолчанию
 /// <c>yyyy-MM-dd</c>) либо <c>%date:Формат%</c> (формат .NET, например
 /// <c>%date:yyyyMMdd_HHmm%</c>). Неизвестный ключ по умолчанию остаётся в строке
 /// как есть; при <c>leaveUnknown=false</c> заменяется пустой строкой.
+/// </para>
+/// <para>
+/// Карта значений собирается из явных ключей плюс динамического прохода рефлексией
+/// по публичным свойствам <see cref="Infobase"/> и <see cref="ConnectionSettings"/>
+/// (ключи <c>connection.<имя></c> и плоские <c><имя></c> в нижнем регистре):
+/// будущие свойства моделей подхватываются автоматически. Явные ключи перезаписывают
+/// динамические, поведение неизвестного ключа (leaveUnknown=true) не меняется.
 /// </para>
 /// <para>
 /// Класс не зависит от UI-платформы и покрыт юнит-тестами (ScriptParameterResolverTests).
@@ -24,9 +34,33 @@ public static class ScriptParameterResolver
     /// <summary>Формат даты по умолчанию для токена <c>%date%</c>.</summary>
     public const string DefaultDateFormat = "yyyy-MM-dd";
 
+    // Кэшированный список публичных свойств для рефлексии (не читать GetProperties
+    // на каждый вызов; значения скалярных типов — строки и значимые типы).
+    private static readonly IReadOnlyList<PropertyInfo> InfobaseSubstitutionProperties =
+        typeof(Infobase).GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(IsScalarProperty)
+            .ToArray();
+
+    private static readonly IReadOnlyList<PropertyInfo> ConnectionSubstitutionProperties =
+        typeof(ConnectionSettings).GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(IsScalarProperty)
+            .ToArray();
+
+    /// <summary>Отбирает свойства со скалярными значениями (строки и значимые типы),
+    /// исключая ссылочные объекты (Connection, Repository, списки и т.д.).</summary>
+    private static bool IsScalarProperty(PropertyInfo property)
+    {
+        var type = property.PropertyType;
+        return type == typeof(string)
+            || type.IsEnum
+            || type.IsValueType;
+    }
+
     /// <summary>
     /// Собирает словарь значений подстановок для информационной базы: плоские ключи
-    /// (<c>name</c>) и свойства подключения с префиксом <c>connection.</c>.
+    /// (<c>name</c>, <c>password</c>) и свойства подключения с префиксом <c>connection.</c>.
+    /// Публичные свойства <see cref="Infobase"/> и <see cref="ConnectionSettings"/>
+    /// попадают в карту динамически (в нижнем регистре), явные ключи — поверх.
     /// </summary>
     public static Dictionary<string, string> BuildValueMap(Infobase? infobase)
     {
@@ -34,12 +68,31 @@ public static class ScriptParameterResolver
         if (infobase is null)
             return map;
 
-        map["name"] = infobase.Name ?? "";
+        // Динамика по Infobase: плоские ключи <имя> для всех публичных скалярных свойств.
+        foreach (var prop in InfobaseSubstitutionProperties)
+        {
+            var value = ReadPropertyValue(infobase, prop);
+            if (value is not null)
+                map[prop.Name.ToLowerInvariant()] = value;
+        }
 
         var conn = infobase.Connection;
         if (conn is null)
             return map;
 
+        // Динамика по ConnectionSettings: плоские ключи <имя> и connection.<имя>.
+        foreach (var prop in ConnectionSubstitutionProperties)
+        {
+            var value = ReadPropertyValue(conn, prop);
+            if (value is null)
+                continue;
+            var key = prop.Name.ToLowerInvariant();
+            map[key] = value;
+            map["connection." + key] = value;
+        }
+
+        // Явные ключи: каноничные имена токенов, перезаписывают динамические.
+        map["name"] = infobase.Name ?? "";
         map["connection.type"] = conn.Type.ToString();
         map["connection.server"] = conn.Server ?? "";
         map["connection.serverPort"] = conn.GetServerWithPort();
@@ -49,7 +102,33 @@ public static class ScriptParameterResolver
         map["connection.port"] = conn.Port.ToString();
         map["connection.connectionString"] = conn.ToConnectionString();
         map["connection.user"] = conn.User ?? "";
+        map["connection.password"] = conn.Password ?? "";
+        map["password"] = conn.Password ?? "";
+        map["connection.blockScheduledJobs"] = conn.BlockScheduledJobs.ToString();
+        map["connection.forbidSpeechRecognition"] = conn.ForbidSpeechRecognition.ToString();
+        map["connection.authenticationMode"] = conn.AuthenticationMode.ToString();
+        map["connection.useOsAuthentication"] = conn.UseOsAuthentication.ToString();
         return map;
+    }
+
+    /// <summary>
+    /// Читает значение свойства как строку (инвариантная культура); при ошибке
+    /// доступа пропускает ключ — не роняет построение карты.
+    /// </summary>
+    private static string? ReadPropertyValue(object target, PropertyInfo property)
+    {
+        try
+        {
+            var value = property.GetValue(target);
+            if (value is null)
+                return null;
+            return Convert.ToString(value, CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            // Значение свойства недоступно — ключ просто не попадёт в карту.
+            return null;
+        }
     }
 
     /// <summary>

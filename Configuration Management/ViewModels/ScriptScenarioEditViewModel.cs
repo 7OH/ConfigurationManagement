@@ -5,15 +5,17 @@ using Configuration_Management.Services;
 namespace Configuration_Management.ViewModels;
 
 /// <summary>
-/// Подсказка-токен подстановки: сам токен (<c>%name%</c>) и ключ локализации
-/// краткого описания значения.
+/// Подсказка-токен подстановки: сам токен (<c>%name%</c>), ключ локализации
+/// краткого описания значения и готовое описание для отображения в списке
+/// (issue #308: двойной клик вставляет ТОЛЬКО токен).
 /// </summary>
 public sealed class ScriptTokenHint
 {
-    public ScriptTokenHint(string token, string localizationKey)
+    public ScriptTokenHint(string token, string localizationKey, string? description = null)
     {
         Token = token;
         LocalizationKey = localizationKey;
+        Description = description;
     }
 
     /// <summary>Токен подстановки, например <c>%name%</c>.</summary>
@@ -21,6 +23,9 @@ public sealed class ScriptTokenHint
 
     /// <summary>Ключ локализации описания токена.</summary>
     public string LocalizationKey { get; }
+
+    /// <summary>Локализованное описание токена (для списка), может быть <c>null</c>.</summary>
+    public string? Description { get; }
 }
 
 /// <summary>
@@ -39,6 +44,8 @@ public class ScriptScenarioEditViewModel : ViewModelBase
         new ScriptTokenHint("%connection.filePath%", "Script.TokenConnectionFilePath"),
         new ScriptTokenHint("%connection.webUrl%", "Script.TokenConnectionWebUrl"),
         new ScriptTokenHint("%connection.connectionString%", "Script.TokenConnectionString"),
+        new ScriptTokenHint("%connection.password%", "Script.TokenConnectionPassword"),
+        new ScriptTokenHint("%password%", "Script.TokenPassword"),
         new ScriptTokenHint("%date%", "Script.TokenDate"),
         new ScriptTokenHint("%date:yyyyMMdd_HHmm%", "Script.TokenDateCustom")
     };
@@ -49,6 +56,7 @@ public class ScriptScenarioEditViewModel : ViewModelBase
         {
             Name = scenario.Name;
             FilePath = scenario.FilePath ?? "";
+            HideWindow = scenario.HideWindow;
             foreach (var parameter in scenario.Parameters ?? new List<string>())
             {
                 if (!string.IsNullOrWhiteSpace(parameter))
@@ -65,6 +73,12 @@ public class ScriptScenarioEditViewModel : ViewModelBase
 
     public string Name { get; set; } = "";
     public string FilePath { get; set; } = "";
+
+    /// <summary>
+    /// Скрывать окно запущенного скрипта (issue #308): <c>true</c> — окно скрыто
+    /// (по умолчанию), <c>false</c> — консольное окно видимо.
+    /// </summary>
+    public bool HideWindow { get; set; } = true;
 
     /// <summary>Параметры одной строкой через переводы строк (каждая строка — параметр).</summary>
     public string ParametersText { get; set; } = "";
@@ -94,12 +108,17 @@ public class ScriptScenarioEditViewModel : ViewModelBase
         return null;
     }
 
-    /// <summary>Переносит заполненные поля формы в сценарий.</summary>
+    /// <summary>
+    /// Переносит заполненные поля формы в сценарий. Идентификатор <see cref="ScriptScenario.Id"/>
+    /// НЕ трогается (issue #308: редактирование не плодит копию — Store.Save по тому же Id
+    /// перезаписывает тот же файл).
+    /// </summary>
     public void ApplyTo(ScriptScenario scenario)
     {
         scenario.Name = Name.Trim();
         scenario.FilePath = FilePath.Trim();
         scenario.Parameters = NonEmptyParameters;
+        scenario.HideWindow = HideWindow;
     }
 
     /// <summary>

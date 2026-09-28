@@ -2,6 +2,7 @@
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -24,6 +25,12 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
     private readonly System.Collections.Generic.List<Infobase> _infobases = new();
 
+    /// <summary>
+    /// Редактируемый сценарий (issue #308): при подтверждении поля применяются к нему же,
+    /// чтобы Store.Save по тому же Id перезаписал файл, а не создавал копию. null — новый.
+    /// </summary>
+    private readonly ScriptScenario? _sourceScenario;
+
     private readonly TextBox _nameBox = new TextBox().Styled(ControlThemes.ModernTextBox);
     private readonly TextBox _filePathBox = new TextBox().Styled(ControlThemes.ModernTextBox);
     private readonly TextBox _parametersBox = new TextBox
@@ -36,6 +43,7 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
     private readonly ListBox _tokensList = new();
     private readonly ComboBox _exampleBaseCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
     private readonly TextBox _previewBox = new TextBox { IsReadOnly = true }.Styled(ControlThemes.ModernTextBox);
+    private readonly CheckBox _hideWindowCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
 
     /// <summary>Готовый сценарий при подтверждении, иначе <c>null</c>.</summary>
     public ScriptScenario? Result { get; private set; }
@@ -43,6 +51,7 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
     /// <param name="scenario">Редактируемый сценарий или <c>null</c> для нового.</param>
     public ScriptScenarioEditWindow(ScriptScenario? scenario = null)
     {
+        _sourceScenario = scenario;
         _vm = new ScriptScenarioEditViewModel(scenario);
         Title = T(scenario is null ? "Script.AddTitle" : "Script.EditTitle");
         Width = 640;
@@ -124,10 +133,27 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         panel.Children.Add(HintLabel(T("Script.ParametersHint")));
 
         panel.Children.Add(Label(T("Script.Tokens")));
-        // Токены подстановок: «%name% — имя базы» и т.д. (описание — из словаря локализации).
+        // Токены подстановок: объекты ScriptTokenHint (issue #308) — в шаблоне списка
+        // отображается «%token% — описание», двойной клик вставляет ТОЛЬКО токен.
         _tokensList.ItemsSource = ScriptScenarioEditViewModel.AvailableTokens
-            .Select(t => t.Token + " — " + T(t.LocalizationKey))
+            .Select(t => new ScriptTokenHint(t.Token, t.LocalizationKey, T(t.LocalizationKey)))
             .ToList();
+        _tokensList.ItemTemplate = new FuncDataTemplate<ScriptTokenHint>((hint, _) =>
+        {
+            var description = new TextBlock { Text = hint.Description ?? "" };
+            ThemeBrushes.Bind(description, TextBlock.ForegroundProperty, "TextSecondaryColorBrush");
+            return new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock { Text = hint.Token, FontWeight = FontWeight.SemiBold },
+                    new TextBlock { Text = "—" },
+                    description
+                }
+            };
+        });
         _tokensList.Height = 130;
         _tokensList.DoubleTapped += (_, _) => InsertTokenAtCaret();
         panel.Children.Add(_tokensList);
@@ -143,6 +169,14 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
             // Окно редактирования работает и без списка баз — пример просто не покажется.
         }
         _exampleBaseCombo.ItemsSource = _infobases;
+        // Отображение имени базы вместо имени типа (issue #308): Infobase не переопределяет
+        // ToString(), поэтому имя выводим через ItemTemplate.
+        _exampleBaseCombo.ItemTemplate = new FuncDataTemplate<Infobase>((ib, _) =>
+        {
+            var tb = new TextBlock { Text = ib.Name };
+            ThemeBrushes.Bind(tb, TextBlock.ForegroundProperty, "TextPrimaryColorBrush");
+            return tb;
+        });
         _exampleBaseCombo.SelectedItem = _infobases.FirstOrDefault();
         _exampleBaseCombo.HorizontalAlignment = HorizontalAlignment.Left;
         _exampleBaseCombo.MinWidth = 260;
@@ -152,6 +186,12 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         panel.Children.Add(HintLabel(T("Script.CommandLinePreview")));
         _previewBox.TextWrapping = TextWrapping.Wrap;
         panel.Children.Add(_previewBox);
+
+        // Issue #308: «Скрывать окно скрипта» — при снятой галке на Windows показывается
+        // консольное окно cmd; на Linux /bin/sh выполняется без терминала.
+        _hideWindowCheck.Content = T("Script.HideWindow");
+        _hideWindowCheck.IsChecked = _vm.HideWindow;
+        panel.Children.Add(_hideWindowCheck);
 
         var bottom = new StackPanel
         {
@@ -184,8 +224,10 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
 
     private void InsertTokenAtCaret()
     {
-        if (_tokensList.SelectedItem is not string token || string.IsNullOrEmpty(token))
+        // Двойной клик вставляет ТОЛЬКО токен (issue #308), а не строку «%token% — описание».
+        if (_tokensList.SelectedItem is not ScriptTokenHint hint || string.IsNullOrEmpty(hint.Token))
             return;
+        var token = hint.Token;
         // Вставка токена в позицию курсора поля параметров (план #308: «двойной клик
         // по параметру вставляет его в позицию курсора поля параметров»).
         var text = _parametersBox.Text ?? "";
@@ -221,6 +263,7 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _vm.Name = _nameBox.Text ?? "";
         _vm.FilePath = _filePathBox.Text ?? "";
         _vm.ParametersText = _parametersBox.Text ?? "";
+        _vm.HideWindow = _hideWindowCheck.IsChecked ?? true;
 
         var errorKey = _vm.Validate();
         if (errorKey is not null)
@@ -229,9 +272,19 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
             return;
         }
 
-        var scenario = new ScriptScenario();
-        _vm.ApplyTo(scenario);
-        Result = scenario;
+        // Issue #308: при редактировании поля применяются к переданному сценарию (Id сохраняется),
+        // иначе создаётся новый — Store.Save по тому же Id перезапишет файл без дублей.
+        if (_sourceScenario is not null)
+        {
+            _vm.ApplyTo(_sourceScenario);
+            Result = _sourceScenario;
+        }
+        else
+        {
+            var created = new ScriptScenario();
+            _vm.ApplyTo(created);
+            Result = created;
+        }
         DialogResult = true;
         Close();
     }
