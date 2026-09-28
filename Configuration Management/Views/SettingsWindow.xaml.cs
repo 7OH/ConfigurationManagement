@@ -435,7 +435,8 @@ namespace Configuration_Management
                 VisibleOf("ConfigurationVersion"),
                 ShowEmptyGroupsCheck?.IsChecked ?? false,
                 _columnOrderItems.Select(i => i.Key).ToList(),
-                VisibleOf("Actions"));
+                VisibleOf("Actions"),
+                VisibleOf("LastBackup"));
 
             _viewModel.ShowRightPanelDetails = ShowRightPanelDetailsCheck?.IsChecked ?? true;
             _viewModel.ShowSessionLaunchPanel = ShowSessionLaunchPanelCheck?.IsChecked ?? true;

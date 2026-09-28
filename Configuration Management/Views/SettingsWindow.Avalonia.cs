@@ -3161,7 +3161,11 @@ namespace Configuration_Management
                     sessionPanelCheck.IsChecked == true,
                     groupByGroupCheck.IsChecked == true,
                     emptyGroupsCheck.IsChecked == true,
-                    orderItems.Select(o => o.Key).ToList());
+                    orderItems.Select(o => o.Key).ToList(),
+                    // Видимость колонки «Последняя копия» (issue #311): та же
+                    // ошибка, что с «Действиями», — флажок читался, но значение
+                    // не передавалось, и колонка оставалась видимой всегда.
+                    VisibleOf("LastBackup"));
 
                 // «Только избранные» это режим списка, а не отдельный фильтр:
                 // снятие флажка возвращает список к показу всех баз, но режим
