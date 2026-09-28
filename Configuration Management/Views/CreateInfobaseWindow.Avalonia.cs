@@ -196,8 +196,26 @@ namespace Configuration_Management
             _typeBox.SelectionChanged += (_, _) => OnTypeChanged();
             fields.Children.Add(Field(LocalizationManager.T("CreateInfobase.TypeLabel"), _typeBox));
 
-            // Наименование
-            fields.Children.Add(Field(LocalizationManager.T("CreateInfobase.NameLabel"), _nameBox));
+            // Наименование с кнопкой «скопировать из имени базы на сервере» (issue #306).
+            var nameRow = new Grid();
+            nameRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            nameRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            Grid.SetColumn(_nameBox, 0);
+            nameRow.Children.Add(_nameBox);
+            var copyRef = new Button
+            {
+                Content = IconHelper.MakeIcon("IconCopy", 16),
+                Width = 30,
+                Height = 30,
+                Padding = new Thickness(0),
+                Margin = new Thickness(6, 0, 0, 0)
+            };
+            copyRef.Styled(ControlThemes.IconButton);
+            ToolTip.SetTip(copyRef, LocalizationManager.T("CreateInfobase.CopyRefToName"));
+            copyRef.Click += (_, _) => CopyRefToName();
+            Grid.SetColumn(copyRef, 1);
+            nameRow.Children.Add(copyRef);
+            fields.Children.Add(Field(LocalizationManager.T("CreateInfobase.NameLabel"), nameRow));
 
             // Группа
             var groupRow = new Grid();
@@ -274,26 +292,8 @@ namespace Configuration_Management
 
             var leftCol = new StackPanel { Spacing = 8 };
             leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), _serverBox));
-            // Имя базы на сервере с кнопкой «скопировать в наименование» (issue #306).
-            var refRow = new Grid();
-            refRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            refRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            Grid.SetColumn(_refBox, 0);
-            refRow.Children.Add(_refBox);
-            var copyRef = new Button
-            {
-                Content = IconHelper.MakeIcon("IconCopy", 16),
-                Width = 30,
-                Height = 30,
-                Padding = new Thickness(0),
-                Margin = new Thickness(6, 0, 0, 0)
-            };
-            copyRef.Styled(ControlThemes.IconButton);
-            ToolTip.SetTip(copyRef, LocalizationManager.T("CreateInfobase.CopyRefToName"));
-            copyRef.Click += (_, _) => CopyRefToName();
-            Grid.SetColumn(copyRef, 1);
-            refRow.Children.Add(copyRef);
-            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), refRow));
+            // Имя базы на сервере (кнопка «скопировать в наименование» — у поля «Наименование», issue #306).
+            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), _refBox));
             leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbmsLabel"), _dbmsBox));
 
             // Галочки создания (как в типовом стартере), внизу левой колонки.
@@ -826,9 +826,9 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Кнопка копирования рядом с полем «Имя базы на сервере» (issue #306):
-        /// переносит его значение в поле наименования ИБ. Пустое значение Ref
-        /// наименование не затирает.
+        /// Кнопка копирования у поля «Наименование» (issue #306): переносит
+        /// значение «Имя базы на сервере» (RefBox) в наименование ИБ.
+        /// Пустое значение Ref наименование не затирает.
         /// </summary>
         private void CopyRefToName()
         {
