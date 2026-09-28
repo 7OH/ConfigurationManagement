@@ -25,6 +25,7 @@ public sealed class RunningInfobasesService : IRunningInfobasesService
                 var name = Path.GetFileName(dir);
                 if (name.Length == 0 || name[0] < '0' || name[0] > '9')
                     continue;
+                int.TryParse(name, out var pid);
 
                 string content;
                 try { content = File.ReadAllText(Path.Combine(dir, "cmdline")); }
@@ -41,7 +42,10 @@ public sealed class RunningInfobasesService : IRunningInfobasesService
                 if (!exe.StartsWith("1cv8", StringComparison.Ordinal))
                     continue;
 
-                result.Add(new RunningOneCProcess(exe, string.Join(" ", args)));
+                // issue #310: эвристика «не отвечает» — state 'D' в /proc/<pid>/stat
+                // (uninterruptible sleep); подробности и ограничение — в LinuxProcessStateInspector.
+                var responding = pid <= 0 || LinuxProcessStateInspector.StatIndicatesResponding(ReadStat(pid));
+                result.Add(new RunningOneCProcess(exe, string.Join(" ", args), responding));
             }
         }
         catch
@@ -50,6 +54,13 @@ public sealed class RunningInfobasesService : IRunningInfobasesService
         }
 
         return result;
+    }
+
+    /// <summary>Содержимое /proc/<pid>/stat; null — процесс исчез или нет прав.</summary>
+    private static string? ReadStat(int pid)
+    {
+        try { return File.ReadAllText($"/proc/{pid}/stat"); }
+        catch { return null; }
     }
 
     /// <summary>

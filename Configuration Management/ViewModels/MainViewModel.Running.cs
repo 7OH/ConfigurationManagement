@@ -66,16 +66,21 @@ public partial class MainViewModel
     {
         try
         {
-            var commandLines = processes
-                .Where(p => !string.IsNullOrWhiteSpace(p.CommandLine))
-                .Select(p => p.CommandLine)
-                .ToList();
-
             foreach (var ib in Infobases)
             {
-                var running = commandLines.Any(cl => RunningInfobaseMatcher.MatchesCommandLine(ib, cl));
-                if (ib.IsRunning != running)
-                    ib.IsRunning = running;
+                // База считается запущенной, если хотя бы один процесс 1С подключён к ней.
+                var matching = processes
+                    .Where(p => RunningInfobaseMatcher.MatchesCommandLine(ib, p.CommandLine))
+                    .ToList();
+                var running = matching.Count > 0;
+
+                // issue #310: если среди процессов базы есть «не отвечающий» —
+                // точка становится оранжевой/красной вместо зелёной.
+                var notResponding = running && matching.Any(p => !p.IsResponding);
+
+                ib.IsRunning = running;
+                ib.IsNotResponding = notResponding;
+                ib.NotRespondingStreak = notResponding ? ib.NotRespondingStreak + 1 : 0;
             }
         }
         catch

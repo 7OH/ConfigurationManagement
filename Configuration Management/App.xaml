@@ -15,6 +15,8 @@
             </ResourceDictionary.MergedDictionaries>
             <conv:GroupTextColorConverter x:Key="GroupTextColorConverter"/>
             <conv:IconKeyToGeometryConverter x:Key="IconKeyToGeometryConverter"/>
+            <!-- Цвет точки «база запущена» (issue #310): зелёный/оранжевый/красный. -->
+            <conv:RunningDotColorConverter x:Key="RunningDotColorConverter"/>
 
             <!-- ===================== Иконка приложения 0.2.6.10 ===================== -->
             <DrawingImage x:Key="AppIcon">

@@ -135,14 +135,72 @@ public class Infobase : INotifyPropertyChanged
         set
         {
             if (SetProperty(ref _isRunning, value))
+            {
                 OnPropertyChanged(nameof(IsRunningTooltip));
+                OnPropertyChanged(nameof(RunningStatus));
+            }
         }
     }
 
     /// <summary>Подсказка индикатора запуска (для точки у имени базы).</summary>
-    public string IsRunningTooltip => IsRunning
-        ? LocalizationManager.T("Infobase.RunningTooltip")
-        : string.Empty;
+    public string IsRunningTooltip
+    {
+        get
+        {
+            if (!IsRunning)
+                return string.Empty;
+            return IsNotResponding
+                ? LocalizationManager.T("Infobase.NotRespondingTooltip")
+                : LocalizationManager.T("Infobase.RunningTooltip");
+        }
+    }
+
+    private bool _isNotResponding;
+
+    /// <summary>
+    /// Запущенный процесс этой базы не отвечает (завис, issue #310): Windows —
+    /// Process.Responding=false; Linux — state 'D' в /proc/<pid>/stat. Обновляется
+    /// фоновым монитором вью-модели, раскрашивает точку у имени базы в оранжевый/красный.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsNotResponding
+    {
+        get => _isNotResponding;
+        set
+        {
+            if (SetProperty(ref _isNotResponding, value))
+            {
+                OnPropertyChanged(nameof(IsRunningTooltip));
+                OnPropertyChanged(nameof(RunningStatus));
+            }
+        }
+    }
+
+    private int _notRespondingStreak;
+
+    /// <summary>
+    /// Подряд идущие опросы монитора, в которых процесс базы не отвечал. Первый
+    /// опрос — оранжевая точка (завис), второй и далее — красная (не отвечает).
+    /// Сбрасывается в 0, как только процесс отвечает или база не запущена.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int NotRespondingStreak
+    {
+        get => _notRespondingStreak;
+        set
+        {
+            if (SetProperty(ref _notRespondingStreak, value))
+                OnPropertyChanged(nameof(RunningStatus));
+        }
+    }
+
+    /// <summary>
+    /// Статус точки «база запущена» для раскраски (зелёный/оранжевый/красный,
+    /// <see cref="RunningDotStatus"/>). Чистая классификация — в
+    /// <see cref="RunningDotStatusClassifier"/>, покрыта юнит-тестами.
+    /// </summary>
+    public RunningDotStatus RunningStatus =>
+        RunningDotStatusClassifier.Classify(IsRunning, IsNotResponding, NotRespondingStreak);
 
     private DateTime? _lastLaunchDate;
 

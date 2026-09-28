@@ -9,6 +9,22 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.104] — 2026-09-28
+
+### Исправлено
+
+- **Подсветка «зависших» процессов баз (#310)** — если процесс платформы 1С,
+  подключённый к базе, «не отвечает», точка у имени базы становится оранжевой,
+  а при повторных опросах — красной вместо зелёной. Отклик процесса:
+  Windows — `Process.Responding` (PID берётся из WMI `Win32_Process.ProcessId`);
+  Linux — эвристика по `/proc/<pid>/stat`: состояние `D` (uninterruptible sleep)
+  или `Z` (зомби) считается «не отвечает», остальные — отвечают.
+  Windows/WPF — [`Services/RunningInfobasesService.Windows.cs`](Configuration%20Management/Services/RunningInfobasesService.Windows.cs),
+  [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml);
+  Linux/Avalonia — [`Services/RunningInfobasesService.Linux.cs`](Configuration%20Management/Services/RunningInfobasesService.Linux.cs),
+  [`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs).
+  Подсказка точки меняется на «База запущена, процесс не отвечает».
+
 ## [0.3.9.103] — 2026-09-28
 
 ### Исправлено

@@ -1887,13 +1887,15 @@
                                             <TextBlock x:Name="NameText" Text="{Binding NameDisplay}" FontWeight="SemiBold" FontSize="{Binding DataContext.RowNameFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"/>
-                                            <!-- Индикатор «база сейчас запущена»: зелёная точка после имени
-                                                 (монитор процессов 1С, MainViewModel.Running). -->
+                                            <!-- Индикатор «база сейчас запущена»: точка после имени
+                                                 (монитор процессов 1С, MainViewModel.Running). Цвет по статусу
+                                                 отклика процесса (issue #310): зелёный — отвечает, оранжевый —
+                                                 завис, красный — не отвечает несколько опросов подряд. -->
                                             <Ellipse Width="7" Height="7" Margin="6,0,0,0" VerticalAlignment="Center"
                                                      ToolTip="{Binding IsRunningTooltip}"
                                                      Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
                                                 <Ellipse.Fill>
-                                                    <SolidColorBrush Color="#22C55E"/>
+                                                    <SolidColorBrush Color="{Binding RunningStatus, Converter={StaticResource RunningDotColorConverter}}"/>
                                                 </Ellipse.Fill>
                                             </Ellipse>
                                         </StackPanel>

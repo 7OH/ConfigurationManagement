@@ -15,6 +15,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Configuration_Management.Controls;
+using Configuration_Management.Converters;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -341,9 +342,11 @@ namespace Configuration_Management
             };
             ThemeBrushes.Bind(name, TextBlock.ForegroundProperty, "TextPrimaryBrush");
 
-            // Индикатор «база сейчас запущена»: зелёная точка после имени
+            // Индикатор «база сейчас запущена»: точка после имени
             // (монитор процессов 1С, MainViewModel.Running). Видимость привязана
-            // к флагу IsRunning — обновляется без пересборки строки.
+            // к флагу IsRunning, цвет — к статусу отклика процесса (issue #310):
+            // зелёный — отвечает, оранжевый — завис, красный — не отвечает
+            // несколько опросов подряд. Обновляется без пересборки строки.
             var nameRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             var runningDot = new Border
             {
@@ -352,12 +355,17 @@ namespace Configuration_Management
                 CornerRadius = new CornerRadius(UiMetrics.Scaled(3.5)),
                 Margin = new Thickness(UiMetrics.Scaled(6), 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#22C55E")),
                 IsVisible = false
             };
             ToolTip.SetTip(runningDot, ib.IsRunningTooltip);
             runningDot.Bind(Visual.IsVisibleProperty,
                 new Avalonia.Data.Binding(nameof(Infobase.IsRunning)) { Source = ib });
+            runningDot.Bind(Border.BackgroundProperty,
+                new Avalonia.Data.Binding(nameof(Infobase.RunningStatus))
+                {
+                    Source = ib,
+                    Converter = new RunningDotColorConverter()
+                });
             nameRow.Children.Add(name);
             nameRow.Children.Add(runningDot);
             content.Children.Add(nameRow);

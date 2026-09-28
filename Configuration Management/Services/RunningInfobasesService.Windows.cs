@@ -20,7 +20,7 @@ public sealed class RunningInfobasesService : IRunningInfobasesService
         try
         {
             using var searcher = new ManagementObjectSearcher(
-                "SELECT Name, CommandLine FROM Win32_Process WHERE Name LIKE '1cv8%'");
+                "SELECT Name, CommandLine, ProcessId FROM Win32_Process WHERE Name LIKE '1cv8%'");
             using var objects = searcher.Get();
             foreach (var o in objects)
             {
@@ -28,8 +28,16 @@ public sealed class RunningInfobasesService : IRunningInfobasesService
                 {
                     var name = o["Name"]?.ToString() ?? "";
                     var commandLine = o["CommandLine"]?.ToString() ?? "";
-                    if (name.Length > 0)
-                        result.Add(new RunningOneCProcess(name, commandLine));
+                    if (name.Length == 0)
+                        continue;
+
+                    var pid = 0;
+                    if (o["ProcessId"] is not null && int.TryParse(o["ProcessId"].ToString(), out var parsedPid))
+                        pid = parsedPid;
+
+                    // issue #310: «зависший» процесс — точка у имени базы оранжевая/красная.
+                    var responding = pid > 0 && IsProcessResponding(pid);
+                    result.Add(new RunningOneCProcess(name, commandLine, responding));
                 }
                 catch { /* строка процесса могла исчезнуть — пропускаем */ }
             }
@@ -40,6 +48,24 @@ public sealed class RunningInfobasesService : IRunningInfobasesService
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Проверка отклика процесса через Process.Responding (Windows: у процесса есть
+    /// главное окно, и оно отвечает на сообщения). Процесс недоступен (исчез, нет
+    /// прав) — считаем отвечающим, чтобы индикатор не мигал ложными тревогами.
+    /// </summary>
+    private static bool IsProcessResponding(int pid)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
+            return process.Responding;
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     /// <summary>
