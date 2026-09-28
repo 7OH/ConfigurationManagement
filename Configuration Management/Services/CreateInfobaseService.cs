@@ -88,12 +88,17 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
 
             var dbms = (request.Dbms ?? string.Empty).Trim();
             var dbServer = (request.DbServer ?? string.Empty).Trim();
+            var dbPort = (request.DbPort ?? string.Empty).Trim();
             var dbName = (request.DbName ?? string.Empty).Trim();
             var dbUser = (request.DbUser ?? string.Empty).Trim();
             var dbPwd = request.DbPassword ?? "";
             var createSqlDatabase = request.CreateSqlDatabase;
             var blockScheduledJobs = request.BlockScheduledJobs;
             var forbidSpeechRecognition = request.ForbidSpeechRecognition;
+
+            // DBSrvr собирается с учётом порта СУБД: для PostgreSQL — «host port=NNNN»
+            // (через пробел), для MSSQL Server — «host,NNNN», для остальных — просто host.
+            var dbsrvr = BuildDbServerString(dbms, dbServer, dbPort);
 
             var (ok, error) = OneCLauncher.CreateInfoBase(
                 platformVersion: platform,
@@ -103,7 +108,7 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
                 databaseName: refName,
                 templatePath: templatePath,
                 dbms: dbms,
-                dbServer: dbServer,
+                dbServer: dbsrvr,
                 dbName: dbName,
                 dbUser: dbUser,
                 dbPassword: dbPwd,
@@ -154,6 +159,35 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             Kind = CreateInfobaseResultKind.Success,
             CreatedInfobase = created
         };
+    }
+
+    /// <summary>
+    /// Чистый helper сборки значения параметра DBSrvr команды CREATEINFOBASE
+    /// (issue #305). Формат зависит от СУБД:
+    /// <list type="bullet">
+    /// <item>PostgreSQL — «host port=NNNN» (порт через пробел, как принимает платформа);</item>
+    /// <item>MSSQL Server — «host,NNNN»;</item>
+    /// <item>остальные — просто «host».</item>
+    /// </list>
+    /// Пустой порт не меняет строку; пустой сервер даёт пустую строку.
+    /// </summary>
+    public static string BuildDbServerString(string? dbms, string? server, string? port)
+    {
+        var srv = (server ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(srv))
+            return string.Empty;
+
+        var p = (port ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(p))
+            return srv;
+
+        var dbmsType = (dbms ?? string.Empty).Trim();
+        if (string.Equals(dbmsType, "PostgreSQL", StringComparison.OrdinalIgnoreCase))
+            return $"{srv} port={p}";
+        if (string.Equals(dbmsType, "MSSQLServer", StringComparison.OrdinalIgnoreCase))
+            return $"{srv},{p}";
+
+        return srv;
     }
 
     /// <summary>

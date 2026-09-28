@@ -50,6 +50,13 @@ namespace Configuration_Management
         private readonly TextBox _refBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly ComboBox _dbmsBox = new() { IsEditable = true };
         private readonly TextBox _dbServerBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+        private readonly TextBox _dbPortBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+        private readonly TextBlock _dbServerHint = new()
+        {
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 6)
+        };
         private readonly TextBox _dbNameBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly TextBox _dbUserBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly PasswordBox _dbPwdBox = new PasswordBox().Styled(ControlThemes.ModernPasswordBox);
@@ -259,7 +266,14 @@ namespace Configuration_Management
             _dbmsBox.Items.Clear();
             foreach (var v in DbmsValues)
                 _dbmsBox.Items.Add(new ComboBoxItem { Content = v });
-            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), _serverBox));
+            // Компактный макет (issue #305): две колонки — параметры сервера 1С слева,
+            // подключение к СУБД справа; галочки — внизу левой колонки.
+            var serverGrid = new Grid { ColumnSpacing = 16 };
+            serverGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            serverGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+
+            var leftCol = new StackPanel { Spacing = 8 };
+            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), _serverBox));
             // Имя базы на сервере с кнопкой «скопировать в наименование» (issue #306).
             var refRow = new Grid();
             refRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
@@ -279,45 +293,78 @@ namespace Configuration_Management
             copyRef.Click += (_, _) => CopyRefToName();
             Grid.SetColumn(copyRef, 1);
             refRow.Children.Add(copyRef);
-            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), refRow));
-            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbmsLabel"), _dbmsBox));
-            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbServerLabel"), _dbServerBox));
-            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbNameLabel"), _dbNameBox));
-            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbUserLabel"), _dbUserBox));
-            _serverPanel.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbPasswordLabel"), _dbPwdBox));
-            var createDbRow = new Grid();
-            createDbRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(150)));
-            createDbRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            var cdLabel = new TextBlock { Text = LocalizationManager.T("CreateInfobase.CreateDatabase"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(cdLabel, 1);
-            createDbRow.Children.Add(cdLabel);
-            _createDbCheck.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(_createDbCheck, 0);
-            createDbRow.Children.Add(_createDbCheck);
-            _serverPanel.Children.Add(createDbRow);
+            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), refRow));
+            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbmsLabel"), _dbmsBox));
 
-            var blockJobsRow = new Grid();
-            blockJobsRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(150)));
-            blockJobsRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            var bjLabel = new TextBlock { Text = LocalizationManager.T("CreateInfobase.BlockScheduledJobs"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(bjLabel, 1);
-            blockJobsRow.Children.Add(bjLabel);
-            _blockJobsCheck.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(_blockJobsCheck, 0);
-            blockJobsRow.Children.Add(_blockJobsCheck);
-            _serverPanel.Children.Add(blockJobsRow);
-
+            // Галочки создания (как в типовом стартере), внизу левой колонки.
+            // Текст оборачивается в TextBlock: у CheckBox в этой версии Avalonia
+            // свойства TextWrapping нет, а перенос нужен в узкой колонке.
+            _createDbCheck.Content = new TextBlock
+            {
+                Text = LocalizationManager.T("CreateInfobase.CreateDatabase"),
+                TextWrapping = TextWrapping.Wrap
+            };
+            _createDbCheck.Margin = new Thickness(0, 6, 0, 0);
+            leftCol.Children.Add(_createDbCheck);
+            _blockJobsCheck.Content = new TextBlock
+            {
+                Text = LocalizationManager.T("CreateInfobase.BlockScheduledJobs"),
+                TextWrapping = TextWrapping.Wrap
+            };
+            _blockJobsCheck.Margin = new Thickness(0, 6, 0, 0);
+            leftCol.Children.Add(_blockJobsCheck);
             // Запрет локального распознавания речи (issue #307), как в типовом стартере.
-            var forbidSpeechRow = new Grid();
-            forbidSpeechRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(150)));
-            forbidSpeechRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            var fsLabel = new TextBlock { Text = LocalizationManager.T("CreateInfobase.ForbidSpeechRecognition"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(fsLabel, 1);
-            forbidSpeechRow.Children.Add(fsLabel);
-            _forbidSpeechCheck.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(_forbidSpeechCheck, 0);
-            forbidSpeechRow.Children.Add(_forbidSpeechCheck);
-            _serverPanel.Children.Add(forbidSpeechRow);
+            _forbidSpeechCheck.Content = new TextBlock
+            {
+                Text = LocalizationManager.T("CreateInfobase.ForbidSpeechRecognition"),
+                TextWrapping = TextWrapping.Wrap
+            };
+            _forbidSpeechCheck.Margin = new Thickness(0, 6, 0, 0);
+            leftCol.Children.Add(_forbidSpeechCheck);
+
+            var rightCol = new StackPanel { Spacing = 8 };
+            // Сервер СУБД и порт в одной строке + живая подсказка формата DBSrvr (issue #305).
+            var dbServerRow = new Grid();
+            dbServerRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            dbServerRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(90)));
+            Grid.SetColumn(_dbServerBox, 0);
+            dbServerRow.Children.Add(_dbServerBox);
+            ToolTip.SetTip(_dbPortBox, LocalizationManager.T("CreateInfobase.DbPortTooltip"));
+            Grid.SetColumn(_dbPortBox, 1);
+            _dbPortBox.Margin = new Thickness(8, 0, 0, 0);
+            dbServerRow.Children.Add(_dbPortBox);
+            var dbServerField = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+            dbServerField.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(150)));
+            dbServerField.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            var dbsLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("CreateInfobase.DbServerLabel"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(dbsLabel, 0);
+            dbServerField.Children.Add(dbsLabel);
+            dbServerRow.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(dbServerRow, 1);
+            dbServerField.Children.Add(dbServerRow);
+            rightCol.Children.Add(dbServerField);
+            rightCol.Children.Add(_dbServerHint);
+            rightCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbNameLabel"), _dbNameBox));
+            rightCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbUserLabel"), _dbUserBox));
+            rightCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbPasswordLabel"), _dbPwdBox));
+
+            Grid.SetColumn(leftCol, 0);
+            serverGrid.Children.Add(leftCol);
+            Grid.SetColumn(rightCol, 1);
+            serverGrid.Children.Add(rightCol);
+            _serverPanel.Children.Add(serverGrid);
+
+            // Живая подсказка меняется по выбранной/введённой СУБД и значениям сервера/порта.
+            _dbmsBox.SelectionChanged += (_, _) => UpdateDbServerHint();
+            _dbmsBox.GetObservable(ComboBox.TextProperty)
+                .Subscribe(new ValueObserver<string?>(_ => UpdateDbServerHint()));
+            _dbServerBox.TextChanged += (_, _) => UpdateDbServerHint();
+            _dbPortBox.TextChanged += (_, _) => UpdateDbServerHint();
+            UpdateDbServerHint();
 
             fields.Children.Add(_filePanel);
             fields.Children.Add(_serverPanel);
@@ -790,6 +837,31 @@ namespace Configuration_Management
                 _nameBox.Text = refName;
         }
 
+        /// <summary>
+        /// Живая подсказка под полем «Сервер СУБД» (issue #305): формат значения
+        /// DBSrvr зависит от выбранной СУБД (PostgreSQL — «host port=NNNN» через пробел,
+        /// MSSQL Server — «host,NNNN»), а при заполненном сервере показываем,
+        /// что именно будет передано в CREATEINFOBASE.
+        /// </summary>
+        private void UpdateDbServerHint()
+        {
+            var dbms = _dbmsBox.Text?.Trim() ?? "";
+            var hintKey = string.Equals(dbms, "PostgreSQL", StringComparison.OrdinalIgnoreCase)
+                ? "CreateInfobase.DbServerHintPostgres"
+                : string.Equals(dbms, "MSSQLServer", StringComparison.OrdinalIgnoreCase)
+                    ? "CreateInfobase.DbServerHintMssql"
+                    : "CreateInfobase.DbServerHintOther";
+            var hint = LocalizationManager.T(hintKey);
+
+            var assembled = CreateInfobaseService.BuildDbServerString(
+                dbms, _dbServerBox.Text, _dbPortBox.Text);
+            if (!string.IsNullOrWhiteSpace(assembled))
+                hint += "\n" + string.Format(
+                    LocalizationManager.T("CreateInfobase.DbServerPreview"), assembled);
+
+            _dbServerHint.Text = hint;
+        }
+
         private void OnCreate_Click()
         {
             var request = new CreateInfobaseRequest
@@ -804,6 +876,7 @@ namespace Configuration_Management
                 DatabaseName = _refBox.Text?.Trim(),
                 Dbms = _dbmsBox.Text?.Trim(),
                 DbServer = _dbServerBox.Text?.Trim(),
+                DbPort = _dbPortBox.Text?.Trim(),
                 DbName = _dbNameBox.Text?.Trim(),
                 DbUser = _dbUserBox.Text?.Trim(),
                 DbPassword = _dbPwdBox.Password ?? "",
@@ -863,6 +936,18 @@ namespace Configuration_Management
             Result = result.CreatedInfobase;
             DialogResult = true;
             Close();
+        }
+
+        /// <summary>Простой наблюдатель значения (для ComboBox.Text и пр.).</summary>
+        private sealed class ValueObserver<T> : IObserver<T>
+        {
+            private readonly Action<T> _onNext;
+
+            public ValueObserver(Action<T> onNext) => _onNext = onNext;
+
+            public void OnCompleted() { }
+            public void OnError(Exception error) { }
+            public void OnNext(T value) => _onNext(value);
         }
     }
 }

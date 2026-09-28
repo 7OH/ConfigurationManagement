@@ -37,6 +37,13 @@ public sealed class CreateInfobaseRequest
     /// <summary>Сервер СУБД.</summary>
     public string? DbServer { get; set; }
 
+    /// <summary>
+    /// Порт сервера СУБД (пустая строка — порт по умолчанию для выбранной СУБД).
+    /// Формат подстановки в DBSrvr зависит от СУБД: PostgreSQL — «host port=NNNN»,
+    /// MSSQL Server — «host,NNNN» (см. <c>CreateInfobaseService.BuildDbServerString</c>).
+    /// </summary>
+    public string? DbPort { get; set; }
+
     /// <summary>Имя базы данных на сервере СУБД.</summary>
     public string? DbName { get; set; }
 

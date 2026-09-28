@@ -49,6 +49,12 @@ namespace Configuration_Management
             ToolTipCloser.Register();
             PreviewKeyDown += OnToolTipEscPreviewKeyDown;
 
+            // Живая подсказка формата DBSrvr (issue #305): у редактируемого ComboBox нет
+            // собственного TextChanged, но внутренний TextBox поднимает всплывающее событие
+            // TextBox.TextChangedEvent — ловим его, чтобы подсказка менялась и при ручном вводе СУБД.
+            DbmsBox.AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(OnDbms_TextChanged));
+            UpdateDbServerHint();
+
             // Подсказки скрываются при потере фокуса окна (issue #275).
             Deactivated += (_, _) => ToolTipCloser.CloseAll();
 
@@ -540,6 +546,57 @@ namespace Configuration_Management
                 NameBox.Text = refName;
         }
 
+        // ================= Живая подсказка формата DBSrvr (issue #305) =================
+
+        /// <summary>Изменение выбранной СУБД из списка (редактируемый ComboBox).</summary>
+        private void OnDbms_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateDbServerHint();
+        }
+
+        /// <summary>Ручной ввод типа СУБД в редактируемый ComboBox.</summary>
+        private void OnDbms_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            UpdateDbServerHint();
+        }
+
+        /// <summary>Изменение адреса сервера СУБД — обновляем пример передаваемой строки.</summary>
+        private void OnDbServer_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            UpdateDbServerHint();
+        }
+
+        /// <summary>Изменение порта СУБД — обновляем пример передаваемой строки.</summary>
+        private void OnDbPort_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            UpdateDbServerHint();
+        }
+
+        /// <summary>
+        /// Живая подсказка под полем «Сервер СУБД» (issue #305): формат значения
+        /// DBSrvr зависит от выбранной СУБД (PostgreSQL — «host port=NNNN» через пробел,
+        /// MSSQL Server — «host,NNNN»), а при заполненном сервере показываем,
+        /// что именно будет передано в CREATEINFOBASE.
+        /// </summary>
+        private void UpdateDbServerHint()
+        {
+            var dbms = DbmsBox.Text?.Trim() ?? "";
+            var hintKey = string.Equals(dbms, "PostgreSQL", StringComparison.OrdinalIgnoreCase)
+                ? "CreateInfobase.DbServerHintPostgres"
+                : string.Equals(dbms, "MSSQLServer", StringComparison.OrdinalIgnoreCase)
+                    ? "CreateInfobase.DbServerHintMssql"
+                    : "CreateInfobase.DbServerHintOther";
+            var hint = LocalizationManager.T(hintKey);
+
+            var assembled = CreateInfobaseService.BuildDbServerString(
+                dbms, DbServerBox.Text, DbPortBox.Text);
+            if (!string.IsNullOrWhiteSpace(assembled))
+                hint += "\n" + string.Format(
+                    LocalizationManager.T("CreateInfobase.DbServerPreview"), assembled);
+
+            DbServerHint.Text = hint;
+        }
+
         private void OnCreate_Click(object sender, RoutedEventArgs e)
         {
             var request = new CreateInfobaseRequest
@@ -554,6 +611,7 @@ namespace Configuration_Management
                 DatabaseName = RefBox.Text?.Trim(),
                 Dbms = DbmsBox.Text?.Trim(),
                 DbServer = DbServerBox.Text?.Trim(),
+                DbPort = DbPortBox.Text?.Trim(),
                 DbName = DbNameBox.Text?.Trim(),
                 DbUser = DbUserBox.Text?.Trim(),
                 DbPassword = DbPwdBox.Password ?? "",

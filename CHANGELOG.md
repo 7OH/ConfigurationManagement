@@ -9,6 +9,26 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.108] — 2026-09-28
+
+### Добавлено
+
+- **Переработка окна создания серверной ИБ (#305)** — окно создания
+  клиент-серверной информационной базы стало компактным: поля параметров
+  разложены в две колонки (сервер 1С / подключение к СУБД), поэтому панель
+  больше не требует прокрутки. Рядом с адресом сервера СУБД появилось поле
+  порта; под ним — живая подсказка формата значения `DBSrvr`: для PostgreSQL
+  «host port=NNNN» (порт через пробел, как принимает платформа), для
+  MSSQL Server — «host,NNNN». При заполненном адресе и порте подсказка
+  показывает, что именно будет передано в команду `CREATEINFOBASE`.
+  Windows/WPF —
+  [`Views/CreateInfobaseWindow.xaml`](Configuration%20Management/Views/CreateInfobaseWindow.xaml);
+  Linux/Avalonia —
+  [`Views/CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs).
+  Сборка строки — чистый helper
+  [`Services/CreateInfobaseService.cs`](Configuration%20Management/Services/CreateInfobaseService.cs)
+  (`BuildDbServerString`), покрытый юнит-тестами.
+
 ## [0.3.9.107] — 2026-09-28
 
 ### Добавлено
