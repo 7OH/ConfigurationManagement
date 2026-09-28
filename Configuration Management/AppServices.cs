@@ -30,6 +30,9 @@ public static class AppServices
         // Сценарии резервирования и восстановление (функции №16/№18): хранилище сценариев,
         // архивация ZIP/RAR и оркестратор выполнения. Чистые сервисы — без UI-зависимостей.
         services.AddSingleton<IBackupScenarioStore, BackupScenarioStore>();
+        // Сценарии запуска скриптов (issue #308): JSON-хранилище и чистая подстановка
+        // параметров. Чистые сервисы — без UI-зависимостей.
+        services.AddSingleton<IScriptScenarioStore, ScriptScenarioStore>();
         services.AddSingleton<IArchiveService, ArchiveService>();
         services.AddSingleton<IBackupService, BackupService>();
         // Задания по расписанию (issue #286): хранилище заданий, обновление конфигурации ИБ

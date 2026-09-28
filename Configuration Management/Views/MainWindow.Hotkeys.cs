@@ -98,6 +98,8 @@ namespace Configuration_Management
             // Ctrl+Shift+F5 — выполнить сценарий, Ctrl+Shift+F7 — список выгрузок.
             Add(_viewModel.HotkeyRunBackup, _viewModel.RunBackupScenarioCommand);
             Add(_viewModel.HotkeyExportsList, _viewModel.ShowExportsListCommand);
+            // «Выполнить скрипт» для выбранной базы (issue #308): F5.
+            Add(_viewModel.HotkeyRunScript, _viewModel.RunScriptForSelectedCommand);
 
             // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка
             // приложения паролем (функция №19). Сочетания настраиваются в настройках.

@@ -1705,6 +1705,9 @@ namespace Configuration_Management
             // базе, поэтому перенесены из контекстного меню базы в «Утилиты» (issue #293).
             menu.Items.Add(MenuAction("Backup.ScenariosTitle", _vm.ShowBackupScenariosCommand, null, "IconSettings", "#F59E0B"));
             menu.Items.Add(MenuAction("Backup.RunTitle", _vm.RunBackupScenarioCommand, _vm.HotkeyRunBackup, "IconDatabaseExport", "#22C55E"));
+            // Сценарии запуска скриптов (issue #308): настройка сценариев; выполнение
+            // выбранного сценария для базы — F5 и контекстное меню строки.
+            menu.Items.Add(MenuAction("Script.SettingsTitle", _vm.ShowScriptsSettingsCommand, null, "IconScript", "#06B6D4"));
             // Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
             // баз с заполненным хранилищем + последовательный прогон с логом.
             menu.Items.Add(MenuAction("RepoUpdate.Title", _vm.RepositoryBatchUpdateCommand, null, "IconCloudDownload", "#06B6D4"));
@@ -1756,6 +1759,8 @@ namespace Configuration_Management
             // сохранены на прежних пунктах.
             menu.Items.Add(MenuAction("Main.LaunchEnterprise", _vm.LaunchEnterpriseCommand, _vm.HotkeyEnterprise, "IconPlay", "#22C55E"));
             menu.Items.Add(MenuAction("Main.LaunchConfigurator", _vm.LaunchConfiguratorCommand, _vm.HotkeyConfigurator, "IconSettings", "#3B82F6"));
+            // «Выполнить скрипт» (issue #308): запуск выбранного сценария для базы (F5).
+            menu.Items.Add(MenuAction("Script.RunTitle", _vm.RunScriptForSelectedCommand, _vm.HotkeyRunScript, "IconScript", "#06B6D4"));
             menu.Items.Add(MenuSeparator());
             menu.Items.Add(MenuAction("Main.ToFavorites", _vm.ToggleFavoriteCommand, _vm.HotkeyFavorite, "IconStar", "#FBBF24"));
             menu.Items.Add(MenuAction("Main.Pin", _vm.TogglePinCommand, _vm.HotkeyPin, "IconPin", "#8B5CF6"));

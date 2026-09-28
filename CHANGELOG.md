@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.109] — 2026-09-28
+
+### Добавлено
+
+- **Сценарии запуска скриптов для баз (#308)** — новая функция «Сценарии»:
+  пользовательские скрипты/исполняемые файлы выполняются для выбранной
+  информационной базы из контекстного меню строки («Выполнить скрипт», хоткей F5)
+  или из меню «Утилиты → Настройка сценариев». Параметры сценария поддерживают
+  подстановки свойств базы: `%name%` — имя ИБ, `%connection.server%`,
+  `%connection.database%`, `%connection.filePath%`, `%connection.webUrl%` и другие
+  вложенные свойства подключения через точку, а также текущую дату — `%date%`
+  (ГГГГ-ММ-ДД) или `%date:формат%` (формат .NET). В окне редактирования двойной
+  клик по подстановке вставляет её в позицию курсора поля параметров; выбор базы
+  показывает живой пример полной командной строки. Окно выбора скрипта (при
+  нескольких сценариях) показывает ту же подсказку и запускается двойным кликом.
+  Запуск — через системный shell без ожидания (fire-and-forget), команда пишется
+  в историю запусков базы и в журнал приложения.
+  Windows/WPF — [`Views/ScriptScenariosWindow.xaml`](Configuration%20Management/Views/ScriptScenariosWindow.xaml),
+  [`Views/ScriptScenarioEditWindow.xaml`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml),
+  [`Views/ScriptPickWindow.xaml`](Configuration%20Management/Views/ScriptPickWindow.xaml);
+  Linux/Avalonia — соответствующие `*.Avalonia.cs` окна. Чистые модели и сервисы:
+  [`Models/ScriptScenario.cs`](Configuration%20Management/Models/ScriptScenario.cs),
+  [`Services/ScriptScenarioStore.cs`](Configuration%20Management/Services/ScriptScenarioStore.cs),
+  [`Services/ScriptParameterResolver.cs`](Configuration%20Management/Services/ScriptParameterResolver.cs)
+  (покрыт юнит-тестами).
+
 ## [0.3.9.108] — 2026-09-28
 
 ### Добавлено

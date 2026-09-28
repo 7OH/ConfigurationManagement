@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.108</Version>
-    <AssemblyVersion>0.3.9.108</AssemblyVersion>
-    <FileVersion>0.3.9.108</FileVersion>
-    <InformationalVersion>0.3.9.108</InformationalVersion>
+    <Version>0.3.9.109</Version>
+    <AssemblyVersion>0.3.9.109</AssemblyVersion>
+    <FileVersion>0.3.9.109</FileVersion>
+    <InformationalVersion>0.3.9.109</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -319,6 +319,13 @@
     <Compile Include="ViewModels\BackupScenarioItemViewModel.cs" />
     <Compile Include="ViewModels\BackupScenarioEditViewModel.cs" />
     <Compile Include="ViewModels\ExportsListViewModel.cs" />
+    <!-- Сценарии запуска скриптов (issue #308): чистые ViewModel без WPF-зависимостей,
+         используются и Windows, и Linux, поэтому подключаются явно. Команды MainViewModel
+         (имя «MainViewModel.Avalonia.*.cs» не совпадает с глобом *.Avalonia.cs)
+         добавляются явно, как MainViewModel.Avalonia.Backup.cs. -->
+    <Compile Include="ViewModels\ScriptScenarioItemViewModel.cs" />
+    <Compile Include="ViewModels\ScriptScenarioEditViewModel.cs" />
+    <Compile Include="ViewModels\MainViewModel.Avalonia.Scripts.cs" />
     <!-- Задания по расписанию (issue #286): чистые ViewModel без WPF-зависимостей,
          используются и Windows, и Linux, поэтому подключаются явно. -->
     <Compile Include="ViewModels\ScheduledTaskItemViewModel.cs" />

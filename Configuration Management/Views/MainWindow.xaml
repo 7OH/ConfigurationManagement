@@ -720,6 +720,11 @@
                                         <MenuItem Header="{loc:Loc Backup.RunTitle}" Command="{Binding RunBackupScenarioCommand}" InputGestureText="{Binding HotkeyRunBackup}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseExport" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Сценарии запуска скриптов (issue #308): настройка сценариев
+                                             и выполнение выбранного сценария для базы (F5, контекстное меню). -->
+                                        <MenuItem Header="{loc:Loc Script.SettingsTitle}" Command="{Binding ShowScriptsSettingsCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="CodeBraces" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <!-- Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
                                              баз с заполненным хранилищем + последовательный прогон с логом. -->
                                         <MenuItem Header="{loc:Loc RepoUpdate.Title}" Command="{Binding RepositoryBatchUpdateCommand}" Style="{DynamicResource ModernMenuItem}">
@@ -2314,6 +2319,11 @@
                                 </MenuItem>
                                 <MenuItem Header="{loc:Loc Main.LaunchConfigurator}" Tag="User" Command="{Binding LaunchConfiguratorCommand}" InputGestureText="{Binding HotkeyConfigurator}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Cog" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
+                                </MenuItem>
+                                <!-- «Выполнить скрипт» (issue #308): запуск выбранного сценария для базы.
+                                     Tag="User" — пункт доступен и в режиме «Пользователь». -->
+                                <MenuItem Header="{loc:Loc Script.RunTitle}" Tag="User" Command="{Binding RunScriptForSelectedCommand}" InputGestureText="{Binding HotkeyRunScript}" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="CodeBraces" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
                                 </MenuItem>
                                 <Separator/>
                                 <MenuItem Header="{loc:Loc Main.ToFavorites}" Tag="User" Command="{Binding ToggleFavoriteCommand}" InputGestureText="{Binding HotkeyFavorite}" Style="{DynamicResource ModernMenuItem}">
