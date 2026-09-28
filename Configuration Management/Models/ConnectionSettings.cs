@@ -24,6 +24,13 @@ public class ConnectionSettings
     /// </summary>
     public bool BlockScheduledJobs { get; set; }
 
+    /// <summary>
+    /// Запретить локальное распознавание речи (документированный параметр строки соединения
+    /// <c>disstt="Y"</c>, issue #307). При создании клиент-серверной базы запрет
+    /// устанавливается на сервере 1С; для файловой базы параметр действует при подключении.
+    /// </summary>
+    public bool ForbidSpeechRecognition { get; set; }
+
     /// <summary>Пользователь для подключения.</summary>
     public string User { get; set; } = string.Empty;
 
@@ -240,6 +247,20 @@ public class ConnectionSettings
         var blockedByLegacy = string.Equals(schedjobs?.Trim(), "NO", StringComparison.OrdinalIgnoreCase);
 
         settings.BlockScheduledJobs = blockedByDeny || blockedByLegacy;
+
+        // Запрет локального распознавания речи: документированный параметр disstt
+        // (значение без кавычек), см. issue #307. Присутствует в строке подключения
+        // файловой базы (действует при подключении) и в команде CREATEINFOBASE.
+        var dissttValue = ExtractQuoted(connect, "disstt");
+        if (dissttValue == null)
+        {
+            var mDisstt = System.Text.RegularExpressions.Regex.Match(
+                connect, @"disstt\s*=\s*(?<v>[^;\s""]+)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mDisstt.Success)
+                dissttValue = mDisstt.Groups["v"].Value;
+        }
+        settings.ForbidSpeechRecognition = IsTrueValue(dissttValue);
 
         return settings;
     }

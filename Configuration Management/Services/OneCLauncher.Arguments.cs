@@ -240,6 +240,7 @@ public static partial class OneCLauncher
         string? dbPassword = null,
         bool createSqlDatabase = false,
         bool blockScheduledJobs = false,
+        bool forbidSpeechRecognition = false,
         int timeoutMs = 5 * 60 * 1000)
     {
         var exePath = FindExecutable(platformVersion, OneCArchitecture.x64, OneCClientType.Thick, OneCLaunchMode.Configurator);
@@ -284,32 +285,19 @@ public static partial class OneCLauncher
             if (string.IsNullOrEmpty(srv) || string.IsNullOrEmpty(db))
                 return (false, LocalizationManager.T("Launcher.CreateServerOrDbNotSpecified"));
 
-            // Параметры СУБД добавляются в строку подключения только если заданы.
-            // Для клиент-серверного создания платформе нужны DBSrvr/DB/DBMS/DBUID/DBPwd,
-            // иначе команда собирается неполной (issue #77).
-            var csb = new System.Text.StringBuilder(
-                $"Srvr=\"{EscapeConnectValue(srv)}\";Ref=\"{EscapeConnectValue(db)}\"");
-            if (!string.IsNullOrWhiteSpace(dbms))
-                csb.Append($";DBMS=\"{EscapeConnectValue(dbms)}\"");
-            if (!string.IsNullOrWhiteSpace(dbServer))
-                csb.Append($";DBSrvr=\"{EscapeConnectValue(dbServer)}\"");
-            if (!string.IsNullOrWhiteSpace(dbName))
-                csb.Append($";DB=\"{EscapeConnectValue(dbName)}\"");
-            if (!string.IsNullOrWhiteSpace(dbUser))
-                csb.Append($";DBUID=\"{EscapeConnectValue(dbUser)}\"");
-            if (!string.IsNullOrWhiteSpace(dbPassword))
-                csb.Append($";DBPwd=\"{EscapeConnectValue(dbPassword)}\"");
-            // Создание базы данных на сервере СУБД задаётся параметром строки
-            // подключения, а не ключом командной строки: с «/CreateDatabase»
-            // платформа базу не создаёт и падает на попытке подключиться
-            // к несуществующей. Проверено запуском на PostgreSQL и на MS SQL.
-            if (createSqlDatabase)
-                csb.Append(";CrSQLDB=\"Y\"");
-            // SchJobDn действует только в CREATEINFOBASE: он задаёт состояние создаваемой
-            // клиент-серверной базы и не должен попадать в обычную строку подключения.
-            if (blockScheduledJobs)
-                csb.Append(";SchJobDn=\"Y\"");
-            connectionString = csb.ToString();
+            // Строка подключения собирается общим чистым helper'ом (OneCLauncher.Create.cs):
+            // одна реализация для Windows и Linux + юнит-тесты (см. issue #307).
+            connectionString = BuildClientServerCreateConnectionString(
+                srv,
+                db,
+                dbms: dbms,
+                dbServer: dbServer,
+                dbName: dbName,
+                dbUser: dbUser,
+                dbPassword: dbPassword,
+                createSqlDatabase: createSqlDatabase,
+                blockScheduledJobs: blockScheduledJobs,
+                forbidSpeechRecognition: forbidSpeechRecognition);
         }
 
         var arguments = $"CREATEINFOBASE {connectionString}";

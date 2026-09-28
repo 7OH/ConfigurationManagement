@@ -386,6 +386,7 @@ namespace Configuration_Management.Services
             string? dbPassword = null,
             bool createSqlDatabase = false,
             bool blockScheduledJobs = false,
+            bool forbidSpeechRecognition = false,
             int timeoutMs = 5 * 60 * 1000)
         {
             PlatformVersionService.ParseVariant(platformVersion, out var version, out var arch);
@@ -424,29 +425,19 @@ namespace Configuration_Management.Services
                 if (string.IsNullOrEmpty(srv) || string.IsNullOrEmpty(db))
                     return (false, LocalizationManager.T("Launcher.CreateServerOrDbNotSpecified"));
 
-                // Параметры СУБД добавляются только если заданы (см. issue #77).
-                var cs = $"Srvr=\"{EscapeConnectValue(srv)}\";Ref=\"{EscapeConnectValue(db)}\"";
-                if (!string.IsNullOrWhiteSpace(dbms))
-                    cs += $";DBMS=\"{EscapeConnectValue(dbms)}\"";
-                if (!string.IsNullOrWhiteSpace(dbServer))
-                    cs += $";DBSrvr=\"{EscapeConnectValue(dbServer)}\"";
-                if (!string.IsNullOrWhiteSpace(dbName))
-                    cs += $";DB=\"{EscapeConnectValue(dbName)}\"";
-                if (!string.IsNullOrWhiteSpace(dbUser))
-                    cs += $";DBUID=\"{EscapeConnectValue(dbUser)}\"";
-                if (!string.IsNullOrWhiteSpace(dbPassword))
-                    cs += $";DBPwd=\"{EscapeConnectValue(dbPassword)}\"";
-                // Создание базы данных на сервере СУБД задаётся параметром строки
-                // подключения, а не ключом командной строки: с «/CreateDatabase»
-                // платформа базу не создаёт и падает на попытке подключиться
-                // к несуществующей. Проверено запуском на PostgreSQL 8.3.27.
-                if (createSqlDatabase)
-                    cs += ";CrSQLDB=\"Y\"";
-                // SchJobDn действует только в CREATEINFOBASE: он задаёт состояние создаваемой
-                // клиент-серверной базы и не должен попадать в обычную строку подключения.
-                if (blockScheduledJobs)
-                    cs += ";SchJobDn=\"Y\"";
-                connectionString = cs;
+                // Строка подключения собирается общим чистым helper'ом (OneCLauncher.Create.cs):
+                // одна реализация для Windows и Linux + юнит-тесты (см. issue #307).
+                connectionString = BuildClientServerCreateConnectionString(
+                    srv,
+                    db,
+                    dbms: dbms,
+                    dbServer: dbServer,
+                    dbName: dbName,
+                    dbUser: dbUser,
+                    dbPassword: dbPassword,
+                    createSqlDatabase: createSqlDatabase,
+                    blockScheduledJobs: blockScheduledJobs,
+                    forbidSpeechRecognition: forbidSpeechRecognition);
             }
 
             var args = new List<string> { "CREATEINFOBASE", connectionString };

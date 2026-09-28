@@ -1262,6 +1262,7 @@
     "CreateInfobase.DbPasswordLabel": "Пароль СУБД:",
     "CreateInfobase.CreateDatabase": "Создать базу данных на сервере СУБД (1С создаст её автоматически)",
     "CreateInfobase.BlockScheduledJobs": "Блокировка фоновых заданий",
+    "CreateInfobase.ForbidSpeechRecognition": "Запретить локальное распознавание речи",
 
     "DeleteInfobase.ExistsYes": "да — {0}",
     "DeleteInfobase.PhysicalHintDynamic": "Будет удалён каталог:\n{0}\nвместе с 1Cv8.1CD и всеми файлами. Действие необратимо.",

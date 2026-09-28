@@ -95,8 +95,11 @@
                 <CheckBox x:Name="CreateDbCheck" Margin="0,0,0,8"
                           Content="{loc:Loc CreateInfobase.CreateDatabase}"
                           Foreground="{DynamicResource TextPrimaryBrush}"/>
-                <CheckBox x:Name="BlockJobsCheck" Margin="0,0,0,12"
+                <CheckBox x:Name="BlockJobsCheck" Margin="0,0,0,8"
                           Content="{loc:Loc CreateInfobase.BlockScheduledJobs}"
+                          Foreground="{DynamicResource TextPrimaryBrush}"/>
+                <CheckBox x:Name="ForbidSpeechCheck" Margin="0,0,0,12"
+                          Content="{loc:Loc CreateInfobase.ForbidSpeechRecognition}"
                           Foreground="{DynamicResource TextPrimaryBrush}"/>
             </StackPanel>
 

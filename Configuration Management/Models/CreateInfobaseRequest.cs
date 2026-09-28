@@ -52,6 +52,9 @@ public sealed class CreateInfobaseRequest
     /// <summary>Блокировать фоновые задания (SchJobDn="Y").</summary>
     public bool BlockScheduledJobs { get; set; }
 
+    /// <summary>Запретить локальное распознавание речи (disstt="Y", issue #307).</summary>
+    public bool ForbidSpeechRecognition { get; set; }
+
     /// <summary>Путь группы, в которую добавляется созданная база (может быть пустым).</summary>
     public string GroupPath { get; set; } = string.Empty;
 }

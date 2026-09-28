@@ -559,6 +559,7 @@ namespace Configuration_Management
                 DbPassword = DbPwdBox.Password ?? "",
                 CreateSqlDatabase = CreateDbCheck.IsChecked == true,
                 BlockScheduledJobs = BlockJobsCheck.IsChecked == true,
+                ForbidSpeechRecognition = ForbidSpeechCheck.IsChecked == true,
                 GroupPath = _selectedGroupPath
             };
 

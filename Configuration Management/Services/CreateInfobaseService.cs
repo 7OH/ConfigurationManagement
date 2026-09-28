@@ -50,7 +50,8 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
                 filePath: filePath,
                 server: null,
                 databaseName: null,
-                templatePath: templatePath);
+                templatePath: templatePath,
+                forbidSpeechRecognition: request.ForbidSpeechRecognition);
             if (!ok)
                 return new CreateInfobaseResult
                 {
@@ -61,7 +62,8 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             connection = new ConnectionSettings
             {
                 Type = ConnectionType.File,
-                FilePath = filePath ?? ""
+                FilePath = filePath ?? "",
+                ForbidSpeechRecognition = request.ForbidSpeechRecognition
             };
         }
         else
@@ -91,6 +93,7 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             var dbPwd = request.DbPassword ?? "";
             var createSqlDatabase = request.CreateSqlDatabase;
             var blockScheduledJobs = request.BlockScheduledJobs;
+            var forbidSpeechRecognition = request.ForbidSpeechRecognition;
 
             var (ok, error) = OneCLauncher.CreateInfoBase(
                 platformVersion: platform,
@@ -105,7 +108,8 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
                 dbUser: dbUser,
                 dbPassword: dbPwd,
                 createSqlDatabase: createSqlDatabase,
-                blockScheduledJobs: blockScheduledJobs);
+                blockScheduledJobs: blockScheduledJobs,
+                forbidSpeechRecognition: forbidSpeechRecognition);
             if (!ok)
                 return new CreateInfobaseResult
                 {
@@ -118,7 +122,8 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
                 Type = ConnectionType.ClientServer,
                 Server = server,
                 DatabaseName = refName,
-                BlockScheduledJobs = blockScheduledJobs
+                BlockScheduledJobs = blockScheduledJobs,
+                ForbidSpeechRecognition = forbidSpeechRecognition
             };
         }
 

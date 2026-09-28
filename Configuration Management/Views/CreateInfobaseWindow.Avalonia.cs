@@ -55,6 +55,7 @@ namespace Configuration_Management
         private readonly PasswordBox _dbPwdBox = new PasswordBox().Styled(ControlThemes.ModernPasswordBox);
         private readonly CheckBox _createDbCheck = new();
         private readonly CheckBox _blockJobsCheck = new();
+        private readonly CheckBox _forbidSpeechCheck = new();
 
         private readonly TreeView _templateTree = new() { SelectionMode = SelectionMode.Single, Height = 260 };
         private readonly TextBlock _templateRootsHint = new()
@@ -305,6 +306,18 @@ namespace Configuration_Management
             Grid.SetColumn(_blockJobsCheck, 0);
             blockJobsRow.Children.Add(_blockJobsCheck);
             _serverPanel.Children.Add(blockJobsRow);
+
+            // Запрет локального распознавания речи (issue #307), как в типовом стартере.
+            var forbidSpeechRow = new Grid();
+            forbidSpeechRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(150)));
+            forbidSpeechRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            var fsLabel = new TextBlock { Text = LocalizationManager.T("CreateInfobase.ForbidSpeechRecognition"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(fsLabel, 1);
+            forbidSpeechRow.Children.Add(fsLabel);
+            _forbidSpeechCheck.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(_forbidSpeechCheck, 0);
+            forbidSpeechRow.Children.Add(_forbidSpeechCheck);
+            _serverPanel.Children.Add(forbidSpeechRow);
 
             fields.Children.Add(_filePanel);
             fields.Children.Add(_serverPanel);
@@ -796,6 +809,7 @@ namespace Configuration_Management
                 DbPassword = _dbPwdBox.Password ?? "",
                 CreateSqlDatabase = _createDbCheck.IsChecked == true,
                 BlockScheduledJobs = _blockJobsCheck.IsChecked == true,
+                ForbidSpeechRecognition = _forbidSpeechCheck.IsChecked == true,
                 GroupPath = _selectedGroupPath
             };
 

@@ -1262,6 +1262,7 @@
     "CreateInfobase.DbPasswordLabel": "DBMS password:",
     "CreateInfobase.CreateDatabase": "Create the database on the DBMS server (1C will create it automatically)",
     "CreateInfobase.BlockScheduledJobs": "Block scheduled jobs",
+    "CreateInfobase.ForbidSpeechRecognition": "Forbid local speech recognition",
 
     "DeleteInfobase.ExistsYes": "yes — {0}",
     "DeleteInfobase.PhysicalHintDynamic": "The directory will be deleted:\n{0}\ntogether with 1Cv8.1CD and all files. This action is irreversible.",
