@@ -22,6 +22,17 @@ internal static class SensitiveDataMasker
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     /// <summary>
+    /// Пароль хранилища конфигурации в командной строке пакетных операций DESIGNER:
+    /// ключ /ConfigurationRepositoryP "значение". Значение скрывается полностью при
+    /// формировании <c>DesignerBatchInfo.CommandLine</c>, т.к. при ошибке операции
+    /// CompleteDesignerBatch выводит командную строку в ErrorMessage (пароль не должен
+    /// утекать в UI/журнал). При необходимости закрывает и аналогичный ключ -Pwd"…".
+    /// </summary>
+    private static readonly Regex RepositoryPasswordRegex = new(
+        @"(/ConfigurationRepositoryP\s*"")(?:(?:"""")|[^""])*""|-Pwd\s*""[^""]*""",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    /// <summary>
     /// Скрывает пароль СУБД во всём тексте — как в показанной команде CREATEINFOBASE,
     /// так и в диагностике платформы, если она повторила строку подключения.
     /// </summary>
@@ -44,5 +55,24 @@ internal static class SensitiveDataMasker
             return text;
 
         return RacPasswordRegex.Replace(text, match => match.Groups[1].Value + "***");
+    }
+
+    /// <summary>
+    /// Маскирует пароль хранилища конфигурации в командной строке 1cv8: значение ключа
+    /// /ConfigurationRepositoryP "..." заменяется на «***» (и аналогичный -Pwd"…").
+    /// Имя ключа и путь в других /ConfigurationRepository*-ключах не искажаются.
+    /// Применяется при формировании <see cref="OneCLauncher.DesignerBatchInfo.CommandLine"/>
+    /// для всех repository-операций (выгрузка версии, отчёт, захват/отмена захвата,
+    /// обновление из хранилища).
+    /// </summary>
+    internal static string? MaskRepositoryPassword(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        return RepositoryPasswordRegex.Replace(text, match =>
+            match.Groups[1].Success
+                ? match.Groups[1].Value + "***\""
+                : "-Pwd\"***\"");
     }
 }

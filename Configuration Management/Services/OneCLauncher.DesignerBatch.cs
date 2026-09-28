@@ -42,7 +42,30 @@ public static partial class OneCLauncher
         /// Выгрузка конфигурации в каталог XML-файлов (/DumpConfigToFiles"dir") для сравнения
         /// конфигураций (0.3.9.99, функция №9): каноническое дерево, одинаковое для базы и .cf.
         /// </summary>
-        DumpConfigToFiles
+        DumpConfigToFiles,
+        /// <summary>
+        /// Выгрузка версии хранилища конфигурации в файл .cf (/ConfigurationRepositoryDumpCfg"файл" [-v N]).
+        /// «Обозреватель хранилища конфигурации» (0.3.9.127): номер версии передаётся в
+        /// <see cref="RunDesignerBatch"/> отдельным параметром repositoryVersion.
+        /// </summary>
+        RepositoryDumpCfg,
+        /// <summary>
+        /// Отчёт по истории хранилища конфигурации (/ConfigurationRepositoryReport"файл" [-NBegin N] [-NEnd N]).
+        /// Формат файла отчёта — табличный документ (.mxl); текстовые форматы (.txt/.html)
+        /// не документированы (разведка этапа 1: грамматика ключей подтверждена на 8.3.27.2325,
+        /// реальный формат на этой машине не проверяем из-за недоступности хранилища).
+        /// </summary>
+        RepositoryReport,
+        /// <summary>
+        /// Захват объектов хранилища конфигурации (/ConfigurationRepositoryLock [-objects"файл.xml"]).
+        /// Без -objects захватываются все объекты; формат XML-файла списка не документирован
+        /// платформой — выборочный захват экспериментальный.
+        /// </summary>
+        RepositoryLock,
+        /// <summary>
+        /// Отмена захвата объектов хранилища (/ConfigurationRepositoryUnlock [-objects"файл.xml"]).
+        /// </summary>
+        RepositoryUnlock
     }
 
     /// <summary>
@@ -98,6 +121,10 @@ public static partial class OneCLauncher
             DesignerBatchOperation.UnlockIB => LocalizationManager.T("Launcher.OperationUnlockIB"),
             DesignerBatchOperation.RepositoryUpdate => LocalizationManager.T("Launcher.OperationRepositoryUpdate"),
             DesignerBatchOperation.DumpConfigToFiles => LocalizationManager.T("Launcher.OperationDumpConfigToFiles"),
+            DesignerBatchOperation.RepositoryDumpCfg => LocalizationManager.T("Launcher.OperationRepositoryDumpCfg"),
+            DesignerBatchOperation.RepositoryReport => LocalizationManager.T("Launcher.OperationRepositoryReport"),
+            DesignerBatchOperation.RepositoryLock => LocalizationManager.T("Launcher.OperationRepositoryLock"),
+            DesignerBatchOperation.RepositoryUnlock => LocalizationManager.T("Launcher.OperationRepositoryUnlock"),
             _ => LocalizationManager.T("Launcher.OperationGeneric")
         };
     }
@@ -107,7 +134,8 @@ public static partial class OneCLauncher
     /// Формат аргументов как у командной строки 1С (без пробела между ключом и значением в кавычках).
     /// </summary>
     public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath = null,
-        BackupCredential? credential = null)
+        BackupCredential? credential = null, int? repositoryVersion = null, int? repositoryReportBegin = null,
+        int? repositoryReportEnd = null)
     {
         var arch = ResolveArchitecture(infobase.Architecture, infobase.PlatformVersion);
         var exePath = FindExecutable(infobase.PlatformVersion, arch, null, OneCLaunchMode.Configurator);
@@ -141,11 +169,13 @@ public static partial class OneCLauncher
             return false;
         }
 
-        if (operation is DesignerBatchOperation.DumpIB or DesignerBatchOperation.DumpCfg)
+        if (operation is DesignerBatchOperation.DumpIB or DesignerBatchOperation.DumpCfg
+            or DesignerBatchOperation.RepositoryDumpCfg or DesignerBatchOperation.RepositoryReport)
         {
             if (string.IsNullOrWhiteSpace(outputPath))
                 return false;
-            // Каталог назначения должен существовать
+            // Каталог назначения должен существовать (создаётся здесь): платформа сама его не создаёт.
+            // Для RepositoryDumpCfg outputPath — файл .cf, для RepositoryReport — файл отчёта по истории.
             var dir = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             {
@@ -157,6 +187,13 @@ public static partial class OneCLauncher
                     return false;
                 }
             }
+        }
+        else if (operation is DesignerBatchOperation.RepositoryLock or DesignerBatchOperation.RepositoryUnlock)
+        {
+            // Выборочный захват/отмена (-objects) требует существующий XML-файл списка объектов;
+            // без файла (outputPath == null) операция выполняется для всех объектов хранилища.
+            if (!string.IsNullOrWhiteSpace(outputPath) && !File.Exists(outputPath))
+                return false;
         }
         else if (operation == DesignerBatchOperation.DumpConfigToFiles)
         {
@@ -210,6 +247,15 @@ public static partial class OneCLauncher
             // хранилища и флаги /ConfigurationRepositoryUpdateCfg /UpdateDBCfg
             // собираются общим методом (см. OneCLauncher.Arguments.Shared.cs).
             DesignerBatchOperation.RepositoryUpdate => BuildRepositoryUpdateArgument(infobase),
+            // Операции хранилища «Обозревателя хранилища конфигурации» (0.3.9.127): общий блок
+            // F/N/P + ключ операции; параметры -v/-NBegin/-NEnd/-objects — с дефисом и пробелом
+            // перед значением (уникальная грамматика repository-команд, см. Arguments.Shared.cs).
+            DesignerBatchOperation.RepositoryDumpCfg =>
+                BuildRepositoryDumpCfgArgument(infobase, outputPath!, repositoryVersion),
+            DesignerBatchOperation.RepositoryReport =>
+                BuildRepositoryReportArgument(infobase, outputPath!, repositoryReportBegin, repositoryReportEnd),
+            DesignerBatchOperation.RepositoryLock => BuildRepositoryLockArgument(infobase, outputPath),
+            DesignerBatchOperation.RepositoryUnlock => BuildRepositoryUnlockArgument(infobase, outputPath),
             _ => ""
         };
         if (string.IsNullOrEmpty(opArg))
@@ -230,15 +276,21 @@ public static partial class OneCLauncher
                 WorkingDirectory = Path.GetDirectoryName(exePath) ?? ""
             };
             var process = Process.Start(psi);
-            var info = new DesignerBatchInfo(operation, infobase.Name, outputPath, outLog, $"{exePath} {arguments}");
+            // Пароль хранилища (/ConfigurationRepositoryP "…") маскируется в командной строке
+            // ДО попадания в DesignerBatchInfo.CommandLine: при ошибке CompleteDesignerBatch
+            // выводит CommandLine в ErrorMessage — пароль не должен утекать в UI/журнал.
+            var commandLine = SensitiveDataMasker.MaskRepositoryPassword($"{exePath} {arguments}");
+            var info = new DesignerBatchInfo(operation, infobase.Name, outputPath, outLog, commandLine);
             RegisterBatchProcess(infobase, process, info);
             DesignerBatchStarted?.Invoke(null, info);
             return true;
         }
         catch (Exception ex)
         {
+            // Логируем замаскированную командную строку (пароль хранилища не должен попадать в журнал).
+            var maskedArguments = SensitiveDataMasker.MaskRepositoryPassword(arguments);
             GetLogger()?.Error(
-                string.Format(LocalizationManager.T("Launcher.OperationStartFailedFormat"), ex.Message, exePath, arguments), ex);
+                string.Format(LocalizationManager.T("Launcher.OperationStartFailedFormat"), ex.Message, exePath, maskedArguments), ex);
             return false;
         }
     }
@@ -303,6 +355,18 @@ public static partial class OneCLauncher
                  File.Exists(info.OutputPath) &&
                  new FileInfo(info.OutputPath).Length > 0;
         }
+
+        // Успех выгрузки версии хранилища (.cf) и отчёта по истории: код возврата 0 +
+        // создан и не пуст выходной файл (разведка этапа 1: платформа возвращает код 0
+        // даже при ошибке — «Хранилище … не обнаружено», поэтому файл — главный признак).
+        else if (ok && info.Operation is DesignerBatchOperation.RepositoryDumpCfg or DesignerBatchOperation.RepositoryReport)
+        {
+            ok = !string.IsNullOrWhiteSpace(info.OutputPath) &&
+                 File.Exists(info.OutputPath) &&
+                 new FileInfo(info.OutputPath).Length > 0;
+        }
+
+        // Lock/Unlock выходной файл не создают — успех по коду возврата 0.
 
         else if (ok && info.Operation == DesignerBatchOperation.DumpConfigToFiles)
         {

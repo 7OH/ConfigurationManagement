@@ -172,19 +172,23 @@ public static partial class OneCLauncher
     }
 
     /// <summary>
-    /// Собирает аргументы пакетного обновления конфигурации из хранилища конфигурации:
-    /// /ConfigurationRepositoryF "путь" /ConfigurationRepositoryN "user" /ConfigurationRepositoryP "pwd"
-    /// /ConfigurationRepositoryUpdateCfg /UpdateDBCfg.
-    /// Путь к хранилищу строится из <see cref="Infobase.Repository"/> (Server + RepositoryName) так же,
-    /// как в <see cref="BuildArguments"/>; логин/пароль хранилища — через единый резолвинг
-    /// <see cref="InfobaseAuthResolver.ResolveRepository"/>.
+    /// Собирает общий блок аргументов подключения к хранилищу конфигурации:
+    /// /ConfigurationRepositoryF "путь" /ConfigurationRepositoryN "user" /ConfigurationRepositoryP "pwd".
+    /// Путь строится из <see cref="Infobase.Repository"/> (Server + RepositoryName); логин/пароль
+    /// хранилища — через единый резолвинг <see cref="InfobaseAuthResolver.ResolveRepository"/>
+    /// и возвращаются через <paramref name="repositoryUser"/>/<paramref name="repositoryPassword"/>
+    /// (нужны сервису для маскирования пароля в командной строке операции).
     /// Значения идут по грамматике ключа (не строки подключения): небезопасное значение (с «"»)
     /// не подставляется (см. <see cref="IsSafeCliValue"/>). Возвращает пустую строку, если адрес
     /// хранилища не задан или безопасно представить его невозможно.
     /// </summary>
-    public static string BuildRepositoryUpdateArgument(Infobase? infobase)
+    private static string BuildRepositoryArguments(Infobase infobase,
+        out string repositoryUser, out string repositoryPassword)
     {
-        var repo = infobase?.Repository;
+        repositoryUser = string.Empty;
+        repositoryPassword = string.Empty;
+
+        var repo = infobase.Repository;
         if (repo is null || !repo.HasServer)
             return "";
 
@@ -196,19 +200,118 @@ public static partial class OneCLauncher
 
         // Учётные данные Хранилища конфигурации выбираются единым резолвингом (Этап 12,
         // функция №7 StartManager): отдельные логин/пароль хранилища (RepositorySettings).
-        InfobaseAuthResolver.ResolveRepository(infobase!, out var repoUser, out var repoPassword);
+        InfobaseAuthResolver.ResolveRepository(infobase, out repositoryUser, out repositoryPassword);
 
         var arg = $" /ConfigurationRepositoryF \"{repoPath}\"";
-        if (IsSafeCliValue(repoUser))
+        if (IsSafeCliValue(repositoryUser))
         {
-            arg += $" /ConfigurationRepositoryN \"{repoUser}\"";
-            if (IsSafeCliValue(repoPassword))
-                arg += $" /ConfigurationRepositoryP \"{repoPassword}\"";
+            arg += $" /ConfigurationRepositoryN \"{repositoryUser}\"";
+            if (IsSafeCliValue(repositoryPassword))
+                arg += $" /ConfigurationRepositoryP \"{repositoryPassword}\"";
         }
+        return arg;
+    }
 
-        // Загрузка конфигурации из хранилища и обновление конфигурации БД.
-        // /ConfigurationRepositoryDumpCfg НЕ нужен: выгрузка конфигурации в файл не выполняется.
+    /// <summary>
+    /// Собирает аргументы пакетного обновления конфигурации из хранилища конфигурации:
+    /// общий блок F/N/P (см. <see cref="BuildRepositoryArguments"/>) +
+    /// /ConfigurationRepositoryUpdateCfg /UpdateDBCfg.
+    /// Поведение идентично прежней реализации (0.3.9.88): загрузка конфигурации из хранилища
+    /// и обновление конфигурации БД; /ConfigurationRepositoryDumpCfg НЕ используется.
+    /// Возвращает пустую строку, если адрес хранилища не задан или безопасно представить его
+    /// невозможно.
+    /// </summary>
+    public static string BuildRepositoryUpdateArgument(Infobase? infobase)
+    {
+        if (infobase is null)
+            return "";
+
+        var arg = BuildRepositoryArguments(infobase, out _, out _);
+        if (string.IsNullOrEmpty(arg))
+            return "";
+
         arg += " /ConfigurationRepositoryUpdateCfg /UpdateDBCfg";
+        return arg;
+    }
+
+    /// <summary>
+    /// Собирает аргументы выгрузки версии хранилища конфигурации в файл .cf (0.3.9.127,
+    /// «Обозреватель хранилища конфигурации»): общий блок F/N/P +
+    /// /ConfigurationRepositoryDumpCfg"файл.cf" [-v N].
+    /// ВАЖНО (разведка этапа 1, платформа 8.3.27.2325): параметры -v/-objects/-NBegin/-NEnd
+    /// передаются с дефисом и пробелом перед значением (« -v N») — уникальная грамматика
+    /// repository-команд, в отличие от обычных ключей вида /DumpIB"path" (значение сразу
+    /// в кавычках). Без -v (или с -v -1) выгружается актуальная версия хранилища.
+    /// Значения — через <see cref="IsSafeCliValue"/>.
+    /// </summary>
+    public static string BuildRepositoryDumpCfgArgument(Infobase infobase, string cfPath, int? version)
+    {
+        var arg = BuildRepositoryArguments(infobase, out _, out _);
+        if (string.IsNullOrEmpty(arg) || !IsSafeCliValue(cfPath))
+            return "";
+        arg += $" /ConfigurationRepositoryDumpCfg\"{cfPath}\"";
+        if (version.HasValue)
+            arg += $" -v {version.Value}";
+        return arg;
+    }
+
+    /// <summary>
+    /// Собирает аргументы отчёта по истории хранилища (/ConfigurationRepositoryReport "файл"):
+    /// общий блок F/N/P + /ConfigurationRepositoryReport"файл" [-NBegin N] [-NEnd N].
+    /// Параметры -NBegin/-NEnd — с дефисом и пробелом перед значением (грамматика repository).
+    /// Отчёт формируется платформой в виде табличного документа (.mxl); текстовые форматы
+    /// (.txt/.html) не документированы (см. разведку этапа 1), поэтому парсер
+    /// <see cref="RepositoryHistoryParser"/> носит запасной характер, а при недоступности
+    /// читаемого текста история ограничивается актуальной версией.
+    /// </summary>
+    public static string BuildRepositoryReportArgument(Infobase infobase, string reportPath, int? nBegin, int? nEnd)
+    {
+        var arg = BuildRepositoryArguments(infobase, out _, out _);
+        if (string.IsNullOrEmpty(arg) || !IsSafeCliValue(reportPath))
+            return "";
+        arg += $" /ConfigurationRepositoryReport\"{reportPath}\"";
+        if (nBegin.HasValue)
+            arg += $" -NBegin {nBegin.Value}";
+        if (nEnd.HasValue)
+            arg += $" -NEnd {nEnd.Value}";
+        return arg;
+    }
+
+    /// <summary>
+    /// Собирает аргументы захвата объектов хранилища (/ConfigurationRepositoryLock):
+    /// общий блок F/N/P + /ConfigurationRepositoryLock [-objects"файл.xml"].
+    /// Без -objects захватываются все объекты конфигурации; с -objects — только перечисленные
+    /// в XML-файле (формат файла НЕ документирован платформой — экспериментальный, см.
+    /// комментарий разведки в <see cref="OneCLauncher.DesignerBatch"/>).
+    /// Параметр -objects — с дефисом и пробелом перед значением (грамматика repository);
+    /// значение — через <see cref="IsSafeCliValue"/>.
+    /// </summary>
+    public static string BuildRepositoryLockArgument(Infobase infobase, string? objectsXmlPath)
+    {
+        var arg = BuildRepositoryArguments(infobase, out _, out _);
+        if (string.IsNullOrEmpty(arg))
+            return "";
+        arg += " /ConfigurationRepositoryLock";
+        if (!string.IsNullOrEmpty(objectsXmlPath) && IsSafeCliValue(objectsXmlPath))
+            arg += $" -objects\"{objectsXmlPath}\"";
+        return arg;
+    }
+
+    /// <summary>
+    /// Собирает аргументы отмены захвата объектов хранилища (/ConfigurationRepositoryUnlock):
+    /// общий блок F/N/P + /ConfigurationRepositoryUnlock [-objects"файл.xml"].
+    /// Без -objects отменяется захват всех объектов; с -objects — только перечисленных
+    /// в XML-файле (формат не документирован — экспериментальный). Грамматика и безопасность
+    /// значений — как в <see cref="BuildRepositoryLockArgument"/>.
+    /// </summary>
+    public static string BuildRepositoryUnlockArgument(Infobase infobase, string? objectsXmlPath)
+    {
+        var arg = BuildRepositoryArguments(infobase, out _, out _);
+        if (string.IsNullOrEmpty(arg))
+            return "";
+        arg += " /ConfigurationRepositoryUnlock";
+        if (!string.IsNullOrEmpty(objectsXmlPath) && IsSafeCliValue(objectsXmlPath))
+            arg += $" -objects\"{objectsXmlPath}\"";
         return arg;
     }
 

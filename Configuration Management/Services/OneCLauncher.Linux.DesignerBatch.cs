@@ -43,7 +43,28 @@ namespace Configuration_Management.Services
             /// Выгрузка конфигурации в каталог XML-файлов (/DumpConfigToFiles"dir") для сравнения
             /// конфигураций (0.3.9.99, функция №9): каноническое дерево, одинаковое для базы и .cf.
             /// </summary>
-            DumpConfigToFiles
+            DumpConfigToFiles,
+            /// <summary>
+            /// Выгрузка версии хранилища конфигурации в файл .cf (/ConfigurationRepositoryDumpCfg"файл" [-v N]).
+            /// «Обозреватель хранилища конфигурации» (0.3.9.127): номер версии передаётся в
+            /// <see cref="RunDesignerBatch"/> отдельным параметром repositoryVersion.
+            /// </summary>
+            RepositoryDumpCfg,
+            /// <summary>
+            /// Отчёт по истории хранилища конфигурации (/ConfigurationRepositoryReport"файл" [-NBegin N] [-NEnd N]).
+            /// Формат файла отчёта — табличный документ (.mxl); текстовые форматы не документированы
+            /// (разведка этапа 1).
+            /// </summary>
+            RepositoryReport,
+            /// <summary>
+            /// Захват объектов хранилища (/ConfigurationRepositoryLock [-objects"файл.xml"]); без
+            /// -objects — захват всех объектов; формат XML-списка не документирован (эксперимент).
+            /// </summary>
+            RepositoryLock,
+            /// <summary>
+            /// Отмена захвата объектов хранилища (/ConfigurationRepositoryUnlock [-objects"файл.xml"]).
+            /// </summary>
+            RepositoryUnlock
         }
 
         /// <summary>Информация о запущенной пакетной операции DESIGNER.</summary>
@@ -79,13 +100,18 @@ namespace Configuration_Management.Services
                 DesignerBatchOperation.UnlockIB => LocalizationManager.T("Launcher.OperationUnlockIB"),
                 DesignerBatchOperation.RepositoryUpdate => LocalizationManager.T("Launcher.OperationRepositoryUpdate"),
                 DesignerBatchOperation.DumpConfigToFiles => LocalizationManager.T("Launcher.OperationDumpConfigToFiles"),
+                DesignerBatchOperation.RepositoryDumpCfg => LocalizationManager.T("Launcher.OperationRepositoryDumpCfg"),
+                DesignerBatchOperation.RepositoryReport => LocalizationManager.T("Launcher.OperationRepositoryReport"),
+                DesignerBatchOperation.RepositoryLock => LocalizationManager.T("Launcher.OperationRepositoryLock"),
+                DesignerBatchOperation.RepositoryUnlock => LocalizationManager.T("Launcher.OperationRepositoryUnlock"),
                 _ => LocalizationManager.T("Launcher.OperationGeneric")
             };
         }
 
         /// <summary>Запускает конфигуратор в пакетном режиме (выгрузка .dt/.cf или тест).</summary>
         public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath = null,
-            BackupCredential? credential = null)
+            BackupCredential? credential = null, int? repositoryVersion = null, int? repositoryReportBegin = null,
+            int? repositoryReportEnd = null)
         {
             var arch = ResolveArchitecture(infobase.Architecture, infobase.PlatformVersion);
             var exePath = FindExecutable(infobase.PlatformVersion, arch, null, OneCLaunchMode.Configurator);
@@ -100,16 +126,24 @@ namespace Configuration_Management.Services
             if (IsDesignerBlocked(infobase, out _))
                 return false;
 
-            if (operation is DesignerBatchOperation.DumpIB or DesignerBatchOperation.DumpCfg)
+            if (operation is DesignerBatchOperation.DumpIB or DesignerBatchOperation.DumpCfg
+                or DesignerBatchOperation.RepositoryDumpCfg or DesignerBatchOperation.RepositoryReport)
             {
                 if (string.IsNullOrWhiteSpace(outputPath))
                     return false;
+                // Каталог назначения создаётся здесь: платформа сама его не создаёт.
                 var dir = Path.GetDirectoryName(outputPath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 {
                     try { Directory.CreateDirectory(dir); }
                     catch { return false; }
                 }
+            }
+            else if (operation is DesignerBatchOperation.RepositoryLock or DesignerBatchOperation.RepositoryUnlock)
+            {
+                // Выборочный захват (-objects) требует существующий XML-файл; без файла — все объекты.
+                if (!string.IsNullOrWhiteSpace(outputPath) && !File.Exists(outputPath))
+                    return false;
             }
             else if (operation == DesignerBatchOperation.DumpConfigToFiles)
             {
@@ -184,14 +218,20 @@ namespace Configuration_Management.Services
                     WorkingDirectory = Path.GetDirectoryName(exePath) ?? ""
                 };
                 var process = LinuxProcessEnvironment.Start(psi);
-                var info = new DesignerBatchInfo(operation, infobase.Name, outputPath, outLog, $"{exePath} {arguments}");
+                // Пароль хранилища (/ConfigurationRepositoryP "…") маскируется в командной строке
+                // ДО попадания в DesignerBatchInfo.CommandLine: при ошибке CompleteDesignerBatch
+                // выводит CommandLine в ErrorMessage — пароль не должен утекать в UI/журнал.
+                var commandLine = SensitiveDataMasker.MaskRepositoryPassword($"{exePath} {arguments}");
+                var info = new DesignerBatchInfo(operation, infobase.Name, outputPath, outLog, commandLine);
                 RegisterBatchProcess(infobase, process, info);
                 DesignerBatchStarted?.Invoke(null, info);
                 return true;
             }
             catch (Exception ex)
             {
-                GetLogger()?.Error(string.Format(LocalizationManager.T("Launcher.OperationStartFailedFormat"), ex.Message, exePath, arguments), ex);
+                // Логируем замаскированную командную строку (пароль хранилища не должен попадать в журнал).
+                var maskedArguments = SensitiveDataMasker.MaskRepositoryPassword(arguments);
+                GetLogger()?.Error(string.Format(LocalizationManager.T("Launcher.OperationStartFailedFormat"), ex.Message, exePath, maskedArguments), ex);
                 return false;
             }
         }
@@ -246,6 +286,18 @@ namespace Configuration_Management.Services
                      File.Exists(info.OutputPath) &&
                      new FileInfo(info.OutputPath).Length > 0;
             }
+
+            // Успех выгрузки версии хранилища (.cf) и отчёта по истории: код возврата 0 +
+            // создан и не пуст выходной файл (разведка этапа 1: платформа возвращает код 0
+            // даже при ошибке, поэтому файл — главный признак успеха).
+            else if (ok && info.Operation is DesignerBatchOperation.RepositoryDumpCfg or DesignerBatchOperation.RepositoryReport)
+            {
+                ok = !string.IsNullOrWhiteSpace(info.OutputPath) &&
+                     File.Exists(info.OutputPath) &&
+                     new FileInfo(info.OutputPath).Length > 0;
+            }
+
+            // Lock/Unlock выходной файл не создают — успех по коду возврата 0.
 
         else if (ok && info.Operation == DesignerBatchOperation.DumpConfigToFiles)
         {

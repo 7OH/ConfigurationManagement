@@ -68,6 +68,90 @@ public static class ConfigurationDiffEngine
     }
 
     /// <summary>
+    /// Строит полный список объектов выгрузки для «Обозревателя хранилища конфигурации»
+    /// (0.3.9.127): верхний уровень — как <see cref="BuildSnapshot"/> (записи каталога
+    /// <c>Configuration/<Тип>/</c>: файлы <c><Имя>.xml</c> и каталоги-объекты),
+    /// плюс вложенные объекты: для каждого каталога-объекта обход его подкаталогов
+    /// (<c>Forms/</c>, <c>Attributes/</c>, <c>Templates/</c>, <c>Commands/</c>, <c>Ext/</c> и т.п.)
+    /// и файлов <c><Имя>.xml</c> в них → владелец вложенного объекта = объект верхнего уровня.
+    /// Типы локализуются через <see cref="MetadataTypeLocalizer"/> (колбэк <paramref name="t"/>;
+    /// по умолчанию — идентичность, что делает метод тестируемым без инициализации локализации).
+    /// Служебный <see cref="ConfigDumpInfoFileName"/> игнорируется (он лежит в корне выгрузки,
+    /// вне <c>Configuration/</c>, поэтому в обход не попадает в принципе — проверка для подстраховки).
+    /// </summary>
+    internal static IReadOnlyList<RepositoryObjectInfo> BuildObjectList(string dumpRoot, Func<string, string>? t = null)
+    {
+        if (string.IsNullOrWhiteSpace(dumpRoot))
+            throw new ArgumentException("Каталог выгрузки не задан.", nameof(dumpRoot));
+
+        t ??= static key => key;
+        var result = new List<RepositoryObjectInfo>();
+        var configurationDir = Path.Combine(dumpRoot, ConfigurationDirName);
+        if (!Directory.Exists(configurationDir))
+            return result;
+
+        foreach (var typeDir in Directory.EnumerateDirectories(configurationDir))
+        {
+            var typeName = Path.GetFileName(typeDir);
+            if (string.IsNullOrWhiteSpace(typeName))
+                continue;
+            var displayType = MetadataTypeLocalizer.GetDisplayName(typeName, t);
+
+            foreach (var entry in Directory.EnumerateFileSystemEntries(typeDir))
+            {
+                var name = Path.GetFileName(entry);
+                if (string.IsNullOrWhiteSpace(name) ||
+                    string.Equals(name, ConfigDumpInfoFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (File.Exists(entry))
+                {
+                    // Файловый объект верхнего уровня (например Document/ЗаказКлиента.xml):
+                    // имя сохраняется как в ключах BuildSnapshot («ЗаказКлиента.xml»).
+                    result.Add(new RepositoryObjectInfo(displayType, name, Owner: string.Empty, IsTopLevel: true));
+                }
+                else if (Directory.Exists(entry))
+                {
+                    // Каталог-объект верхнего уровня: сам объект + вложенные объекты подкаталогов.
+                    result.Add(new RepositoryObjectInfo(displayType, name, Owner: string.Empty, IsTopLevel: true));
+                    AddNestedObjects(result, entry, displayType, name, t);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Обходит подкаталоги каталога-объекта и добавляет вложенные объекты (файлы
+    /// <c><Имя>.xml</c> в подкаталогах <c>Forms/</c>, <c>Attributes/</c>, …) с владельцем —
+    /// именем объекта верхнего уровня. Имя вложенного объекта — имя файла без расширения .xml;
+    /// тип — имя подкаталога (локализуется через <see cref="MetadataTypeLocalizer"/>, для
+    /// неизвестных подкаталогов возвращается как есть).
+    /// </summary>
+    private static void AddNestedObjects(List<RepositoryObjectInfo> result, string objectDir,
+        string typeName, string owner, Func<string, string> t)
+    {
+        foreach (var subDir in Directory.EnumerateDirectories(objectDir))
+        {
+            var subDirName = Path.GetFileName(subDir);
+            if (string.IsNullOrWhiteSpace(subDirName))
+                continue;
+            var nestedType = MetadataTypeLocalizer.GetDisplayName(subDirName, t);
+
+            foreach (var xmlFile in Directory.EnumerateFiles(subDir, "*.xml", SearchOption.AllDirectories))
+            {
+                var fileBase = Path.GetFileNameWithoutExtension(xmlFile);
+                if (string.IsNullOrWhiteSpace(fileBase))
+                    continue;
+                result.Add(new RepositoryObjectInfo(nestedType, fileBase, owner, IsTopLevel: false));
+            }
+        }
+    }
+
+    /// <summary>
     /// Сравнивает два снимка и возвращает отчёт: по каждому объекту (объединение ключей)
     /// определяется статус; корневой <c>Configuration.xml</c> выносится флагом
     /// <see cref="ConfigurationDiffResult.RootFileChanged"/>.

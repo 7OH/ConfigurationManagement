@@ -9,6 +9,62 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.127] — 2026-09-28
+
+### Добавлено
+
+- **Обозреватель хранилища конфигурации — этап 1: сервисный слой** (цикл
+  0.3.9.127–0.3.9.130): пакетные операции DESIGNER с хранилищем конфигурации 1С
+  и их инфраструктура — фундамент будущего окна «Хранилище конфигурации…».
+  - **Модели** — [`Models/RepositoryModels.cs`](Configuration%20Management/Models/RepositoryModels.cs):
+    `RepositoryVersion` (номер, дата, автор, комментарий, признак актуальной версии)
+    и `RepositoryObjectInfo` (тип-каталог выгрузки, имя объекта, владелец для
+    вложенных объектов, флаг верхнего уровня).
+  - **Сборка аргументов** — [`Services/OneCLauncher.Arguments.Shared.cs`](Configuration%20Management/Services/OneCLauncher.Arguments.Shared.cs):
+    общий блок `/ConfigurationRepositoryF/N/P` вынесен в `BuildRepositoryArguments`;
+    добавлены `BuildRepositoryDumpCfgArgument` (параметр `-v N`),
+    `BuildRepositoryReportArgument` (`-NBegin N` / `-NEnd N`),
+    `BuildRepositoryLockArgument` / `BuildRepositoryUnlockArgument` (`-objects"…"`);
+    параметры `-v`/`-objects`/`-NBegin`/`-NEnd` — с дефисом и пробелом перед
+    значением (уникальная грамматика repository-команд), значения — через
+    `IsSafeCliValue`.
+  - **Пакетные операции** — новые `DesignerBatchOperation`: `RepositoryDumpCfg`,
+    `RepositoryReport`, `RepositoryLock`, `RepositoryUnlock` (Windows/WPF и
+    Linux/Avalonia); проверки успеха в `CompleteDesignerBatch`: DumpCfg/Report —
+    ExitCode 0 + файл создан и не пуст, Lock/Unlock — ExitCode 0.
+  - **Безопасность пароля** — [`Services/SensitiveDataMasker.cs`](Configuration%20Management/Services/SensitiveDataMasker.cs):
+    новый `MaskRepositoryPassword` маскирует `/ConfigurationRepositoryP "…"` при
+    формировании `DesignerBatchInfo.CommandLine` — пароль не попадает в
+    `ErrorMessage` при ошибке операции.
+  - **Парсер истории** — [`Services/RepositoryHistoryParser.cs`](Configuration%20Management/Services/RepositoryHistoryParser.cs):
+    чистый разбор текстового отчёта `/ConfigurationRepositoryReport`
+    (устойчивость: «кривые» строки пропускаются, пустые поля — значения по
+    умолчанию). Разведка на реальной платформе 8.3.27.2325 подтвердила грамматику
+    repository-ключей, однако создание файлового хранилища на этой машине
+    заблокировано политикой записи (1AC5-5074/0E2D-1589), а по документации
+    формат отчёта — табличный документ (.mxl), текстовые форматы не
+    документированы: история ограничивается актуальной версией (запись
+    «актуальная версия»), состав версии доступен через выгрузку .cf.
+  - **Состав версии** — [`Services/ConfigurationDiffEngine.cs`](Configuration%20Management/Services/ConfigurationDiffEngine.cs):
+    новый `BuildObjectList`: полный обход выгрузки (верхний уровень + вложенные
+    объекты подкаталогов `Forms/`/`Attributes/`/`Templates/`/`Commands/` и т.п.
+    с владельцами), локализация типов через `MetadataTypeLocalizer`.
+  - **Сервис** — [`Services/IRepositoryStorageService.cs`](Configuration%20Management/Services/IRepositoryStorageService.cs)
+    и [`Services/RepositoryStorageService.cs`](Configuration%20Management/Services/RepositoryStorageService.cs):
+    `DumpVersionToCfAsync`, `LoadVersionObjectsAsync` (DumpCfg во временный .cf →
+    CREATEINFOBASE → `/DumpConfigToFiles` → `BuildObjectList`; временный каталог
+    `%TEMP%\cm_repo_<guid>` удаляется в `finally`), `GetHistoryAsync`,
+    `LockAsync`/`UnlockAsync`; ожидание завершения через событие
+    `DesignerBatchCompleted` (копия паттерна `ConfigurationDiffService`,
+    таймаут 60 мин); человекочитаемые исключения `RepositoryStorageException`;
+    регистрация в общем блоке DI ([`AppServices.cs`](Configuration%20Management/AppServices.cs)).
+  - **Тесты** — [`ConfigurationManagement.Tests/RepositoryStorageTests.cs`](ConfigurationManagement.Tests/RepositoryStorageTests.cs):
+    сборка аргументов (включая `-v` и отсутствие открытого пароля после
+    маскирования), `MaskRepositoryPassword`, `RepositoryHistoryParser.ParseReport`
+    (русские имена, пробелы, пустые поля, «кривые» строки), `BuildObjectList`
+    (временная выгрузка на лету: верхний уровень + вложенные с владельцами,
+    локализация типов).
+
 ## [0.3.9.126] — 2026-09-28
 
 ### Добавлено

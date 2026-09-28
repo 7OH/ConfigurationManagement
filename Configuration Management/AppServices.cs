@@ -61,6 +61,10 @@ public static class AppServices
         // Встроенный монитор серверов 1С (цикл 0.3.9.123–0.3.9.126): клиент rac
         // (Remote Administration Client) — чистый сервис без UI-зависимостей.
         services.AddSingleton<IRacClient, RacClient>();
+        // Обозреватель хранилища конфигурации (цикл 0.3.9.127–0.3.9.130): пакетные операции
+        // хранилища через DESIGNER (выгрузка версии .cf, отчёт по истории, захват/отмена
+        // захвата) + состав версии. Чистый сервис — без UI-зависимостей.
+        services.AddSingleton<IRepositoryStorageService, RepositoryStorageService>();
         // Индикатор «база сейчас запущена» и инспектор процессов: список процессов 1С
         // с командными строками и подробностями (PID, время старта, владелец).
         // Windows — WMI (Win32_Process), Linux — обход /proc; тип один, реализация
