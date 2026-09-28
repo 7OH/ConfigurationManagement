@@ -1,0 +1,253 @@
+<Window x:Class="Configuration_Management.RepositoryBrowserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Icon="{StaticResource AppIcon}"
+        Height="640" Width="1180" MinHeight="460" MinWidth="900"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <!-- Вертикальное выравнивание содержимого ячеек по центру (как в ProcessInspectorWindow). -->
+        <Style x:Key="CenteredCellText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <TextBlock Grid.Row="0" FontSize="15" FontWeight="SemiBold"
+                   Text="{loc:Loc RepositoryBrowser.Title}"/>
+
+        <!-- Панель подключения: адрес/пользователь readonly из базы, пароль в памяти окна -->
+        <Grid Grid.Row="1" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="1.5*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="1.5*"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="{loc:Loc RepositoryBrowser.Address}"/>
+            <TextBox Grid.Column="1" Margin="6,0,18,0" Padding="4,3" IsReadOnly="True"
+                     Background="{DynamicResource CardBackgroundBrush}"
+                     BorderBrush="{DynamicResource BorderBrush}"
+                     Text="{Binding RepositoryAddress}"/>
+            <TextBlock Grid.Column="2" Style="{StaticResource FieldLabel}" Text="{loc:Loc RepositoryBrowser.User}"/>
+            <TextBox Grid.Column="3" Margin="6,0,18,0" Padding="4,3" IsReadOnly="True"
+                     Background="{DynamicResource CardBackgroundBrush}"
+                     BorderBrush="{DynamicResource BorderBrush}"
+                     Text="{Binding UserName}"/>
+            <TextBlock Grid.Column="4" Style="{StaticResource FieldLabel}" Text="{loc:Loc RepositoryBrowser.Password}"/>
+            <PasswordBox x:Name="RepositoryPasswordBox" Grid.Column="5" Margin="6,0,0,0" Padding="4,3"
+                         Background="{DynamicResource CardBackgroundBrush}"
+                         BorderBrush="{DynamicResource BorderBrush}"/>
+        </Grid>
+
+        <!-- Кнопки: Подключить / Обновить / [действия этапов 3–4 — заготовки] / Закрыть -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,14,0,0">
+            <Button x:Name="ConnectButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
+                    Click="OnConnect_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔗" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc RepositoryBrowser.Connect}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="RefreshButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
+                    Click="OnRefresh_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⟳" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc RepositoryBrowser.Refresh}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <!-- Действия этапов 3–4 (сравнение и выгрузка .cf) — заготовки, подключаются позже. -->
+            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0" IsEnabled="False"
+                    Background="{DynamicResource ItemHoverBrush}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⇄" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc RepositoryBrowser.CompareWithBase}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0" IsEnabled="False"
+                    Background="{DynamicResource ItemHoverBrush}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⇅" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc RepositoryBrowser.CompareVersions}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource ModernButton}" Padding="12,5" Margin="0,0,8,0" IsEnabled="False"
+                    Background="{DynamicResource ItemHoverBrush}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⇩" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc RepositoryBrowser.DumpToCf}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="CloseButton" Width="110" IsCancel="True" Margin="16,0,0,0"
+                    Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
+                    Click="OnClose_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc RepositoryBrowser.Close}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <!-- Версии и состав выбранной версии -->
+        <Grid Grid.Row="3" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="5*"/>
+                <ColumnDefinition Width="6*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Версии -->
+            <Grid Grid.Column="0" Margin="0,0,8,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"
+                           Text="{loc:Loc RepositoryBrowser.Versions}"/>
+                <DataGrid x:Name="VersionsGrid" Grid.Row="1"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          SelectionMode="Single" SelectionUnit="FullRow"
+                          GridLinesVisibility="Horizontal" RowHeight="34"
+                          AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                          BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+                          SelectedItem="{Binding SelectedVersion}">
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Width="58" Header="{loc:Loc RepositoryBrowser.Columns.Number}"
+                                            Binding="{Binding NumberText}"
+                                            ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="150" Header="{loc:Loc RepositoryBrowser.Columns.Date}"
+                                            Binding="{Binding DateText}"
+                                            ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="170" Header="{loc:Loc RepositoryBrowser.Columns.Author}"
+                                            Binding="{Binding Author}"
+                                            ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTemplateColumn Width="*" Header="{loc:Loc RepositoryBrowser.Columns.Comment}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="4,2">
+                                        <TextBlock Text="{Binding CurrentMark}" Foreground="#16A34A"
+                                                   FontSize="12" VerticalAlignment="Top" Margin="0,2,6,0"/>
+                                        <TextBlock Text="{Binding Comment}" TextWrapping="Wrap"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+
+            <!-- Состав версии -->
+            <Grid Grid.Column="1" Margin="8,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"
+                           Text="{loc:Loc RepositoryBrowser.Objects}"/>
+                <DataGrid x:Name="ObjectsGrid" Grid.Row="1"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          SelectionMode="Single" SelectionUnit="FullRow"
+                          GridLinesVisibility="Horizontal" RowHeight="30"
+                          AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                          BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Width="1.2*" Header="{loc:Loc RepositoryBrowser.Columns.Type}"
+                                            Binding="{Binding TypeName}"
+                                            ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="2*" Header="{loc:Loc RepositoryBrowser.Columns.Name}"
+                                            Binding="{Binding DisplayName}"
+                                            ElementStyle="{StaticResource CenteredCellText}"
+                                            ToolTipService.ToolTip="{Binding Name}"/>
+                        <DataGridTextColumn Width="1.6*" Header="{loc:Loc RepositoryBrowser.Columns.Owner}"
+                                            Binding="{Binding Owner}"
+                                            ElementStyle="{StaticResource CenteredCellText}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Grid>
+
+        <!-- Статус-строка -->
+        <TextBlock Grid.Row="4" Margin="0,10,0,0" FontSize="12"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
+                   ToolTipService.ToolTip="{Binding ErrorMessage}"/>
+
+        <!-- Подсказка: при ограниченной истории — пояснение ограничения, иначе — общий hint -->
+        <StackPanel Grid.Row="5" Margin="0,8,0,0">
+            <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" Text="{loc:Loc RepositoryBrowser.Hint}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsHistoryLimited}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#D97706"
+                       TextWrapping="Wrap" Text="{loc:Loc RepositoryBrowser.HistoryUnavailable}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsHistoryLimited}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+    </Grid>
+</Window>

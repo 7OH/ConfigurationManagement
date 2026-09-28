@@ -736,6 +736,11 @@
                                         <MenuItem Header="{loc:Loc RepoUpdate.Title}" Command="{Binding RepositoryBatchUpdateCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="SourceBranch" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Обозреватель хранилища конфигурации (0.3.9.128): окно для выбранной
+                                             базы с хранилищем — подключение, список версий и состав версии. -->
+                                        <MenuItem Header="{loc:Loc RepositoryBrowser.Title}" Command="{Binding RepositoryBrowserCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="SourceBranch" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <!-- Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
                                              в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»). -->
                                         <MenuItem Header="{loc:Loc Utilities.ExportCsv}" Command="{Binding ExportBasesCsvCommand}" Style="{DynamicResource ModernMenuItem}">

@@ -2493,6 +2493,40 @@ public partial class MainViewModel : ViewModelBase
         window.ShowDialog();
     }
 
+    // ======================= Обозреватель хранилища конфигурации (0.3.9.128) =======================
+
+    private ICommand? _repositoryBrowserCommand;
+
+    /// <summary>
+    /// Команда «Хранилище конфигурации…»: окно обозревателя хранилища конфигурации
+    /// выбранной базы (подключение, список версий, состав версии). Активна, только если
+    /// у выбранной базы заполнен адрес хранилища (<see cref="CanOpenRepositoryBrowser"/>);
+    /// CanExecute пересчитывается автоматически при смене выделения (CommandManager
+    /// в сеттере SelectedInfobase).
+    /// </summary>
+    public ICommand RepositoryBrowserCommand =>
+        _repositoryBrowserCommand ??= new RelayCommand(_ => ExecuteRepositoryBrowser(),
+            _ => CanOpenRepositoryBrowser(SelectedInfobase));
+
+    private void ExecuteRepositoryBrowser()
+    {
+        if (SelectedInfobase is not { Repository.HasServer: true } infobase)
+            return;
+
+        var window = new RepositoryBrowserWindow(infobase)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        window.ShowDialog();
+    }
+
+    /// <summary>
+    /// Доступен ли обозреватель хранилища для выбранной базы: у базы должен быть
+    /// заполнен адрес хранилища конфигурации. Чистый предикат — тестируется отдельно.
+    /// </summary>
+    public static bool CanOpenRepositoryBrowser(Infobase? infobase) =>
+        infobase is { Repository.HasServer: true };
+
     // ======================= Центр обслуживания (0.3.9.89) =======================
 
     private ICommand? _maintenanceCenterCommand;

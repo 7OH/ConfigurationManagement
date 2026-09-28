@@ -9,6 +9,45 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.128] — 2026-09-28
+
+### Добавлено
+
+- **Обозреватель хранилища конфигурации — этап 2: окно и ViewModel** (цикл
+  0.3.9.127–0.3.9.130): рабочее окно «Хранилище конфигурации…» (меню «Утилиты»,
+  доступно для выбранной базы с заполненным адресом хранилища) на обеих платформах
+  (Windows/WPF + Linux/Avalonia).
+  - **ViewModel** — [`ViewModels/RepositoryBrowserViewModel.cs`](Configuration%20Management/ViewModels/RepositoryBrowserViewModel.cs):
+    подключение к хранилищу (адрес и логин readonly из свойств базы, пароль — в памяти
+    окна и НЕ сохраняется на диск), список версий через `GetHistoryAsync`, состав
+    выбранной версии через `LoadVersionObjectsAsync` (флаг занятости через `Interlocked`),
+    статус-строка/ошибки (окно не роняем), прогресс этапов через `IProgress<string>`;
+    при недоступности текстового формата отчёта по истории — одна запись «актуальная
+    версия» (`Number = -1`) с пояснением ограничения в окне.
+  - **Роу-модели** — [`ViewModels/RepositoryVersionRow.cs`](Configuration%20Management/ViewModels/RepositoryVersionRow.cs)
+    (номер/дата локально/автор/комментарий/пометка актуальной) и
+    [`ViewModels/RepositoryObjectRow.cs`](Configuration%20Management/ViewModels/RepositoryObjectRow.cs)
+    (тип через `MetadataTypeLocalizer`, имя, владелец, флаг верхнего уровня).
+  - **Окна** — [`Views/RepositoryBrowserWindow.xaml`](Configuration%20Management/Views/RepositoryBrowserWindow.xaml)
+    + `.xaml.cs` (WPF: панель подключения с PasswordBox, DataGrid версий и состава,
+    статус-строка, темизация `{DynamicResource …}`) и
+    [`Views/RepositoryBrowserWindow.Avalonia.cs`](Configuration%20Management/Views/RepositoryBrowserWindow.Avalonia.cs)
+    (Linux: ListBox + `FuncDataTemplate`, `ThemeBrushes.Bind`); окно прогресса
+    [`Views/RepositoryProgressWindow.cs`](Configuration%20Management/Views/RepositoryProgressWindow.cs)
+    + `.Avalonia.cs` (по образцу ConfigDiffProgressWindow).
+  - **Команда меню** — `RepositoryBrowserCommand` в
+    [`ViewModels/MainViewModel.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs)
+    и `MainViewModel.Avalonia.Tools.cs`: `CanExecute` — `SelectedInfobase is { Repository.HasServer: true }`
+    (чистый предикат `CanOpenRepositoryBrowser`), обновление при смене выделения;
+    пункты «Утилиты» в `MainWindow.xaml` и `MainWindow.Avalonia.Tree.cs`.
+  - **Локализация** — ключи `RepositoryBrowser.*` (Title, Address, User, Password,
+    Connect, Refresh, Close, Versions, Objects, Columns.*, Status.*, Empty.*,
+    HistoryUnavailable, Hint и др.) в ru.json/en.json (наборы ключей совпадают).
+  - **Тесты** — [`ConfigurationManagement.Tests/RepositoryBrowserViewModelTests.cs`](ConfigurationManagement.Tests/RepositoryBrowserViewModelTests.cs):
+    дефолты, подключение через fake-сервис, выбор версии → состав, ошибки в
+    статус-строку, эффективный пароль (оригинал базы не модифицируется), отсутствие
+    новых полей в `AppSettings`, CanExecute-предикат команды меню.
+
 ## [0.3.9.127] — 2026-09-28
 
 ### Добавлено

@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.127</Version>
-    <AssemblyVersion>0.3.9.127</AssemblyVersion>
-    <FileVersion>0.3.9.127</FileVersion>
-    <InformationalVersion>0.3.9.127</InformationalVersion>
+    <Version>0.3.9.128</Version>
+    <AssemblyVersion>0.3.9.128</AssemblyVersion>
+    <FileVersion>0.3.9.128</FileVersion>
+    <InformationalVersion>0.3.9.128</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -245,6 +245,11 @@
     <!-- Окно «Серверы 1С» (0.3.9.124): WPF code-behind исключается, Avalonia-версия
          (ServerMonitorWindow.Avalonia.cs) подключается глобом *Window.Avalonia.cs ниже. -->
     <Compile Remove="Views\ServerMonitorWindow.xaml.cs" />
+    <!-- Окно «Хранилище конфигурации» (0.3.9.128): WPF code-behind исключается,
+         Avalonia-версия (RepositoryBrowserWindow.Avalonia.cs) подключается глобом
+         *Window.Avalonia.cs ниже; окно прогресса RepositoryProgressWindow.cs под
+         #if WINDOWS компилируется пустым. -->
+    <Compile Remove="Views\RepositoryBrowserWindow.xaml.cs" />
     <!-- Окно «Статистика использования» (0.3.9.95): WPF code-behind исключается,
          Avalonia-версия (UsageStatisticsWindow.Avalonia.cs) подключается глобом ниже. -->
     <Compile Remove="Views\UsageStatisticsWindow.xaml.cs" />
@@ -374,6 +379,12 @@
     <Compile Include="ViewModels\RacSessionRow.cs" />
     <Compile Include="ViewModels\RacConnectionRow.cs" />
     <Compile Include="ViewModels\RacLockRow.cs" />
+    <!-- ViewModels окна «Хранилище конфигурации» (0.3.9.128, цикл 0.3.9.127–130):
+         чистый .NET без платформенных зависимостей, используются обеими платформами —
+         на Linux подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\RepositoryBrowserViewModel.cs" />
+    <Compile Include="ViewModels\RepositoryVersionRow.cs" />
+    <Compile Include="ViewModels\RepositoryObjectRow.cs" />
     <!-- ViewModels окна «Статистика использования» (0.3.9.95): чистый .NET без
          платформенных зависимостей, используются обеими платформами — на Linux
          подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
