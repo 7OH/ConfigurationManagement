@@ -82,7 +82,15 @@ public partial class MainViewModel
         }
 
         var win = new Configuration_Management.UpdateCheckWindow(SelectedInfobase);
-        win.ShowDialog();
+        // Настоящая модальность: блокируем владельца, окно поверх и по центру (issue #323,
+        // паттерн как в ExecuteShowActualReleases/OpenConfigTypesEdit, issue #264/#265/#288).
+        win.Owner = Application.Current.MainWindow;
+        // Отложенное открытие (DispatcherPriority.Input): при вызове из пункта подменю
+        // контекстное меню ещё не успело закрыться, и его попап остаётся поверх нового
+        // модального диалога, перекрывая полосу заголовка (issue #288).
+        Application.Current.Dispatcher.BeginInvoke(
+            new Action(() => win.ShowDialog()),
+            System.Windows.Threading.DispatcherPriority.Input);
     }
 
     /// <summary>Открывает окно «Актуальные релизы» (ALT+F9).</summary>

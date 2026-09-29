@@ -2327,6 +2327,9 @@
     "Updates.AuthHint": "Credentials for access to protected downloads.1c.ru and portal.1c.ru when checking configuration updates.",
     "Updates.PortalLoginError": "Failed to sign in to portal.1c.ru: check the login and password.",
     "Updates.NickMissing": "The configuration has no nick on releases.1c.ru — the legacy address is used.",
+    "Updates.NoLink": "The base is not linked to a standard configuration. Right-click the base → \"Link to configuration\", choose a configuration and run the check again.",
+    "Updates.AuthRequired": "No access to the 1C website: login is required. Check the login and password in Settings → \"1C website authorization\".",
+    "Updates.HelpText": "The release catalog URL is generated automatically from the linked standard configuration (right-click the base → \"Link to configuration\"). The 1C website login and password are set in Settings → \"1C website authorization\".",
 
     "Launcher.OperationLockIB": "Infobase session lock",
     "Launcher.OperationUnlockIB": "Remove session lock",

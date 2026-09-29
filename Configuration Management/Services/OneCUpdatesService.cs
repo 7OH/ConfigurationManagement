@@ -167,13 +167,29 @@ public class OneCUpdatesService : IOneCUpdatesService
                 return result;
             }
 
+            // Пользователь мог попасть на страницу входа portal.1c.ru/login: ресурс releases.1c.ru
+            // при отсутствии сессии перенаправляет туда, а программный вход не удался (нет логина
+            // в настройках или неверные учётные данные). Показываем понятную ошибку авторизации,
+            // а не «каталог доступен, но версия не распарсена».
+            if (response.RequestMessage?.RequestUri?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                _logger.Warn($"[Updates] Требуется вход на portal.1c.ru (запрос ушёл на {response.RequestMessage.RequestUri}) для '{url}'");
+                result.Status = ConfigUpdateStatus.Failed;
+                result.Error = "Updates.AuthRequired";
+                return result;
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 // Диагностика: фиксируем реальный код ответа сервера (401/403 — нет доступа,
                 // 5xx — проблемы на стороне 1С) и конечный URI после возможных редиректов.
                 _logger.Warn($"[Updates] HTTP {(int)response.StatusCode} для '{url}' (requestUri={request.RequestUri})");
                 result.Status = ConfigUpdateStatus.Failed;
-                result.Error = $"HTTP {(int)response.StatusCode}";
+                // 401/403 — понятная ошибка авторизации (неверный/пустой логин-пароль сайта 1С),
+                // остальные коды — техническая диагностика.
+                result.Error = (int)response.StatusCode is 401 or 403
+                    ? "Updates.AuthRequired"
+                    : $"HTTP {(int)response.StatusCode}";
                 return result;
             }
 
@@ -634,6 +650,14 @@ public class OneCUpdatesService : IOneCUpdatesService
                 }
                 // Вход не удался — продолжаем обычную обработку редиректа/ответа ниже.
             }
+
+            // На страницу входа portal.1c.ru редирект НЕ следуем: если сессии нет, а программный
+            // вход не удался, GET формы входа вернёт HTML без версий, и проверка ложно завершится
+            // статусом Unavailable («каталог доступен, точная версия не определена»). Возвращаем
+            // редирект как есть, а CheckForUpdatesAsync распознает login.1c.ru и покажет ошибку
+            // авторизации (issue #323).
+            if (response.Headers.Location?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true)
+                return response;
 
             if (status is < 300 or >= 400 || response.Headers.Location is null)
                 return response;

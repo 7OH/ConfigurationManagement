@@ -55,10 +55,10 @@ namespace Configuration_Management
             _row = new UpdateCheckRowViewModel(infobase, OnDownloadRow);
 
             Title = LocalizationManager.T("Updates.CheckTitle");
-            Width = 620;
-            Height = 560;
-            MinWidth = 520;
-            MinHeight = 460;
+            Width = 720;
+            Height = 580;
+            MinWidth = 640;
+            MinHeight = 500;
             FontSize = 13;
             CanResize = true;
 
@@ -112,8 +112,10 @@ namespace Configuration_Management
 
                 if (string.IsNullOrWhiteSpace(url))
                 {
+                    // Понятное пояснение вместо сухого «не задан адрес»: база не связана с типовой
+                    // конфигурацией либо у конфигурации нет сегмента/ника каталога релизов (issue #323).
                     _row.Status = ConfigUpdateStatus.Failed;
-                    _row.Error = T("Updates.NoUrl");
+                    _row.Error = EmptyUrlMessage();
                 }
                 else
                 {
@@ -122,6 +124,7 @@ namespace Configuration_Management
                     var result = await Task.Run(
                         () => _updates.CheckForUpdatesAsync(configName, currentVersion, url, token), token);
                     _row.ApplyResult(result);
+                    SaveUpdateCache(result);
                 }
             }
             catch (OperationCanceledException)
@@ -191,8 +194,48 @@ namespace Configuration_Management
             }
             _statusText.Foreground = brush;
 
-            _errorText.Text = _row.Status == ConfigUpdateStatus.Failed ? _row.Error : string.Empty;
+            // Error может быть ключом локализации (Updates.*) либо свободным текстом («HTTP 500»):
+            // ключ переводим, свободный текст LocalizationManager.T() вернёт как есть.
+            _errorText.Text = _row.Status == ConfigUpdateStatus.Failed ? LocalizeError(_row.Error) : string.Empty;
             _downloadButton.IsEnabled = _row.CanDownload;
+        }
+
+        /// <summary>Локализует текст ошибки: ключи «Updates.*» переводит, остальное возвращает без изменений.</summary>
+        private static string LocalizeError(string error)
+        {
+            if (string.IsNullOrWhiteSpace(error))
+                return string.Empty;
+            return LocalizationManager.T(error);
+        }
+
+        /// <summary>Пояснение при пустом адресе каталога релизов: различает «база не связана» и «нет адреса».</summary>
+        private string EmptyUrlMessage()
+        {
+            if (string.IsNullOrWhiteSpace(_infobase.UpdateConfigCode))
+                return T("Updates.NoLink");
+            return T("Updates.NoUrl");
+        }
+
+        /// <summary>
+        /// Сохраняет результат успешной проверки в <see cref="Models.AppSettings.UpdateCheckCache"/>
+        /// (по коду связи базы), чтобы колонка «Обновление» в Центре обслуживания показывала
+        /// последний результат. Ошибки/отмена в кэш не пишутся.
+        /// </summary>
+        private void SaveUpdateCache(Models.ConfigUpdateCheckResult result)
+        {
+            if (!result.Succeeded || string.IsNullOrWhiteSpace(_infobase.UpdateConfigCode))
+                return;
+            try
+            {
+                var settings = _repository.LoadSettings();
+                settings.UpdateCheckCache ??= new System.Collections.Generic.Dictionary<string, Models.ConfigUpdateCheckResult>();
+                settings.UpdateCheckCache[_infobase.UpdateConfigCode] = result;
+                _repository.SaveSettings(settings);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn("Не удалось сохранить результат проверки обновлений в кэш: " + ex.Message);
+            }
         }
 
         private IBrush? TryGetBrush(string key)
@@ -336,7 +379,7 @@ namespace Configuration_Management
             _baseNameText.FontSize = 14;
             fields.Children.Add(MakeFieldRow(T("Updates.Name"), _baseNameText));
 
-            fields.Children.Add(MakeFieldRow(T("Updates.UrlAuto"), _urlText));
+            fields.Children.Add(MakeFieldRow(T("Updates.Url"), _urlText));
 
             _statusText.FontWeight = FontWeight.SemiBold;
             fields.Children.Add(MakeFieldRow(T("Updates.Status"), _statusText));
@@ -344,6 +387,16 @@ namespace Configuration_Management
             _errorText.TextWrapping = TextWrapping.Wrap;
             _errorText.Foreground = new SolidColorBrush(Color.Parse("#EF4444"));
             fields.Children.Add(MakeFieldRow(string.Empty, _errorText));
+
+            // Пояснение пользователю: откуда берётся адрес каталога и где задать логин/пароль (issue #323).
+            var helpText = new TextBlock
+            {
+                Text = T("Updates.HelpText"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap
+            };
+            Themes.ThemeBrushes.Bind(helpText, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            fields.Children.Add(helpText);
 
             // Индикатор прогресса загрузки.
             _progressBar.Height = 6;
@@ -370,15 +423,17 @@ namespace Configuration_Management
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Spacing = 10
             };
-            _checkButton = new Button { Content = T("Updates.Check"), Width = 120, Height = 36 };
+            // Ширины кнопок не фиксированы (только минимальные): при любом шрифте и масштабе
+            // кнопка растягивается под текст и не обрезается (issue #323).
+            _checkButton = new Button { Content = T("Updates.Check"), MinWidth = 160, Height = 40 };
             _checkButton.Styled(ControlThemes.SecondaryButton);
             _checkButton.Click += (_, _) => OnCheckClick();
 
-            _downloadButton = new Button { Content = T("Updates.Download"), Width = 120, Height = 36, IsEnabled = false };
+            _downloadButton = new Button { Content = T("Updates.Download"), MinWidth = 150, Height = 40, IsEnabled = false };
             _downloadButton.Styled(ControlThemes.DialogConfirmButton);
             _downloadButton.Click += (_, _) => OnDownloadRow(_row);
 
-            var close = BuildCancelActionButton(140);
+            var close = BuildCancelActionButton(150, 40);
             close.Click += (_, _) => Close();
 
             buttons.Children.Add(_checkButton);

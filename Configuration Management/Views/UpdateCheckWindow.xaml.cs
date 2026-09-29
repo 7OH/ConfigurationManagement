@@ -75,8 +75,10 @@ public partial class UpdateCheckWindow : Window
 
             if (string.IsNullOrWhiteSpace(url))
             {
+                // Понятное пояснение вместо сухого «не задан адрес»: база не связана с типовой
+                // конфигурацией либо у конфигурации нет сегмента/ника каталога релизов (issue #323).
                 _row.Status = ConfigUpdateStatus.Failed;
-                _row.Error = LocalizationManager.T("Updates.NoUrl");
+                _row.Error = EmptyUrlMessage();
             }
             else
             {
@@ -85,6 +87,7 @@ public partial class UpdateCheckWindow : Window
                 var result = await Task.Run(
                     () => _updates.CheckForUpdatesAsync(configName, currentVersion, url, token), token);
                 _row.ApplyResult(result);
+                SaveUpdateCache(result);
             }
         }
         catch (OperationCanceledException)
@@ -134,7 +137,7 @@ public partial class UpdateCheckWindow : Window
         }
     }
 
-    /// <summary>Обновляет блок статуса и ошибок после проверки.</summary>
+    /// <summary>Обновляет блок статуса, ошибок и деталей (версия/URL/кнопка «Скачать») после проверки.</summary>
     private void UpdateStatusDisplay()
     {
         StatusText.Text = StatusTextLocalized(_row.Status);
@@ -146,7 +149,55 @@ public partial class UpdateCheckWindow : Window
             brush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
         StatusText.Foreground = brush;
 
-        ErrorText.Text = _row.Status == ConfigUpdateStatus.Failed ? _row.Error : string.Empty;
+        // Раньше «Последняя версия» и «Ссылка на каталог релизов» не обновлялись после проверки,
+        // поэтому пользователь не видел результат работы окна (issue #323).
+        LatestVersionText.Text = string.IsNullOrWhiteSpace(_row.LatestVersion)
+            ? "—"
+            : _row.LatestVersion;
+        UrlText.Text = string.IsNullOrWhiteSpace(_row.Url) ? "—" : _row.Url;
+        DownloadButton.IsEnabled = _row.CanDownload;
+
+        // Error может быть ключом локализации (Updates.*) либо свободным текстом («HTTP 500»):
+        // ключ переводим, свободный текст LocalizationManager.T() вернёт как есть.
+        ErrorText.Text = _row.Status == ConfigUpdateStatus.Failed ? LocalizeError(_row.Error) : string.Empty;
+    }
+
+    /// <summary>Локализует текст ошибки: ключи «Updates.*» переводит, остальное возвращает без изменений.</summary>
+    private static string LocalizeError(string error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+            return string.Empty;
+        return LocalizationManager.T(error);
+    }
+
+    /// <summary>Пояснение при пустом адресе каталога релизов: различает «база не связана» и «нет адреса».</summary>
+    private string EmptyUrlMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_infobase.UpdateConfigCode))
+            return LocalizationManager.T("Updates.NoLink");
+        return LocalizationManager.T("Updates.NoUrl");
+    }
+
+    /// <summary>
+    /// Сохраняет результат успешной проверки в <see cref="AppSettings.UpdateCheckCache"/>
+    /// (по коду связи базы), чтобы колонка «Обновление» в Центре обслуживания показывала
+    /// последний результат. Ошибки/отмена в кэш не пишутся.
+    /// </summary>
+    private void SaveUpdateCache(ConfigUpdateCheckResult result)
+    {
+        if (!result.Succeeded || string.IsNullOrWhiteSpace(_infobase.UpdateConfigCode))
+            return;
+        try
+        {
+            var settings = _repository.LoadSettings();
+            settings.UpdateCheckCache ??= new System.Collections.Generic.Dictionary<string, Models.ConfigUpdateCheckResult>();
+            settings.UpdateCheckCache[_infobase.UpdateConfigCode] = result;
+            _repository.SaveSettings(settings);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn("Не удалось сохранить результат проверки обновлений в кэш: " + ex.Message);
+        }
     }
 
     private void UpdateProgressDisplay()
