@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         Title="{loc:Loc ConfigDiff.Title}"
         Icon="{StaticResource AppIcon}"
-        Height="520" Width="560"
+        Width="560" MinHeight="440" MaxHeight="680"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         FontFamily="Segoe UI"
@@ -30,7 +30,7 @@
         <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
     </Window.Resources>
 
-    <StackPanel Margin="16">
+    <StackPanel x:Name="RootPanel" Margin="16">
         <!-- ============ Описание ============ -->
         <TextBlock Text="{loc:Loc ConfigDiff.Description}" TextWrapping="Wrap" Margin="0,0,0,12"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -44,8 +44,16 @@
         <!-- ============ База (режим «База ↔ .cf») ============ -->
         <StackPanel x:Name="BasePanel">
             <TextBlock Text="{loc:Loc ConfigDiff.SelectBase}" Margin="0,0,0,4"/>
+            <!-- Issue #316: явный ItemTemplate — закрытый комбобокс показывает имя базы,
+                 а не ToString() объекта (имя типа Infobase, «ключ»). -->
             <ComboBox x:Name="BasesBox" Padding="6,4" Margin="0,0,0,12"
-                      DisplayMemberPath="Name" SelectionChanged="OnBaseChanged"/>
+                      SelectionChanged="OnBaseChanged">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </StackPanel>
 
         <!-- ============ Левый .cf (режим «.cf ↔ .cf») ============ -->

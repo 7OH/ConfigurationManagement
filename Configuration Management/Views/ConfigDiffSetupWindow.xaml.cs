@@ -21,6 +21,13 @@ namespace Configuration_Management
         private readonly IReadOnlyList<string> _installedPlatforms;
         private readonly string _defaultPlatform;
 
+        /// <summary>
+        /// Выбранная база как экземпляр из <see cref="_infobases"/> (по Id). Приходит из
+        /// списка главного окна, поэтому сравнение по ссылке с элементами комбобокса не
+        /// сработало бы — ищем по Id (issue #316).
+        /// </summary>
+        private readonly Infobase? _preselectedBase;
+
         /// <param name="infobases">Все базы списка для выбора левой стороны.</param>
         /// <param name="selectedBase">Текущая выбранная база главного окна (превыбор).</param>
         /// <param name="installedPlatforms">Установленные версии платформы 1С.</param>
@@ -44,13 +51,76 @@ namespace Configuration_Management
 
             foreach (var ib in _infobases)
                 BasesBox.Items.Add(ib);
-            if (selectedBase is not null && _infobases.Contains(selectedBase))
-                BasesBox.SelectedItem = selectedBase;
+
+            var selectedId = selectedBase?.Id;
+            _preselectedBase = !string.IsNullOrEmpty(selectedId)
+                ? _infobases.FirstOrDefault(ib => string.Equals(
+                    ib.Id, selectedId, System.StringComparison.OrdinalIgnoreCase))
+                : null;
+            if (_preselectedBase is not null)
+                BasesBox.SelectedItem = _preselectedBase;
             else if (BasesBox.Items.Count > 0)
                 BasesBox.SelectedIndex = 0;
 
             // Режим по умолчанию — «База ↔ .cf».
             ModeBaseVsCfRadio.IsChecked = true;
+
+            // Явный ItemTemplate задан в XAML, но закрытый комбобокс рисует выбранный
+            // элемент до применения шаблона и мог бы показать ToString() (имя типа
+            // Infobase, «ключ»). Переустанавливаем выбор после показа окна — контейнер
+            // пересоздаётся уже с применённым шаблоном (схема ScriptScenarioEditWindow,
+            // issue #308; здесь issue #316).
+            Loaded += (_, _) => RestoreBaseSelection();
+
+            // Высота — явная (не SizeToContent=Height): после первой отрисовки один раз
+            // подстраиваемся под содержимое, чтобы внизу не оставалось пустого места
+            // (issue #316). Клампинг — чистый WindowSizeMath (общий с Avalonia, покрыт тестами).
+            ContentRendered += (_, _) => FitHeightToContent();
+        }
+
+        /// <summary>
+        /// Переустанавливает выбранную базу после показа окна (issue #316): повторный
+        /// <c>SelectedItem</c> пересоздаёт контейнер с применённым <c>ItemTemplate</c>,
+        /// и закрытый комбобокс показывает имя базы, а не имя типа.
+        /// </summary>
+        private void RestoreBaseSelection()
+        {
+            if (_preselectedBase is not null && _infobases.Contains(_preselectedBase))
+                BasesBox.SelectedItem = _preselectedBase;
+            else if (BasesBox.Items.Count > 0 && BasesBox.SelectedItem is null)
+                BasesBox.SelectedIndex = 0;
+        }
+
+        /// <summary>
+        /// Подгоняет высоту окна под содержимое (явно, без <c>SizeToContent=Height</c>) и не
+        /// даёт окну уйти за нижний край рабочей области при переключении режима (issue #316).
+        /// Логика клампинга — чистый <see cref="WindowSizeMath"/> (общий с Avalonia, покрыт тестами).
+        /// </summary>
+        private void FitHeightToContent()
+        {
+            if (RootPanel is null || !IsLoaded || !IsVisible)
+                return;
+
+            // Измеряем контент при бесконечной высоте: сколько места нужно, чтобы содержимое
+            // полностью поместилось (высоты видимых блоков текущего режима).
+            var availableWidth = RootPanel.ActualWidth > 0 ? RootPanel.ActualWidth : Math.Max(400, Width);
+            RootPanel.Measure(new System.Windows.Size(availableWidth, double.PositiveInfinity));
+            var desired = RootPanel.DesiredSize.Height;
+            if (desired <= 0)
+                return;
+
+            // Хром (заголовок окна + рамки) — разница между полной высотой и клиентской областью.
+            var chrome = Math.Max(0, ActualHeight - (RootPanel.ActualHeight > 0 ? RootPanel.ActualHeight : desired));
+            var target = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
+            if (Math.Abs(target - Height) > 1)
+                Height = target;
+
+            // Окно стояло у нижнего края экрана и выросло — поднимаем его, чтобы нижняя
+            // часть не уходила за экран.
+            var wa = SystemParameters.WorkArea;
+            var newTop = WindowSizeMath.FitTop(Top, Height, wa.Top, wa.Bottom);
+            if (Math.Abs(newTop - Top) > 1)
+                Top = newTop;
         }
 
         private ConfigDiffMode SelectedMode =>
@@ -64,6 +134,9 @@ namespace Configuration_Management
             CfLeftPanel.Visibility = isCfVsCf ? Visibility.Visible : Visibility.Collapsed;
             RebuildPlatformList();
             ErrorText.Visibility = Visibility.Collapsed;
+            // Состав видимых блоков изменился — высота окна тоже должна измениться,
+            // чтобы внизу не оставалось пустого места (issue #316).
+            FitHeightToContent();
         }
 
         /// <summary>Смена базы: подставляем её платформу.</summary>

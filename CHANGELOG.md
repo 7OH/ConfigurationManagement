@@ -9,6 +9,22 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.149] — 2026-09-29
+
+### Исправлено
+
+- **Окно настройки сравнения конфигураций (issue #316)** — выбранная база в комбобоксе
+  отображается именем (не ключом); окно подстраивает высоту под содержимое, пустое место
+  внизу устранено. Причина «ключа» — закрытый комбобокс рисовал `ToString()` элемента
+  (имя типа `Infobase`) до применения шаблона отображения: теперь в
+  [`Views/ConfigDiffSetupWindow.xaml`](Configuration%20Management/Views/ConfigDiffSetupWindow.xaml)
+  задан явный `ItemTemplate` с `{Binding Name}` (WPF), выбор базы восстанавливается по `Id`
+  экземпляра из списка и переустанавливается после показа окна (`Loaded`/`Opened`,
+  [`Views/ConfigDiffSetupWindow.xaml.cs`](Configuration%20Management/Views/ConfigDiffSetupWindow.xaml.cs)
+  и [`Views/ConfigDiffSetupWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffSetupWindow.Avalonia.cs)).
+  Высота окна подгоняется под содержимое после первой отрисовки и при переключении режима
+  («База ↔ .cf» / «.cf ↔ .cf») с клампингом через `WindowSizeMath` (обе платформы).
+
 ## [0.3.9.148] — 2026-09-29
 
 ### Исправлено

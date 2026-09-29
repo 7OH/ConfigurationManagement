@@ -32,6 +32,16 @@ namespace Configuration_Management
         private readonly IReadOnlyList<string> _installedPlatforms;
         private readonly string _defaultPlatform;
 
+        /// <summary>
+        /// Выбранная база как экземпляр из <see cref="_infobases"/> (по Id). Приходит из
+        /// списка главного окна, поэтому сравнение по ссылке с элементами комбобокса не
+        /// сработало бы — ищем по Id (issue #316).
+        /// </summary>
+        private readonly Infobase? _preselectedBase;
+
+        /// <summary>Корневой контейнер содержимого — для измерения высоты (issue #316).</summary>
+        private StackPanel? _rootPanel;
+
         private readonly RadioButton _modeBaseRadio = new();
         private readonly RadioButton _modeCfRadio = new();
         private readonly StackPanel _basePanel = new();
@@ -56,6 +66,8 @@ namespace Configuration_Management
             Title = LocalizationManager.T("ConfigDiff.Title");
             Width = 560;
             Height = 540;
+            MinHeight = 440;
+            MaxHeight = 680;
             CanResize = false;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             ShowInTaskbar = false;
@@ -68,7 +80,14 @@ namespace Configuration_Management
                 .ToList() ?? new List<string>();
             _defaultPlatform = defaultPlatform ?? string.Empty;
 
-            var root = new StackPanel { Margin = new Thickness(16), Spacing = 6 };
+            var selectedId = selectedBase?.Id;
+            _preselectedBase = !string.IsNullOrEmpty(selectedId)
+                ? _infobases.FirstOrDefault(ib => string.Equals(
+                    ib.Id, selectedId, StringComparison.OrdinalIgnoreCase))
+                : null;
+
+            _rootPanel = new StackPanel { Margin = new Thickness(16), Spacing = 6 };
+            var root = _rootPanel;
 
             // Описание
             var description = new TextBlock
@@ -109,8 +128,8 @@ namespace Configuration_Management
             ThemeBrushes.Bind(_basesBox, TemplatedControl.ForegroundProperty, "TextPrimaryBrush");
             foreach (var ib in _infobases)
                 _basesBox.Items.Add(ib);
-            if (selectedBase is not null && _infobases.Contains(selectedBase))
-                _basesBox.SelectedItem = selectedBase;
+            if (_preselectedBase is not null)
+                _basesBox.SelectedItem = _preselectedBase;
             else if (_basesBox.Items.Count > 0)
                 _basesBox.SelectedIndex = 0;
             _basesBox.SelectionChanged += (_, _) => RebuildPlatforms();
@@ -179,6 +198,54 @@ namespace Configuration_Management
 
             Content = root;
             UpdateMode();
+
+            // Высота — явная (не SizeToContent.Height): после показа окна один раз
+            // подстраиваемся под содержимое, чтобы внизу не оставалось пустого места
+            // (issue #316). Клампинг — чистый WindowSizeMath (общий с WPF, покрыт тестами).
+            Opened += (_, _) =>
+            {
+                // Переустановка выбора базы после показа окна (issue #316): повторный
+                // SelectedItem пересоздаёт контейнер с применённым ItemTemplate — закрытый
+                // комбобокс показывает имя базы, а не ToString() (имя типа Infobase).
+                if (_preselectedBase is not null && _infobases.Contains(_preselectedBase))
+                    _basesBox.SelectedItem = _preselectedBase;
+                else if (_basesBox.Items.Count > 0 && _basesBox.SelectedItem is null)
+                    _basesBox.SelectedIndex = 0;
+
+                Avalonia.Threading.Dispatcher.UIThread.Post(
+                    FitHeightToContent, Avalonia.Threading.DispatcherPriority.Background);
+            };
+        }
+
+        /// <summary>
+        /// Подгоняет высоту окна под содержимое (явно, без <c>SizeToContent.Height</c>) и не даёт
+        /// окну уйти за нижний край рабочей области при переключении режима (issue #316).
+        /// Логика клампинга — чистый <see cref="WindowSizeMath"/> (общий с WPF, покрыт тестами).
+        /// </summary>
+        private void FitHeightToContent()
+        {
+            if (_rootPanel is null || !IsVisible)
+                return;
+
+            var availableWidth = _rootPanel.Bounds.Width > 0 ? _rootPanel.Bounds.Width : Math.Max(400, Width);
+            _rootPanel.Measure(new Size(availableWidth, double.PositiveInfinity));
+            var desired = _rootPanel.DesiredSize.Height;
+            if (desired <= 0)
+                return;
+
+            // Хром (заголовок + рамки/декор) — разница между полной высотой и клиентской областью.
+            var chrome = Math.Max(0, ClientSize.Height - (_rootPanel.Bounds.Height > 0 ? _rootPanel.Bounds.Height : desired));
+            Height = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
+
+            // Окно стояло у нижнего края экрана и выросло — поднимаем его, чтобы нижняя часть
+            // не уходила за экран (рабочая область в физических пикселях).
+            if (Screens.ScreenFromWindow(this) is { } screen)
+            {
+                var wa = screen.WorkingArea;
+                var heightPx = (int)(Height * screen.Scaling);
+                if (Position.Y + heightPx > wa.Bottom)
+                    Position = new PixelPoint(Position.X, Math.Max(wa.Y, wa.Bottom - heightPx));
+            }
         }
 
         /// <summary>Строка «текст + кнопка Обзор» для выбора файла .cf.</summary>
@@ -203,6 +270,10 @@ namespace Configuration_Management
             _cfLeftPanel.IsVisible = IsCfVsCf;
             RebuildPlatforms();
             _errorText.IsVisible = false;
+            // Состав видимых блоков изменился — высота окна тоже должна измениться,
+            // чтобы внизу не оставалось пустого места (issue #316).
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                FitHeightToContent, Avalonia.Threading.DispatcherPriority.Background);
         }
 
         /// <summary>Собирает список платформ: установленные + платформа выбранной базы.</summary>
