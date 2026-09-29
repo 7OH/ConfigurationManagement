@@ -189,8 +189,13 @@ namespace Configuration_Management
                     () => service.CompareAsync(request, progressAdapter));
 
                 // После успешного сравнения setup-окно закрывается, открывается отчёт.
+                // Этап 5 (0.3.9.136): в режиме «База ↔ .cf» левая база передаётся в окно
+                // отчёта — кнопка «Обозреватель метаданных…» откроет обозреватель
+                // с предвыбранной базой и сразу загрузкой; для CfVsCf базы нет (null).
                 Close();
-                var resultWindow = new ConfigDiffResultWindow(result)
+                var resultWindow = new ConfigDiffResultWindow(
+                    result,
+                    SelectedMode == ConfigDiffMode.BaseVsCf ? baseSelected : null)
                 {
                     Owner = System.Windows.Application.Current.MainWindow
                 };

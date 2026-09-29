@@ -35,6 +35,13 @@ namespace Configuration_Management
         private readonly MetadataExplorerViewModel _vm;
         private readonly TreeView _tree = new();
 
+        /// <summary>
+        /// Команда «Загрузить» ViewModel — для интеграции из отчёта сравнения (этап 5):
+        /// кнопка «Обозреватель метаданных…» в <see cref="ConfigDiffResultWindow"/>
+        /// вызывает <c>LoadCommand.Execute(null)</c> сразу после открытия окна.
+        /// </summary>
+        public System.Windows.Input.ICommand LoadCommand => _vm.LoadCommand;
+
         /// <param name="bases">Все информационные базы списка (для ComboBox).</param>
         /// <param name="selectedBase">Предвыбранная база (выбранная в главном окне).</param>
         public MetadataExplorerWindow(IReadOnlyList<Infobase> bases, Infobase? selectedBase)
@@ -153,10 +160,12 @@ namespace Configuration_Management
                 Children = { exportCsv, exportTxt, closeButton }
             };
 
-            // ---- Подсказка ----
+            // ---- Подсказка (этап 5: + напоминание о времени выгрузки большой конфигурации) ----
             var hint = new TextBlock
             {
-                Text = LocalizationManager.T("MetadataExplorer.Hint"),
+                Text = LocalizationManager.T("MetadataExplorer.Hint")
+                    + Environment.NewLine
+                    + LocalizationManager.T("MetadataExplorer.Hint.LargeConfig"),
                 FontSize = 11,
                 Opacity = 0.65,
                 Margin = new Thickness(0, 8, 0, 0),

@@ -48,6 +48,13 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     private readonly IDialogService _dialogs;
     private readonly Action<Action>? _dispatchToUi;
 
+    /// <summary>
+    /// Проверка блокировки запуска конфигуратора для базы (этап 5): возвращает причину
+    /// блокировки или null. По умолчанию — реальная проверка
+    /// <see cref="OneCLauncher.IsDesignerBlocked"/>; в тестах подменяется лямбдой.
+    /// </summary>
+    private readonly Func<Infobase, string?> _designerBlockCheck;
+
     /// <summary>Задержка поиска по мере ввода (debounce), мс.</summary>
     private const int SearchDebounceMs = 300;
 
@@ -101,16 +108,23 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     /// Доставка применения результатов в UI-поток (передаёт окно); null — результаты
     /// применяются прямо из рабочего потока (тесты).
     /// </param>
+    /// <param name="designerBlockCheck">
+    /// Проверка блокировки конфигуратора базы перед выгрузкой (этап 5): возвращает
+    /// причину блокировки или null; null — реальная <see cref="OneCLauncher.IsDesignerBlocked"/>
+    /// (тесты передают лямбду, чтобы не зависеть от WMI/процессов).
+    /// </param>
     public MetadataExplorerViewModel(
         IReadOnlyList<Infobase> bases,
         Infobase? selectedBase,
         IMetadataExplorerService service,
         IDialogService dialogs,
-        Action<Action>? dispatchToUi = null)
+        Action<Action>? dispatchToUi = null,
+        Func<Infobase, string?>? designerBlockCheck = null)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _dispatchToUi = dispatchToUi;
+        _designerBlockCheck = designerBlockCheck ?? DefaultDesignerBlockCheck;
 
         foreach (var infobase in bases ?? Array.Empty<Infobase>())
             Bases.Add(infobase);
@@ -368,6 +382,20 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
                 {
                     ApplyValidationError(LocalizationManager.T("MetadataExplorer.Errors.NoBase"));
                     return;
+                }
+
+                // Этап 5: база запущена (конфигуратор) или идёт другая DESIGNER-операция —
+                // предупреждение с текстом из Launcher.* (как в пакетном обновлении);
+                // «Нет» прерывает выгрузку без ошибки.
+                var blockReason = _designerBlockCheck(infobase);
+                if (!string.IsNullOrWhiteSpace(blockReason))
+                {
+                    var proceed = _dialogs.Confirm(
+                        blockReason + Environment.NewLine + Environment.NewLine
+                        + LocalizationManager.T("MetadataExplorer.Confirm.ContinuePrompt"),
+                        LocalizationManager.T("MetadataExplorer.Title"));
+                    if (!proceed)
+                        return;
                 }
 
                 StageChanged?.Invoke(LocalizationManager.T("MetadataExplorer.Status.Dumping"));
@@ -972,6 +1000,12 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         var filterOptions = BuildTypeFilterOptions(typeDirs);
         var availableTypes = MetadataTypeLocalizer.SortTypes(typeDirs).ToList();
 
+        // Этап 5: статус «Выгружено: N файлов, X МБ» — быстрое сканирование каталога
+        // выгрузки (суммарное число файлов и размер; ApplyDump выполняется в рабочем
+        // потоке после ConfigureAwait(false), синхронный обход не блокирует UI).
+        var (dumpFileCount, dumpTotalBytes) = ScanDumpDirectory(dump.RootPath);
+        var dumpSummary = FormatDumpSummary(dumpFileCount, dumpTotalBytes);
+
         void Apply()
         {
             ConfigurationTitle = BuildConfigurationTitle(dump);
@@ -992,13 +1026,67 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             TreeNodes.Add(root!);
             StatusText = string.Format(
                 LocalizationManager.T("MetadataExplorer.Status.LoadedFormat"),
-                dump.ConfigurationName, dump.ConfigurationVersion);
+                dump.ConfigurationName, dump.ConfigurationVersion)
+                + " · " + dumpSummary;
         }
 
         if (_dispatchToUi is null)
             Apply();
         else
             _dispatchToUi(Apply);
+    }
+
+    /// <summary>
+    /// Быстрое сканирование каталога выгрузки: суммарное число файлов и размер
+    /// (для статуса «Выгружено: N файлов, X МБ» после загрузки). Публичен для тестов.
+    /// </summary>
+    public static (int FileCount, long TotalBytes) ScanDumpDirectory(string dumpRoot)
+    {
+        if (string.IsNullOrWhiteSpace(dumpRoot) || !Directory.Exists(dumpRoot))
+            return (0, 0);
+
+        var fileCount = 0;
+        long totalBytes = 0;
+        foreach (var file in Directory.EnumerateFiles(dumpRoot, "*", SearchOption.AllDirectories))
+        {
+            fileCount++;
+            try
+            {
+                totalBytes += new FileInfo(file).Length;
+            }
+            catch
+            {
+                // Файл мог быть удалён/занят во время сканирования — не роняем скан.
+            }
+        }
+
+        return (fileCount, totalBytes);
+    }
+
+    /// <summary>
+    /// Статус «Выгружено: N файлов, X МБ» (размер — через <see cref="Infobase.FormatSize"/>).
+    /// Локализатор колбэком <paramref name="t"/> (образец репортёров) — для тестов;
+    /// null — <see cref="LocalizationManager.T"/>.
+    /// </summary>
+    public static string FormatDumpSummary(int fileCount, long totalBytes, Func<string, string>? t = null)
+        => string.Format(
+            (t ?? LocalizationManager.T)("MetadataExplorer.Status.DumpSummaryFormat"),
+            fileCount, Infobase.FormatSize(totalBytes));
+
+    /// <summary>
+    /// Реальная проверка блокировки конфигуратора (<see cref="OneCLauncher.IsDesignerBlocked"/>,
+    /// обе платформы). Ошибки проверки (нет прав/WMI) не блокируют выгрузку — null.
+    /// </summary>
+    private static string? DefaultDesignerBlockCheck(Infobase infobase)
+    {
+        try
+        {
+            return OneCLauncher.IsDesignerBlocked(infobase, out var reason) ? reason : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>Корень дерева: «Конфигурация имя версия» + «Подсистемы» + «Без подсистемы»

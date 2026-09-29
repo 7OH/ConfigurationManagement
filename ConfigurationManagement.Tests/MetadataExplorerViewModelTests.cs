@@ -402,6 +402,109 @@ public sealed class MetadataExplorerViewModelTests : IDisposable
         Assert.Single(vm.TreeNodes);
     }
 
+    // ===================== Этап 5: блокировка и ограничения объёма =====================
+
+    [Fact]
+    public void ScanDumpDirectory_CountsFilesAndTotalBytes()
+    {
+        var dir = Path.Combine(_tempRoot, "scan_" + Guid.NewGuid().ToString("N"));
+        WriteFile(Path.Combine(dir, "Configuration.xml"), "abc");                     // 3 байта
+        WriteFile(Path.Combine(dir, "Subsystems", "Основное.xml"), "abcdef");         // 6 байт
+        WriteFile(Path.Combine(dir, "Catalogs", "Контрагенты", "Attributes", "ИНН.xml"), "x"); // 1 байт
+
+        var (fileCount, totalBytes) = MetadataExplorerViewModel.ScanDumpDirectory(dir);
+
+        Assert.Equal(3, fileCount);
+        Assert.Equal(10, totalBytes);
+    }
+
+    [Fact]
+    public void ScanDumpDirectory_MissingRoot_ReturnsZero()
+    {
+        var (fileCount, totalBytes) =
+            MetadataExplorerViewModel.ScanDumpDirectory(Path.Combine(_tempRoot, "нет_такого"));
+
+        Assert.Equal((0, 0), (fileCount, totalBytes));
+    }
+
+    [Fact]
+    public void FormatDumpSummary_ComposesCountAndFormattedSize()
+    {
+        Func<string, string> fakeT = key =>
+            key == "MetadataExplorer.Status.DumpSummaryFormat"
+                ? "Выгружено: {0} файлов, {1}"
+                : key;
+        var sizeText = Infobase.FormatSize(10); // в тестах локализация отдаёт ключ as-is
+
+        var text = MetadataExplorerViewModel.FormatDumpSummary(3, 10, fakeT);
+
+        Assert.Equal($"Выгружено: 3 файлов, {sizeText}", text);
+    }
+
+    [Fact]
+    public async Task Load_BaseBlocked_ConfirmFalse_AbortsWithoutServiceCall()
+    {
+        var dialogs = new RecordingDialogs { ConfirmResult = false };
+        var fake = new FakeMetadataExplorerService
+        {
+            BaseResult = new MetadataDump(CreateDumpWithoutSubsystems(), "Простая", "2.0.0.1")
+        };
+        var vm = new MetadataExplorerViewModel(
+            new[] { CreateBase() }, CreateBase(), fake, dialogs,
+            designerBlockCheck: _ => "Уже запущена другая выгрузка или операция конфигуратора.");
+
+        await vm.LoadAsync();
+
+        Assert.Equal(1, dialogs.ConfirmCalls);
+        Assert.Contains("другая выгрузка", dialogs.LastConfirmMessage);
+        // В тестах локализация отдаёт ключ as-is — проверяем ключ вопроса подтверждения.
+        Assert.Contains("MetadataExplorer.Confirm.ContinuePrompt", dialogs.LastConfirmMessage);
+        Assert.Equal(0, fake.BaseCalls);
+        Assert.False(vm.IsBusy);
+        Assert.Empty(vm.TreeNodes);
+    }
+
+    [Fact]
+    public async Task Load_BaseBlocked_ConfirmTrue_ContinuesDump()
+    {
+        var dumpDir = CreateDumpWithoutSubsystems();
+        var dialogs = new RecordingDialogs { ConfirmResult = true };
+        var fake = new FakeMetadataExplorerService
+        {
+            BaseResult = new MetadataDump(dumpDir, "Простая", "2.0.0.1")
+        };
+        var vm = new MetadataExplorerViewModel(
+            new[] { CreateBase() }, CreateBase(), fake, dialogs,
+            designerBlockCheck: _ => "Конфигуратор этой базы уже запущен.");
+
+        await vm.LoadAsync();
+
+        Assert.Equal(1, dialogs.ConfirmCalls);
+        Assert.Equal(1, fake.BaseCalls);
+        Assert.Single(vm.TreeNodes);
+    }
+
+    [Fact]
+    public async Task Load_FromBase_NotBlocked_NoConfirm_StatusHasDumpSummary()
+    {
+        var dumpDir = CreateDumpWithoutSubsystems();
+        var dialogs = new RecordingDialogs();
+        var fake = new FakeMetadataExplorerService
+        {
+            BaseResult = new MetadataDump(dumpDir, "Простая", "2.0.0.1")
+        };
+        var vm = new MetadataExplorerViewModel(
+            new[] { CreateBase() }, CreateBase(), fake, dialogs,
+            designerBlockCheck: _ => null);
+
+        await vm.LoadAsync();
+
+        Assert.Equal(0, dialogs.ConfirmCalls);
+        // В тестах локализация отдаёт ключ as-is — проверяем составной статус по ключу сводки.
+        Assert.Contains("MetadataExplorer.Status.DumpSummaryFormat", vm.StatusText);
+        Assert.Contains("MetadataExplorer.Status.LoadedFormat", vm.StatusText);
+    }
+
     // ===================== Фикстуры =====================
 
     /// <summary>Выгрузка с подсистемами: Subsystems/Основное + Catalogs/Контрагенты + Documents/ЗаказКлиента.</summary>
@@ -502,15 +605,24 @@ public sealed class MetadataExplorerViewModelTests : IDisposable
         }
     }
 
-    /// <summary>Запись диалогов для тестов: ничего не показывает, выбор файла — настраиваемый.</summary>
+    /// <summary>Запись диалогов для тестов: ничего не показывает, выбор файла и результат
+    /// Confirm — настраиваемые; вызовы Confirm записываются.</summary>
     private sealed class RecordingDialogs : IDialogService
     {
         public string? OpenFileResult { get; set; }
+        public bool? ConfirmResult { get; set; }
+        public int ConfirmCalls { get; private set; }
+        public string? LastConfirmMessage { get; private set; }
 
         public void ShowInfo(string message, string title = "") { }
         public void ShowWarning(string message, string title = "") { }
         public void ShowError(string message, string title = "") { }
-        public bool Confirm(string message, string title = "") => true;
+        public bool Confirm(string message, string title = "")
+        {
+            ConfirmCalls++;
+            LastConfirmMessage = message;
+            return ConfirmResult ?? true;
+        }
         public string? OpenFileDialog(string title = "", string filter = "", string? initialDirectory = null) => OpenFileResult;
         public string? SaveFileDialog(string title = "", string defaultFileName = "", string filter = "", string? initialDirectory = null) => null;
         public string? OpenFolderDialog(string title = "", string? initialDirectory = null) => null;

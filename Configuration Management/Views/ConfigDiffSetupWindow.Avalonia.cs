@@ -299,7 +299,12 @@ namespace Configuration_Management
                 var result = await Task.Run(() => service.CompareAsync(request, progressAdapter));
 
                 Close(); // setup закрывается после успешного сравнения
-                var resultWindow = new ConfigDiffResultWindow(result);
+                // Этап 5 (0.3.9.136): в режиме «База ↔ .cf» левая база передаётся в окно
+                // отчёта — кнопка «Обозреватель метаданных…» откроет обозреватель
+                // с предвыбранной базой и сразу загрузкой; для CfVsCf базы нет (null).
+                var resultWindow = new ConfigDiffResultWindow(
+                    result,
+                    !IsCfVsCf ? baseSelected : null);
                 resultWindow.ShowDialogSync(OwnerWindow());
             }
             catch (ConfigurationDiffException ex)

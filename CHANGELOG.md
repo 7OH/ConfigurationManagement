@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.136] — 2026-09-29
+
+### Добавлено
+
+- **Обозреватель метаданных конфигурации — интеграция со сравнением и финализация (этап 5
+  цикла 0.3.9.132–0.3.9.136)** — функция «Обозреватель метаданных…» завершена: открытие из
+  отчёта сравнения конфигураций, предупреждения объёма и финальный статус выгрузки.
+  - **Интеграция со сравнением конфигураций** — [`Views/ConfigDiffSetupWindow.xaml.cs`](Configuration%20Management/Views/ConfigDiffSetupWindow.xaml.cs)
+    (и Avalonia-версия) передают левую базу в окно отчёта в режиме «База ↔ .cf» (опциональный
+    параметр конструктора `ConfigDiffResultWindow(result, baseForExplorer)` — существующие
+    вызовы не ломаются; для CfVsCf — null); кнопка «Обозреватель метаданных…» в
+    [`Views/ConfigDiffResultWindow.xaml`](Configuration%20Management/Views/ConfigDiffResultWindow.xaml)
+    / [`.Avalonia.cs`](Configuration%20Management/Views/ConfigDiffResultWindow.Avalonia.cs)
+    (видима только при наличии базы) открывает [`Views/MetadataExplorerWindow.xaml`](Configuration%20Management/Views/MetadataExplorerWindow.xaml)
+    с предвыбранной базой и сразу загрузкой (`LoadCommand.Execute(null)`), Owner — текущее окно.
+  - **Ограничения объёма** — [`ViewModels/MetadataExplorerViewModel.cs`](Configuration%20Management/ViewModels/MetadataExplorerViewModel.cs):
+    перед выгрузкой из базы проверка `OneCLauncher.IsDesignerBlocked` (база запущена / идёт
+    другая DESIGNER-операция) с подтверждением через `IDialogService.Confirm` (текст причины
+    из `Launcher.*` ключей, вопрос — `MetadataExplorer.Confirm.ContinuePrompt`); подсказка
+    в окне о времени выгрузки большой конфигурации и ограничении «разбираются только
+    метаданные» (`MetadataExplorer.Hint.LargeConfig`); после загрузки — статус «Выгружено:
+    N файлов, X МБ» (`MetadataExplorer.Status.DumpSummaryFormat`, быстрое сканирование
+    каталога выгрузки); лимит результатов поиска 500 (этап 3) с подсказкой «уточните запрос».
+  - **Локализация** — ключи `MetadataExplorer.OpenFromDiff`, `.Hint.LargeConfig`,
+    `.Confirm.ContinuePrompt`, `.Status.DumpSummaryFormat` в ru.json/en.json (наборы совпадают).
+
 ## [0.3.9.135] — 2026-09-29
 
 ### Добавлено

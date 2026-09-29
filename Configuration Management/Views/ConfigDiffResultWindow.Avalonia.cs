@@ -25,8 +25,17 @@ namespace Configuration_Management
         private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
         private readonly ConfigDiffResultViewModel _vm;
 
-        public ConfigDiffResultWindow(ConfigurationDiffResult result)
+        /// <summary>
+        /// Левая база для кнопки «Обозреватель метаданных…» (этап 5 цикла 0.3.9.132–0.3.9.136):
+        /// режим «База ↔ .cf» — передаётся из <see cref="ConfigDiffSetupWindow"/>, для
+        /// CfVsCf — null (кнопка не создаётся). Параметр опционален — вызовы не ломаются.
+        /// </summary>
+        private readonly Infobase? _baseForExplorer;
+
+        public ConfigDiffResultWindow(ConfigurationDiffResult result, Infobase? baseForExplorer = null)
         {
+            _baseForExplorer = baseForExplorer;
+
             Title = LocalizationManager.T("ConfigDiff.Title");
             Width = 900;
             Height = 640;
@@ -98,6 +107,14 @@ namespace Configuration_Management
                 Spacing = 8,
                 Margin = new Thickness(0, 12, 0, 0)
             };
+            // Этап 5 (0.3.9.136): «Обозреватель метаданных…» доступен только при наличии
+            // левой базы (режим «База ↔ .cf») — открывает обозреватель с предвыбором базы.
+            if (_baseForExplorer is not null)
+            {
+                var openExplorer = new Button { Content = LocalizationManager.T("MetadataExplorer.OpenFromDiff"), Width = 200 };
+                openExplorer.Click += (_, _) => OpenMetadataExplorer();
+                buttons.Children.Add(openExplorer);
+            }
             var exportCsv = new Button { Content = LocalizationManager.T("ConfigDiff.ExportCsv"), Width = 140 };
             exportCsv.Click += (_, _) => ExportCsv();
             var exportTxt = new Button { Content = LocalizationManager.T("ConfigDiff.ExportTxt"), Width = 140 };
@@ -184,6 +201,27 @@ namespace Configuration_Management
             DiffChangeKind.Removed => new SolidColorBrush(Color.Parse("#DC2626")),
             _ => new SolidColorBrush(Color.Parse("#64748B"))
         };
+
+        /// <summary>
+        /// «Обозреватель метаданных…» (этап 5 цикла 0.3.9.132–0.3.9.136): открывает
+        /// <see cref="MetadataExplorerWindow"/> с предвыбранной левой базой (режим
+        /// «База ↔ .cf») и сразу запускает выгрузку (<c>LoadCommand.Execute(null)</c>).
+        /// </summary>
+        private void OpenMetadataExplorer()
+        {
+            try
+            {
+                var bases = AppServices.GetRequiredService<IInfobaseRepository>().Load();
+                var window = new MetadataExplorerWindow(bases, _baseForExplorer);
+                // Сразу загрузка предвыбранной базы: результат — дерево обозревателя.
+                window.LoadCommand.Execute(null);
+                window.ShowDialogSync(this);
+            }
+            catch (Exception ex)
+            {
+                _dialogs.ShowError(ex.Message, LocalizationManager.T("MetadataExplorer.Title"));
+            }
+        }
 
         private void ExportCsv()
         {

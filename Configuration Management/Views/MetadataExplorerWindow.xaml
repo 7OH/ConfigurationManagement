@@ -256,9 +256,10 @@
             <Button Content="{loc:Loc Common.Close}" Width="100" IsCancel="True" Click="OnClose_Click"/>
         </StackPanel>
 
-        <!-- Подсказка -->
-        <TextBlock Grid.Row="7" Margin="0,8,0,0" FontSize="11"
+        <!-- Подсказка (текст собирается в конструкторе: основной хинт + подсказка
+             о большой конфигурации, этап 5) -->
+        <TextBlock x:Name="HintText" Grid.Row="7" Margin="0,8,0,0" FontSize="11"
                    Foreground="{DynamicResource TextSecondaryBrush}"
-                   Text="{loc:Loc MetadataExplorer.Hint}" TextWrapping="Wrap"/>
+                   TextWrapping="Wrap"/>
     </Grid>
 </Window>

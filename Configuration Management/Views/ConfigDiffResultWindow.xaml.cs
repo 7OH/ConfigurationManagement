@@ -18,9 +18,21 @@ namespace Configuration_Management
     {
         private readonly ConfigDiffResultViewModel _vm;
 
-        public ConfigDiffResultWindow(ConfigurationDiffResult result)
+        /// <summary>
+        /// Левая база для кнопки «Обозреватель метаданных…» (этап 5 цикла 0.3.9.132–0.3.9.136):
+        /// режим «База ↔ .cf» — передаётся из <see cref="ConfigDiffSetupWindow"/>, для
+        /// CfVsCf — null. Параметр опционален — существующие вызовы не ломаются.
+        /// </summary>
+        private readonly Infobase? _baseForExplorer;
+
+        public ConfigDiffResultWindow(ConfigurationDiffResult result, Infobase? baseForExplorer = null)
         {
             InitializeComponent();
+
+            _baseForExplorer = baseForExplorer;
+            OpenExplorerButton.Visibility = baseForExplorer is null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
 
             _vm = new ConfigDiffResultViewModel(result);
             DiffTree.ItemsSource = _vm.Types;
@@ -79,6 +91,35 @@ namespace Configuration_Management
                 MessageBox.Show(this,
                     string.Format(LocalizationManager.T("ConfigDiff.ExportFailedFormat"), ex.Message),
                     LocalizationManager.T("ConfigDiff.Title"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// «Обозреватель метаданных…» (этап 5 цикла 0.3.9.132–0.3.9.136): открывает
+        /// <see cref="MetadataExplorerWindow"/> с предвыбранной левой базой (режим
+        /// «База ↔ .cf») и сразу запускает выгрузку (<c>LoadCommand.Execute(null)</c>).
+        /// Кнопка доступна только при наличии базы (скрыта для CfVsCf).
+        /// </summary>
+        private void OnOpenMetadataExplorer_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var bases = AppServices.GetRequiredService<IInfobaseRepository>().Load();
+                var window = new MetadataExplorerWindow(bases, _baseForExplorer)
+                {
+                    Owner = this
+                };
+                // Сразу загрузка предвыбранной базы: результат — дерево обозревателя.
+                window.LoadCommand.Execute(null);
+                window.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    ex.Message,
+                    LocalizationManager.T("MetadataExplorer.Title"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }

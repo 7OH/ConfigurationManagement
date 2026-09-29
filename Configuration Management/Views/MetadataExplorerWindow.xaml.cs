@@ -44,6 +44,12 @@ namespace Configuration_Management
             DataContext = _vm;
             Title = LocalizationManager.T("MetadataExplorer.Title");
 
+            // Подсказка (этап 5): напоминание о времени выгрузки большой конфигурации
+            // и об ограничении «разбираются только метаданные» (модули не читаются).
+            HintText.Text = LocalizationManager.T("MetadataExplorer.Hint")
+                + Environment.NewLine
+                + LocalizationManager.T("MetadataExplorer.Hint.LargeConfig");
+
             // Раскрытие узла → ленивая подгрузка детей (TreeViewItem.Expanded всплывает
             // от любого вложенного контейнера — подписка один раз на дерево).
             MetadataTree.AddHandler(
@@ -54,6 +60,13 @@ namespace Configuration_Management
 
             Closed += (_, _) => _vm.Dispose();
         }
+
+        /// <summary>
+        /// Команда «Загрузить» ViewModel — для интеграции из отчёта сравнения (этап 5):
+        /// кнопка «Обозреватель метаданных…» в <see cref="ConfigDiffResultWindow"/>
+        /// вызывает <c>LoadCommand.Execute(null)</c> сразу после открытия окна.
+        /// </summary>
+        public System.Windows.Input.ICommand LoadCommand => _vm.LoadCommand;
 
         /// <summary>«Загрузить»: окно прогресса (индитерминант, этапы из StageChanged) +
         /// выполнение выгрузки; результат — дерево, ошибки — в статус-строку VM.</summary>
