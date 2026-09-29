@@ -111,6 +111,22 @@ public sealed class ExternalCommandRunnerTests
     }
 
     [Fact]
+    public void CreateProcessStartInfo_CreateNoWindow_MatchesParameter()
+    {
+        // Отсутствие инверсии флага (issue #308, замечание @7OH 14:43): CreateNoWindow
+        // равен параметру createNoWindow на любой платформе. RunDetached строит
+        // StartInfo тем же путём (CreateProcessStartInfo), поэтому покрывается здесь.
+        var visible = ExternalCommandRunner.CreateProcessStartInfo("echo hello", createNoWindow: false);
+        var hidden = ExternalCommandRunner.CreateProcessStartInfo("echo hello", createNoWindow: true);
+
+        Assert.False(visible.CreateNoWindow);
+        Assert.True(hidden.CreateNoWindow);
+        // UseShellExecute включается только для видимого окна и только на Windows.
+        Assert.Equal(OperatingSystem.IsWindows(), visible.UseShellExecute);
+        Assert.False(hidden.UseShellExecute);
+    }
+
+    [Fact]
     public void CreateProcessStartInfo_WithWorkingDirectory_SetsIt()
     {
         // Issue #308, п.7: «Папка запуска» сценария попадает в ProcessStartInfo.WorkingDirectory;

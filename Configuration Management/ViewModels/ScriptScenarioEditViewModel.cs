@@ -148,11 +148,15 @@ public class ScriptScenarioEditViewModel : ViewModelBase
     /// <summary>
     /// Пример полной командной строки сценария с подстановками для указанной базы
     /// (используется как живая подсказка в окне редактирования и выбора). Включает
-    /// обёртку выбранного интерпретатора (issue #308, п.9): превью отражает шелл.
+    /// обёртку выбранного интерпретатора (issue #308, п.9): превью отражает шелл
+    /// сценария, включая разделитель «cd …» — «;» для PowerShell, «&&» для
+    /// cmd/sh (issue #308, замечание @7OH).
     /// </summary>
     public static string BuildExampleCommandLine(ScriptScenario scenario, Infobase? infobase, DateTime? now = null)
     {
         var values = ScriptParameterResolver.BuildValueMap(infobase);
-        return ScriptParameterResolver.BuildShellCommandLine(scenario, values, now);
+        // Сборка использует scenario.Shell: разделитель и обёртка соответствуют
+        // выбранному интерпретатору; платформа — текущая (для режима «Авто»).
+        return ScriptParameterResolver.BuildShellCommandLine(scenario, values, now, OperatingSystem.IsWindows());
     }
 }

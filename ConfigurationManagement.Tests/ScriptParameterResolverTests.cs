@@ -318,6 +318,71 @@ public sealed class ScriptParameterResolverTests
         Assert.Equal("tool.exe Бухгалтерия", result);
     }
 
+    [Fact]
+    public void BuildCommandLine_WithWorkingDirectory_PowerShell_UsesSemicolonSeparator()
+    {
+        // PowerShell 5.1 не поддерживает лексему «&&» (issue #308, замечание @7OH):
+        // между «cd …» и командой должен быть разделитель «;».
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.ps1",
+            WorkingDirectory = @"C:\Tools\scripts",
+            Parameters = new List<string> { "-Server %connection.server%" }
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: ScriptShell.PowerShell, isWindows: true);
+
+        Assert.Equal(@"cd C:\Tools\scripts ; report.ps1 -Server srv-1c", result);
+        Assert.DoesNotContain("&&", result);
+    }
+
+    [Theory]
+    [InlineData(ScriptShell.Cmd, true)]   // явный cmd на Windows
+    [InlineData(ScriptShell.Cmd, false)]  // явный cmd и на Linux
+    [InlineData(ScriptShell.Sh, true)]
+    [InlineData(ScriptShell.Sh, false)]
+    [InlineData(ScriptShell.Auto, true)]  // Auto на Windows — cmd → «&&»
+    [InlineData(ScriptShell.Auto, false)] // Auto на Linux — sh → «&&»
+    public void BuildCommandLine_WithWorkingDirectory_NonPowerShell_UsesAmpersand(ScriptShell shell, bool isWindows)
+    {
+        // Для cmd/sh (включая Auto по обеим платформам) разделитель остаётся «&&».
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.bat",
+            WorkingDirectory = @"C:\Tools\scripts"
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: shell, isWindows: isWindows);
+
+        Assert.Equal(@"cd C:\Tools\scripts && report.bat", result);
+        Assert.DoesNotContain(";", result);
+    }
+
+    [Fact]
+    public void BuildCommandLine_EmptyWorkingDirectory_PowerShell_NoSeparatorAppears()
+    {
+        // Без рабочей папки префикс cd (и разделитель) не появляется ни для какого шелла.
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.ps1",
+            WorkingDirectory = "",
+            Parameters = new List<string> { "%name%" },
+            Shell = ScriptShell.PowerShell
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: ScriptShell.PowerShell, isWindows: true);
+
+        Assert.Equal("report.ps1 Бухгалтерия", result);
+        Assert.DoesNotContain(";", result);
+        Assert.DoesNotContain("&&", result);
+    }
+
     // ------------------- Интерпретатор (issue #308, п.9) -------------------
 
     [Theory]
@@ -377,5 +442,41 @@ public sealed class ScriptParameterResolverTests
         var result = ScriptParameterResolver.BuildShellCommandLine(scenario, map, FixedNow, isWindows: false);
 
         Assert.Equal("/bin/sh -c cd /opt/scripts && report.sh", result);
+    }
+
+    [Fact]
+    public void BuildShellCommandLine_WithWorkingDirectory_PowerShell_UsesSemicolon()
+    {
+        // Полная команда для powershell.exe 5.1 без лексемы «&&»: между «cd …»
+        // и телом — «;» (issue #308, замечание @7OH 15:05).
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.ps1",
+            WorkingDirectory = @"C:\Tools\scripts",
+            Shell = ScriptShell.PowerShell
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildShellCommandLine(scenario, map, FixedNow, isWindows: true);
+
+        Assert.Equal("powershell -NoProfile -Command cd C:\\Tools\\scripts ; report.ps1", result);
+        Assert.DoesNotContain("&&", result);
+    }
+
+    [Fact]
+    public void BuildShellCommandLine_AutoOnWindows_KeepsCmdAmpersand()
+    {
+        // «Авто» на Windows — по-прежнему cmd /c … && … (issue #308, ручная проверка п.4).
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.bat",
+            WorkingDirectory = @"C:\Tools\scripts",
+            Shell = ScriptShell.Auto
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildShellCommandLine(scenario, map, FixedNow, isWindows: true);
+
+        Assert.Equal("cmd.exe /c cd C:\\Tools\\scripts && report.bat", result);
     }
 }

@@ -9,6 +9,29 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.147] — 2026-09-29
+
+### Исправлено
+
+- **Запуск сценариев (issue #308)** — при снятой галке «Скрывать окно» консольное окно
+  теперь действительно появляется (была инверсия флага `createNoWindow`: раньше снятая
+  галка скрывала окно, а установленная — показывала). Исправлено в обеих платформенных
+  ветках запуска: [`ViewModels/MainViewModel.Scripts.cs`](Configuration%20Management/ViewModels/MainViewModel.Scripts.cs)
+  (Windows/WPF) и [`ViewModels/MainViewModel.Avalonia.Scripts.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Scripts.cs)
+  (Linux/Avalonia).
+- **Командная строка для PowerShell собирается с разделителем `;` вместо `&&`** —
+  в powershell.exe 5.1 лексема `&&` недопустима («не является допустимым разделителем
+  операторов»). Разделитель между префиксом `cd "…"` и командой теперь зависит от
+  выбранного интерпретатора: cmd/sh (включая «Авто» по обеим платформам) — `&&` как
+  раньше, PowerShell — `;`. Правка в
+  [`Services/ScriptParameterResolver.cs`](Configuration%20Management/Services/ScriptParameterResolver.cs)
+  (`BuildCommandLine`/`BuildShellCommandLine`), затронуты превью
+  [`ViewModels/ScriptScenarioEditViewModel.cs`](Configuration%20Management/ViewModels/ScriptScenarioEditViewModel.cs),
+  лог запуска и история команд в `MainViewModel.Scripts.cs`/`MainViewModel.Avalonia.Scripts.cs`;
+  тесты дополнены в
+  [`ScriptParameterResolverTests.cs`](ConfigurationManagement.Tests/ScriptParameterResolverTests.cs)
+  и [`ExternalCommandRunnerTests.cs`](ConfigurationManagement.Tests/ExternalCommandRunnerTests.cs).
+
 ## [0.3.9.146] — 2026-09-29
 
 ### Исправлено

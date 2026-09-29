@@ -167,9 +167,15 @@ public static class ScriptParameterResolver
 
     /// <summary>
     /// Собирает полную командную строку сценария: рабочая папка запуска (если задана,
-    /// префикс <c>cd "…" &&</c>), путь к файлу (в кавычках, если содержит пробелы)
-    /// и резолвнутые параметры. Строка передаётся системному shell через
+    /// префикс <c>cd "…"</c> с разделителем), путь к файлу (в кавычках, если содержит
+    /// пробелы) и резолвнутые параметры. Строка передаётся системному shell через
     /// <see cref="ExternalCommandRunner.BuildShellCommand"/>.
+    /// <para>
+    /// Разделитель между префиксом <c>cd</c> и командой зависит от интерпретатора:
+    /// <c>cmd</c>/<c>sh</c> — <c>&&</c>, PowerShell — <c>;</c> (в powershell.exe 5.1
+    /// лексема <c>&&</c> недопустима, issue #308, замечание @7OH). <see cref="ScriptShell.Auto"/>
+    /// разрешается по <paramref name="isWindows"/> (cmd на Windows, sh на Linux — оба «&&»).
+    /// </para>
     /// <para>
     /// Реальный запуск использует <see cref="System.Diagnostics.ProcessStartInfo.WorkingDirectory"/>
     /// (без <c>cd</c>); префикс <c>cd</c> нужен только для наглядного превью в окнах
@@ -177,10 +183,19 @@ public static class ScriptParameterResolver
     /// не меняется — старые сценарии мигрируют без изменения поведения.
     /// </para>
     /// </summary>
+    /// <param name="scenario">Сценарий.</param>
+    /// <param name="values">Значения подстановок (см. <see cref="BuildValueMap"/>).</param>
+    /// <param name="now">Момент времени для токенов даты.</param>
+    /// <param name="shell">Интерпретатор для выбора разделителя <c>cd</c>;
+    /// <c>null</c> — <see cref="ScriptShell.Auto"/> (по платформе).</param>
+    /// <param name="isWindows"><c>true</c> — платформа Windows; <c>null</c> — текущая ОС
+    /// (используется только при <see cref="ScriptShell.Auto"/>).</param>
     public static string BuildCommandLine(
         ScriptScenario scenario,
         IReadOnlyDictionary<string, string>? values,
-        DateTime? now = null)
+        DateTime? now = null,
+        ScriptShell? shell = null,
+        bool? isWindows = null)
     {
         if (scenario is null)
             return "";
@@ -188,12 +203,13 @@ public static class ScriptParameterResolver
         var path = (scenario.FilePath ?? "").Trim();
         var parts = new List<string>();
 
-        // Папка запуска (issue #308, п.7): видна в превью как «cd "…" && …».
+        // Папка запуска (issue #308, п.7): видна в превью как «cd "…" && …» для
+        // cmd/sh и «cd "…"; …» для PowerShell — разделитель по выбранному шеллу.
         var workingDirectory = (scenario.WorkingDirectory ?? "").Trim();
         if (workingDirectory.Length > 0)
         {
             parts.Add("cd " + QuoteIfNeeded(workingDirectory));
-            parts.Add("&&");
+            parts.Add(CommandSeparator(shell ?? ScriptShell.Auto, isWindows ?? OperatingSystem.IsWindows()));
         }
 
         if (path.Length > 0)
@@ -217,6 +233,8 @@ public static class ScriptParameterResolver
     /// (<paramref name="isWindows"/>). Используется в превью окон редактора/выбора
     /// и в логе запуска; реальный запуск выполняет ту же обёртку через
     /// <see cref="ExternalCommandRunner.RunDetached"/> с <c>scenario.Shell</c>.
+    /// Шелл сценария передаётся в тело — разделитель <c>cd</c> соответствует
+    /// интерпретатору (PowerShell — «;», issue #308, замечание @7OH).
     /// </summary>
     /// <param name="scenario">Сценарий.</param>
     /// <param name="values">Значения подстановок (см. <see cref="BuildValueMap"/>).</param>
@@ -229,12 +247,29 @@ public static class ScriptParameterResolver
         DateTime? now = null,
         bool? isWindows = null)
     {
-        var body = BuildCommandLine(scenario, values, now);
+        if (scenario is null)
+            return "";
+
+        var shell = scenario.Shell;
+        var body = BuildCommandLine(scenario, values, now, shell, isWindows);
         var (fileName, arguments) = ExternalCommandRunner.ResolveShellWrapper(
-            scenario?.Shell ?? ScriptShell.Auto,
+            shell,
             body,
             isWindows ?? OperatingSystem.IsWindows());
         return fileName + " " + arguments;
+    }
+
+    /// <summary>
+    /// Разделитель между префиксом <c>cd "…"</c> и командой: для PowerShell — <c>;</c>,
+    /// для cmd/sh — <c>&&</c> (прежнее поведение). <see cref="ScriptShell.Auto"/>
+    /// разрешается по платформе: cmd на Windows, sh на Linux — оба используют «&&».
+    /// </summary>
+    private static string CommandSeparator(ScriptShell shell, bool isWindows)
+    {
+        var resolved = shell == ScriptShell.Auto
+            ? (isWindows ? ScriptShell.Cmd : ScriptShell.Sh)
+            : shell;
+        return resolved == ScriptShell.PowerShell ? ";" : "&&";
     }
 
     /// <summary>Пытается преобразовать строку в число параметров; некорректное — 0.</summary>

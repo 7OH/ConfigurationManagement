@@ -82,7 +82,10 @@ public partial class MainViewModel
             return;
 
         var values = ScriptParameterResolver.BuildValueMap(infobase);
-        var commandBody = ScriptParameterResolver.BuildCommandLine(scenario, values);
+        // Шелл сценария передаётся в сборку тела: для PowerShell разделитель
+        // между «cd …» и командой — «;» вместо «&&» (issue #308, замечание @7OH).
+        var commandBody = ScriptParameterResolver.BuildCommandLine(
+            scenario, values, shell: scenario.Shell, isWindows: OperatingSystem.IsWindows());
         if (string.IsNullOrWhiteSpace(commandBody))
         {
             _dialogs.ShowWarning(LocalizationManager.T("Script.EmptyCommand"), LocalizationManager.T("Script.RunTitle"));
@@ -104,7 +107,10 @@ public partial class MainViewModel
             // интерпретатор — по свойству «Интерпретатор» (issue #308, п.9).
             ExternalCommandRunner.RunDetached(
                 commandBody,
-                createNoWindow: !scenario.HideWindow,
+                // Видимость консольного окна — по свойству «Скрывать окно»: снятая галка
+                // (HideWindow=false) даёт видимое окно (issue #308, замечание @7OH 14:43);
+                // раньше флаг был инвертирован.
+                createNoWindow: scenario.HideWindow,
                 workingDirectory: scenario.WorkingDirectory,
                 shell: scenario.Shell);
 
