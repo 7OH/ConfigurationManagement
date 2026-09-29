@@ -45,6 +45,13 @@ public partial class ScriptScenarioEditWindow : Window
         BrowseButton.Content = T("Script.Browse");
         WorkingDirectoryLabel.Text = T("Script.WorkingDirectory");
         WorkingDirectoryBrowseButton.Content = T("Script.Browse");
+        // Issue #308, п.9: «Интерпретатор» — выбор shell запуска сценария.
+        // Значения enum отображаются локализованными подписями через KeyValuePair.
+        ShellLabel.Text = T("Script.Shell");
+        ShellCombo.ItemsSource = ScriptScenarioEditViewModel.ShellOptions
+            .Select(s => new KeyValuePair<ScriptShell, string>(s, ShellDisplayName(s)))
+            .ToList();
+        ShellCombo.SelectedValue = _vm.Shell;
         ParametersLabel.Text = T("Script.Parameters");
         ParametersHint.Text = T("Script.ParametersHint");
         TokensLabel.Text = T("Script.Tokens");
@@ -90,6 +97,16 @@ public partial class ScriptScenarioEditWindow : Window
     }
 
     private static string T(string key) => LocalizationManager.T(key);
+
+    /// <summary>Локализованная подпись интерпретатора для выпадающего списка
+    /// (issue #308, п.9): «Авто» локализуется, имена инструментов фиксированы.</summary>
+    private static string ShellDisplayName(ScriptShell shell) => shell switch
+    {
+        ScriptShell.Cmd => "cmd",
+        ScriptShell.PowerShell => "PowerShell",
+        ScriptShell.Sh => "sh",
+        _ => T("Script.Shell.Auto")
+    };
 
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
@@ -145,12 +162,15 @@ public partial class ScriptScenarioEditWindow : Window
 
     private void UpdatePreview()
     {
+        // Выбранный интерпретатор (issue #308, п.9) попадает и в VM, и в превью.
+        _vm.Shell = ShellCombo.SelectedValue is ScriptShell shell ? shell : _vm.Shell;
         var draft = new ScriptScenario
         {
             Name = _vm.Name,
             FilePath = FilePathBox.Text ?? "",
             WorkingDirectory = WorkingDirectoryBox.Text ?? "",
-            Parameters = _vm.NonEmptyParameters
+            Parameters = _vm.NonEmptyParameters,
+            Shell = _vm.Shell
         };
         var preview = ScriptScenarioEditViewModel.BuildExampleCommandLine(draft, SelectedExampleBase);
         PreviewBox.Text = string.IsNullOrWhiteSpace(preview) ? "—" : preview;
@@ -163,6 +183,7 @@ public partial class ScriptScenarioEditWindow : Window
         _vm.WorkingDirectory = WorkingDirectoryBox.Text ?? "";
         _vm.ParametersText = ParametersBox.Text ?? "";
         _vm.HideWindow = HideWindowCheckBox.IsChecked ?? true;
+        _vm.Shell = ShellCombo.SelectedValue is ScriptShell shell ? shell : ScriptShell.Auto;
 
         var errorKey = _vm.Validate();
         if (errorKey is not null)

@@ -209,6 +209,34 @@ public static class ScriptParameterResolver
         return string.Join(" ", parts);
     }
 
+    /// <summary>
+    /// Полная командная строка сценария с обёрткой выбранного интерпретатора
+    /// (issue #308, п.9): тело <see cref="BuildCommandLine"/> оборачивается как
+    /// <c>cmd.exe /c …</c>, <c>powershell -NoProfile -Command …</c> или
+    /// <c>/bin/sh -c …</c>; при <see cref="ScriptShell.Auto"/> — по платформе
+    /// (<paramref name="isWindows"/>). Используется в превью окон редактора/выбора
+    /// и в логе запуска; реальный запуск выполняет ту же обёртку через
+    /// <see cref="ExternalCommandRunner.RunDetached"/> с <c>scenario.Shell</c>.
+    /// </summary>
+    /// <param name="scenario">Сценарий.</param>
+    /// <param name="values">Значения подстановок (см. <see cref="BuildValueMap"/>).</param>
+    /// <param name="now">Момент времени для токенов даты.</param>
+    /// <param name="isWindows"><c>true</c> — платформа Windows, <c>false</c> — Linux;
+    /// <c>null</c> — определяется по текущей ОС (используется в рантайме).</param>
+    public static string BuildShellCommandLine(
+        ScriptScenario scenario,
+        IReadOnlyDictionary<string, string>? values,
+        DateTime? now = null,
+        bool? isWindows = null)
+    {
+        var body = BuildCommandLine(scenario, values, now);
+        var (fileName, arguments) = ExternalCommandRunner.ResolveShellWrapper(
+            scenario?.Shell ?? ScriptShell.Auto,
+            body,
+            isWindows ?? OperatingSystem.IsWindows());
+        return fileName + " " + arguments;
+    }
+
     /// <summary>Пытается преобразовать строку в число параметров; некорректное — 0.</summary>
     private static string SafeFormat(DateTime now, string format)
     {

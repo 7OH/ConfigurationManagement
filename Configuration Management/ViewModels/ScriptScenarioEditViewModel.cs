@@ -58,6 +58,7 @@ public class ScriptScenarioEditViewModel : ViewModelBase
             FilePath = scenario.FilePath ?? "";
             WorkingDirectory = scenario.WorkingDirectory ?? "";
             HideWindow = scenario.HideWindow;
+            Shell = scenario.Shell;
             foreach (var parameter in scenario.Parameters ?? new List<string>())
             {
                 if (!string.IsNullOrWhiteSpace(parameter))
@@ -86,6 +87,20 @@ public class ScriptScenarioEditViewModel : ViewModelBase
     /// (по умолчанию), <c>false</c> — консольное окно видимо.
     /// </summary>
     public bool HideWindow { get; set; } = true;
+
+    /// <summary>
+    /// Интерпретатор (shell) для запуска сценария (issue #308, п.9):
+    /// Авто / cmd / PowerShell / sh. Дефолт — <see cref="ScriptShell.Auto"/>
+    /// (по платформе, как раньше).
+    /// </summary>
+    public ScriptShell Shell { get; set; } = ScriptShell.Auto;
+
+    /// <summary>
+    /// Доступные значения интерпретатора для выпадающего списка формы
+    /// (порядок: Авто, cmd, PowerShell, sh).
+    /// </summary>
+    public static IReadOnlyList<ScriptShell> ShellOptions { get; } =
+        new[] { ScriptShell.Auto, ScriptShell.Cmd, ScriptShell.PowerShell, ScriptShell.Sh };
 
     /// <summary>Параметры одной строкой через переводы строк (каждая строка — параметр).</summary>
     public string ParametersText { get; set; } = "";
@@ -127,15 +142,17 @@ public class ScriptScenarioEditViewModel : ViewModelBase
         scenario.WorkingDirectory = WorkingDirectory.Trim();
         scenario.Parameters = NonEmptyParameters;
         scenario.HideWindow = HideWindow;
+        scenario.Shell = Shell;
     }
 
     /// <summary>
-    /// Пример командной строки с подстановками для указанной базы (используется
-    /// как живая подсказка в окне редактирования и выбора).
+    /// Пример полной командной строки сценария с подстановками для указанной базы
+    /// (используется как живая подсказка в окне редактирования и выбора). Включает
+    /// обёртку выбранного интерпретатора (issue #308, п.9): превью отражает шелл.
     /// </summary>
     public static string BuildExampleCommandLine(ScriptScenario scenario, Infobase? infobase, DateTime? now = null)
     {
         var values = ScriptParameterResolver.BuildValueMap(infobase);
-        return ScriptParameterResolver.BuildCommandLine(scenario, values, now);
+        return ScriptParameterResolver.BuildShellCommandLine(scenario, values, now);
     }
 }

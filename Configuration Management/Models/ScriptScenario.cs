@@ -44,4 +44,13 @@ public class ScriptScenario
     /// на Linux /bin/sh выполняется без терминала, видимое окно зависит от окружения).
     /// </summary>
     public bool HideWindow { get; set; } = true;
+
+    /// <summary>
+    /// Интерпретатор (shell) для запуска сценария (issue #308, п.9):
+    /// <see cref="ScriptShell.Auto"/> — по платформе (cmd.exe на Windows, /bin/sh
+    /// на Linux), либо явный выбор — cmd / PowerShell / sh. Старые JSON-файлы
+    /// сценариев без этого поля мигрируют без ошибок — дефолт сохраняет прежнее
+    /// поведение (Auto).
+    /// </summary>
+    public ScriptShell Shell { get; set; } = ScriptShell.Auto;
 }

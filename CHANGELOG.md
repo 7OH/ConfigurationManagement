@@ -9,6 +9,29 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.143] — 2026-09-29
+
+### Добавлено
+
+- **«Интерпретатор» у сценария скрипта (issue #308, п.9)** — новый параметр сценария:
+  выбор shell запуска: **Авто / cmd / PowerShell / sh**. Поле в модели
+  ([`Models/ScriptScenario.cs`](Configuration%20Management/Models/ScriptScenario.cs),
+  новый [`Models/ScriptShell.cs`](Configuration%20Management/Models/ScriptShell.cs)),
+  выпадающий список в редакторе сценария (Windows/WPF —
+  [`Views/ScriptScenarioEditWindow.xaml`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml)
+  и [`Views/ScriptScenarioEditWindow.xaml.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml.cs),
+  Linux/Avalonia — [`Views/ScriptScenarioEditWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.Avalonia.cs)).
+  При запуске команда оборачивается выбранным интерпретатором: Windows —
+  `cmd.exe /c`, `powershell -NoProfile -Command`; Linux — `/bin/sh -c` (для
+  PowerShell при наличии pwsh подходит и Linux). «Авто» определяет по платформе
+  (cmd на Windows, sh на Linux) — прежнее поведение, старые JSON-файлы мигрируют
+  без ошибок. Превью командной строки (редактор и окно выбора) показывает полную
+  строку с обёрткой выбранного шелла. Сборка обёртки — чистая функция
+  [`Services/ExternalCommandRunner.cs`](Configuration%20Management/Services/ExternalCommandRunner.cs),
+  превью — [`Services/ScriptParameterResolver.cs`](Configuration%20Management/Services/ScriptParameterResolver.cs),
+  запуск — [`ViewModels/MainViewModel.Scripts.cs`](Configuration%20Management/ViewModels/MainViewModel.Scripts.cs)
+  и [`ViewModels/MainViewModel.Avalonia.Scripts.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Scripts.cs).
+
 ## [0.3.9.142] — 2026-09-29
 
 ### Добавлено

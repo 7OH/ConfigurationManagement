@@ -82,23 +82,31 @@ public partial class MainViewModel
             return;
 
         var values = ScriptParameterResolver.BuildValueMap(infobase);
-        var commandLine = ScriptParameterResolver.BuildCommandLine(scenario, values);
-        if (string.IsNullOrWhiteSpace(commandLine))
+        var commandBody = ScriptParameterResolver.BuildCommandLine(scenario, values);
+        if (string.IsNullOrWhiteSpace(commandBody))
         {
             _dialogs.ShowWarning(LocalizationManager.T("Script.EmptyCommand"), LocalizationManager.T("Script.RunTitle"));
             return;
         }
+
+        // Полная командная строка с обёрткой выбранного интерпретатора (issue #308, п.9)
+        // для лога и истории запусков; тело запускается с указанным shell (без повторной обёртки).
+        var (shellFile, shellArgs) =
+            ExternalCommandRunner.ResolveShellWrapper(scenario.Shell, commandBody, OperatingSystem.IsWindows());
+        var commandLine = shellFile + " " + shellArgs;
 
         try
         {
             // Запуск без ожидания: пользовательский скрипт может выполняться долго,
             // а результат для приложения не критичен (лог + история запусков).
             // Видимость консольного окна — по свойству «Скрывать окно» сценария (issue #308),
-            // рабочая папка — по свойству «Папка запуска» (issue #308, п.7).
+            // рабочая папка — по свойству «Папка запуска» (issue #308, п.7),
+            // интерпретатор — по свойству «Интерпретатор» (issue #308, п.9).
             ExternalCommandRunner.RunDetached(
-                commandLine,
+                commandBody,
                 createNoWindow: !scenario.HideWindow,
-                workingDirectory: scenario.WorkingDirectory);
+                workingDirectory: scenario.WorkingDirectory,
+                shell: scenario.Shell);
 
             infobase.AddLaunchHistory("Script:" + scenario.Name, commandLine);
             Save();

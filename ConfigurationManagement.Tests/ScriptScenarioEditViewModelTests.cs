@@ -163,4 +163,49 @@ public sealed class ScriptScenarioEditViewModelTests
         Assert.Contains("%connection.password%", tokens);
         Assert.Contains("%password%", tokens);
     }
+
+    [Fact]
+    public void ApplyTo_TransfersShell()
+    {
+        // Issue #308, п.9: «Интерпретатор» переносится из формы в сценарий.
+        var scenario = new ScriptScenario { Id = "shell-id", Name = "Имя", FilePath = "x.ps1" };
+        var vm = new ScriptScenarioEditViewModel(scenario);
+        vm.Shell = ScriptShell.PowerShell;
+
+        vm.ApplyTo(scenario);
+
+        Assert.Equal(ScriptShell.PowerShell, scenario.Shell);
+    }
+
+    [Fact]
+    public void Constructor_FromScenario_FillsShell()
+    {
+        var scenario = new ScriptScenario
+        {
+            Name = "С шеллом",
+            FilePath = "x.sh",
+            Shell = ScriptShell.Sh
+        };
+
+        var vm = new ScriptScenarioEditViewModel(scenario);
+
+        Assert.Equal(ScriptShell.Sh, vm.Shell);
+    }
+
+    [Fact]
+    public void Constructor_NullScenario_ShellDefaultsToAuto()
+    {
+        var vm = new ScriptScenarioEditViewModel(null);
+
+        Assert.Equal(ScriptShell.Auto, vm.Shell);
+    }
+
+    [Fact]
+    public void ShellOptions_ContainAllFourValues()
+    {
+        // Варианты выпадающего списка «Интерпретатор» (issue #308, п.9).
+        Assert.Equal(
+            new[] { ScriptShell.Auto, ScriptShell.Cmd, ScriptShell.PowerShell, ScriptShell.Sh },
+            ScriptScenarioEditViewModel.ShellOptions);
+    }
 }

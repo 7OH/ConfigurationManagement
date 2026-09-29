@@ -42,6 +42,7 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         MaxHeight = 150
     }.Styled(ControlThemes.ModernTextBox);
     private readonly ListBox _tokensList = new();
+    private readonly ComboBox _shellCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
     private readonly ComboBox _exampleBaseCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
     private readonly TextBox _previewBox = new TextBox { IsReadOnly = true }.Styled(ControlThemes.ModernTextBox);
     private readonly CheckBox _hideWindowCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
@@ -105,6 +106,16 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         return hint;
     }
 
+    /// <summary>Локализованная подпись интерпретатора для выпадающего списка
+    /// (issue #308, п.9): «Авто» локализуется, имена инструментов фиксированы.</summary>
+    private static string ShellDisplayName(ScriptShell shell) => shell switch
+    {
+        ScriptShell.Cmd => "cmd",
+        ScriptShell.PowerShell => "PowerShell",
+        ScriptShell.Sh => "sh",
+        _ => T("Script.Shell.Auto")
+    };
+
     private Control BuildRoot()
     {
         var panel = new StackPanel { Margin = new Avalonia.Thickness(14), Spacing = 8 };
@@ -154,6 +165,22 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         Grid.SetColumn(browseWorkingDirectory, 2);
         workingDirectoryRow.Children.Add(browseWorkingDirectory);
         panel.Children.Add(workingDirectoryRow);
+
+        // Issue #308, п.9: «Интерпретатор» — выбор shell запуска сценария
+        // (Авто / cmd / PowerShell / sh). Значения enum отображаются локализованными
+        // подписями через KeyValuePair и ItemTemplate (как у _exampleBaseCombo).
+        panel.Children.Add(Label(T("Script.Shell")));
+        var shellItems = ScriptScenarioEditViewModel.ShellOptions
+            .Select(s => new KeyValuePair<ScriptShell, string>(s, ShellDisplayName(s)))
+            .ToList();
+        _shellCombo.ItemsSource = shellItems;
+        _shellCombo.ItemTemplate = new FuncDataTemplate<KeyValuePair<ScriptShell, string>>((pair, _) =>
+            new TextBlock { Text = pair.Value });
+        _shellCombo.SelectedItem = shellItems.FirstOrDefault(p => p.Key == _vm.Shell);
+        _shellCombo.HorizontalAlignment = HorizontalAlignment.Left;
+        _shellCombo.MinWidth = 260;
+        _shellCombo.SelectionChanged += (_, _) => UpdatePreview();
+        panel.Children.Add(_shellCombo);
 
         panel.Children.Add(Label(T("Script.Parameters")));
         _parametersBox.Text = _vm.ParametersText;
@@ -294,12 +321,15 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _vm.FilePath = _filePathBox.Text ?? "";
         _vm.WorkingDirectory = _workingDirectoryBox.Text ?? "";
         _vm.ParametersText = _parametersBox.Text ?? "";
+        // Выбранный интерпретатор (issue #308, п.9) попадает и в VM, и в превью.
+        _vm.Shell = _shellCombo.SelectedItem is KeyValuePair<ScriptShell, string> pair ? pair.Key : _vm.Shell;
         var draft = new ScriptScenario
         {
             Name = _vm.Name,
             FilePath = _vm.FilePath,
             WorkingDirectory = _vm.WorkingDirectory,
-            Parameters = _vm.NonEmptyParameters
+            Parameters = _vm.NonEmptyParameters,
+            Shell = _vm.Shell
         };
         var preview = ScriptScenarioEditViewModel.BuildExampleCommandLine(draft, SelectedExampleBase);
         _previewBox.Text = string.IsNullOrWhiteSpace(preview) ? "—" : preview;
@@ -312,6 +342,7 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _vm.WorkingDirectory = _workingDirectoryBox.Text ?? "";
         _vm.ParametersText = _parametersBox.Text ?? "";
         _vm.HideWindow = _hideWindowCheck.IsChecked ?? true;
+        _vm.Shell = _shellCombo.SelectedItem is KeyValuePair<ScriptShell, string> pair ? pair.Key : ScriptShell.Auto;
 
         var errorKey = _vm.Validate();
         if (errorKey is not null)

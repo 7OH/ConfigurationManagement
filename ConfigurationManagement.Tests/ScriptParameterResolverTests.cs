@@ -317,4 +317,65 @@ public sealed class ScriptParameterResolverTests
 
         Assert.Equal("tool.exe Бухгалтерия", result);
     }
+
+    // ------------------- Интерпретатор (issue #308, п.9) -------------------
+
+    [Theory]
+    [InlineData(ScriptShell.Auto, true, "cmd.exe /c report.bat")]
+    [InlineData(ScriptShell.Auto, false, "/bin/sh -c report.bat")]
+    [InlineData(ScriptShell.Cmd, true, "cmd.exe /c report.bat")]
+    [InlineData(ScriptShell.Cmd, false, "cmd.exe /c report.bat")]
+    [InlineData(ScriptShell.PowerShell, true, "powershell -NoProfile -Command report.bat")]
+    [InlineData(ScriptShell.PowerShell, false, "powershell -NoProfile -Command report.bat")]
+    [InlineData(ScriptShell.Sh, true, "/bin/sh -c report.bat")]
+    [InlineData(ScriptShell.Sh, false, "/bin/sh -c report.bat")]
+    public void BuildShellCommandLine_WrapsBodyForChosenShell(ScriptShell shell, bool isWindows, string expected)
+    {
+        // Issue #308, п.9: полная строка превью включает обёртку выбранного интерпретатора;
+        // «Авто» — по платформе (cmd на Windows, /bin/sh на Linux).
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.bat",
+            Shell = shell
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildShellCommandLine(scenario, map, FixedNow, isWindows);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void BuildShellCommandLine_PowerShell_ResolvesParametersUnderShell()
+    {
+        // Подстановки выполняются в теле, а не в обёртке (issue #308, п.9).
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.ps1",
+            Parameters = new List<string> { "-Server %connection.server%" },
+            Shell = ScriptShell.PowerShell
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildShellCommandLine(scenario, map, FixedNow, isWindows: true);
+
+        Assert.Equal("powershell -NoProfile -Command report.ps1 -Server srv-1c", result);
+    }
+
+    [Fact]
+    public void BuildShellCommandLine_WithWorkingDirectory_PrependsCdUnderShell()
+    {
+        // «cd … && тело» оборачивается выбранным интерпретатором целиком (issue #308, п.9).
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.sh",
+            WorkingDirectory = @"/opt/scripts",
+            Shell = ScriptShell.Sh
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildShellCommandLine(scenario, map, FixedNow, isWindows: false);
+
+        Assert.Equal("/bin/sh -c cd /opt/scripts && report.sh", result);
+    }
 }

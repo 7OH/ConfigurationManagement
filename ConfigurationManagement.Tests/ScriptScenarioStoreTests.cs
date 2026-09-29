@@ -219,4 +219,42 @@ public sealed class ScriptScenarioStoreTests : IDisposable
     {
         Assert.Empty(_store.LoadAll());
     }
+
+    [Fact]
+    public void Save_And_Get_RoundTrip_IncludesShell()
+    {
+        // Issue #308, п.9: «Интерпретатор» сериализуется и читается обратно.
+        var scenario = new ScriptScenario
+        {
+            Name = "Сценарий с PowerShell",
+            FilePath = @"C:\tools\report.ps1",
+            Shell = ScriptShell.PowerShell
+        };
+
+        _store.Save(scenario);
+
+        var loaded = _store.Get(scenario.Id);
+        Assert.NotNull(loaded);
+        Assert.Equal(ScriptShell.PowerShell, loaded!.Shell);
+    }
+
+    [Fact]
+    public void Get_LegacyJsonWithoutShell_MigratesToAuto()
+    {
+        // Миграция старых JSON-файлов сценариев (issue #308, п.9): файл без поля Shell
+        // загружается без ошибок, значение — Auto (прежнее поведение: cmd/sh по платформе).
+        var legacyJson = "{\r\n" +
+            "  \"Id\": \"legacy-shell-id\",\r\n" +
+            "  \"Name\": \"Старый без шелла\",\r\n" +
+            "  \"FilePath\": \"old.bat\",\r\n" +
+            "  \"Parameters\": [],\r\n" +
+            "  \"HideWindow\": true\r\n" +
+            "}";
+        File.WriteAllText(Path.Combine(_tempDir, "legacy-shell-id.script.json"), legacyJson);
+
+        var loaded = _store.Get("legacy-shell-id");
+
+        Assert.NotNull(loaded);
+        Assert.Equal(ScriptShell.Auto, loaded!.Shell);
+    }
 }

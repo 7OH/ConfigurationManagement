@@ -59,6 +59,13 @@
                     <Button x:Name="WorkingDirectoryBrowseButton" Grid.Column="2" Content="Обзор…" Width="90" Padding="6,3" Click="BrowseWorkingDirectory_Click"/>
                 </Grid>
 
+                <!-- Issue #308, п.9: «Интерпретатор» — выбор shell запуска:
+                     Авто (по платформе) / cmd / PowerShell / sh. -->
+                <TextBlock x:Name="ShellLabel" Text="Интерпретатор" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <ComboBox x:Name="ShellCombo" SelectedValuePath="Key" DisplayMemberPath="Value"
+                          HorizontalAlignment="Left" MinWidth="260" Margin="0,0,0,10"
+                          SelectionChanged="OnSelectionChanged"/>
+
                 <TextBlock x:Name="ParametersLabel" Text="Параметры" FontWeight="SemiBold" Margin="0,0,0,4"/>
                 <TextBox x:Name="ParametersBox" Text="{Binding ParametersText, UpdateSourceTrigger=PropertyChanged}"
                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="90" MaxHeight="150"
