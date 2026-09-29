@@ -15,13 +15,16 @@ public interface IOneCUpdatesService
 {
     /// <summary>
     /// Формирует адрес каталога релизов по правилу 1С. Если задан <paramref name="urlOverride"/> —
-    /// возвращается он (ручная корректировка), иначе адрес строится из кода конфигурации и
-    /// сегментов редакции. Каждый сегмент экранируется, итог проверяется на валидность URI.
+    /// возвращается он (ручная корректировка), иначе адрес строится из ника конфигурации
+    /// (<c>releases.1c.ru/project/<ник></c>). Каждый сегмент экранируется, итог проверяется
+    /// на валидность URI.
     /// </summary>
-    /// <param name="config">Типовая конфигурация (нужен сегмент <c><Конфигурация></c>).</param>
-    /// <param name="edition">Редакция (сегменты <c>Ред</c>/<c>Подред</c>). Может быть null.</param>
+    /// <param name="config">Типовая конфигурация (нужен ник каталога релизов).</param>
+    /// <param name="edition">Редакция (может переопределять ссылку целиком). Может быть null.</param>
     /// <param name="urlOverride">Полностью переопределённая ссылка. Пустая строка/null — автоформирование.</param>
-    string BuildUpdateUrl(OneCConfigType? config, OneCConfigEdition? edition, string? urlOverride);
+    /// <param name="urlSegment">Персональный сегмент (ник) базы. Если задан — используется вместо
+    /// ника типовой конфигурации (issue #322). Пустая строка/null — ник конфигурации.</param>
+    string BuildUpdateUrl(OneCConfigType? config, OneCConfigEdition? edition, string? urlOverride, string? urlSegment = null);
 
     /// <summary>
     /// Проверяет наличие обновлений по заданному URL каталога релизов: загружает страницу,

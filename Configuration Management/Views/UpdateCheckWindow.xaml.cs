@@ -70,7 +70,8 @@ public partial class UpdateCheckWindow : Window
         try
         {
             var config = FindLinkedConfig();
-            var url = _updates.BuildUpdateUrl(config, config?.DefaultEdition, _infobase.UpdateUrlOverride);
+            var url = _updates.BuildUpdateUrl(config, config?.DefaultEdition, _infobase.UpdateUrlOverride,
+                _infobase.UpdateUrlSegment);
             _row.Url = url;
 
             if (string.IsNullOrWhiteSpace(url))

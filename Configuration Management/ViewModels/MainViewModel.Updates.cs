@@ -115,7 +115,15 @@ public partial class MainViewModel
         if (infobase is null)
             return;
         var win = new Configuration_Management.ConfigUpdateLinkWindow(infobase);
-        win.ShowDialog();
+        // Настоящая модальность: блокируем владельца, окно поверх и по центру (issue #322,
+        // паттерн как в ExecuteCheckUpdate/OpenConfigTypesEdit, issue #264/#265/#288).
+        win.Owner = Application.Current.MainWindow;
+        // Отложенное открытие (DispatcherPriority.Input): при вызове из пункта контекстного
+        // меню дерева меню ещё не успело закрыться, и его попап остаётся поверх нового
+        // модального диалога, перекрывая полосу заголовка (issue #288).
+        Application.Current.Dispatcher.BeginInvoke(
+            new Action(() => win.ShowDialog()),
+            System.Windows.Threading.DispatcherPriority.Input);
     }
 
     /// <summary>Открывает окно редактирования списка типовых конфигураций 1С.</summary>

@@ -346,6 +346,21 @@ public class Infobase : INotifyPropertyChanged
         set => SetProperty(ref _updateUrlOverride, value ?? string.Empty);
     }
 
+    private string _updateUrlSegment = string.Empty;
+
+    /// <summary>
+    /// Персональный сегмент (ник) каталога релизов этой базы, например «AccountingCorp30».
+    /// Подставляется в адрес <c>releases.1c.ru/project/<сегмент></c> вместо ника типовой
+    /// конфигурации. Позволяет увидеть и исправить ключевой кусочек адреса для конкретной базы,
+    /// не меняя общую карточку конфигурации (issue #322). Пусто — используется ник типовой
+    /// конфигурации (<see cref="OneCConfigType.Nick"/>).
+    /// </summary>
+    public string UpdateUrlSegment
+    {
+        get => _updateUrlSegment;
+        set => SetProperty(ref _updateUrlSegment, value ?? string.Empty);
+    }
+
     /// <summary>Включена ли временная индикация «(обновление информации)» (issue #244).</summary>
     private bool _configInfoRefreshing;
     /// <summary>Колонка, в которой показывается временная надпись (issue #244).</summary>

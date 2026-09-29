@@ -104,7 +104,8 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <inheritdoc />
-    public string BuildUpdateUrl(OneCConfigType? config, OneCConfigEdition? edition, string? urlOverride)
+    public string BuildUpdateUrl(OneCConfigType? config, OneCConfigEdition? edition, string? urlOverride,
+        string? urlSegment = null)
     {
         if (!string.IsNullOrWhiteSpace(urlOverride))
             return urlOverride.Trim();
@@ -116,20 +117,30 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (edition is { HasUrlOverride: true })
             return edition.UrlOverride.Trim();
 
-        // Ресурс releases.1c.ru/project/<nick> — HTML-список версий; последняя (самая новая) версия
-        // находится в первой строке таблицы #versionsTable. Версия определяется при проверке.
-        if (!string.IsNullOrWhiteSpace(config.Nick))
-        {
-            var nickUrl = $"{ReleasesProjectBaseUrl}/{Uri.EscapeDataString(config.Nick.Trim())}";
-            return Uri.TryCreate(nickUrl, UriKind.Absolute, out var nickUri)
-                ? nickUri.ToString()
-                : nickUrl;
-        }
+        // Персональный сегмент (ник) базы приоритетнее ника типовой конфигурации (issue #322):
+        // пользователь видит и правит ключевой кусочек адреса после releases.1c.ru/project/
+        // в окне «Связать с конфигурацией», не меняя общую карточку конфигурации.
+        var nick = !string.IsNullOrWhiteSpace(urlSegment) ? urlSegment.Trim() : config.Nick;
+        return BuildNickUrl(nick);
+    }
 
-        // Ник не задан — корректный URL построить невозможно (старый сегментный путь
-        // downloads.1c.ru/ipp/.../Configs/... более не работает и даёт 404). Возвращаем пустую
-        // строку, чтобы проверка честно завершилась со статусом Failed.
-        return string.Empty;
+    /// <summary>
+    /// Строит URL каталога релизов ресурса <c>releases.1c.ru/project/<nick></c> — HTML-список
+    /// версий; последняя (самая новая) версия находится в первой строке таблицы #versionsTable.
+    /// Если ник не задан — корректный URL построить невозможно (старый сегментный путь
+    /// <c>downloads.1c.ru/ipp/.../Configs/...</c> более не работает и даёт 404): возвращается
+    /// пустая строка, чтобы проверка честно завершилась со статусом Failed.
+    /// </summary>
+    internal static string BuildNickUrl(string? nick)
+    {
+        if (string.IsNullOrWhiteSpace(nick))
+            return string.Empty;
+
+        // Экранируем явно и возвращаем экранированную строку: Uri.ToString() «разворачивает»
+        // %XX-последовательности обратно в читаемые символы, что ломало бы URL с кириллицей
+        // или пробелами в нике. Латиница/цифры (AccountingCorp30) EscapeDataString не меняет.
+        var nickUrl = $"{ReleasesProjectBaseUrl}/{Uri.EscapeDataString(nick.Trim())}";
+        return Uri.TryCreate(nickUrl, UriKind.Absolute, out _) ? nickUrl : string.Empty;
     }
 
     /// <inheritdoc />

@@ -20,8 +20,10 @@ namespace Configuration_Management
     /// Окно настройки связи ИБ ↔ типовая конфигурация 1С: выбор типовой конфигурации и редакции,
     /// формирование адреса каталога релизов (автоматически по правилу 1С либо вручную) и кнопка
     /// «Определить версию», которая читает имя и версию конфигурации базы через
-    /// <see cref="ConfigurationInfoService.ReadAndApply"/>. Открывается модально; при сохранении
-    /// записывает <see cref="Infobase.UpdateConfigCode"/> и <see cref="Infobase.UpdateUrlOverride"/>.
+    /// <see cref="ConfigurationInfoService.ReadAndApply"/> и автоматически сопоставляет базу с
+    /// типовой конфигурацией по имени (issue #322). При сохранении записывает
+    /// <see cref="Infobase.UpdateConfigCode"/>, <see cref="Infobase.UpdateUrlOverride"/> и
+    /// персональный сегмент (ник) адреса <see cref="Infobase.UpdateUrlSegment"/>.
     /// Avalonia/Linux-версия WPF-окна <see cref="ConfigUpdateLinkWindow"/>.
     /// </summary>
     public sealed class ConfigUpdateLinkWindow : ModalWindowBase
@@ -43,6 +45,7 @@ namespace Configuration_Management
         private RadioButton _autoUrlRadio = new();
         private RadioButton _manualUrlRadio = new();
         private TextBox _urlBox = new();
+        private TextBox _segmentBox = new();
         private Button _defineVersionButton = new();
         private readonly TextBlock _currentConfigText = new();
         private readonly TextBlock _resultText = new();
@@ -54,18 +57,24 @@ namespace Configuration_Management
 
             Title = LocalizationManager.T("Updates.EditConfig");
             Width = 620;
-            Height = 600;
+            Height = 640;
             MinWidth = 540;
-            MinHeight = 520;
+            MinHeight = 560;
             FontSize = 13;
             CanResize = true;
 
             _baseNameText.Text = _infobase.Name;
             Themes.ThemeBrushes.Bind(_baseNameText, TextBlock.ForegroundProperty, "AccentBrush");
 
+            // Сначала строим дерево UI — только после этого можно устанавливать значения
+            // элементов (в Avalonia элементы создаются в BuildRoot и иначе терялись бы
+            // значения, заданные до него: выбор конфигурации, режим URL, ручная ссылка).
+            Content = BuildRoot();
+
             LoadConfigs();
             _configCombo.ItemsSource = _configs;
             SelectInitialConfig();
+            ApplyConfigSelection(rebuildUrl: false);
 
             // Режим URL: ручная ссылка, если она была задана, иначе автоформирование.
             var hasOverride = !string.IsNullOrWhiteSpace(_infobase.UpdateUrlOverride);
@@ -84,7 +93,6 @@ namespace Configuration_Management
             _initializing = false;
             RebuildUrl();
 
-            Content = BuildRoot();
             ShowCurrentConfigSummary();
         }
 
@@ -130,16 +138,36 @@ namespace Configuration_Management
         {
             if (_initializing)
                 return;
+            ApplyConfigSelection(rebuildUrl: true);
+        }
 
+        /// <summary>
+        /// Применяет выбранную конфигурацию: заполняет список редакций и поле сегмента адреса.
+        /// Вызывается и при смене конфигурации, и при инициализации окна (раньше при старте
+        /// редакции не заполнялись, а выбор конфигурации терялся из-за пересоздания элементов
+        /// в BuildRoot — «выбор версии не работал» при автоопределении, issue #322).
+        /// </summary>
+        private void ApplyConfigSelection(bool rebuildUrl)
+        {
             var config = _configCombo.SelectedItem as OneCConfigType;
             var editions = config?.Editions ?? new List<OneCConfigEdition>();
 
             var previous = _editionCombo.SelectedItem;
             _editionCombo.ItemsSource = editions;
             if (editions.Count > 0)
-                _editionCombo.SelectedItem = previous ?? config?.DefaultEdition ?? editions[0];
+            {
+                var previousValid = previous is OneCConfigEdition prev && editions.Contains(prev);
+                _editionCombo.SelectedItem = previousValid ? previous : (config?.DefaultEdition ?? editions[0]);
+            }
+            else
+            {
+                _editionCombo.SelectedItem = null;
+            }
 
-            RebuildUrl();
+            UpdateSegmentControls();
+
+            if (rebuildUrl)
+                RebuildUrl();
         }
 
         private void OnEditionSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -160,6 +188,47 @@ namespace Configuration_Management
                 RebuildUrl();
         }
 
+        /// <summary>
+        /// Показывает в поле сегмента действующее значение для базы: персональный сегмент базы,
+        /// либо (если не задан) ник выбранной типовой конфигурации как исходное значение.
+        /// </summary>
+        private void UpdateSegmentControls()
+        {
+            var config = _configCombo.SelectedItem as OneCConfigType;
+            var personal = _infobase.UpdateUrlSegment;
+            if (!string.IsNullOrWhiteSpace(personal))
+            {
+                _segmentBox.Text = personal.Trim();
+                return;
+            }
+
+            _segmentBox.Text = config?.Nick?.Trim() ?? string.Empty;
+        }
+
+        private void OnSegmentChanged(object? sender, TextChangedEventArgs e)
+        {
+            if (_initializing)
+                return;
+            RebuildUrl();
+        }
+
+        /// <summary>Открывает окно «Типовые конфигурации» (модально поверх текущего), где хранится
+        /// ник конфигурации, по умолчанию подставляемый в адрес каталога релизов.</summary>
+        private void OnOpenConfigTypesClick()
+        {
+            var win = new ConfigTypesEditWindow();
+            win.ShowSync(this);
+
+            // После правки пользовательских конфигураций перечитываем список и обновляем выбор.
+            var code = (_configCombo.SelectedItem as OneCConfigType)?.Code;
+            LoadConfigs();
+            _configCombo.ItemsSource = _configs;
+            var restored = _configs.FirstOrDefault(c =>
+                string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
+            _configCombo.SelectedItem = restored ?? (_configs.Count > 0 ? _configs[0] : null);
+            ApplyConfigSelection(rebuildUrl: true);
+        }
+
         /// <summary>Пересчитывает адрес каталога релизов в автоматическом режиме.</summary>
         private void RebuildUrl()
         {
@@ -170,7 +239,8 @@ namespace Configuration_Management
 
             var config = _configCombo.SelectedItem as OneCConfigType;
             var edition = _editionCombo.SelectedItem as OneCConfigEdition;
-            _urlBox.Text = _updates.BuildUpdateUrl(config, edition, null);
+            var segment = _segmentBox.Text?.Trim() ?? string.Empty;
+            _urlBox.Text = _updates.BuildUpdateUrl(config, edition, null, segment);
         }
 
         private async void OnDefineVersionClick()
@@ -184,10 +254,13 @@ namespace Configuration_Management
 
             try
             {
-                await Task.Run(() => ConfigurationInfoService.ReadAndApply(
+                var info = await Task.Run(() => ConfigurationInfoService.ReadAndApply(
                     _infobase, overwriteExisting: true, mode: OneCLaunchMode.Configurator));
                 ShowCurrentConfigSummary();
-                _resultText.Text = T("Updates.VersionDefined");
+                if (info is { Name.Length: > 0 })
+                    TryAutoMatchConfig(info.Value.Name, info.Value.Version);
+                else
+                    _resultText.Text = T("Updates.VersionDefined");
             }
             catch (Exception ex)
             {
@@ -199,6 +272,68 @@ namespace Configuration_Management
                 _definingVersion = false;
                 _defineVersionButton.IsEnabled = true;
             }
+        }
+
+        /// <summary>
+        /// Сопоставляет имя конфигурации базы со списком типовых (встроенные + пользовательские) и
+        /// при совпадении подставляет конфигурацию и (по версии) редакцию — «прописал в базе — и
+        /// связь работает» (issue #322). Если имя не найдено — текущий выбор сохраняется, в результат
+        /// выводится понятное сообщение.
+        /// </summary>
+        private void TryAutoMatchConfig(string configName, string version)
+        {
+            var match = FindConfigByInfobaseName(configName);
+            if (match is null)
+            {
+                _resultText.Text = string.Format(T("Updates.ConfigNotMatched"), configName);
+                return;
+            }
+
+            _configCombo.SelectedItem = match;
+            ApplyConfigSelection(rebuildUrl: true);
+            TrySelectEditionByVersion(match, version);
+
+            _resultText.Text = string.Format(T("Updates.ConfigMatched"), match.Name);
+        }
+
+        private OneCConfigType? FindConfigByInfobaseName(string configName)
+        {
+            var trimmed = configName?.Trim() ?? string.Empty;
+            if (trimmed.Length == 0)
+                return null;
+
+            // 1) Точное совпадение по имени (без учёта регистра).
+            var exact = _configs.FirstOrDefault(c =>
+                string.Equals(c.Name.Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
+            if (exact is not null)
+                return exact;
+
+            // 2) Имя типовой конфигурации содержится в имени базы («Бухгалтерия предприятия, ред. 3.0»).
+            var contained = _configs.FirstOrDefault(c =>
+                c.Name.Trim().Length > 0 &&
+                trimmed.Contains(c.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (contained is not null)
+                return contained;
+
+            // 3) Имя базы содержится в имени типовой конфигурации.
+            return _configs.FirstOrDefault(c =>
+                trimmed.Length > 0 &&
+                c.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Выбирает редакцию по префиксу версии базы («3.0.142.32» → редакция «3.0»).</summary>
+        private void TrySelectEditionByVersion(OneCConfigType config, string version)
+        {
+            var ver = version?.Trim() ?? string.Empty;
+            if (ver.Length == 0 || config.Editions.Count == 0)
+                return;
+
+            var edition = config.Editions.FirstOrDefault(ed =>
+                !string.IsNullOrWhiteSpace(ed.Red) &&
+                (ver.Equals(ed.Red.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                 ver.StartsWith(ed.Red.Trim() + ".", StringComparison.OrdinalIgnoreCase)));
+            if (edition is not null)
+                _editionCombo.SelectedItem = edition;
         }
 
         private void ShowCurrentConfigSummary()
@@ -226,6 +361,14 @@ namespace Configuration_Management
                 ? (_urlBox.Text?.Trim() ?? string.Empty)
                 : string.Empty;
 
+            // Персональный сегмент (ник): если он совпадает с ником типовой конфигурации — не
+            // закрепляем его за базой (пустое значение означает «наследовать ник конфигурации»).
+            var segment = _segmentBox.Text?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(config.Nick) &&
+                string.Equals(segment, config.Nick.Trim(), StringComparison.OrdinalIgnoreCase))
+                segment = string.Empty;
+            _infobase.UpdateUrlSegment = segment;
+
             PersistLink();
             DialogResult = true;
             Close();
@@ -241,6 +384,7 @@ namespace Configuration_Management
                     return;
                 match.UpdateConfigCode = _infobase.UpdateConfigCode;
                 match.UpdateUrlOverride = _infobase.UpdateUrlOverride;
+                match.UpdateUrlSegment = _infobase.UpdateUrlSegment;
                 _repository.Save(all);
             }
             catch (Exception ex)
@@ -322,6 +466,39 @@ namespace Configuration_Management
             };
             _urlBox.Styled(ControlThemes.ModernTextBox);
             form.Children.Add(_urlBox);
+
+            // Сегмент адреса (ник каталога релизов).
+            form.Children.Add(MakeFieldLabel(T("Updates.Segment")));
+            _segmentBox = new TextBox
+            {
+                FontSize = 12,
+                MinHeight = 36
+            };
+            _segmentBox.Styled(ControlThemes.ModernTextBox);
+            _segmentBox.TextChanged += OnSegmentChanged;
+            form.Children.Add(_segmentBox);
+
+            var segmentHint = new TextBlock
+            {
+                Text = T("Updates.SegmentHint"),
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+            Themes.ThemeBrushes.Bind(segmentHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            form.Children.Add(segmentHint);
+
+            // Типовые конфигурации: там хранится ник, по умолчанию подставляемый в адрес.
+            var configTypesButton = new Button
+            {
+                Content = T("Updates.ManageList"),
+                Height = 36,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+            configTypesButton.Styled(ControlThemes.SecondaryButton);
+            configTypesButton.Click += (_, _) => OnOpenConfigTypesClick();
+            form.Children.Add(configTypesButton);
 
             // Определить версию.
             _defineVersionButton = new Button
