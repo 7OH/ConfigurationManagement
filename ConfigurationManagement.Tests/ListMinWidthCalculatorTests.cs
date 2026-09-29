@@ -80,4 +80,49 @@ public sealed class ListMinWidthCalculatorTests
     {
         Assert.Equal(0, ListMinWidthCalculator.SumVisible(Array.Empty<ListMinWidthCalculator.Column>()));
     }
+
+    /// <summary>
+    /// Сценарий issue #309: сумма ширин всех колонок больше вьюпорта (узкое окно).
+    /// Минимальная ширина должна быть НЕ МЕНЬШЕ фактической суммы — тогда полоса
+    /// прокрутки дотягивает до последней (новой) колонки, а не обрезает её.
+    /// </summary>
+    [Fact]
+    public void Compute_ColumnsWiderThanViewport_MinWidthReachesLastColumn()
+    {
+        // Набор как на скриншоте issue #309: ведущие 24+40+26, фиксированное
+        // «Название» 250, десять колонок значений, включая «Действия» и «№ релиза».
+        var leading = new[] { C(24), C(40), C(26) };
+        var values = new[]
+        {
+            C(120), C(160), C(170), C(200), C(140), C(90), C(130), C(130), C(160), C(100)
+        };
+
+        const double viewport = 982; // ширина окна пользователя со скриншота
+        var total = ListMinWidthCalculator.Compute(250, 220, leading, 8, values);
+
+        // 250 + 90 + 16 + 1400 = 1756: минимум строго больше вьюпорта — полоса есть,
+        // и равна сумме ВСЕХ видимых колонок — последняя колонка достижима.
+        Assert.Equal(250 + (24 + 40 + 26) + 8 * 2 + 1400, total);
+        Assert.True(total > viewport, "Минимальная ширина должна превышать вьюпорт — полоса прокрутки нужна.");
+        Assert.True(total >= 250 + 90 + 1400, "Полоса должна дотягивать до последней (новой) колонки.");
+    }
+
+    /// <summary>
+    /// Сценарий-антирегресс issue #255: сумма ширин всех колонок помещается во
+    /// вьюпорт — минимальная ширина не должна превышать вьюпорт, иначе появится
+    /// ложная горизонтальная полоса при помещающихся колонках.
+    /// </summary>
+    [Fact]
+    public void Compute_ColumnsFitViewport_NoHorizontalScrollbar()
+    {
+        var leading = new[] { C(24), C(26) };
+        var values = new[] { C(120), C(80) };
+
+        const double viewport = 500;
+        var total = ListMinWidthCalculator.Compute(150, 220, leading, 8, values);
+
+        // 150 + 50 + 16 + 200 = 416 <= 500: минимум не превышает вьюпорт — полосы нет.
+        Assert.Equal(150 + 50 + 16 + 200, total);
+        Assert.True(total <= viewport, "Минимальная ширина не должна превышать вьюпорт — полоса прокрутки не нужна.");
+    }
 }

@@ -308,8 +308,10 @@ namespace Configuration_Management
                     return;
                 }
 
-                // При изменении видимости колонок/кнопок пересчитываем выравнивание
-                // заголовка с данными, чтобы колонки не разъезжались.
+                // При изменении видимости колонок/кнопок или их ширин пересчитываем
+                // выравнивание заголовка с данными и минимальную ширину области списка,
+                // чтобы колонки не разъезжались и горизонтальная полоса дотягивала до
+                // последней (новой) колонки (issue #309).
                 if (e.PropertyName is nameof(MainViewModel.ShowVersionColumn)
                     or nameof(MainViewModel.ShowLaunchModeColumn)
                     or nameof(MainViewModel.ShowServerColumn)
@@ -317,9 +319,22 @@ namespace Configuration_Management
                     or nameof(MainViewModel.ShowSizeColumn)
                     or nameof(MainViewModel.ShowModifiedColumn)
                     or nameof(MainViewModel.ShowLastBackupColumn)
+                    or nameof(MainViewModel.ShowConfigurationColumn)
+                    or nameof(MainViewModel.ShowConfigurationVersionColumn)
                     or nameof(MainViewModel.ShowActionsColumn)
                     or nameof(MainViewModel.ShowFavoritesButton)
-                    or nameof(MainViewModel.ShowPinnedButton))
+                    or nameof(MainViewModel.ShowPinnedButton)
+                    or nameof(MainViewModel.NameColumnWidth)
+                    or nameof(MainViewModel.VersionColumnWidth)
+                    or nameof(MainViewModel.LaunchModeColumnWidth)
+                    or nameof(MainViewModel.ServerColumnWidth)
+                    or nameof(MainViewModel.LastLaunchColumnWidth)
+                    or nameof(MainViewModel.SizeColumnWidth)
+                    or nameof(MainViewModel.ModifiedColumnWidth)
+                    or nameof(MainViewModel.LastBackupColumnWidth)
+                    or nameof(MainViewModel.ConfigurationColumnWidth)
+                    or nameof(MainViewModel.ConfigurationVersionColumnWidth)
+                    or nameof(MainViewModel.ActionsColumnWidth))
                 {
                     QueueHeaderAlign();
                 }

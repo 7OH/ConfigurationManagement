@@ -709,20 +709,32 @@ namespace Configuration_Management
                 d.Width.IsAbsolute && d.Width.Value > 0);
 
         /// <summary>
-        /// Приравнивает ширину контента списка максимуму из суммы колонок и вьюпорта
-        /// внешней прокрутки. Внешний ScrollViewer меряет контент с бесконечной
-        /// шириной, где MinWidth не влияет на DesiredSize, поэтому без явной ширины
-        /// горизонтальный extent был бы меньше суммы колонок (issue #309). Тот же
-        /// приём, что в <see cref="SyncHeaderWidthWithList"/> для заголовка.
+        /// Приравнивает ширину контента списка максимуму из суммы колонок, вьюпорта
+        /// внешней прокрутки и фактической желаемой ширины строк дерева. Внешний
+        /// ScrollViewer меряет контент с бесконечной шириной, где MinWidth не влияет
+        /// на DesiredSize, поэтому без явной ширины горизонтальный extent был бы меньше
+        /// суммы колонок (issue #309). Тот же приём, что в <see cref="SyncHeaderWidthWithList"/>
+        /// для заголовка. Дополнительно учитывается реальная ширина контента дерева:
+        /// звёздная колонка «Название» занимает по содержимому больше расчётного
+        /// минимума (длинные имена баз), и внешняя полоса обязана дотягивать до неё,
+        /// иначе последняя колонка недостижима (issue #309).
         /// </summary>
-        private void SyncListWidthToViewport()
+        private void SyncListWidthToViewport(ScrollViewer? inner = null)
         {
             if (_listContent is null || _listScroll is null)
                 return;
             var viewport = _listScroll.Viewport.Width;
             if (viewport <= 0)
                 return;
+
             var target = Math.Max(_listMinWidth, viewport);
+
+            // Extent внутренней прокрутки дерева — желаемая ширина его контента:
+            // ScrollViewer меряет контент с бесконечной шириной, когда горизонтальная
+            // прокрутка не отключена (Hidden, issue #309/#102).
+            if ((inner ?? _boundTreeScroll) is { } treeScroll && treeScroll.Extent.Width > target)
+                target = treeScroll.Extent.Width;
+
             if (Math.Abs(_listContent.Width - target) > 0.5)
                 _listContent.Width = target;
         }

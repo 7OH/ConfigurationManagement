@@ -264,6 +264,16 @@ namespace Configuration_Management
             // прокрутки меняла размер и список «прыгал» (issue #255).
             if (e.ViewportWidthChange != 0 || e.ViewportHeightChange != 0)
                 SyncHeaderWidthWithList();
+
+            // Изменение ExtentWidth пересчитываем ТОЛЬКО минимальную ширину контента
+            // (UpdateTreeMinWidth), а не ширину заголовка: колонки могли сменить ширину
+            // binding'ом (загрузка настроек, скрытие/показ, применение ширин из окна
+            // настроек), и без этого минимум оставался бы прежним — горизонтальная
+            // полоса не дотягивала до последней (новой) колонки (issue #309). Сам по
+            // себе вызов дёшев: при неизменной сумме MinWidth устанавливается на то же
+            // значение и не инвалидирует раскладку.
+            if (e.ExtentWidthChange != 0)
+                UpdateTreeMinWidth();
         }
 
         private void OnMainTree_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

@@ -101,6 +101,18 @@ namespace Configuration_Management
                 .Subscribe(new PropertyObserver<Size>(_ => Sync())));
             _scrollBarLinks.Add(scroll.GetObservable(ScrollViewer.LargeChangeProperty)
                 .Subscribe(new PropertyObserver<Size>(_ => Sync())));
+
+            // Горизонтальный extent внешней полосы зависит от желаемой ширины строк
+            // дерева: звёздная колонка «Название» занимает по содержимому больше
+            // расчётного минимума, и общая полоса должна дотягивать до неё, иначе
+            // последняя колонка недостижима (issue #309). Изменения Extent/Viewport
+            // внутренней прокрутки пересчитывают ширину контента; сравнение внутри
+            // SyncListWidthToViewport не даёт лишних присвоений при прокрутке.
+            _scrollBarLinks.Add(scroll.GetObservable(ScrollViewer.ExtentProperty)
+                .Subscribe(new PropertyObserver<Size>(_ => SyncListWidthToViewport(scroll))));
+            _scrollBarLinks.Add(scroll.GetObservable(ScrollViewer.ViewportProperty)
+                .Subscribe(new PropertyObserver<Size>(_ => SyncListWidthToViewport(scroll))));
+
             Sync();
         }
 

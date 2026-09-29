@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.140] — 2026-09-29
+
+### Исправлено
+
+- **Горизонтальная прокрутка списка баз до последней колонки (issue #309)** —
+  полоса снова дотягивает до самой правой (новой) колонки («№ релиза», «Последняя
+  копия»), когда колонки не помещаются по ширине, и не появляется при помещающихся
+  колонках (анти-регресс #255). На Windows/WPF минимальная ширина контента теперь
+  пересчитывается при любом изменении видимости и ширины колонок — в том числе
+  для колонок «Конфигурация» и «№ релиза» и после загрузки/применения сохранённых
+  ширин из настроек, которых раньше не было в списке реакций, а также при каждом
+  изменении `ExtentWidth` внутренней прокрутки
+  ([`Views/MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs),
+  [`Views/MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs)).
+  На Linux/Avalonia ширина прокручиваемой области ведётся по максимуму из расчётной
+  суммы колонок, вьюпорта и фактической ширины строк дерева: звёздная колонка
+  «Название» занимает по содержимому больше минимума (длинные имена баз), и внешняя
+  полоса дотягивает до реальной ширины контента, а не обрезает последнюю колонку
+  ([`Views/MainWindow.Avalonia.Columns.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Columns.cs),
+  [`Views/MainWindow.Avalonia.Scroll.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Scroll.cs)).
+  Общий расчёт минимальной ширины
+  ([`Views/ListMinWidthCalculator.cs`](Configuration%20Management/Views/ListMinWidthCalculator.cs))
+  дополнен сценариями «последняя колонка достижима при сумме ширин > вьюпорта»
+  и «полосы нет при помещающихся колонках»
+  ([`ConfigurationManagement.Tests/ListMinWidthCalculatorTests.cs`](ConfigurationManagement.Tests/ListMinWidthCalculatorTests.cs)).
+
 ## [0.3.9.139] — 2026-09-29
 
 ### Исправлено
