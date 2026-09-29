@@ -800,13 +800,17 @@ public class Infobase : INotifyPropertyChanged
 
     /// <summary>
     /// Сервер или база для отображения. Для файлового режима — путь к базе,
-    /// для клиент-серверного — сервер и имя базы. Используется в колонке «Сервер/База».
+    /// для клиент-серверного — сервер и имя базы, для веб-сервера — URL публикации
+    /// (issue #319). Используется в колонке «Сервер/База» и в карточке базы.
     /// </summary>
     public string ServerDatabaseDisplay => Connection.Type switch
     {
         ConnectionType.File => string.IsNullOrWhiteSpace(Connection.FilePath)
             ? "—"
             : Connection.FilePath,
+        ConnectionType.WebServer => string.IsNullOrWhiteSpace(Connection.WebUrl)
+            ? (string.IsNullOrWhiteSpace(Connection.DatabaseName) ? "—" : Connection.DatabaseName)
+            : Connection.WebUrl,
         _ => string.IsNullOrWhiteSpace(Connection.Server)
             ? Connection.DatabaseName
             : $"{Connection.Server}\\{Connection.DatabaseName}"
