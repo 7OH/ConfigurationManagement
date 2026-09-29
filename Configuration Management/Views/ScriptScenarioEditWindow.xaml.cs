@@ -66,7 +66,9 @@ public partial class ScriptScenarioEditWindow : Window
             .Select(t => new ScriptTokenHint(t.Token, t.LocalizationKey, T(t.LocalizationKey)))
             .ToList();
 
-        // Базы для живого примера командной строки.
+        // Базы для живого примера командной строки. Имя базы выводит явный ItemTemplate из
+        // XAML (issue #308): DisplayMemberPath, заданный из code-behind, применялся после
+        // первой отрисовки, и закрытый комбобокс показывал ToString() (имя типа Infobase).
         try
         {
             _infobases.AddRange(AppServices.GetRequiredService<IInfobaseRepository>().Load());
@@ -76,11 +78,8 @@ public partial class ScriptScenarioEditWindow : Window
             // Окно редактирования работает и без списка баз — пример просто не покажется.
         }
         ExampleBaseCombo.ItemsSource = _infobases;
-        ExampleBaseCombo.DisplayMemberPath = nameof(Infobase.Name);
-        // Согласованность комбобокса и превью (issue #308): превью строится по первой базе,
-        // поэтому комбобокс должен показывать её же.
-        if (_infobases.Count > 0)
-            ExampleBaseCombo.SelectedIndex = 0;
+        // Выбор первой базы восстанавливается после Loaded (см. ниже): превью строится
+        // по первой базе, поэтому комбобокс должен показывать её же.
 
         Loaded += (_, _) =>
         {
@@ -92,6 +91,14 @@ public partial class ScriptScenarioEditWindow : Window
                 if (scenario is null)
                     NameBox.SelectAll();
             }));
+
+            // Переустановка выбора первой базы ПОСЛЕ показа окна (issue #308, п.14:37):
+            // закрытый комбобокс рисует выбранный элемент до применения шаблона и мог
+            // показать ToString() (имя типа); повторный SelectedIndex пересоздаёт контейнер
+            // с применённым ItemTemplate, и элемент отображается именем базы.
+            if (_infobases.Count > 0)
+                ExampleBaseCombo.SelectedIndex = 0;
+
             UpdatePreview();
         };
     }

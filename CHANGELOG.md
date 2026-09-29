@@ -9,6 +9,22 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.148] — 2026-09-29
+
+### Исправлено
+
+- **Редактор сценария (issue #308)** — комбобокс «База для примера подстановок» снова
+  показывает имя базы (а не имя типа/ключ), превью командной строки заполняется; галка
+  «Скрывать окно скрипта» перенесена в одну строку с «Интерпретатор». Причина «ключа» —
+  закрытый комбобокс рисовал `ToString()` элемента (имя типа `Infobase`) до применения
+  шаблона отображения: теперь в
+  [`Views/ScriptScenarioEditWindow.xaml`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml)
+  задан явный `ItemTemplate` (WPF) вместо `DisplayMemberPath` из code-behind, а выбор первой
+  базы переустанавливается после показа окна (`Loaded`/`Opened`, WPF и Avalonia);
+  галка «Скрывать окно» перенесена на строку интерпретатора в обеих платформенных ветках
+  ([`Views/ScriptScenarioEditWindow.xaml.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml.cs),
+  [`Views/ScriptScenarioEditWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.Avalonia.cs)).
+
 ## [0.3.9.147] — 2026-09-29
 
 ### Исправлено

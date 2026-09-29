@@ -73,6 +73,12 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         // синхронная установка в Opened слетает до активации модального диалога.
         Opened += (_, _) =>
         {
+            // Переустановка выбора первой базы после показа окна (issue #308, п.14:37):
+            // повторный SelectedIndex пересоздаёт контейнер с применённым ItemTemplate,
+            // исключая отрисовку ToString() (имя типа Infobase) в закрытом комбобоксе.
+            if (_exampleBaseCombo.SelectedItem is not Infobase && _infobases.Count > 0)
+                _exampleBaseCombo.SelectedIndex = 0;
+
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 _nameBox.Focus();
@@ -179,8 +185,27 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _shellCombo.SelectedItem = shellItems.FirstOrDefault(p => p.Key == _vm.Shell);
         _shellCombo.HorizontalAlignment = HorizontalAlignment.Left;
         _shellCombo.MinWidth = 260;
+        _shellCombo.VerticalAlignment = VerticalAlignment.Center;
         _shellCombo.SelectionChanged += (_, _) => UpdatePreview();
-        panel.Children.Add(_shellCombo);
+        // Issue #308, п.14:39: галка «Скрывать окно скрипта» — в одной строке
+        // с «Интерпретатор», чтобы не терялась внизу окна.
+        _hideWindowCheck.Content = T("Script.HideWindow");
+        _hideWindowCheck.IsChecked = _vm.HideWindow;
+        _hideWindowCheck.VerticalAlignment = VerticalAlignment.Center;
+        var shellRow = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = new GridLength(12) },
+                new ColumnDefinition { Width = GridLength.Auto }
+            }
+        };
+        Grid.SetColumn(_shellCombo, 0);
+        Grid.SetColumn(_hideWindowCheck, 2);
+        shellRow.Children.Add(_shellCombo);
+        shellRow.Children.Add(_hideWindowCheck);
+        panel.Children.Add(shellRow);
 
         panel.Children.Add(Label(T("Script.Parameters")));
         _parametersBox.Text = _vm.ParametersText;
@@ -244,12 +269,6 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         panel.Children.Add(HintLabel(T("Script.CommandLinePreview")));
         _previewBox.TextWrapping = TextWrapping.Wrap;
         panel.Children.Add(_previewBox);
-
-        // Issue #308: «Скрывать окно скрипта» — при снятой галке на Windows показывается
-        // консольное окно cmd; на Linux /bin/sh выполняется без терминала.
-        _hideWindowCheck.Content = T("Script.HideWindow");
-        _hideWindowCheck.IsChecked = _vm.HideWindow;
-        panel.Children.Add(_hideWindowCheck);
 
         var bottom = new StackPanel
         {
