@@ -142,20 +142,23 @@ namespace Configuration_Management.Controls
         /// Базы в видимом порядке строк дерева (сверху вниз, включая строки
         /// развёрнутых подгрупп). Используется Shift-диапазоном мультивыделения
         /// (0.3.9.90) по тем же контейнерам, что и навигация клавишами.
-        /// Закреплённые базы входят реальной моделью (обёртка снимается).
+        /// Строки узла «Закреплённые» в диапазон НЕ входят (issue #314): обёртки
+        /// PinnedInfobaseItem исключаются, основная копия закреплённой базы
+        /// берётся из её собственной группы.
         /// </summary>
         private List<Infobase> VisibleInfobasesInOrder()
         {
             var result = new List<Infobase>();
             foreach (var row in VisibleRows())
             {
-                var ib = row.DataContext switch
-                {
-                    Infobase baseIb => baseIb,
-                    PinnedInfobaseItem pinned => pinned.Base,
-                    _ => null
-                };
-                if (ib is not null && !result.Contains(ib))
+                // Строки узла «Закреплённые» несут обёртку PinnedInfobaseItem
+                // (issue #301) и стоят первыми в видимом порядке — из Shift-диапазона
+                // они исключаются, иначе любой диапазон ниже захватывал бы
+                // закреплённые копии («Лишнее выделение», issue #314). Основная
+                // копия закреплённой базы лежит в её собственной группе и попадает
+                // в порядок там; клик по закреплённой строке как якорю работает —
+                // обработчик разворачивает обёртку до реальной базы.
+                if (row.DataContext is Infobase ib && !result.Contains(ib))
                     result.Add(ib);
             }
             return result;
