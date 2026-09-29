@@ -29,6 +29,9 @@ public class ScriptScenarioStore : IScriptScenarioStore
         _jsonOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
+            // Кириллицу и прочие не-ASCII символы пишем читаемыми UTF-8,
+            // а не \uXXXX-последовательностями (issue #320).
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
             // Enum (например, ScriptScenario.Shell — issue #308, п.9) хранится строкой
             // («Auto»/«PowerShell»/…); чтение принимает и числа, поэтому старые файлы
             // и значения по умолчанию мигрируют без ошибок.

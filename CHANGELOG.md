@@ -9,6 +9,25 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.155] — 2026-09-29
+
+### Исправлено
+
+- **Конфигурационные файлы сценариев (issue #320)** — новые файлы `scripts\scenarios`
+  (а также сценарии резервирования и задания по расписанию) сохраняются с читаемым UTF-8,
+  русские буквы больше не пишутся как `\uXXXX`. Причина: `ScriptScenarioStore`,
+  `BackupScenarioStore` и `ScheduledTaskStore` создавали `JsonSerializerOptions` без
+  `Encoder`, а System.Text.Json по умолчанию экранирует не-ASCII в `\uXXXX`.
+  Теперь во всех трёх хранилищах задан
+  `Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping` (как в `InfobaseRepository`,
+  `ProfileService` и `InfobaseJsonTransfer`). Чтение старых файлов с `\uXXXX` не изменилось:
+  System.Text.Json разбирает escapes. Для тестов в `BackupScenarioStore` и
+  `ScheduledTaskStore` добавлен необязательный `directoryOverride` (как в
+  `ScriptScenarioStore`):
+  [`Services/ScriptScenarioStore.cs`](Configuration%20Management/Services/ScriptScenarioStore.cs),
+  [`Services/BackupScenarioStore.cs`](Configuration%20Management/Services/BackupScenarioStore.cs),
+  [`Services/ScheduledTaskStore.cs`](Configuration%20Management/Services/ScheduledTaskStore.cs).
+
 ## [0.3.9.154] — 2026-09-29
 
 ### Исправлено

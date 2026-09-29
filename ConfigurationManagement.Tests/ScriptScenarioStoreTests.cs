@@ -257,4 +257,45 @@ public sealed class ScriptScenarioStoreTests : IDisposable
         Assert.NotNull(loaded);
         Assert.Equal(ScriptShell.Auto, loaded!.Shell);
     }
+
+    [Fact]
+    public void Save_WritesReadableUtf8_NotEscapedUnicode()
+    {
+        // Issue #320: русские буквы в новых файлах пишутся читаемым UTF-8,
+        // а не \uXXXX-последовательностями.
+        var scenario = new ScriptScenario
+        {
+            Name = "Тест 2",
+            FilePath = @"C:\tools\report.bat",
+            Parameters = new List<string> { "Параметр с кириллицей", "%name%" }
+        };
+
+        _store.Save(scenario);
+
+        var text = File.ReadAllText(Path.Combine(_tempDir, scenario.Id + ".script.json"));
+        Assert.Contains("\"Name\": \"Тест 2\"", text);
+        Assert.Contains("Параметр с кириллицей", text);
+        Assert.DoesNotContain(@"\u", text);
+    }
+
+    [Fact]
+    public void Get_LegacyJsonWithEscapedUnicode_ReadsSameStrings()
+    {
+        // Обратная совместимость (issue #320): старые файлы с \uXXXX-последовательностями
+        // читаются как раньше — System.Text.Json разбирает escapes.
+        var legacyJson = "{\r\n" +
+            "  \"Id\": \"legacy-unicode-id\",\r\n" +
+            "  \"Name\": \"\\u0422\\u0435\\u0441\\u0442 2\",\r\n" +
+            "  \"FilePath\": \"old.bat\",\r\n" +
+            "  \"Parameters\": [\"\\u041f\\u0430\\u0440\\u0430\\u043c\\u0435\\u0442\\u0440\"],\r\n" +
+            "  \"HideWindow\": true\r\n" +
+            "}";
+        File.WriteAllText(Path.Combine(_tempDir, "legacy-unicode-id.script.json"), legacyJson);
+
+        var loaded = _store.Get("legacy-unicode-id");
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Тест 2", loaded!.Name);
+        Assert.Equal(new[] { "Параметр" }, loaded.Parameters);
+    }
 }

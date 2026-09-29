@@ -13,16 +13,24 @@ namespace Configuration_Management.Services;
 public class BackupScenarioStore : IBackupScenarioStore
 {
     private readonly IProfileService? _profileService;
+    private readonly string? _directoryOverride;
     private readonly JsonSerializerOptions _jsonOptions;
 
     private const string ScenariosSubDir = "backups/scenarios";
 
-    public BackupScenarioStore(IProfileService? profileService = null)
+    /// <param name="profileService">Профиль для определения каталога данных (может быть null).</param>
+    /// <param name="directoryOverride">Явный каталог хранения вместо <c><DataDir>/backups/scenarios</c>
+    /// (используется в юнит-тестах для изоляции от реальных данных профиля).</param>
+    public BackupScenarioStore(IProfileService? profileService = null, string? directoryOverride = null)
     {
         _profileService = profileService;
+        _directoryOverride = directoryOverride;
         _jsonOptions = new JsonSerializerOptions
         {
-            WriteIndented = true
+            WriteIndented = true,
+            // Кириллицу и прочие не-ASCII символы пишем читаемыми UTF-8,
+            // а не \uXXXX-последовательностями (issue #320).
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
     }
 
@@ -31,6 +39,8 @@ public class BackupScenarioStore : IBackupScenarioStore
     {
         get
         {
+            if (!string.IsNullOrWhiteSpace(_directoryOverride))
+                return _directoryOverride!;
             var dataDir = !string.IsNullOrWhiteSpace(_profileService?.CurrentProfileDataDirectory)
                 ? _profileService!.CurrentProfileDataDirectory
                 : PlatformPaths.AppDataDirectory;
