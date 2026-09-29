@@ -9,6 +9,40 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.135] — 2026-09-29
+
+### Добавлено
+
+- **Обозреватель метаданных конфигурации — экспорт CSV/TXT и документация (этап 4
+  цикла 0.3.9.132–0.3.9.136)** — в окне «Обозреватель метаданных…» кнопки «Экспорт CSV…»
+  и «Экспорт TXT…» выгружают текущий список объектов (с учётом поиска и фильтра по типу;
+  детали догружаются парсером с прогрессом «Формирование отчёта…» в статус-строке).
+  - **Чистый репортёр** — [`Services/MetadataExplorerReporter.cs`](Configuration%20Management/Services/MetadataExplorerReporter.cs):
+    `MetadataExportRow` (тип, имя, синоним, комментарий, реквизиты/ТЧ/формы/команды,
+    иерархичность «Да/Нет/пусто», файлов, размер, путь) и `BuildCsvRows`/`BuildText`
+    с локализацией колбэком `Func<string,string>` (образец `ConfigurationDiffReporter`);
+    CSV — заголовок «Тип;Имя;Синоним;Комментарий;Реквизиты;Табличные части;Формы;Команды;
+    Иерархический;Файлов;Размер,байт;Путь в выгрузке» через `CsvExporter` (UTF-8 BOM,
+    разделитель «;», экранирование RFC 4180); TXT — шапка (источник: база/.cf,
+    конфигурация и версия, дата формирования) и блочная группировка по типам.
+  - **ViewModel** — [`ViewModels/MetadataExplorerViewModel.cs`](Configuration%20Management/ViewModels/MetadataExplorerViewModel.cs):
+    `BuildExportRows()` (текущее представление с догрузкой дерева и деталей через
+    `MetadataXmlParser.ReadObjectDetails`), команды `ExportCsvCommand`/`ExportTxtCommand`
+    (диалог сохранения через `IDialogService.SaveFileDialog`, предлагаемое имя
+    `Metadata_ГГГГ-ММ-ДД.csv/.txt`, отмена — no-op), ошибки записи — статус-строка
+    + `ShowError`, окно не роняется; доступность — `CanExport`.
+  - **Окна** — кнопки экспорта в [`Views/MetadataExplorerWindow.xaml`](Configuration%20Management/Views/MetadataExplorerWindow.xaml)
+    (WPF: привязка к командам VM) и [`Views/MetadataExplorerWindow.Avalonia.cs`](Configuration%20Management/Views/MetadataExplorerWindow.Avalonia.cs)
+    (Avalonia/Linux: доступность по `CanExport`).
+  - **Локализация** — ключи `MetadataExplorer.CsvFileFilter` / `.TxtFileFilter`,
+    `.ExportFailedFormat`, `.Status.BuildingReport`, `.Status.ExportOkFormat`,
+    `MetadataExplorer.Column*` (заголовки CSV), `MetadataExplorer.Report.*` (шапка и
+    строки TXT) в ru.json/en.json (наборы совпадают).
+  - **Тесты** — [`ConfigurationManagement.Tests/MetadataExplorerReporterTests.cs`](ConfigurationManagement.Tests/MetadataExplorerReporterTests.cs):
+    CSV-заголовок и строки (порядок колонок, экранирование спецсимволов через `CsvExporter`),
+    TXT-шапка и блоки по типам, пустой список, локализация колбэком (FakeT), иерархический
+    признак «Да/Нет/пусто», интеграция экспорта с фильтром по типу и поиском.
+
 ## [0.3.9.134] — 2026-09-29
 
 ### Добавлено

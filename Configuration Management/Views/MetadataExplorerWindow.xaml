@@ -247,10 +247,12 @@
             </Border>
         </Grid>
 
-        <!-- Кнопки экспорта (заготовки этапа 4) -->
+        <!-- Кнопки экспорта (этап 4): команды VM (SaveFileDialog через IDialogService) -->
         <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="{loc:Loc MetadataExplorer.ExportCsv}" Width="140" Margin="0,0,8,0" IsEnabled="False"/>
-            <Button Content="{loc:Loc MetadataExplorer.ExportTxt}" Width="140" Margin="0,0,8,0" IsEnabled="False"/>
+            <Button Content="{loc:Loc MetadataExplorer.ExportCsv}" Width="140" Margin="0,0,8,0"
+                    Command="{Binding ExportCsvCommand}"/>
+            <Button Content="{loc:Loc MetadataExplorer.ExportTxt}" Width="140" Margin="0,0,8,0"
+                    Command="{Binding ExportTxtCommand}"/>
             <Button Content="{loc:Loc Common.Close}" Width="100" IsCancel="True" Click="OnClose_Click"/>
         </StackPanel>
 

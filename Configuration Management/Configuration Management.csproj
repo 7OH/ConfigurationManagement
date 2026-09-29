@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.134</Version>
-    <AssemblyVersion>0.3.9.134</AssemblyVersion>
-    <FileVersion>0.3.9.134</FileVersion>
-    <InformationalVersion>0.3.9.134</InformationalVersion>
+    <Version>0.3.9.135</Version>
+    <AssemblyVersion>0.3.9.135</AssemblyVersion>
+    <FileVersion>0.3.9.135</FileVersion>
+    <InformationalVersion>0.3.9.135</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -431,6 +431,8 @@
     <Compile Include="Services\IMetadataExplorerService.cs" />
     <Compile Remove="Services\MetadataExplorerService.cs" />
     <Compile Include="Services\MetadataExplorerService.cs" />
+    <Compile Remove="Services\MetadataExplorerReporter.cs" />
+    <Compile Include="Services\MetadataExplorerReporter.cs" />
     <!-- ViewModels окна «Обозреватель метаданных» (0.3.9.133): чистый .NET без
          платформенных зависимостей, используются обеими платформами — на Linux
          подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->

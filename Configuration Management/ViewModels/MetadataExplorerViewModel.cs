@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -89,6 +90,8 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
 
     private ICommand? _loadCommand;
     private ICommand? _browseCfCommand;
+    private ICommand? _exportCsvCommand;
+    private ICommand? _exportTxtCommand;
 
     /// <param name="bases">Все информационные базы списка (для ComboBox).</param>
     /// <param name="selectedBase">Предвыбранная база (выбранная в главном окне; может быть null).</param>
@@ -175,6 +178,19 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     /// <summary>«Загрузить»: валидация → выгрузка с прогрессом → построение дерева.</summary>
     public ICommand LoadCommand =>
         _loadCommand ??= new RelayCommand(async () => await LoadAsync(), () => !IsBusy);
+
+    /// <summary>«Экспорт CSV…»: текущее представление (поиск/фильтр) → CSV-файл
+    /// (<see cref="CsvExporter"/> + <see cref="MetadataExplorerReporter"/>).</summary>
+    public ICommand ExportCsvCommand =>
+        _exportCsvCommand ??= new RelayCommand(async () => await ExportCsvAsync(), () => CanExport);
+
+    /// <summary>«Экспорт TXT…»: текущее представление → текстовый отчёт
+    /// (<see cref="MetadataExplorerReporter.BuildText"/>).</summary>
+    public ICommand ExportTxtCommand =>
+        _exportTxtCommand ??= new RelayCommand(async () => await ExportTxtAsync(), () => CanExport);
+
+    /// <summary>Экспорт доступен, когда выгрузка загружена и нет фоновой операции.</summary>
+    public bool CanExport => !IsBusy && TreeNodes.Count > 0;
 
     // ===================== Поиск и фильтр (этап 3) =====================
 
@@ -412,6 +428,251 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         {
             ApplyError(ex);
         }
+    }
+
+    // ===================== Экспорт CSV/TXT (этап 4) =====================
+
+    /// <summary>
+    /// «Экспорт CSV…»: диалог сохранения (<see cref="IDialogService.SaveFileDialog"/>,
+    /// предлагаемое имя <c>Metadata_ГГГГ-ММ-ДД.csv</c>, отмена — no-op) → строки текущего
+    /// представления (<see cref="BuildExportRows"/>, прогресс «Формирование отчёта…» в
+    /// статус-строке) → <see cref="CsvExporter.WriteFile"/>. Ошибки записи — статус-строка
+    /// и <see cref="IDialogService.ShowError"/>, окно не роняется.
+    /// </summary>
+    public async Task ExportCsvAsync()
+    {
+        if (!TryEnterBusy())
+            return;
+
+        try
+        {
+            var dumpRoot = _dump?.RootPath ?? string.Empty;
+            if (dumpRoot.Length == 0)
+                return;
+
+            var path = _dialogs.SaveFileDialog(
+                LocalizationManager.T("MetadataExplorer.ExportCsv"),
+                $"Metadata_{DateTime.Now:yyyy-MM-dd}.csv",
+                LocalizationManager.T("MetadataExplorer.CsvFileFilter"));
+            if (string.IsNullOrWhiteSpace(path))
+                return; // пользователь отменил выбор файла
+
+            ApplyStatus(LocalizationManager.T("MetadataExplorer.Status.BuildingReport"));
+            var rows = await Task.Run(() => BuildExportRows(dumpRoot)).ConfigureAwait(false);
+            await Task.Run(() => CsvExporter.WriteFile(
+                    path, MetadataExplorerReporter.BuildCsvRows(rows, LocalizationManager.T)))
+                .ConfigureAwait(false);
+
+            ApplyStatus(string.Format(
+                LocalizationManager.T("MetadataExplorer.Status.ExportOkFormat"), path));
+        }
+        catch (Exception ex)
+        {
+            ApplyExportError(ex);
+        }
+        finally
+        {
+            ExitBusy();
+        }
+    }
+
+    /// <summary>«Экспорт TXT…»: аналогично CSV, но через
+    /// <see cref="MetadataExplorerReporter.BuildText"/> и <c>File.WriteAllText(..., UTF-8)</c>
+    /// (образец <c>ConfigDiffResultWindow.OnExportTxt_Click</c>).</summary>
+    public async Task ExportTxtAsync()
+    {
+        if (!TryEnterBusy())
+            return;
+
+        try
+        {
+            var dumpRoot = _dump?.RootPath ?? string.Empty;
+            if (dumpRoot.Length == 0)
+                return;
+
+            var path = _dialogs.SaveFileDialog(
+                LocalizationManager.T("MetadataExplorer.ExportTxt"),
+                $"Metadata_{DateTime.Now:yyyy-MM-dd}.txt",
+                LocalizationManager.T("MetadataExplorer.TxtFileFilter"));
+            if (string.IsNullOrWhiteSpace(path))
+                return; // пользователь отменил выбор файла
+
+            ApplyStatus(LocalizationManager.T("MetadataExplorer.Status.BuildingReport"));
+            var rows = await Task.Run(() => BuildExportRows(dumpRoot)).ConfigureAwait(false);
+            var report = MetadataExplorerReporter.BuildText(
+                BuildReportHeader(), rows, LocalizationManager.T);
+            await Task.Run(() => File.WriteAllText(path, report, Encoding.UTF8)).ConfigureAwait(false);
+
+            ApplyStatus(string.Format(
+                LocalizationManager.T("MetadataExplorer.Status.ExportOkFormat"), path));
+        }
+        catch (Exception ex)
+        {
+            ApplyExportError(ex);
+        }
+        finally
+        {
+            ExitBusy();
+        }
+    }
+
+    /// <summary>
+    /// Строки экспорта по ТЕКУЩЕМУ представлению: при активном поиске — подсвеченные
+    /// совпадения (первые <see cref="MaxSearchResults"/>), иначе — все объекты дерева
+    /// с учётом фильтра по типу (<see cref="MetadataTreeNodeViewModel.IsVisible"/>);
+    /// перед сбором недостающая часть дерева догружается (как при построении индекса
+    /// поиска). Детали объектов читаются через <see cref="MetadataXmlParser.ReadObjectDetails"/>;
+    /// битый XML не роняет экспорт — строка из сводки с пустыми деталями.
+    /// Публичен для тестов.
+    /// </summary>
+    public List<MetadataExportRow> BuildExportRows() => BuildExportRows(_dump?.RootPath ?? string.Empty);
+
+    /// <summary>Текстовый отчёт для TXT: шапка (источник/конфигурация/дата) + строки
+    /// текущего представления (публичен для тестов).</summary>
+    public string BuildTextReport()
+        => MetadataExplorerReporter.BuildText(BuildReportHeader(), BuildExportRows(), LocalizationManager.T);
+
+    /// <summary>Сбор строк экспорта: детали догружаются парсером, прогресс — в статус-строке.</summary>
+    private List<MetadataExportRow> BuildExportRows(string dumpRoot)
+    {
+        var result = new List<MetadataExportRow>();
+        var processed = 0;
+
+        foreach (var summary in CollectVisibleObjects())
+        {
+            result.Add(BuildExportRow(dumpRoot, summary));
+            processed++;
+            if (processed % 200 == 0)
+            {
+                ApplyStatus(string.Format(
+                    LocalizationManager.T("MetadataExplorer.Status.BuildingReportCountFormat"),
+                    processed));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Объекты текущего представления: поиск активен — подсвеченные совпадения;
+    /// иначе — все видимые объекты дерева (фильтр по типу через <see cref="IsTypeVisible"/>).</summary>
+    private IEnumerable<MetadataObjectSummary> CollectVisibleObjects()
+    {
+        // Догружаем недостающую часть дерева, чтобы отчёт охватывал всю выгрузку
+        // (свёрнутые подсистемы/типы), а не только раскрытые узлы.
+        foreach (var root in TreeNodes)
+            EnsureLoadedRecursive(root);
+
+        if (IsSearchActive)
+        {
+            return _searchNodes
+                .Where(n => n.IsMatch && n.ObjectSummary is not null)
+                .Select(n => n.ObjectSummary!);
+        }
+
+        var result = new List<MetadataObjectSummary>();
+        foreach (var root in TreeNodes)
+            CollectVisible(root, result);
+        return result;
+    }
+
+    private static void EnsureLoadedRecursive(MetadataTreeNodeViewModel node)
+    {
+        node.EnsureLoaded();
+        foreach (var child in node.Children)
+            EnsureLoadedRecursive(child);
+    }
+
+    private static void CollectVisible(MetadataTreeNodeViewModel node, List<MetadataObjectSummary> target)
+    {
+        if (node is { Kind: MetadataTreeNodeKind.Object, ObjectSummary: not null } && node.IsVisible)
+            target.Add(node.ObjectSummary);
+        foreach (var child in node.Children)
+            CollectVisible(child, target);
+    }
+
+    /// <summary>Строка экспорта: детали через парсер; битый XML → строка из сводки
+    /// (синоним/комментарий пусты, иерархичность — null → пустая ячейка).</summary>
+    private static MetadataExportRow BuildExportRow(string dumpRoot, MetadataObjectSummary summary)
+    {
+        MetadataObjectDetails? details = null;
+        try
+        {
+            details = MetadataXmlParser.ReadObjectDetails(dumpRoot, summary.TypeDir, summary.Name);
+        }
+        catch
+        {
+            // Битый XML — не роняем экспорт, строка из сводки.
+        }
+
+        return new MetadataExportRow
+        {
+            TypeDir = summary.TypeDir,
+            Name = summary.Name,
+            Synonym = details?.Synonym ?? string.Empty,
+            Comment = details?.Comment ?? string.Empty,
+            AttributeCount = details?.AttributeCount ?? 0,
+            TabularSectionCount = details?.TabularSectionCount ?? 0,
+            FormCount = details?.FormCount ?? 0,
+            CommandCount = details?.CommandCount ?? 0,
+            IsHierarchical = details is null
+                ? null
+                : details.IsHierarchical || details.IsOrderedHierarchical,
+            FileCount = summary.FileCount,
+            TotalBytes = summary.TotalBytes,
+            RelPath = summary.RelPath
+        };
+    }
+
+    /// <summary>Шапка TXT-отчёта: источник (база / файл .cf), конфигурация и версия, дата.</summary>
+    private string BuildReportHeader()
+    {
+        string source = Mode == SourceMode.Base && SelectedBase is not null
+            ? string.Format(
+                LocalizationManager.T("MetadataExplorer.Report.SourceBaseFormat"),
+                SelectedBase.Name)
+            : string.Format(
+                LocalizationManager.T("MetadataExplorer.Report.SourceCfFormat"),
+                CfPath);
+        var config = string.Format(
+            LocalizationManager.T("MetadataExplorer.Report.ConfigFormat"),
+            _dump?.ConfigurationName ?? string.Empty,
+            _dump?.ConfigurationVersion ?? string.Empty);
+        var date = string.Format(
+            LocalizationManager.T("MetadataExplorer.Report.DateFormat"),
+            DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"));
+        return source + Environment.NewLine + config + Environment.NewLine + date;
+    }
+
+    /// <summary>Ошибка записи отчёта: статус-строка + диалог ошибки, окно не ронять.</summary>
+    private void ApplyExportError(Exception ex)
+    {
+        var message = string.Format(
+            LocalizationManager.T("MetadataExplorer.ExportFailedFormat"),
+            BuildErrorMessage(ex));
+
+        void Apply()
+        {
+            ErrorMessage = message;
+            StatusText = message;
+        }
+
+        if (_dispatchToUi is null)
+            Apply();
+        else
+            _dispatchToUi(Apply);
+
+        _dialogs.ShowError(message, LocalizationManager.T("MetadataExplorer.Title"));
+    }
+
+    /// <summary>Применение статуса с доставкой в UI-поток (если задан делегат).</summary>
+    private void ApplyStatus(string message)
+    {
+        void Apply() => StatusText = message;
+
+        if (_dispatchToUi is null)
+            Apply();
+        else
+            _dispatchToUi(Apply);
     }
 
     /// <summary>
@@ -721,6 +982,7 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
                 TypeFilterOptions.Add(option);
             AvailableTypes = availableTypes;
             TypeFilter = TypeFilterOptions.FirstOrDefault(o => o.Value.Length == 0);
+            NotifyUi(nameof(CanExport));
             if (emptyConfig)
             {
                 StatusText = LocalizationManager.T("MetadataExplorer.Empty.Configuration");
@@ -1011,7 +1273,7 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         if (Interlocked.Exchange(ref _busy, 1) == 1)
             return false;
         NotifyUi(nameof(IsBusy));
-        (_loadCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        RaiseCommands();
         return true;
     }
 
@@ -1019,7 +1281,16 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     {
         Interlocked.Exchange(ref _busy, 0);
         NotifyUi(nameof(IsBusy));
+        RaiseCommands();
+    }
+
+    /// <summary>Пересчёт CanExecute команд и доступности экспорта (<see cref="CanExport"/>).</summary>
+    private void RaiseCommands()
+    {
         (_loadCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (_exportCsvCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (_exportTxtCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        NotifyUi(nameof(CanExport));
     }
 
     private void NotifyUi(string propertyName)

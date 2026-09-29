@@ -127,13 +127,21 @@ namespace Configuration_Management
             Grid.SetColumn(splitter, 1);
             Grid.SetColumn(detailsPanel, 2);
 
-            // ---- Кнопки экспорта (заготовки этапа 4) ----
-            var exportCsv = BuildActionButton(LocalizationManager.T("MetadataExplorer.ExportCsv"), () => { });
+            // ---- Кнопки экспорта (этап 4): команды VM (SaveFileDialog через IDialogService) ----
+            var exportCsv = BuildActionButton(LocalizationManager.T("MetadataExplorer.ExportCsv"), () =>
+            {
+                if (_vm.ExportCsvCommand.CanExecute(null))
+                    _vm.ExportCsvCommand.Execute(null);
+            });
             exportCsv.Width = 140;
-            exportCsv.IsEnabled = false;
-            var exportTxt = BuildActionButton(LocalizationManager.T("MetadataExplorer.ExportTxt"), () => { });
+            exportCsv.Bind(InputElement.IsEnabledProperty, new Binding("CanExport"));
+            var exportTxt = BuildActionButton(LocalizationManager.T("MetadataExplorer.ExportTxt"), () =>
+            {
+                if (_vm.ExportTxtCommand.CanExecute(null))
+                    _vm.ExportTxtCommand.Execute(null);
+            });
             exportTxt.Width = 140;
-            exportTxt.IsEnabled = false;
+            exportTxt.Bind(InputElement.IsEnabledProperty, new Binding("CanExport"));
             var closeButton = BuildCloseButton();
 
             var buttons = new StackPanel
