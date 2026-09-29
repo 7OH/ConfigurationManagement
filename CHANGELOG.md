@@ -9,6 +9,37 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.145] — 2026-09-29
+
+### Добавлено
+
+- **Создание серверной базы: запоминание сервера СУБД, клик по подсказке и выбор
+  сервера 1С с портом (issue #305)** — три доработки окна создания ИБ:
+  - **Запоминание «Сервер СУБД» (+ порт).** После успешного создания клиент-серверной
+    базы сервер СУБД и порт сохраняются в настройках приложения
+    (`AppSettings.LastCreateDbServer`/`LastCreateDbPort`) и подставляются по умолчанию
+    при следующем открытии окна — как уже делалось для версии платформы
+    ([`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs),
+    [`Services/CreateInfobaseService.cs`](Configuration%20Management/Services/CreateInfobaseService.cs),
+    [`Views/CreateInfobaseWindow.xaml.cs`](Configuration%20Management/Views/CreateInfobaseWindow.xaml.cs),
+    [`Views/CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs)).
+  - **Кликабельная подсказка «Например localhost».** Подсказка формата DBSrvr под полем
+    «Сервер СУБД» стала кликабельной: клик подставляет пример `localhost` в пустое поле.
+  - **Выбор сервера 1С вместе с портом.** В окне создания сервер 1С выбирается как в окне
+    правки свойств базы: рядом с сервером появилось поле «Порт сервера 1С», а выпадающий
+    список содержит строки вида `server:port` (формируются из зарегистрированных
+    клиент-серверных баз отдельным методом, чтобы не менять формат списка окна правки
+    свойств). При выборе значение разносится на имя сервера и порт; порт сервера 1С
+    попадает в параметры подключения созданной базы и не смешивается с портом СУБД
+    ([`ViewModels/MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs),
+    [`ViewModels/MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs),
+    [`Models/CreateInfobaseRequest.cs`](Configuration%20Management/Models/CreateInfobaseRequest.cs)).
+  - Локализация новых подписей — в
+    [`Localization/Languages/ru.json`](Configuration%20Management/Localization/Languages/ru.json)
+    и [`Localization/Languages/en.json`](Configuration%20Management/Localization/Languages/en.json);
+    тесты форматов `server:port` добавлены в
+    [`CreateInfobaseDbServerStringTests.cs`](ConfigurationManagement.Tests/CreateInfobaseDbServerStringTests.cs).
+
 ## [0.3.9.144] — 2026-09-29
 
 ### Изменено

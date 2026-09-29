@@ -1367,7 +1367,7 @@ public partial class MainViewModel : ViewModelBase
                 InstalledPlatformVersions(),
                 defaultGroupPath,
                 _groups,
-                AvailableServers());
+                CreateInfobaseServers());
         }
         catch (Exception ex)
         {
@@ -1472,6 +1472,19 @@ public partial class MainViewModel : ViewModelBase
     private IEnumerable<string> AvailableServers() => _allInfobases
         .Where(b => b?.Connection?.Type == ConnectionType.ClientServer)
         .Select(b => b.Connection!.Server?.Trim() ?? string.Empty)
+        .Where(s => !string.IsNullOrEmpty(s))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Серверы 1С для выпадающего списка окна создания ИБ (issue #305): «server:port»,
+    /// как в окне правки свойств базы, где сервер выбирается вместе с портом.
+    /// Отдельный метод: окно правки свойств использует сервер и порт отдельными полями
+    /// и остаётся на <see cref="AvailableServers"/>.
+    /// </summary>
+    private IEnumerable<string> CreateInfobaseServers() => _allInfobases
+        .Where(b => b?.Connection?.Type == ConnectionType.ClientServer)
+        .Select(b => CreateInfobaseService.Format1CServer(b.Connection!.Server, b.Connection!.Port))
         .Where(s => !string.IsNullOrEmpty(s))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);

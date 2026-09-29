@@ -60,6 +60,9 @@ namespace Configuration_Management
             // собственного TextChanged, но внутренний TextBox поднимает всплывающее событие
             // TextBox.TextChangedEvent — ловим его, чтобы подсказка менялась и при ручном вводе СУБД.
             DbmsBox.AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(OnDbms_TextChanged));
+
+            // Последний сервер СУБД и порт из настроек подставляются по умолчанию (issue #305).
+            RestoreLastDbServer();
             UpdateDbServerHint();
 
             // Подсказки скрываются при потере фокуса окна (issue #275).
@@ -555,6 +558,44 @@ namespace Configuration_Management
 
         // ================= Живая подсказка формата DBSrvr (issue #305) =================
 
+        /// <summary>
+        /// Восстанавливает последний сервер СУБД и порт из настроек (issue #305).
+        /// </summary>
+        private void RestoreLastDbServer()
+        {
+            var settings = _repository.LoadSettings();
+            if (!string.IsNullOrWhiteSpace(settings.LastCreateDbServer))
+                DbServerBox.Text = settings.LastCreateDbServer;
+            if (!string.IsNullOrWhiteSpace(settings.LastCreateDbPort))
+                DbPortBox.Text = settings.LastCreateDbPort;
+        }
+
+        /// <summary>
+        /// Выбор сервера 1С из списка (issue #305): элемент вида «server:port» разносится
+        /// на поле «Сервер 1С» и поле «Порт сервера». Свободный ввод не затрагивается.
+        /// </summary>
+        private void OnServerBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ServerBox.SelectedItem is not string item)
+                return;
+
+            CreateInfobaseService.Split1CServer(item, out var server, out var port);
+            ServerBox.Text = server;
+            ServerPortBox.Text = port > 0 ? port.ToString() : "";
+            // Сбрасываем выделение, чтобы повторный выбор того же пункта снова сработал.
+            ServerBox.SelectedItem = null;
+        }
+
+        /// <summary>
+        /// Клик по подсказке под полем «Сервер СУБД» (issue #305): если поле пустое,
+        /// подставляет пример «localhost».
+        /// </summary>
+        private void OnDbServerHint_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(DbServerBox.Text))
+                DbServerBox.Text = "localhost";
+        }
+
         /// <summary>Изменение выбранной СУБД из списка (редактируемый ComboBox).</summary>
         private void OnDbms_Changed(object sender, SelectionChangedEventArgs e)
         {
@@ -606,6 +647,12 @@ namespace Configuration_Management
 
         private void OnCreate_Click(object sender, RoutedEventArgs e)
         {
+            // Сервер 1С может быть выбран как «server:port» — разносим на сервер и порт (issue #305).
+            CreateInfobaseService.Split1CServer(ServerBox.Text, out var serverName, out var serverPortFromName);
+            var serverPort = serverPortFromName > 0
+                ? serverPortFromName.ToString()
+                : (ServerPortBox.Text?.Trim() ?? "");
+
             var request = new CreateInfobaseRequest
             {
                 Name = NameBox.Text?.Trim() ?? "",
@@ -614,7 +661,8 @@ namespace Configuration_Management
                 PlatformVersion = PlatformBox.Text?.Trim() ?? "",
                 IsFile = TypeBox.SelectedIndex != 1,
                 FilePath = FilePathBox.Text?.Trim(),
-                Server = ServerBox.Text?.Trim(),
+                Server = serverName,
+                ServerPort = serverPort,
                 DatabaseName = RefBox.Text?.Trim(),
                 Dbms = DbmsBox.Text?.Trim(),
                 DbServer = DbServerBox.Text?.Trim(),

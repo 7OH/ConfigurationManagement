@@ -73,8 +73,18 @@
                     <!-- Колонка 1: сервер 1С, имя базы, СУБД, галочки. -->
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="{loc:Loc CreateInfobase.ServerLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
-                        <!-- Редактируемый ComboBox: выбор из списка известных серверов 1С + свободный ввод (issue #305). -->
-                        <ComboBox x:Name="ServerBox" IsEditable="True" Margin="0,0,0,10"/>
+                        <!-- Сервер 1С выбирается вместе с портом (server:port), как в окне правки
+                             свойств базы (issue #305). Редактируемые ComboBox: выбор из списка + свободный ввод. -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="90"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="ServerBox" IsEditable="True"
+                                      SelectionChanged="OnServerBox_SelectionChanged"/>
+                            <ComboBox x:Name="ServerPortBox" Grid.Column="1" Margin="8,0,0,0" IsEditable="True"
+                                      ToolTip="{loc:Loc CreateInfobase.ServerPortTooltip}"/>
+                        </Grid>
                         <TextBlock Text="{loc:Loc CreateInfobase.RefLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <TextBox x:Name="RefBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,10"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.DbmsLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
@@ -115,8 +125,12 @@
                                      ToolTip="{loc:Loc CreateInfobase.DbPortTooltip}"
                                      TextChanged="OnDbPort_TextChanged"/>
                         </Grid>
+                        <!-- Кликабельная подсказка: клик по «Например localhost» подставляет
+                             пример в поле «Сервер СУБД» (issue #305). -->
                         <TextBlock x:Name="DbServerHint" FontSize="11" Margin="0,0,0,8" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                   Foreground="{DynamicResource TextSecondaryBrush}" Cursor="Hand"
+                                   MouseLeftButtonUp="OnDbServerHint_Click"
+                                   ToolTip="{loc:Loc CreateInfobase.DbServerHintClick}"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.DbNameLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <!-- Кнопка «скопировать имя базы на сервере» у поля «Имя базы данных» (issue #306). -->
                         <Grid Margin="0,0,0,10">

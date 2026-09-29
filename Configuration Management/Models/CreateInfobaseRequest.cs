@@ -28,6 +28,12 @@ public sealed class CreateInfobaseRequest
     /// <summary>Имя сервера 1С (для клиент-серверного режима).</summary>
     public string? Server { get; set; }
 
+    /// <summary>
+    /// Порт сервера 1С (для клиент-серверного режима, issue #305). Пустая строка —
+    /// порт по умолчанию. Не смешивать с портом СУБД (<see cref="DbPort"/>).
+    /// </summary>
+    public string? ServerPort { get; set; }
+
     /// <summary>Имя базы на сервере (для клиент-серверного режима).</summary>
     public string? DatabaseName { get; set; }
 

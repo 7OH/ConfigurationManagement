@@ -69,6 +69,12 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
         else
         {
             var server = (request.Server ?? string.Empty).Trim();
+            // Порт сервера 1С выбирается вместе с сервером (server:port, issue #305)
+            // и попадает в параметры подключения созданной базы. Порт СУБД не затрагивается.
+            var serverPortText = (request.ServerPort ?? string.Empty).Trim();
+            int.TryParse(serverPortText, out var serverPort);
+            if (serverPort is < 1 or > 65535)
+                serverPort = 0;
             var refName = (request.DatabaseName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(refName))
                 return new CreateInfobaseResult { Kind = CreateInfobaseResultKind.EnterServerAndDb };
@@ -122,10 +128,14 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
                     ErrorMessage = error
                 };
 
+            // Создание прошло успешно — запоминаем сервер СУБД и порт для подстановки (issue #305).
+            SaveLastDbServer(dbServer, dbPort);
+
             connection = new ConnectionSettings
             {
                 Type = ConnectionType.ClientServer,
                 Server = server,
+                Port = serverPort,
                 DatabaseName = refName,
                 BlockScheduledJobs = blockScheduledJobs,
                 ForbidSpeechRecognition = forbidSpeechRecognition
@@ -188,6 +198,42 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             return $"{srv},{p}";
 
         return srv;
+    }
+
+    /// <summary>
+    /// Форматирует строку сервера 1С для выпадающего списка окна создания ИБ (issue #305):
+    /// «server:port», если порт задан, иначе просто «server». Формат соответствует окну
+    /// правки свойств базы (ConnectionSettingsWindow), где сервер выбирается вместе с портом.
+    /// </summary>
+    public static string Format1CServer(string? server, int port)
+    {
+        var srv = (server ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(srv))
+            return string.Empty;
+        return port > 0 ? $"{srv}:{port}" : srv;
+    }
+
+    /// <summary>
+    /// Разбирает строку «server:port» (или «server») из выпадающего списка серверов 1С
+    /// (issue #305) на имя сервера и порт. Если справа от последнего двоеточия не число
+    /// или порт вне диапазона 1..65535 — вся строка считается именем сервера, порт = 0.
+    /// </summary>
+    public static void Split1CServer(string? value, out string server, out int port)
+    {
+        var text = (value ?? string.Empty).Trim();
+        server = text;
+        port = 0;
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        var idx = text.LastIndexOf(':');
+        if (idx <= 0 || idx == text.Length - 1)
+            return;
+        if (int.TryParse(text[(idx + 1)..], out var parsed) && parsed is >= 1 and <= 65535)
+        {
+            server = text[..idx].Trim();
+            port = parsed;
+        }
     }
 
     /// <summary>
@@ -263,6 +309,26 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
         catch
         {
             // Несохранение последней версии не должно прерывать создание ИБ.
+        }
+    }
+
+    /// <summary>
+    /// Запоминает последний успешно использованный сервер СУБД и его порт (issue #305):
+    /// они подставляются по умолчанию при следующем открытии окна создания ИБ.
+    /// Ошибки сохранения не должны ломать создание ИБ.
+    /// </summary>
+    private void SaveLastDbServer(string dbServer, string dbPort)
+    {
+        try
+        {
+            var settings = _repository.LoadSettings();
+            settings.LastCreateDbServer = dbServer;
+            settings.LastCreateDbPort = dbPort;
+            _repository.SaveSettings(settings);
+        }
+        catch
+        {
+            // Несохранение последнего сервера СУБД не должно прерывать создание ИБ.
         }
     }
 }

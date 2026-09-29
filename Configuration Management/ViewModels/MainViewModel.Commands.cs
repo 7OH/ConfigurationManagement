@@ -75,7 +75,7 @@ public partial class MainViewModel : ViewModelBase
                     platformVersions: _installedPlatformVersions,
                     defaultGroupPath: defaultGroupPath,
                     groups: Groups,
-                    availableServers: GetAvailableServers())
+                    availableServers: GetCreateServers())
                 {
                     Owner = Application.Current.MainWindow
                 };
@@ -148,6 +148,22 @@ public partial class MainViewModel : ViewModelBase
         return Infobases
             .Where(b => b?.Connection?.Type == ConnectionType.ClientServer)
             .Select(b => b.Connection!.Server?.Trim() ?? string.Empty)
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Серверы 1С для выпадающего списка окна создания ИБ (issue #305): строки вида
+    /// «server:port», когда у базы задан порт сервера, — как в окне правки свойств базы,
+    /// где сервер выбирается вместе с портом. Отдельный метод: окно правки свойств
+    /// использует сервер и порт отдельными полями и остаётся на <see cref="GetAvailableServers"/>.
+    /// </summary>
+    private IEnumerable<string> GetCreateServers()
+    {
+        return Infobases
+            .Where(b => b?.Connection?.Type == ConnectionType.ClientServer)
+            .Select(b => CreateInfobaseService.Format1CServer(b.Connection!.Server, b.Connection!.Port))
             .Where(s => !string.IsNullOrEmpty(s))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);

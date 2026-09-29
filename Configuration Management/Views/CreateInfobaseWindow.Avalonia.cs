@@ -49,15 +49,19 @@ namespace Configuration_Management
         private readonly StackPanel _serverPanel = new() { Spacing = 8 };
         // Редактируемый ComboBox: выбор из списка известных серверов 1С + свободный ввод (issue #305).
         private readonly ComboBox _serverBox = new() { IsEditable = true };
+        // Порт сервера 1С (выбирается вместе с сервером «server:port», issue #305).
+        private readonly ComboBox _serverPortBox = new() { IsEditable = true };
         private readonly TextBox _refBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly ComboBox _dbmsBox = new() { IsEditable = true };
         private readonly TextBox _dbServerBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly TextBox _dbPortBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+        // Кликабельная подсказка: клик по «Например localhost» подставляет пример (issue #305).
         private readonly TextBlock _dbServerHint = new()
         {
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 6)
+            Margin = new Thickness(0, 0, 0, 6),
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand)
         };
         private readonly TextBox _dbNameBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly TextBox _dbUserBox = new TextBox().Styled(ControlThemes.ModernTextBox);
@@ -283,7 +287,17 @@ namespace Configuration_Management
             _serverBox.Items.Clear();
             foreach (var s in _availableServers)
                 _serverBox.Items.Add(new ComboBoxItem { Content = s });
-            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), _serverBox));
+            // Сервер 1С выбирается вместе с портом (server:port), как в окне правки свойств базы (issue #305).
+            var serverRow = new Grid();
+            serverRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            serverRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(90)));
+            Grid.SetColumn(_serverBox, 0);
+            serverRow.Children.Add(_serverBox);
+            ToolTip.SetTip(_serverPortBox, LocalizationManager.T("CreateInfobase.ServerPortTooltip"));
+            Grid.SetColumn(_serverPortBox, 1);
+            _serverPortBox.Margin = new Thickness(8, 0, 0, 0);
+            serverRow.Children.Add(_serverPortBox);
+            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), serverRow));
             // Имя базы на сервере (кнопка «скопировать в наименование» — у поля «Наименование», issue #306).
             leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), _refBox));
             leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbmsLabel"), _dbmsBox));
@@ -375,6 +389,15 @@ namespace Configuration_Management
                 .Subscribe(new ValueObserver<string?>(_ => UpdateDbServerHint()));
             _dbServerBox.TextChanged += (_, _) => UpdateDbServerHint();
             _dbPortBox.TextChanged += (_, _) => UpdateDbServerHint();
+
+            // Выбор сервера 1С «server:port» разносится на сервер и порт (issue #305).
+            _serverBox.SelectionChanged += (_, _) => SplitSelectedServer();
+            // Клик по подсказке подставляет пример «localhost» в поле «Сервер СУБД» (issue #305).
+            _dbServerHint.PointerPressed += (_, _) => ApplyDbServerHintExample();
+            ToolTip.SetTip(_dbServerHint, LocalizationManager.T("CreateInfobase.DbServerHintClick"));
+
+            // Последний сервер СУБД и порт из настроек подставляются по умолчанию (issue #305).
+            RestoreLastDbServer();
             UpdateDbServerHint();
 
             fields.Children.Add(_filePanel);
@@ -849,6 +872,41 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Восстанавливает последний сервер СУБД и порт из настроек (issue #305).
+        /// </summary>
+        private void RestoreLastDbServer()
+        {
+            var settings = _repository.LoadSettings();
+            if (!string.IsNullOrWhiteSpace(settings.LastCreateDbServer))
+                _dbServerBox.Text = settings.LastCreateDbServer;
+            if (!string.IsNullOrWhiteSpace(settings.LastCreateDbPort))
+                _dbPortBox.Text = settings.LastCreateDbPort;
+        }
+
+        /// <summary>
+        /// Выбор сервера 1С из списка (issue #305): элемент «server:port» разносится
+        /// на поле «Сервер 1С» и поле «Порт сервера».
+        /// </summary>
+        private void SplitSelectedServer()
+        {
+            if (_serverBox.SelectedItem is not ComboBoxItem { Content: string item })
+                return;
+
+            CreateInfobaseService.Split1CServer(item, out var server, out var port);
+            _serverBox.Text = server;
+            _serverPortBox.Text = port > 0 ? port.ToString() : "";
+            // Сбрасываем выделение, чтобы повторный выбор того же пункта снова сработал.
+            _serverBox.SelectedItem = null;
+        }
+
+        /// <summary>Клик по подсказке: подставляет пример «localhost» в поле «Сервер СУБД» (issue #305).</summary>
+        private void ApplyDbServerHintExample()
+        {
+            if (string.IsNullOrWhiteSpace(_dbServerBox.Text))
+                _dbServerBox.Text = "localhost";
+        }
+
+        /// <summary>
         /// Живая подсказка под полем «Сервер СУБД» (issue #305): формат значения
         /// DBSrvr зависит от выбранной СУБД (PostgreSQL — «host port=NNNN» через пробел,
         /// MSSQL Server — «host,NNNN»), а при заполненном сервере показываем,
@@ -875,6 +933,12 @@ namespace Configuration_Management
 
         private void OnCreate_Click()
         {
+            // Сервер 1С может быть выбран как «server:port» — разносим на сервер и порт (issue #305).
+            CreateInfobaseService.Split1CServer(_serverBox.Text, out var serverName, out var serverPortFromName);
+            var serverPort = serverPortFromName > 0
+                ? serverPortFromName.ToString()
+                : (_serverPortBox.Text?.Trim() ?? "");
+
             var request = new CreateInfobaseRequest
             {
                 Name = _nameBox.Text?.Trim() ?? "",
@@ -883,7 +947,8 @@ namespace Configuration_Management
                 PlatformVersion = _platformBox.Text?.Trim() ?? "",
                 IsFile = _typeBox.SelectedIndex != 1,
                 FilePath = _filePathBox.Text?.Trim(),
-                Server = _serverBox.Text?.Trim(),
+                Server = serverName,
+                ServerPort = serverPort,
                 DatabaseName = _refBox.Text?.Trim(),
                 Dbms = _dbmsBox.Text?.Trim(),
                 DbServer = _dbServerBox.Text?.Trim(),
