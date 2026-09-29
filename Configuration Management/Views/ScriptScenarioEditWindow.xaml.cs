@@ -43,6 +43,8 @@ public partial class ScriptScenarioEditWindow : Window
         NameLabel.Text = T("Script.Name");
         FilePathLabel.Text = T("Script.FilePath");
         BrowseButton.Content = T("Script.Browse");
+        WorkingDirectoryLabel.Text = T("Script.WorkingDirectory");
+        WorkingDirectoryBrowseButton.Content = T("Script.Browse");
         ParametersLabel.Text = T("Script.Parameters");
         ParametersHint.Text = T("Script.ParametersHint");
         TokensLabel.Text = T("Script.Tokens");
@@ -99,6 +101,20 @@ public partial class ScriptScenarioEditWindow : Window
         }
     }
 
+    /// <summary>
+    /// Выбор «Папки запуска» сценария (issue #308, п.7): открывает диалог выбора
+    /// каталога; пустое значение — наследовать рабочий каталог приложения.
+    /// </summary>
+    private void BrowseWorkingDirectory_Click(object sender, RoutedEventArgs e)
+    {
+        var path = _dialogs.OpenFolderDialog(T("Script.WorkingDirectory"));
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            WorkingDirectoryBox.Text = path;
+            UpdatePreview();
+        }
+    }
+
     private void TokensList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         // Двойной клик вставляет ТОЛЬКО токен (issue #308), а не строку «%token% — описание»;
@@ -133,6 +149,7 @@ public partial class ScriptScenarioEditWindow : Window
         {
             Name = _vm.Name,
             FilePath = FilePathBox.Text ?? "",
+            WorkingDirectory = WorkingDirectoryBox.Text ?? "",
             Parameters = _vm.NonEmptyParameters
         };
         var preview = ScriptScenarioEditViewModel.BuildExampleCommandLine(draft, SelectedExampleBase);
@@ -143,6 +160,7 @@ public partial class ScriptScenarioEditWindow : Window
     {
         _vm.Name = NameBox.Text ?? "";
         _vm.FilePath = FilePathBox.Text ?? "";
+        _vm.WorkingDirectory = WorkingDirectoryBox.Text ?? "";
         _vm.ParametersText = ParametersBox.Text ?? "";
         _vm.HideWindow = HideWindowCheckBox.IsChecked ?? true;
 

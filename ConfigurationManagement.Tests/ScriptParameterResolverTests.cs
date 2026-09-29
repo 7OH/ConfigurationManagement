@@ -267,4 +267,54 @@ public sealed class ScriptParameterResolverTests
 
         Assert.Equal("tool.exe", result);
     }
+
+    // ------------------- Папка запуска (issue #308, п.7) -------------------
+
+    [Fact]
+    public void BuildCommandLine_WithWorkingDirectory_PrependsCd()
+    {
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.bat",
+            WorkingDirectory = @"C:\Tools\scripts",
+            Parameters = new List<string> { "/S:%connection.server%" }
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(scenario, map, FixedNow);
+
+        Assert.Equal(@"cd C:\Tools\scripts && report.bat /S:srv-1c", result);
+    }
+
+    [Fact]
+    public void BuildCommandLine_WorkingDirectoryWithSpaces_QuotesPath()
+    {
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.bat",
+            WorkingDirectory = @"C:\Program Files\Tools"
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(scenario, map, FixedNow);
+
+        Assert.Equal("cd \"C:\\Program Files\\Tools\" && report.bat", result);
+    }
+
+    [Fact]
+    public void BuildCommandLine_EmptyWorkingDirectory_KeepsOldBehavior()
+    {
+        // Пустая папка запуска — прежнее поведение: без префикса cd.
+        var scenario = new ScriptScenario
+        {
+            FilePath = "tool.exe",
+            WorkingDirectory = "",
+            Parameters = new List<string> { "%name%" }
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(scenario, map, FixedNow);
+
+        Assert.Equal("tool.exe Бухгалтерия", result);
+    }
 }

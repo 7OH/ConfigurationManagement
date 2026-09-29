@@ -43,6 +43,42 @@ public sealed class ScriptScenarioEditViewModelTests
     }
 
     [Fact]
+    public void ApplyTo_TransfersWorkingDirectory()
+    {
+        // Issue #308, п.7: «Папка запуска» переносится из формы в сценарий.
+        var scenario = new ScriptScenario { Id = "wd-id", Name = "Имя", FilePath = "tool.bat" };
+        var vm = new ScriptScenarioEditViewModel(scenario);
+        vm.WorkingDirectory = @"C:\reports\output";
+
+        vm.ApplyTo(scenario);
+
+        Assert.Equal(@"C:\reports\output", scenario.WorkingDirectory);
+    }
+
+    [Fact]
+    public void Constructor_FromScenario_FillsWorkingDirectory()
+    {
+        var scenario = new ScriptScenario
+        {
+            Name = "С папкой",
+            FilePath = "x.bat",
+            WorkingDirectory = @"/opt/scripts"
+        };
+
+        var vm = new ScriptScenarioEditViewModel(scenario);
+
+        Assert.Equal(@"/opt/scripts", vm.WorkingDirectory);
+    }
+
+    [Fact]
+    public void Constructor_NullScenario_WorkingDirectoryDefaultsToEmpty()
+    {
+        var vm = new ScriptScenarioEditViewModel(null);
+
+        Assert.Equal("", vm.WorkingDirectory);
+    }
+
+    [Fact]
     public void ApplyTo_NewScenario_AssignsId()
     {
         var created = new ScriptScenario();

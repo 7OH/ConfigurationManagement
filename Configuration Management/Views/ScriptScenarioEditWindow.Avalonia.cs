@@ -33,6 +33,7 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
 
     private readonly TextBox _nameBox = new TextBox().Styled(ControlThemes.ModernTextBox);
     private readonly TextBox _filePathBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+    private readonly TextBox _workingDirectoryBox = new TextBox().Styled(ControlThemes.ModernTextBox);
     private readonly TextBox _parametersBox = new TextBox
     {
         AcceptsReturn = true,
@@ -132,6 +133,28 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         pathRow.Children.Add(browse);
         panel.Children.Add(pathRow);
 
+        // Issue #308, п.7: «Папка запуска» — рабочий каталог процесса скрипта
+        // (WorkingDirectory); пусто — наследуется каталог приложения.
+        panel.Children.Add(Label(T("Script.WorkingDirectory")));
+        var workingDirectoryRow = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                new ColumnDefinition { Width = new GridLength(8) },
+                new ColumnDefinition { Width = GridLength.Auto }
+            }
+        };
+        _workingDirectoryBox.Text = _vm.WorkingDirectory;
+        _workingDirectoryBox.TextChanged += (_, _) => UpdatePreview();
+        Grid.SetColumn(_workingDirectoryBox, 0);
+        workingDirectoryRow.Children.Add(_workingDirectoryBox);
+        var browseWorkingDirectory = new Button { Content = T("Script.Browse"), Width = 96 }.Styled(ControlThemes.SecondaryButton);
+        browseWorkingDirectory.Click += (_, _) => BrowseWorkingDirectory();
+        Grid.SetColumn(browseWorkingDirectory, 2);
+        workingDirectoryRow.Children.Add(browseWorkingDirectory);
+        panel.Children.Add(workingDirectoryRow);
+
         panel.Children.Add(Label(T("Script.Parameters")));
         _parametersBox.Text = _vm.ParametersText;
         _parametersBox.TextChanged += (_, _) => UpdatePreview();
@@ -230,6 +253,20 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         }
     }
 
+    /// <summary>
+    /// Выбор «Папки запуска» сценария (issue #308, п.7): открывает диалог выбора
+    /// каталога; пустое значение — наследовать рабочий каталог приложения.
+    /// </summary>
+    private void BrowseWorkingDirectory()
+    {
+        var path = _dialogs.OpenFolderDialog(T("Script.WorkingDirectory"));
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            _workingDirectoryBox.Text = path;
+            UpdatePreview();
+        }
+    }
+
     private void InsertTokenAtCaret()
     {
         // Двойной клик вставляет ТОЛЬКО токен (issue #308), а не строку «%token% — описание».
@@ -255,11 +292,13 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
     {
         _vm.Name = _nameBox.Text ?? "";
         _vm.FilePath = _filePathBox.Text ?? "";
+        _vm.WorkingDirectory = _workingDirectoryBox.Text ?? "";
         _vm.ParametersText = _parametersBox.Text ?? "";
         var draft = new ScriptScenario
         {
             Name = _vm.Name,
             FilePath = _vm.FilePath,
+            WorkingDirectory = _vm.WorkingDirectory,
             Parameters = _vm.NonEmptyParameters
         };
         var preview = ScriptScenarioEditViewModel.BuildExampleCommandLine(draft, SelectedExampleBase);
@@ -270,6 +309,7 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
     {
         _vm.Name = _nameBox.Text ?? "";
         _vm.FilePath = _filePathBox.Text ?? "";
+        _vm.WorkingDirectory = _workingDirectoryBox.Text ?? "";
         _vm.ParametersText = _parametersBox.Text ?? "";
         _vm.HideWindow = _hideWindowCheck.IsChecked ?? true;
 

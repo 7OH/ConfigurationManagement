@@ -9,6 +9,31 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.142] — 2026-09-29
+
+### Добавлено
+
+- **«Папка запуска» у сценария скрипта (issue #308, п.7)** — новый параметр сценария:
+  рабочий каталог процесса при запуске. Поле в модели (`ScriptScenario.WorkingDirectory`),
+  текстовое поле с кнопкой выбора папки в редакторе сценария (Windows/WPF —
+  [`Views/ScriptScenarioEditWindow.xaml`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml)
+  и [`Views/ScriptScenarioEditWindow.xaml.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml.cs),
+  Linux/Avalonia — [`Views/ScriptScenarioEditWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.Avalonia.cs));
+  при запуске `WorkingDirectory` передаётся в `ProcessStartInfo`
+  ([`Services/ExternalCommandRunner.cs`](Configuration%20Management/Services/ExternalCommandRunner.cs),
+  [`ViewModels/MainViewModel.Scripts.cs`](Configuration%20Management/ViewModels/MainViewModel.Scripts.cs),
+  [`ViewModels/MainViewModel.Avalonia.Scripts.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Scripts.cs));
+  превью командной строки показывает её как `cd "…" && …`
+  ([`Services/ScriptParameterResolver.cs`](Configuration%20Management/Services/ScriptParameterResolver.cs)).
+  Пустое значение не меняет поведение, старые JSON-файлы сценариев мигрируют без ошибок.
+- **Кнопка «Изменить» в окне выбора сценария перед запуском (issue #308, п.8)** — в окне
+  «Выбор скрипта» (F5 при нескольких сценариях) появляется кнопка «Изменить»: открывает
+  редактор выбранного сценария, после сохранения изменения записываются в хранилище
+  (тот же Id) и список обновляется с восстановлением выделения (Windows/WPF —
+  [`Views/ScriptPickWindow.xaml`](Configuration%20Management/Views/ScriptPickWindow.xaml)
+  и [`Views/ScriptPickWindow.xaml.cs`](Configuration%20Management/Views/ScriptPickWindow.xaml.cs),
+  Linux/Avalonia — [`Views/ScriptPickWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptPickWindow.Avalonia.cs)).
+
 ## [0.3.9.141] — 2026-09-29
 
 ### Исправлено

@@ -46,6 +46,19 @@
                     <Button x:Name="BrowseButton" Grid.Column="2" Content="Обзор…" Width="90" Padding="6,3" Click="Browse_Click"/>
                 </Grid>
 
+                <!-- Issue #308, п.7: «Папка запуска» — рабочий каталог процесса скрипта
+                     (WorkingDirectory); пусто — наследуется каталог приложения. -->
+                <TextBlock x:Name="WorkingDirectoryLabel" Text="Папка запуска" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="WorkingDirectoryBox" Grid.Column="0" Text="{Binding WorkingDirectory, UpdateSourceTrigger=PropertyChanged}" Padding="4" TextChanged="OnTextChanged"/>
+                    <Button x:Name="WorkingDirectoryBrowseButton" Grid.Column="2" Content="Обзор…" Width="90" Padding="6,3" Click="BrowseWorkingDirectory_Click"/>
+                </Grid>
+
                 <TextBlock x:Name="ParametersLabel" Text="Параметры" FontWeight="SemiBold" Margin="0,0,0,4"/>
                 <TextBox x:Name="ParametersBox" Text="{Binding ParametersText, UpdateSourceTrigger=PropertyChanged}"
                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="90" MaxHeight="150"

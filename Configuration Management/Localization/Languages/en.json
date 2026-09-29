@@ -2161,6 +2161,7 @@
     "Script.NameRequired": "Enter a scenario name.",
     "Script.FilePath": "File path (script or executable)",
     "Script.FilePathRequired": "Enter the script file path.",
+    "Script.WorkingDirectory": "Working directory (empty — app directory)",
     "Script.Browse": "Browse…",
     "Script.Parameters": "Parameters (one per line)",
     "Script.ParametersHint": "Each line is a parameter; double-click a placeholder to insert it at the caret",

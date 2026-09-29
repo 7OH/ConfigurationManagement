@@ -51,7 +51,12 @@ public static class ExternalCommandRunner
     /// </summary>
     /// <param name="command">Команда (передаётся shell как есть).</param>
     /// <param name="createNoWindow">Не создавать консольное окно (<c>true</c> по умолчанию).</param>
-    public static ProcessStartInfo CreateProcessStartInfo(string? command, bool createNoWindow = true)
+    /// <param name="workingDirectory">Рабочий каталог процесса; <c>null</c>/пусто —
+    /// наследуется каталог приложения (issue #308, п.7: «Папка запуска» сценария).</param>
+    public static ProcessStartInfo CreateProcessStartInfo(
+        string? command,
+        bool createNoWindow = true,
+        string? workingDirectory = null)
     {
         var (fileName, arguments) = BuildShellCommand(command);
         // Видимое окно (createNoWindow == false) на Windows требует UseShellExecute = true
@@ -63,13 +68,18 @@ public static class ExternalCommandRunner
         var useShellExecute = !createNoWindow && OperatingSystem.IsWindows();
         // Без перенаправления вывода: поток чтения при большом объёме мог бы
         // заблокировать процесс (дедлок буфера), а консольное окно — по запросу.
-        return new ProcessStartInfo
+        var startInfo = new ProcessStartInfo
         {
             FileName = fileName,
             Arguments = arguments,
             UseShellExecute = useShellExecute,
             CreateNoWindow = createNoWindow
         };
+        // Рабочая папка сценария (issue #308, п.7): для pre/post-команд баз и CLI
+        // параметр не передаётся — поведение прежнее (наследование каталога приложения).
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+            startInfo.WorkingDirectory = workingDirectory;
+        return startInfo;
     }
 
     /// <summary>
@@ -126,11 +136,16 @@ public static class ExternalCommandRunner
     /// </summary>
     /// <param name="command">Команда (передаётся shell как есть).</param>
     /// <param name="createNoWindow">Не создавать консольное окно (по умолчанию <c>true</c>).</param>
-    public static void RunDetached(string? command, bool createNoWindow = true)
+    /// <param name="workingDirectory">Рабочий каталог процесса; <c>null</c>/пусто —
+    /// наследуется каталог приложения (issue #308, п.7: «Папка запуска» сценария).</param>
+    public static void RunDetached(string? command, bool createNoWindow = true, string? workingDirectory = null)
     {
         try
         {
-            using var process = new Process { StartInfo = CreateProcessStartInfo(command, createNoWindow) };
+            using var process = new Process
+            {
+                StartInfo = CreateProcessStartInfo(command, createNoWindow, workingDirectory)
+            };
             if (!process.Start())
             {
                 // Нечего сообщить: fire-and-forget по построению.

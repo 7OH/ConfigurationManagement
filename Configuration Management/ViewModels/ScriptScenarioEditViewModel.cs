@@ -56,6 +56,7 @@ public class ScriptScenarioEditViewModel : ViewModelBase
         {
             Name = scenario.Name;
             FilePath = scenario.FilePath ?? "";
+            WorkingDirectory = scenario.WorkingDirectory ?? "";
             HideWindow = scenario.HideWindow;
             foreach (var parameter in scenario.Parameters ?? new List<string>())
             {
@@ -73,6 +74,12 @@ public class ScriptScenarioEditViewModel : ViewModelBase
 
     public string Name { get; set; } = "";
     public string FilePath { get; set; } = "";
+
+    /// <summary>
+    /// Папка запуска сценария (рабочий каталог процесса). Пусто — процесс наследует
+    /// рабочий каталог приложения (issue #308, п.7).
+    /// </summary>
+    public string WorkingDirectory { get; set; } = "";
 
     /// <summary>
     /// Скрывать окно запущенного скрипта (issue #308): <c>true</c> — окно скрыто
@@ -117,6 +124,7 @@ public class ScriptScenarioEditViewModel : ViewModelBase
     {
         scenario.Name = Name.Trim();
         scenario.FilePath = FilePath.Trim();
+        scenario.WorkingDirectory = WorkingDirectory.Trim();
         scenario.Parameters = NonEmptyParameters;
         scenario.HideWindow = HideWindow;
     }

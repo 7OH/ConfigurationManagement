@@ -23,6 +23,7 @@ public sealed class ScriptPickWindow : ModalWindowBase
     private readonly MainViewModel _vm;
     private readonly ListBox _list = new();
     private readonly Button _runButton = new();
+    private readonly Button _editButton = new();
     private readonly TextBox _previewBox = new TextBox { IsReadOnly = true }.Styled(ControlThemes.ModernTextBox);
 
     public ScriptPickWindow(Infobase infobase, MainViewModel vm)
@@ -58,14 +59,18 @@ public sealed class ScriptPickWindow : ModalWindowBase
         _runButton.Content = T("Script.RunShort");
         _runButton.IsEnabled = false;
         _runButton.Click += async (_, _) => await RunSelectedAsync();
+        _editButton.Content = T("Common.Edit");
+        _editButton.IsEnabled = false;
+        _editButton.Click += (_, _) => EditSelected();
         var close = new Button { Content = T("Common.Close") };
         close.Click += (_, _) => Close();
-        foreach (var b in new Control[] { _runButton, close })
+        foreach (var b in new Control[] { _runButton, _editButton, close })
         {
             b.Styled(ControlThemes.ModernButton);
             b.Width = 100;
         }
         bottom.Children.Add(_runButton);
+        bottom.Children.Add(_editButton);
         bottom.Children.Add(close);
 
         var hint = new TextBlock { Text = string.Format(T("Script.PickHint"), _infobase.Name), FontSize = 11 };
@@ -74,7 +79,9 @@ public sealed class ScriptPickWindow : ModalWindowBase
         _list.Margin = new Avalonia.Thickness(0, 6, 0, 8);
         _list.SelectionChanged += (_, _) =>
         {
-            _runButton.IsEnabled = Selected is not null;
+            var has = Selected is not null;
+            _runButton.IsEnabled = has;
+            _editButton.IsEnabled = has;
             UpdatePreview();
         };
         _list.DoubleTapped += async (_, _) =>
@@ -118,6 +125,27 @@ public sealed class ScriptPickWindow : ModalWindowBase
         _previewBox.Text = Selected is { } item
             ? ScriptScenarioEditViewModel.BuildExampleCommandLine(item.Scenario, _infobase)
             : "—";
+    }
+
+    /// <summary>
+    /// «Изменить» (issue #308, п.8): открывает редактор выбранного сценария; после
+    /// сохранения изменения записываются в хранилище (тот же Id) и список обновляется,
+    /// выбранный элемент восстанавливается — кнопки и превью соответствуют ему.
+    /// </summary>
+    private void EditSelected()
+    {
+        if (Selected is not { } item)
+            return;
+        var edit = new ScriptScenarioEditWindow(item.Scenario);
+        if (edit.ShowDialogSync(this) && edit.Result is { } updated)
+        {
+            _store.Save(updated);
+            Reload();
+            var updatedItem = _list.Items.Cast<ScriptScenarioItemViewModel>()
+                .FirstOrDefault(i => i.Id == updated.Id);
+            if (updatedItem is not null)
+                _list.SelectedItem = updatedItem;
+        }
     }
 
     private async System.Threading.Tasks.Task RunSelectedAsync()

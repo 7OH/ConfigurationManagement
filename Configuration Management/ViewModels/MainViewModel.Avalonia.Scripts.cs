@@ -89,7 +89,11 @@ public partial class MainViewModel
             // а результат для приложения не критичен (лог + история запусков).
             // Видимость консольного окна — по свойству «Скрывать окно» сценария (issue #308);
             // на Linux /bin/sh выполняется без терминала, окно зависит от окружения.
-            ExternalCommandRunner.RunDetached(commandLine, createNoWindow: !scenario.HideWindow);
+            // Рабочая папка — по свойству «Папка запуска» (issue #308, п.7).
+            ExternalCommandRunner.RunDetached(
+                commandLine,
+                createNoWindow: !scenario.HideWindow,
+                workingDirectory: scenario.WorkingDirectory);
 
             infobase.AddLaunchHistory("Script:" + scenario.Name, commandLine);
             SaveSilently();

@@ -166,9 +166,16 @@ public static class ScriptParameterResolver
     }
 
     /// <summary>
-    /// Собирает полную командную строку сценария: путь к файлу (в кавычках, если
-    /// содержит пробелы) + резолвнутые параметры. Строка передаётся системному shell
-    /// через <see cref="ExternalCommandRunner.BuildShellCommand"/>.
+    /// Собирает полную командную строку сценария: рабочая папка запуска (если задана,
+    /// префикс <c>cd "…" &&</c>), путь к файлу (в кавычках, если содержит пробелы)
+    /// и резолвнутые параметры. Строка передаётся системному shell через
+    /// <see cref="ExternalCommandRunner.BuildShellCommand"/>.
+    /// <para>
+    /// Реальный запуск использует <see cref="System.Diagnostics.ProcessStartInfo.WorkingDirectory"/>
+    /// (без <c>cd</c>); префикс <c>cd</c> нужен только для наглядного превью в окнах
+    /// редактирования и выбора (issue #308, п.7). При пустой рабочей папке строка
+    /// не меняется — старые сценарии мигрируют без изменения поведения.
+    /// </para>
     /// </summary>
     public static string BuildCommandLine(
         ScriptScenario scenario,
@@ -180,6 +187,15 @@ public static class ScriptParameterResolver
 
         var path = (scenario.FilePath ?? "").Trim();
         var parts = new List<string>();
+
+        // Папка запуска (issue #308, п.7): видна в превью как «cd "…" && …».
+        var workingDirectory = (scenario.WorkingDirectory ?? "").Trim();
+        if (workingDirectory.Length > 0)
+        {
+            parts.Add("cd " + QuoteIfNeeded(workingDirectory));
+            parts.Add("&&");
+        }
+
         if (path.Length > 0)
             parts.Add(QuoteIfNeeded(path));
 

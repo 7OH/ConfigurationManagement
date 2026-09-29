@@ -56,6 +56,46 @@ public sealed class ScriptScenarioStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_And_Get_RoundTrip_IncludesWorkingDirectory()
+    {
+        // Issue #308, п.7: «Папка запуска» сериализуется и читается обратно.
+        var scenario = new ScriptScenario
+        {
+            Name = "Отчёт с рабочей папкой",
+            FilePath = @"C:\tools\report.bat",
+            WorkingDirectory = @"C:\reports\output",
+            Parameters = new List<string> { "/O:%date%" }
+        };
+
+        _store.Save(scenario);
+
+        var loaded = _store.Get(scenario.Id);
+        Assert.NotNull(loaded);
+        Assert.Equal(@"C:\reports\output", loaded!.WorkingDirectory);
+    }
+
+    [Fact]
+    public void Get_LegacyJsonWithoutWorkingDirectory_MigratesToEmpty()
+    {
+        // Миграция старых JSON-файлов сценариев (issue #308, п.7): файл без поля
+        // WorkingDirectory загружается без ошибок, значение — пустое (поведение прежнее).
+        var legacyJson = "{\r\n" +
+            "  \"Id\": \"legacy-id\",\r\n" +
+            "  \"Name\": \"Старый\",\r\n" +
+            "  \"FilePath\": \"old.bat\",\r\n" +
+            "  \"Parameters\": [],\r\n" +
+            "  \"HideWindow\": true\r\n" +
+            "}";
+        File.WriteAllText(Path.Combine(_tempDir, "legacy-id.script.json"), legacyJson);
+
+        var loaded = _store.Get("legacy-id");
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Старый", loaded!.Name);
+        Assert.Equal("", loaded.WorkingDirectory);
+    }
+
+    [Fact]
     public void Save_EmptyId_AssignsNewId()
     {
         var scenario = new ScriptScenario { Id = "", Name = "Пустой id" };

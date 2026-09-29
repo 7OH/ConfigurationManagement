@@ -30,6 +30,7 @@ public partial class ScriptPickWindow : Window
         HintText.Text = string.Format(T("Script.PickHint"), infobase.Name);
         PreviewLabel.Text = T("Script.CommandLinePreview");
         RunButton.Content = T("Script.RunShort");
+        EditButton.Content = T("Common.Edit");
 
         LoadScenarios();
     }
@@ -47,7 +48,9 @@ public partial class ScriptPickWindow : Window
 
     private void ScenariosList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        RunButton.IsEnabled = Selected is not null;
+        var has = Selected is not null;
+        RunButton.IsEnabled = has;
+        EditButton.IsEnabled = has;
         UpdatePreview();
     }
 
@@ -62,6 +65,28 @@ public partial class ScriptPickWindow : Window
         PreviewBox.Text = Selected is { } item
             ? ScriptScenarioEditViewModel.BuildExampleCommandLine(item.Scenario, _infobase)
             : "—";
+    }
+
+    /// <summary>
+    /// «Изменить» (issue #308, п.8): открывает редактор выбранного сценария; после
+    /// сохранения изменения записываются в хранилище (тот же Id) и список обновляется,
+    /// выбранный элемент восстанавливается — кнопки и превью соответствуют ему.
+    /// </summary>
+    private void Edit_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } item)
+            return;
+        var edit = new ScriptScenarioEditWindow(item.Scenario);
+        edit.Owner = this;
+        if (edit.ShowDialog() == true && edit.Result is { } updated)
+        {
+            _store.Save(updated);
+            LoadScenarios();
+            var updatedItem = ScenariosList.Items.Cast<ScriptScenarioItemViewModel>()
+                .FirstOrDefault(i => i.Id == updated.Id);
+            if (updatedItem is not null)
+                ScenariosList.SelectedItem = updatedItem;
+        }
     }
 
     private async void Run_Click(object sender, RoutedEventArgs e)

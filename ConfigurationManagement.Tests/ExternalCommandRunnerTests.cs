@@ -111,6 +111,19 @@ public sealed class ExternalCommandRunnerTests
     }
 
     [Fact]
+    public void CreateProcessStartInfo_WithWorkingDirectory_SetsIt()
+    {
+        // Issue #308, п.7: «Папка запуска» сценария попадает в ProcessStartInfo.WorkingDirectory;
+        // без параметра (pre/post-команды баз, CLI) свойство пустое — поведение прежнее.
+        var withWd = ExternalCommandRunner.CreateProcessStartInfo(
+            "echo hello", createNoWindow: true, workingDirectory: @"C:\Tools\scripts");
+        var withoutWd = ExternalCommandRunner.CreateProcessStartInfo("echo hello");
+
+        Assert.Equal(@"C:\Tools\scripts", withWd.WorkingDirectory);
+        Assert.Equal("", withoutWd.WorkingDirectory);
+    }
+
+    [Fact]
     public void CreateProcessStartInfo_OnLinux_UsesSh()
     {
         if (OperatingSystem.IsWindows())
