@@ -44,6 +44,7 @@ public sealed class MetadataTreeNodeViewModel : ViewModelBase
     private bool _isExpanded;
     private bool _isSelected;
     private bool _isMatch;
+    private bool _isVisible = true;
 
     /// <param name="kind">Роль узла (см. <see cref="MetadataTreeNodeKind"/>).</param>
     /// <param name="displayName">Отображаемое имя (для типов — уже локализованное через
@@ -55,6 +56,7 @@ public sealed class MetadataTreeNodeViewModel : ViewModelBase
     /// True — узел получит заглушку-раскрывалку.</param>
     /// <param name="summary">Объект метаданных для узла <see cref="MetadataTreeNodeKind.Object"/>.</param>
     /// <param name="subsystem">Подсистема для узла <see cref="MetadataTreeNodeKind.Subsystem"/>.</param>
+    /// <param name="typeDir">Каталог типа метаданных в выгрузке (для узлов <see cref="MetadataTreeNodeKind.Type"/>).</param>
     public MetadataTreeNodeViewModel(
         MetadataTreeNodeKind kind,
         string displayName,
@@ -62,7 +64,8 @@ public sealed class MetadataTreeNodeViewModel : ViewModelBase
         Func<IEnumerable<MetadataTreeNodeViewModel>>? childrenLoader = null,
         bool hasChildren = false,
         MetadataObjectSummary? summary = null,
-        MetadataSubsystem? subsystem = null)
+        MetadataSubsystem? subsystem = null,
+        string typeDir = "")
     {
         Kind = kind;
         DisplayName = displayName ?? string.Empty;
@@ -71,6 +74,7 @@ public sealed class MetadataTreeNodeViewModel : ViewModelBase
         HasChildren = hasChildren;
         ObjectSummary = summary;
         Subsystem = subsystem;
+        TypeDir = typeDir ?? string.Empty;
 
         // Заглушка-раскрывалка: без неё TreeView не покажет стрелку у ленивого узла
         // (раскрывать будет нечего, событие Expanded не наступит). Узел невидим
@@ -133,13 +137,27 @@ public sealed class MetadataTreeNodeViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Пометка совпадения поиска (заготовка этапа 3: подсветка совпадений и
-    /// автораскрытие путей). На этапе 2 всегда false.
+    /// Пометка совпадения поиска (этап 3): подсветка совпадений и автораскрытие
+    /// путей. Ставится ViewModel при поиске по имени; окна окрашивают узел.
     /// </summary>
     public bool IsMatch
     {
         get => _isMatch;
         set => SetProperty(ref _isMatch, value);
+    }
+
+    /// <summary>Каталог типа метаданных в выгрузке (узлы <see cref="MetadataTreeNodeKind.Type"/>); пусто — не тип.</summary>
+    public string TypeDir { get; } = string.Empty;
+
+    /// <summary>
+    /// Видимость узла под фильтром по типу (этап 3): узлы типов/объектов скрываются,
+    /// когда выбранный <c>TypeFilter</c> не совпадает с их типом. Окно прячет строку
+    /// узла по этому флагу; остальные роли всегда видимы.
+    /// </summary>
+    public bool IsVisible
+    {
+        get => _isVisible;
+        set => SetProperty(ref _isVisible, value);
     }
 
     /// <summary>

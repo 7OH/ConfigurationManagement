@@ -2477,5 +2477,13 @@
     "MetadataExplorer.ExportCsv": "Экспорт CSV…",
     "MetadataExplorer.ExportTxt": "Экспорт TXT…",
     "MetadataExplorer.Hint": "Ленивая загрузка: подсистемы, типы и объекты подгружаются при раскрытии узла. Модули и макеты не разбираются — отображаются только метаданные.",
+    "MetadataExplorer.Search.Placeholder": "Поиск по имени (мин. 2 символа)…",
+    "MetadataExplorer.Search.Clear": "Очистить",
+    "MetadataExplorer.TypeFilter.All": "Все типы",
+    "MetadataExplorer.Status.Indexing": "Индексация…",
+    "MetadataExplorer.Status.IndexingCountFormat": "Индексация… {0} объектов",
+    "MetadataExplorer.Status.FoundFormat": "Найдено {0} из {1}",
+    "MetadataExplorer.Status.TooManyResults": "Результатов много, уточните запрос",
+    "MetadataExplorer.Status.NoResults": "Ничего не найдено",
     "Launcher.OperationDumpConfigToFiles": "Выгрузка конфигурации в файлы"
 }

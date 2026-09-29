@@ -9,6 +9,39 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.134] — 2026-09-29
+
+### Добавлено
+
+- **Обозреватель метаданных конфигурации — поиск по имени и фильтр по типу (этап 3
+  цикла 0.3.9.132–0.3.9.136)** — в окне «Обозреватель метаданных…»: поиск объектов
+  по мере ввода (без учёта регистра, debounce ~300 мс) с подсветкой совпадений и
+  автораскрытием путей; фильтр по типу (ComboBox «Все типы» + типы выгрузки).
+  - **Поиск** — [`ViewModels/MetadataExplorerViewModel.cs`](Configuration%20Management/ViewModels/MetadataExplorerViewModel.cs):
+    `SearchText` (debounce через `CancellationTokenSource` + `Task.Delay(300)`, при
+    каждом вводе предыдущий отменяется), статусы «Индексация…», «Найдено N из M»,
+    «Результатов много, уточните запрос» (лимит `MaxSearchResults = 500`),
+    «Ничего не найдено»; запрос короче 2 символов — режим дерева без подсветки.
+  - **Ленивый индекс объектов** — при первом поиске последовательно догружается
+    недостающая часть дерева (все подсистемы/типы/объекты) с прогрессом в статус-строке;
+    плоский индекс `IReadOnlyList<MetadataObjectSummary>` — повторные поиски идут
+    по нему без переобхода выгрузки.
+  - **Фильтр по типу** — `AvailableTypes` (из `MetadataTypeLocalizer.SortTypes` по
+    фактическим каталогам выгрузки) + `TypeFilter`/`ApplyFilters()`: узлы типов и
+    объектов скрываются/показываются (`IsVisible`); работает совместно с поиском.
+  - **Узел дерева** — [`ViewModels/MetadataTreeNodeViewModel.cs`](Configuration%20Management/ViewModels/MetadataTreeNodeViewModel.cs):
+    реализованы `IsMatch` (подсветка совпадений) и `IsVisible` (видимость под фильтром).
+  - **Окна** — панель поиска (TextBox + «Очистить») и ComboBox фильтра в
+    [`Views/MetadataExplorerWindow.xaml`](Configuration%20Management/Views/MetadataExplorerWindow.xaml)
+    (WPF: подсветка фона узла через DataTrigger по `IsMatch`) и
+    [`Views/MetadataExplorerWindow.Avalonia.cs`](Configuration%20Management/Views/MetadataExplorerWindow.Avalonia.cs)
+    (Avalonia/Linux: Style + DataTrigger, видимость узла по `IsVisible`);
+    локализация `MetadataExplorer.Search.*` / `.TypeFilter.*` / `.Status.*` (ru/en).
+  - **Тесты** — [`ConfigurationManagement.Tests/MetadataExplorerSearchTests.cs`](ConfigurationManagement.Tests/MetadataExplorerSearchTests.cs):
+    регистронезависимость, `IsMatch`-подсветка, автораскрытие путей, фильтр по типу,
+    совместное действие поиск+фильтр, лимит 500, пустой/короткий запрос, индекс
+    догружает недостающие типы один раз, debounce.
+
 ## [0.3.9.133] — 2026-09-29
 
 ### Добавлено

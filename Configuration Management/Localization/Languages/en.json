@@ -2478,5 +2478,13 @@
     "MetadataExplorer.ExportCsv": "Export CSV…",
     "MetadataExplorer.ExportTxt": "Export TXT…",
     "MetadataExplorer.Hint": "Lazy loading: subsystems, types and objects are loaded on expand. Modules and templates are not parsed — metadata only.",
+    "MetadataExplorer.Search.Placeholder": "Search by name (min 2 chars)…",
+    "MetadataExplorer.Search.Clear": "Clear",
+    "MetadataExplorer.TypeFilter.All": "All types",
+    "MetadataExplorer.Status.Indexing": "Indexing…",
+    "MetadataExplorer.Status.IndexingCountFormat": "Indexing… {0} objects",
+    "MetadataExplorer.Status.FoundFormat": "Found {0} of {1}",
+    "MetadataExplorer.Status.TooManyResults": "Too many results, refine your query",
+    "MetadataExplorer.Status.NoResults": "Nothing found",
     "Launcher.OperationDumpConfigToFiles": "Dump configuration to files"
 }

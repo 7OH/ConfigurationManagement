@@ -89,6 +89,13 @@ namespace Configuration_Management
             _vm.SelectedNode = MetadataTree.SelectedItem as MetadataTreeNodeViewModel;
         }
 
+        /// <summary>«Очистить»: сброс текста поиска (возврат в режим дерева).</summary>
+        private void OnClearSearch_Click(object sender, RoutedEventArgs e)
+        {
+            _vm.SearchText = string.Empty;
+            MetadataTree.Focus();
+        }
+
         private void OnClose_Click(object sender, RoutedEventArgs e) => Close();
     }
 }

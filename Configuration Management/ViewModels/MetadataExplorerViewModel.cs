@@ -47,6 +47,18 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     private readonly IDialogService _dialogs;
     private readonly Action<Action>? _dispatchToUi;
 
+    /// <summary>Задержка поиска по мере ввода (debounce), мс.</summary>
+    private const int SearchDebounceMs = 300;
+
+    /// <summary>Максимум результатов поиска: при превышении — статус-предупреждение.</summary>
+    public const int MaxSearchResults = 500;
+
+    private CancellationTokenSource? _searchCts;
+    private readonly List<MetadataObjectSummary> _searchIndex = new();
+    private readonly List<MetadataTreeNodeViewModel> _searchNodes = new();
+    private bool _indexBuilt;
+    private int _lastIndexProgress;
+
     private int _busy;
     private MetadataDump? _dump;
     private SourceMode _sourceMode = SourceMode.Base;
@@ -56,6 +68,12 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     private string _errorMessage = string.Empty;
     private string _configurationTitle = string.Empty;
     private MetadataTreeNodeViewModel? _selectedNode;
+    private string _searchText = string.Empty;
+    private string _activeTypeFilter = string.Empty;
+    private bool _isSearchActive;
+    private int _searchResultsCount;
+    private MetadataTypeFilterOption? _typeFilter;
+    private IReadOnlyList<string> _availableTypes = Array.Empty<string>();
 
     private string _detailsName = string.Empty;
     private string _detailsSynonym = string.Empty;
@@ -157,6 +175,70 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     /// <summary>«Загрузить»: валидация → выгрузка с прогрессом → построение дерева.</summary>
     public ICommand LoadCommand =>
         _loadCommand ??= new RelayCommand(async () => await LoadAsync(), () => !IsBusy);
+
+    // ===================== Поиск и фильтр (этап 3) =====================
+
+    /// <summary>
+    /// Текст поиска по имени объекта (по мере ввода, debounce ~300 мс). При каждом
+    /// вводе предыдущий отложенный поиск отменяется; запрос короче 2 символов
+    /// возвращает режим дерева без подсветки.
+    /// </summary>
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (!SetProperty(ref _searchText, value ?? string.Empty))
+                return;
+            ScheduleSearch();
+        }
+    }
+
+    /// <summary>Поиск активен (применён запрос из ≥ 2 символов).</summary>
+    public bool IsSearchActive
+    {
+        get => _isSearchActive;
+        private set => SetProperty(ref _isSearchActive, value);
+    }
+
+    /// <summary>Число найденных объектов (может превышать <see cref="MaxSearchResults"/>).</summary>
+    public int SearchResultsCount
+    {
+        get => _searchResultsCount;
+        private set => SetProperty(ref _searchResultsCount, value);
+    }
+
+    /// <summary>Типы метаданных, фактически присутствующие в выгрузке
+    /// (порядок <see cref="MetadataTypeLocalizer.SortTypes"/>).</summary>
+    public IReadOnlyList<string> AvailableTypes
+    {
+        get => _availableTypes;
+        private set => SetProperty(ref _availableTypes, value);
+    }
+
+    /// <summary>Варианты фильтра типа для ComboBox: «Все типы» + типы выгрузки.</summary>
+    public ObservableCollection<MetadataTypeFilterOption> TypeFilterOptions { get; } = new();
+
+    /// <summary>Выбранный фильтр типа (null до загрузки); смена сразу применяет
+    /// <see cref="ApplyFilters"/> к видимости узлов дерева.</summary>
+    public MetadataTypeFilterOption? TypeFilter
+    {
+        get => _typeFilter;
+        set
+        {
+            if (!SetProperty(ref _typeFilter, value))
+                return;
+            _activeTypeFilter = value?.Value ?? string.Empty;
+            ApplyFilters();
+        }
+    }
+
+    /// <summary>Плоский индекс объектов дерева (строится при первом поиске;
+    /// повторные поиски идут по нему без переобхода выгрузки).</summary>
+    public IReadOnlyList<MetadataObjectSummary> SearchIndex => _searchIndex;
+
+    /// <summary>«Очистить»: сбрасывает текст поиска (возврат в режим дерева).</summary>
+    public void ClearSearch() => SearchText = string.Empty;
 
     // ===================== Дерево и детали =====================
 
@@ -334,12 +416,233 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
 
     /// <summary>
     /// Удаляет временный каталог выгрузки <c>%TEMP%\cm_metaeplorer_*</c>
-    /// (<see cref="MetadataDump.Delete"/>). Вызывается окном в Closed.
+    /// (<see cref="MetadataDump.Delete"/>) и отменяет отложенный поиск.
+    /// Вызывается окном в Closed.
     /// </summary>
     public void Dispose()
     {
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = null;
         _dump?.Delete();
         _dump = null;
+    }
+
+    // ===================== Поиск и фильтр (этап 3) =====================
+
+    /// <summary>
+    /// Debounce ввода: отменяет предыдущий отложенный поиск и планирует новый через
+    /// <see cref="SearchDebounceMs"/> мс (<c>CancellationTokenSource</c> + <c>Task.Delay</c>;
+    /// при каждом вводе предыдущий токен отменяется).
+    /// </summary>
+    private void ScheduleSearch()
+    {
+        var cts = new CancellationTokenSource();
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = cts;
+        _ = DebounceSearchAsync(cts.Token);
+    }
+
+    private async Task DebounceSearchAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(SearchDebounceMs, token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // Пользователь ввёл новый текст — прежний поиск отменён.
+        }
+
+        if (token.IsCancellationRequested)
+            return;
+        ApplySearch();
+    }
+
+    /// <summary>
+    /// Применяет текущий текст поиска к дереву: при первом поиске строит индекс
+    /// объектов (догрузка недостающей части дерева с прогрессом «Индексация…»),
+    /// помечает совпадения <see cref="MetadataTreeNodeViewModel.IsMatch"/> и раскрывает
+    /// их пути. Публичен для тестов (debounce проверяется отдельно ожиданием).
+    /// </summary>
+    public void ApplySearch()
+    {
+        if (TreeNodes.Count == 0 || _dump is null)
+        {
+            IsSearchActive = false;
+            SearchResultsCount = 0;
+            return;
+        }
+
+        var query = (_searchText ?? string.Empty).Trim();
+        if (query.Length < 2)
+        {
+            // Запрос короче 2 символов — режим дерева без подсветки.
+            ClearHighlights();
+            IsSearchActive = false;
+            SearchResultsCount = 0;
+            return;
+        }
+
+        EnsureSearchIndex();
+
+        var matches = 0;
+        var highlighted = 0;
+        foreach (var node in _searchNodes)
+        {
+            var name = node.ObjectSummary?.Name ?? string.Empty;
+            if (!name.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                node.IsMatch = false;
+                continue;
+            }
+
+            matches++;
+            if (highlighted < MaxSearchResults)
+            {
+                // Подсветка и автораскрытие пути — только для первых MaxSearchResults
+                // совпадений; остальные учитываются в счётчике, но не подсвечиваются.
+                node.IsMatch = true;
+                ExpandPath(node);
+                highlighted++;
+            }
+            else
+            {
+                node.IsMatch = false;
+            }
+        }
+
+        SearchResultsCount = matches;
+        IsSearchActive = true;
+
+        if (matches > MaxSearchResults)
+            StatusText = LocalizationManager.T("MetadataExplorer.Status.TooManyResults");
+        else if (matches == 0)
+            StatusText = LocalizationManager.T("MetadataExplorer.Status.NoResults");
+        else
+            StatusText = string.Format(
+                LocalizationManager.T("MetadataExplorer.Status.FoundFormat"),
+                matches, _searchIndex.Count);
+    }
+
+    /// <summary>
+    /// Строит плоский индекс объектов (один раз): последовательно догружает недостающую
+    /// часть дерева (все подсистемы, типы, объекты) через
+    /// <see cref="MetadataTreeNodeViewModel.EnsureLoaded"/> и собирает объекты с путями.
+    /// Прогресс «Индексация… N объектов» — в статус-строке. Повторные поиски идут
+    /// по индексу без переобхода выгрузки.
+    /// </summary>
+    private void EnsureSearchIndex()
+    {
+        if (_indexBuilt || TreeNodes.Count == 0)
+            return;
+
+        StatusText = LocalizationManager.T("MetadataExplorer.Status.Indexing");
+        _searchIndex.Clear();
+        _searchNodes.Clear();
+        _lastIndexProgress = 0;
+
+        foreach (var root in TreeNodes)
+            CollectIndexFromNode(root);
+
+        _indexBuilt = true;
+    }
+
+    private void CollectIndexFromNode(MetadataTreeNodeViewModel node)
+    {
+        node.EnsureLoaded();
+        if (node is { Kind: MetadataTreeNodeKind.Object, ObjectSummary: not null })
+        {
+            _searchIndex.Add(node.ObjectSummary);
+            _searchNodes.Add(node);
+        }
+
+        // Прогресс индексации — не на каждый объект, а порциями (~200).
+        if (_searchIndex.Count - _lastIndexProgress >= 200)
+        {
+            _lastIndexProgress = _searchIndex.Count;
+            StatusText = string.Format(
+                LocalizationManager.T("MetadataExplorer.Status.IndexingCountFormat"),
+                _searchIndex.Count);
+        }
+
+        foreach (var child in node.Children)
+            CollectIndexFromNode(child);
+    }
+
+    /// <summary>Снимает пометки <see cref="MetadataTreeNodeViewModel.IsMatch"/> с индексированных узлов.</summary>
+    private void ClearHighlights()
+    {
+        foreach (var node in _searchNodes)
+            node.IsMatch = false;
+    }
+
+    /// <summary>Раскрывает путь к узлу: все предки от корня получают IsExpanded = true.</summary>
+    private static void ExpandPath(MetadataTreeNodeViewModel node)
+    {
+        for (var current = node.Parent; current is not null; current = current.Parent)
+            current.IsExpanded = true;
+    }
+
+    /// <summary>
+    /// Фильтр по типу: скрывает/показывает узлы типов и объектов по выбранному
+    /// <see cref="TypeFilter"/> (пустое значение — «Все типы»). Применяется к уже
+    /// загруженным узлам; новые узлы создаются сразу с учётом активного фильтра.
+    /// </summary>
+    public void ApplyFilters()
+    {
+        foreach (var root in TreeNodes)
+            ApplyFilterToNode(root);
+    }
+
+    private void ApplyFilterToNode(MetadataTreeNodeViewModel node)
+    {
+        switch (node.Kind)
+        {
+            case MetadataTreeNodeKind.Type:
+                node.IsVisible = IsTypeVisible(node.TypeDir);
+                break;
+            case MetadataTreeNodeKind.Object:
+                node.IsVisible = IsTypeVisible(node.ObjectSummary?.TypeDir ?? string.Empty);
+                break;
+        }
+
+        foreach (var child in node.Children)
+            ApplyFilterToNode(child);
+    }
+
+    private bool IsTypeVisible(string typeDir)
+        => _activeTypeFilter.Length == 0
+           || string.Equals(typeDir, _activeTypeFilter, StringComparison.Ordinal);
+
+    /// <summary>Варианты фильтра: «Все типы» + фактические типы выгрузки
+    /// (локализованные имена, порядок <see cref="MetadataTypeLocalizer.SortTypes"/>).</summary>
+    private static List<MetadataTypeFilterOption> BuildTypeFilterOptions(IReadOnlyList<string> typeDirs)
+    {
+        var options = new List<MetadataTypeFilterOption>
+        {
+            new(string.Empty, LocalizationManager.T("MetadataExplorer.TypeFilter.All"))
+        };
+        foreach (var typeDir in MetadataTypeLocalizer.SortTypes(typeDirs))
+            options.Add(new MetadataTypeFilterOption(
+                typeDir,
+                MetadataTypeLocalizer.GetDisplayName(typeDir, LocalizationManager.T)));
+        return options;
+    }
+
+    /// <summary>Сбрасывает поисковое состояние при новой загрузке (индекс, подсветка, текст).</summary>
+    private void ResetSearchState()
+    {
+        _indexBuilt = false;
+        _searchIndex.Clear();
+        _searchNodes.Clear();
+        IsSearchActive = false;
+        SearchResultsCount = 0;
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = null;
+        SetProperty(ref _searchText, string.Empty, nameof(SearchText));
     }
 
     // ===================== Внутреннее =====================
@@ -402,13 +705,22 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         _dump?.Delete();
         _dump = dump;
 
-        var root = BuildRootNode(dump);
+        var typeDirs = MetadataXmlParser.EnumerateTypeDirs(dump.RootPath);
+        var root = BuildRootNode(dump, typeDirs);
         var emptyConfig = root is null;
+        var filterOptions = BuildTypeFilterOptions(typeDirs);
+        var availableTypes = MetadataTypeLocalizer.SortTypes(typeDirs).ToList();
 
         void Apply()
         {
             ConfigurationTitle = BuildConfigurationTitle(dump);
             TreeNodes.Clear();
+            ResetSearchState();
+            TypeFilterOptions.Clear();
+            foreach (var option in filterOptions)
+                TypeFilterOptions.Add(option);
+            AvailableTypes = availableTypes;
+            TypeFilter = TypeFilterOptions.FirstOrDefault(o => o.Value.Length == 0);
             if (emptyConfig)
             {
                 StatusText = LocalizationManager.T("MetadataExplorer.Empty.Configuration");
@@ -429,9 +741,8 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
 
     /// <summary>Корень дерева: «Конфигурация имя версия» + «Подсистемы» + «Без подсистемы»
     /// (или один узел «Все объекты» при отсутствии подсистем); null — пустая конфигурация.</summary>
-    private MetadataTreeNodeViewModel? BuildRootNode(MetadataDump dump)
+    private MetadataTreeNodeViewModel? BuildRootNode(MetadataDump dump, IReadOnlyList<string> typeDirs)
     {
-        var typeDirs = MetadataXmlParser.EnumerateTypeDirs(dump.RootPath);
         var subsystems = MetadataXmlParser.ReadSubsystems(dump.RootPath);
 
         // Пустая конфигурация: нет ни типов, ни подсистем (нет каталога Configuration/
@@ -571,17 +882,24 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             summaries = summaries.Where(s => names.Contains(s.Name)).ToList();
         }
 
-        return new MetadataTreeNodeViewModel(
+        var typeNode = new MetadataTreeNodeViewModel(
             MetadataTreeNodeKind.Type,
             MetadataTypeLocalizer.GetDisplayName(typeDir, LocalizationManager.T),
             countText: summaries.Count > 0 ? $"({summaries.Count})" : string.Empty,
             childrenLoader: () => summaries.Select(CreateObjectNode),
-            hasChildren: summaries.Count > 0);
+            hasChildren: summaries.Count > 0,
+            typeDir: typeDir);
+        typeNode.IsVisible = IsTypeVisible(typeDir);
+        return typeNode;
     }
 
     /// <summary>Узел объекта метаданных (лист дерева; детали — по запросу при выборе).</summary>
-    private static MetadataTreeNodeViewModel CreateObjectNode(MetadataObjectSummary summary) =>
-        new(MetadataTreeNodeKind.Object, summary.Name, summary: summary);
+    private MetadataTreeNodeViewModel CreateObjectNode(MetadataObjectSummary summary)
+    {
+        var node = new MetadataTreeNodeViewModel(MetadataTreeNodeKind.Object, summary.Name, summary: summary);
+        node.IsVisible = IsTypeVisible(summary.TypeDir);
+        return node;
+    }
 
     /// <summary>Рекурсивно собирает полные имена состава всех подсистем («Тип.Имя»).</summary>
     private static void CollectContentKeys(IReadOnlyList<MetadataSubsystem> subsystems, ISet<string> target)
@@ -720,3 +1038,10 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             : message;
     }
 }
+
+/// <summary>
+/// Вариант фильтра по типу в ComboBox обозревателя (этап 3): пустой
+/// <see cref="Value"/> означает «Все типы», иначе — каталог типа метаданных
+/// в выгрузке (например <c>Catalog</c>); <see cref="DisplayName"/> — локализованное имя.
+/// </summary>
+public sealed record MetadataTypeFilterOption(string Value, string DisplayName);

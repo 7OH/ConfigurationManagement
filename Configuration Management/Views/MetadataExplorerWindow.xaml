@@ -29,7 +29,9 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Узел дерева: имя + счётчик «(N)»; узел-заглушка раскрывалки скрыт. -->
+        <!-- Узел дерева: имя + счётчик «(N)»; узел-заглушка раскрывалки и узлы,
+             скрытые фильтром по типу (IsVisible=false), не показываются;
+             совпадение поиска (IsMatch=true) подсвечивается фоном. -->
         <HierarchicalDataTemplate DataType="{x:Type vm:MetadataTreeNodeViewModel}"
                                   ItemsSource="{Binding Children}">
             <StackPanel Orientation="Horizontal">
@@ -40,11 +42,26 @@
                             <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
+                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
                 <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center"/>
+                           VerticalAlignment="Center" Padding="4,1">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMatch}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
                 <TextBlock Text="{Binding CountText}" Margin="6,0,0,0"
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            VerticalAlignment="Center"/>
@@ -57,7 +74,9 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -88,16 +107,29 @@
         <TextBlock Grid.Row="2" x:Name="ConfigurationTitleText" FontSize="14" FontWeight="SemiBold"
                    Margin="0,12,0,4" Text="{Binding ConfigurationTitle}"/>
 
+        <!-- Поиск по имени (debounce в VM) и фильтр по типу (этап 3) -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,6">
+            <TextBox Width="280" VerticalContentAlignment="Center"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="{loc:Loc MetadataExplorer.Search.Placeholder}"/>
+            <Button Content="{loc:Loc MetadataExplorer.Search.Clear}" Width="90"
+                    Margin="8,0,16,0" Click="OnClearSearch_Click"/>
+            <ComboBox Width="220" VerticalAlignment="Center"
+                      ItemsSource="{Binding TypeFilterOptions}"
+                      SelectedItem="{Binding TypeFilter}"
+                      DisplayMemberPath="DisplayName"/>
+        </StackPanel>
+
         <!-- Статус / ошибка -->
-        <TextBlock Grid.Row="3" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
+        <TextBlock Grid.Row="4" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
                    Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding StatusText}"/>
-        <TextBlock Grid.Row="3" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
+        <TextBlock Grid.Row="4" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
                    Foreground="#DC2626" Text="{Binding ErrorMessage}"
                    Style="{StaticResource ErrorMessageStyle}"
                    VerticalAlignment="Bottom" MaxHeight="60"/>
 
         <!-- Дерево + панель деталей -->
-        <Grid Grid.Row="4">
+        <Grid Grid.Row="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="300"/>
                 <ColumnDefinition Width="Auto"/>
@@ -216,14 +248,14 @@
         </Grid>
 
         <!-- Кнопки экспорта (заготовки этапа 4) -->
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="{loc:Loc MetadataExplorer.ExportCsv}" Width="140" Margin="0,0,8,0" IsEnabled="False"/>
             <Button Content="{loc:Loc MetadataExplorer.ExportTxt}" Width="140" Margin="0,0,8,0" IsEnabled="False"/>
             <Button Content="{loc:Loc Common.Close}" Width="100" IsCancel="True" Click="OnClose_Click"/>
         </StackPanel>
 
         <!-- Подсказка -->
-        <TextBlock Grid.Row="6" Margin="0,8,0,0" FontSize="11"
+        <TextBlock Grid.Row="7" Margin="0,8,0,0" FontSize="11"
                    Foreground="{DynamicResource TextSecondaryBrush}"
                    Text="{loc:Loc MetadataExplorer.Hint}" TextWrapping="Wrap"/>
     </Grid>

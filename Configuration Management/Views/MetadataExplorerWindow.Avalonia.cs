@@ -80,6 +80,9 @@ namespace Configuration_Management
             };
             configTitle.Bind(TextBlock.TextProperty, new Binding("ConfigurationTitle"));
 
+            // ---- Поиск по имени (debounce в VM) и фильтр по типу (этап 3) ----
+            var searchPanel = BuildSearchPanel();
+
             // ---- Статус / ошибка ----
             var status = new TextBlock
             {
@@ -160,20 +163,23 @@ namespace Configuration_Management
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Star),
+                    new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto)
                 },
-                Children = { title, sourcePanel, configTitle, status, error, mainGrid, buttons, hint }
+                Children = { title, sourcePanel, configTitle, searchPanel, status, error, mainGrid, buttons, hint }
             };
             Place(grid, title, 0);
             Place(grid, sourcePanel, 1);
             Place(grid, configTitle, 2);
-            Place(grid, status, 3);
-            Place(grid, error, 3);
-            Place(grid, mainGrid, 4);
-            Place(grid, buttons, 5);
-            Place(grid, hint, 6);
+            Place(grid, searchPanel, 3);
+            Place(grid, status, 4);
+            Place(grid, error, 4);
+            Place(grid, mainGrid, 5);
+            Place(grid, buttons, 6);
+            Place(grid, hint, 7);
 
             Content = grid;
         }
@@ -242,6 +248,48 @@ namespace Configuration_Management
             return panel;
         }
 
+        /// <summary>
+        /// Панель поиска и фильтра (этап 3): TextBox поиска (debounce в VM), кнопка
+        /// «Очистить», ComboBox фильтра по типу («Все типы» + типы выгрузки).
+        /// </summary>
+        private Control BuildSearchPanel()
+        {
+            var searchBox = new TextBox
+            {
+                Width = 280,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Watermark = LocalizationManager.T("MetadataExplorer.Search.Placeholder")
+            };
+            searchBox.Bind(TextBox.TextProperty, new Binding("SearchText", BindingMode.TwoWay)
+            {
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+            });
+
+            var clearButton = BuildActionButton(
+                LocalizationManager.T("MetadataExplorer.Search.Clear"),
+                () => _vm.SearchText = string.Empty);
+            clearButton.Width = 90;
+
+            var typeFilter = new ComboBox
+            {
+                Width = 220,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch
+            };
+            typeFilter.ItemsSource = _vm.TypeFilterOptions;
+            typeFilter.ItemTemplate = new FuncDataTemplate<MetadataTypeFilterOption>(
+                (option, _) => new TextBlock { Text = option.DisplayName });
+            typeFilter.Bind(SelectingItemsControl.SelectedItemProperty, new Binding("TypeFilter", BindingMode.TwoWay));
+
+            return new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 0, 0, 6),
+                Children = { searchBox, clearButton, typeFilter }
+            };
+        }
+
         /// <summary>Дерево метаданных: шаблон узла (имя + счётчик), раскрытие → EnsureLoaded.</summary>
         private void BuildTree()
         {
@@ -287,8 +335,24 @@ namespace Configuration_Management
             {
                 Text = node.DisplayName,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(4, 1)
             };
+            // Подсветка совпадения поиска: фон узла по IsMatch (этап 3). DataTrigger
+            // в код-билде Avalonia неудобен — подписываемся на смену пометки узла.
+            var highlightBrush = new SolidColorBrush(Color.Parse("#06B6D4"));
+            void ApplyMatchHighlight()
+            {
+                name.Background = node.IsMatch ? highlightBrush : Brushes.Transparent;
+                name.Foreground = node.IsMatch ? Brushes.White : null;
+            }
+            ApplyMatchHighlight();
+            node.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(MetadataTreeNodeViewModel.IsMatch))
+                    ApplyMatchHighlight();
+            };
+
             var count = new TextBlock
             {
                 Text = node.CountText,
@@ -302,6 +366,8 @@ namespace Configuration_Management
                 Orientation = Orientation.Horizontal,
                 Margin = new Thickness(0, 1)
             };
+            // Фильтр по типу: узел скрывается, когда его тип не совпадает с TypeFilter.
+            row.Bind(Visual.IsVisibleProperty, new Binding("IsVisible"));
             row.Children.Add(name);
             if (node.CountText.Length > 0)
                 row.Children.Add(count);
