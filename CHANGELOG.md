@@ -9,6 +9,28 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.141] — 2026-09-29
+
+### Исправлено
+
+- **Окно редактирования сценария по содержимому (issue #308)** — фиксированная
+  высота заменена на авторазмер: окно подстраивается под контент и внутренний
+  скролл не появляется (как в окне создания ИБ, 0.3.9.113); `MaxHeight` ограничивает
+  рост на низких экранах
+  ([`Views/ScriptScenarioEditWindow.xaml`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml),
+  [`Views/ScriptScenarioEditWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.Avalonia.cs)).
+- **Комбобокс «База для примера подстановок» показывает имя базы (issue #308, регресс)** —
+  на Linux/Avalonia вместо имени снова выводится имя базы, а не `ToString()` элемента:
+  шаблон элемента упрощён до `TextBlock` с именем (цвет наследуется из темы), первая
+  база выбирается по индексу — как в WPF-версии
+  ([`Views/ScriptScenarioEditWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.Avalonia.cs)).
+- **«Скрывать окно скрипта»: видимое окно при снятой галке (issue #308)** — при снятой
+  галке окно PowerShell/cmd снова появляется: для видимого окна на Windows запуск идёт
+  через shell (`UseShellExecute = true`), а поведение по умолчанию (pre/post-команды баз,
+  CLI — окно скрыто) не изменилось
+  ([`Services/ExternalCommandRunner.cs`](Configuration%20Management/Services/ExternalCommandRunner.cs),
+  [`ConfigurationManagement.Tests/ExternalCommandRunnerTests.cs`](ConfigurationManagement.Tests/ExternalCommandRunnerTests.cs)).
+
 ## [0.3.9.140] — 2026-09-29
 
 ### Исправлено

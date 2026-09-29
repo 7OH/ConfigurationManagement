@@ -89,6 +89,8 @@ public sealed class ExternalCommandRunnerTests
 
         Assert.Equal("cmd.exe", startInfo.FileName);
         Assert.True(startInfo.CreateNoWindow);
+        // Дефолт (pre/post-команды баз, CLI) — без UseShellExecute, как было всегда.
+        Assert.False(startInfo.UseShellExecute);
     }
 
     [Fact]
@@ -98,10 +100,14 @@ public sealed class ExternalCommandRunnerTests
             return;
 
         // Снятая галка «Скрывать окно скрипта» → консольное окно cmd видимо.
+        // Видимое окно требует UseShellExecute = true (запуск через shell с новым окном,
+        // issue #308): с UseShellExecute = false процесс GUI-приложения без консоли окна
+        // не создаёт даже при CreateNoWindow = false.
         var startInfo = ExternalCommandRunner.CreateProcessStartInfo("echo hello", createNoWindow: false);
 
         Assert.Equal("cmd.exe", startInfo.FileName);
         Assert.False(startInfo.CreateNoWindow);
+        Assert.True(startInfo.UseShellExecute);
     }
 
     [Fact]
@@ -113,6 +119,8 @@ public sealed class ExternalCommandRunnerTests
         var startInfo = ExternalCommandRunner.CreateProcessStartInfo("echo hello");
 
         Assert.Equal("/bin/sh", startInfo.FileName);
+        // На Linux UseShellExecute не поддерживается — остаётся false и при видимом окне.
+        Assert.False(startInfo.UseShellExecute);
     }
 
     // ------------------- Исполнение тривиальных процессов -------------------

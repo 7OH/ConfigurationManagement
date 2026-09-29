@@ -55,9 +55,15 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _vm = new ScriptScenarioEditViewModel(scenario);
         Title = T(scenario is null ? "Script.AddTitle" : "Script.EditTitle");
         Width = 640;
-        Height = 680;
         MinWidth = 560;
         MinHeight = 580;
+        // Авторазмер по содержимому (issue #308): высота подстраивается под контент, чтобы
+        // не было внутреннего скролла — как в CreateInfobaseWindow (0.3.9.113). MaxHeight
+        // не даёт окну вытянуться слишком высоко (тогда появляется скролл), MinHeight —
+        // слишком сжаться.
+        MaxHeight = 800;
+        CanResize = true;
+        SizeToContent = SizeToContent.Height;
         FontSize = 13;
         Content = BuildRoot();
 
@@ -170,14 +176,16 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         }
         _exampleBaseCombo.ItemsSource = _infobases;
         // Отображение имени базы вместо имени типа (issue #308): Infobase не переопределяет
-        // ToString(), поэтому имя выводим через ItemTemplate.
+        // ToString(), поэтому имя выводим через ItemTemplate. Простой TextBlock без ручной
+        // привязки кисти (цвет наследуется из темы окна) — по образцу MetadataExplorerWindow:
+        // шаблон с ThemeBrushes.Bind мог не применяться к закрытому комбобоксу, и вместо
+        // имени показывался ToString() элемента (регресс после 0.3.9.119).
         _exampleBaseCombo.ItemTemplate = new FuncDataTemplate<Infobase>((ib, _) =>
-        {
-            var tb = new TextBlock { Text = ib.Name };
-            ThemeBrushes.Bind(tb, TextBlock.ForegroundProperty, "TextPrimaryColorBrush");
-            return tb;
-        });
-        _exampleBaseCombo.SelectedItem = _infobases.FirstOrDefault();
+            new TextBlock { Text = ib.Name });
+        // Выбор первой базы по индексу, как в WPF-версии и ConfigDiffSetupWindow: установка
+        // SelectedItem объектом до показа окна не гарантирует отрисовку шаблона.
+        if (_infobases.Count > 0)
+            _exampleBaseCombo.SelectedIndex = 0;
         _exampleBaseCombo.HorizontalAlignment = HorizontalAlignment.Left;
         _exampleBaseCombo.MinWidth = 260;
         _exampleBaseCombo.SelectionChanged += (_, _) => UpdatePreview();

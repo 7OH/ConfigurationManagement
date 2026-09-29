@@ -54,13 +54,20 @@ public static class ExternalCommandRunner
     public static ProcessStartInfo CreateProcessStartInfo(string? command, bool createNoWindow = true)
     {
         var (fileName, arguments) = BuildShellCommand(command);
+        // Видимое окно (createNoWindow == false) на Windows требует UseShellExecute = true
+        // (запуск через shell с новым окном): с UseShellExecute = false процесс GUI-приложения
+        // без консоли окна не создаёт даже при CreateNoWindow = false (issue #308). Дефолт
+        // createNoWindow = true (pre/post-команды баз, CLI) остаётся на UseShellExecute = false.
+        // На Linux флаг UseShellExecute не поддерживается, а окно там зависит от окружения —
+        // оставляем как есть.
+        var useShellExecute = !createNoWindow && OperatingSystem.IsWindows();
         // Без перенаправления вывода: поток чтения при большом объёме мог бы
         // заблокировать процесс (дедлок буфера), а консольное окно — по запросу.
         return new ProcessStartInfo
         {
             FileName = fileName,
             Arguments = arguments,
-            UseShellExecute = false,
+            UseShellExecute = useShellExecute,
             CreateNoWindow = createNoWindow
         };
     }
