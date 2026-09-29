@@ -37,8 +37,11 @@ namespace Configuration_Management
                 return BuildGroupRow(group);
             // Обёртка строки в узле «Закреплённые»: строим карточку по реальной базе,
             // вся логика строки (кнопки, подписки, команды) привязана к ней (issue #301).
+            // Пакетную подсветку (pinnedRow: true) НЕ вешаем: IsBatchSelected живёт
+            // на реальной базе, и её закреплённая копия не должна подсвечиваться
+            // вместе с диапазоном Shift-выделения (issue #314).
             if (item is PinnedInfobaseItem pinned)
-                return BuildInfobaseRow(pinned.Base);
+                return BuildInfobaseRow(pinned.Base, pinnedRow: true);
             if (item is Infobase ib)
                 return BuildInfobaseRow(ib);
             return new TextBlock { Text = item?.ToString() ?? string.Empty };
@@ -199,7 +202,13 @@ namespace Configuration_Management
             return button;
         }
 
-        private Control BuildInfobaseRow(Infobase ib)
+        /// <param name="pinnedRow">
+        /// Строка узла «Закреплённые» (обёртка <see cref="PinnedInfobaseItem"/>): пакетную
+        /// подсветку не вешаем — флаг <see cref="Infobase.IsBatchSelected"/> живёт на
+        /// реальной базе, и закреплённая копия не должна подсвечиваться вместе с
+        /// диапазоном Shift-выделения (issue #314).
+        /// </param>
+        private Control BuildInfobaseRow(Infobase ib, bool pinnedRow = false)
         {
             // Карточка с фоном/границей из темы; hover и выделение отслеживает сама
             // (см. InfobaseRowCard): обычное → CardBackgroundBrush, hover → ItemHoverBrush,
@@ -208,19 +217,23 @@ namespace Configuration_Management
 
             // Мультивыделение (0.3.9.90): флаг IsBatchSelected меняется Ctrl/Shift-кликом
             // и живёт на модели, поэтому строка подписывается на его изменения и
-            // перекрашивает карточку без пересборки всего дерева.
-            card.AddSubscription(() =>
+            // перекрашивает карточку без пересборки всего дерева. Для строки узла
+            // «Закреплённые» подписка не создаётся (issue #314).
+            if (!pinnedRow)
             {
-                void OnBatchChanged(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+                card.AddSubscription(() =>
                 {
-                    if (e.PropertyName == nameof(Infobase.IsBatchSelected))
-                        card.SetBatchSelected(ib.IsBatchSelected);
-                }
+                    void OnBatchChanged(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+                    {
+                        if (e.PropertyName == nameof(Infobase.IsBatchSelected))
+                            card.SetBatchSelected(ib.IsBatchSelected);
+                    }
 
-                ib.PropertyChanged += OnBatchChanged;
-                card.SetBatchSelected(ib.IsBatchSelected);
-                return new ActionDisposable(() => ib.PropertyChanged -= OnBatchChanged);
-            });
+                    ib.PropertyChanged += OnBatchChanged;
+                    card.SetBatchSelected(ib.IsBatchSelected);
+                    return new ActionDisposable(() => ib.PropertyChanged -= OnBatchChanged);
+                });
+            }
 
             var grid = new Grid();
             // Слева направо: звезда, булавка, иконка типа подключения, имя базы,

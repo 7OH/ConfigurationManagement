@@ -1706,10 +1706,19 @@
                                                     <Style.Triggers>
                                                         <!-- Мультивыделение (0.3.9.90): строка, помеченная Ctrl/Shift-кликом,
                                                              получает вторичный фон «для выделенных». Основное выделение
-                                                             (TreeViewItem.IsSelected) объявлено ПОЗЖЕ и перекрывает его. -->
-                                                        <DataTrigger Binding="{Binding IsBatchSelected}" Value="True">
+                                                             (TreeViewItem.IsSelected) объявлено ПОЗЖЕ и перекрывает его.
+                                                             Строки узла «Закреплённые» пакетную подсветку НЕ получают
+                                                             (issue #314): их ContentControl-обёртка помечена Tag="pinned",
+                                                             второе условие (Tag == null) блокирует триггер — иначе
+                                                             закреплённая копия подсвечивалась бы вместе с реальной базой,
+                                                             легитимно попавшей в Shift-диапазон. -->
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsBatchSelected}" Value="True"/>
+                                                                <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentControl}}" Value="{x:Null}"/>
+                                                            </MultiDataTrigger.Conditions>
                                                             <Setter Property="Background" Value="{DynamicResource ItemSelectedBrush}"/>
-                                                        </DataTrigger>
+                                                        </MultiDataTrigger>
                                                         <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="True">
                                                             <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
                                                         </DataTrigger>
@@ -2194,10 +2203,16 @@
                                  обычный шаблон базы, применённый к реальной базе (Base):
                                  привязки, кнопки и команды строки работают как раньше.
                                  Раньше в узел клался прямой экземпляр Infobase, и выбор
-                                 строки подсвечивал её копию в «Закреплённых» (и наоборот). -->
+                                 строки подсвечивал её копию в «Закреплённых» (и наоборот).
+                                 Tag="pinned" — маркер строки узла «Закреплённые»: пакетная
+                                 подсветка (MultiDataTrigger в InfobaseRowTemplate) требует
+                                 Tag == null у обёртки, поэтому закреплённая копия НЕ
+                                 подсвечивается вместе с реальной базой, попавшей
+                                 в Shift-диапазон (issue #314). -->
                             <DataTemplate DataType="{x:Type vm:PinnedInfobaseItem}">
                                 <ContentControl Content="{Binding Base}"
-                                                ContentTemplate="{StaticResource InfobaseRowTemplate}"/>
+                                                ContentTemplate="{StaticResource InfobaseRowTemplate}"
+                                                Tag="pinned"/>
                             </DataTemplate>
 
                             <!-- Автовыбор для обычных строк базы (регресс 0.3.9.115, issue #317):
