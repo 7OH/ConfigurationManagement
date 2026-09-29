@@ -27,7 +27,7 @@ namespace Configuration_Management
     public sealed class ActualReleasesWindow : ModalWindowBase
     {
         private readonly Services.IOneCUpdatesService _updates = AppServices.GetRequiredService<Services.IOneCUpdatesService>();
-        private readonly Services.IInfobaseRepository _repository = AppServices.GetRequiredService<Services.IInfobaseRepository>();
+        private readonly Services.ICustomConfigTypesStore _store = AppServices.GetRequiredService<Services.ICustomConfigTypesStore>();
         private readonly Services.IAppLogger _logger = AppServices.GetRequiredService<Services.IAppLogger>();
         private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -75,15 +75,14 @@ namespace Configuration_Management
 
         private static string T(string key) => LocalizationManager.T(key);
 
-        /// <summary>Формирует строки из отслеживаемых конфигураций (предопределённых и пользовательских).</summary>
+        /// <summary>Формирует строки из отслеживаемых конфигураций (предопределённых и пользовательских).
+        /// Общий список типовых = встроенные + пользовательские из файла custom_config_types.json
+        /// (единый загрузчик <see cref="Services.ICustomConfigTypesStore"/> — issue #321).</summary>
         private void BuildRows()
         {
             try
             {
-                var settings = _repository.LoadSettings();
-                var custom = settings.CustomConfigTypes ?? new List<OneCConfigType>();
-
-                var all = BuiltInConfigTypes.All.Concat(custom).ToList();
+                var all = _store.LoadAll();
                 foreach (var config in all)
                 {
                     if (!config.IsTracked)

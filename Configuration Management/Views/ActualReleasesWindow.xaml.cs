@@ -23,7 +23,7 @@ namespace Configuration_Management;
 public partial class ActualReleasesWindow : Window
 {
     private readonly IOneCUpdatesService _updates = AppServices.GetRequiredService<IOneCUpdatesService>();
-    private readonly IInfobaseRepository _repository = AppServices.GetRequiredService<IInfobaseRepository>();
+    private readonly ICustomConfigTypesStore _store = AppServices.GetRequiredService<ICustomConfigTypesStore>();
     private readonly IAppLogger _logger = AppServices.GetRequiredService<IAppLogger>();
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -85,15 +85,14 @@ public partial class ActualReleasesWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>Формирует строки из отслеживаемых конфигураций (предопределённых и пользовательских).</summary>
+    /// <summary>Формирует строки из отслеживаемых конфигураций (предопределённых и пользовательских).
+    /// Общий список типовых = встроенные + пользовательские из файла custom_config_types.json
+    /// (единый загрузчик <see cref="ICustomConfigTypesStore"/> — issue #321).</summary>
     private void BuildRows()
     {
         try
         {
-            var settings = _repository.LoadSettings();
-            var custom = settings.CustomConfigTypes ?? new List<OneCConfigType>();
-
-            var all = BuiltInConfigTypes.All.Concat(custom).ToList();
+            var all = _store.LoadAll();
             foreach (var config in all)
             {
                 if (!config.IsTracked)

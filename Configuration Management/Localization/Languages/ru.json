@@ -2116,6 +2116,11 @@
     "Updates.CheckTitle": "Проверка обновлений",
     "Updates.ActualReleasesTitle": "Актуальные релизы",
     "Updates.ConfigTypesTitle": "Типовые конфигурации",
+    "Updates.ConfigTypesExplanation": "Список каталогов релизов обновлений 1С для проверки обновлений (F9) и окна «Актуальные релизы». Конфигурации со значком ★ — предопределённые, их нельзя изменить или удалить. Остальные добавляются, правятся и удаляются кнопками в строке.",
+    "Updates.CustomStorageHint": "Пользовательские конфигурации хранятся в файле custom_config_types.json рядом с настройками приложения — его можно править вручную и передавать другим.",
+    "Updates.ConfigCode": "Код",
+    "Updates.Nick": "Ник на releases.1c.ru",
+    "Updates.NameRequired": "Укажите наименование конфигурации.",
 
     "Backup.ScenariosTitle": "Сценарии резервирования",
     "Backup.AddScenario": "Новый сценарий",

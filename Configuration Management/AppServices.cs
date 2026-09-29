@@ -27,6 +27,9 @@ public static class AppServices
         services.AddSingleton<ICreateInfobaseService, CreateInfobaseService>();
         // Проверка обновлений конфигураций 1С по web-ресурсу обновлений (функции №21/№22).
         services.AddSingleton<IOneCUpdatesService, OneCUpdatesService>();
+        // Пользовательские типовые конфигурации 1С (issue #321): отдельный читаемый JSON-файл
+        // custom_config_types.json рядом с настройками; миграция из AppSettings.CustomConfigTypes.
+        services.AddSingleton<ICustomConfigTypesStore, CustomConfigTypesStore>();
         // Сценарии резервирования и восстановление (функции №16/№18): хранилище сценариев,
         // архивация ZIP/RAR и оркестратор выполнения. Чистые сервисы — без UI-зависимостей.
         services.AddSingleton<IBackupScenarioStore, BackupScenarioStore>();

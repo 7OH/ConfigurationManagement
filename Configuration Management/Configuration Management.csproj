@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.159</Version>
-    <AssemblyVersion>0.3.9.159</AssemblyVersion>
-    <FileVersion>0.3.9.159</FileVersion>
-    <InformationalVersion>0.3.9.159</InformationalVersion>
+    <Version>0.3.9.160</Version>
+    <AssemblyVersion>0.3.9.160</AssemblyVersion>
+    <FileVersion>0.3.9.160</FileVersion>
+    <InformationalVersion>0.3.9.160</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -215,7 +215,8 @@
     <Compile Remove="Views\SettingsWindow.Accounts.cs" />
     <!-- Окна Этапа 1 (проверка обновлений конфигураций): WPF code-behind исключается,
          Avalonia-версии (*Window.Avalonia.cs) подключаются глобом ниже. -->
-    <Compile Remove="Views\ConfigTypesEditWindow.xaml.cs" />
+<Compile Remove="Views\ConfigTypesEditWindow.xaml.cs" />
+<Compile Remove="Views\ConfigTypeEditWindow.xaml.cs" />
     <Compile Remove="Views\UpdateCheckWindow.xaml.cs" />
     <Compile Remove="Views\ActualReleasesWindow.xaml.cs" />
     <Compile Remove="Views\ConfigUpdateLinkWindow.xaml.cs" />

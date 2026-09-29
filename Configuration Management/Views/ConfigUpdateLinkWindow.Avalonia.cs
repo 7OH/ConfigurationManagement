@@ -30,6 +30,7 @@ namespace Configuration_Management
     {
         private readonly Services.IOneCUpdatesService _updates = AppServices.GetRequiredService<Services.IOneCUpdatesService>();
         private readonly Services.IInfobaseRepository _repository = AppServices.GetRequiredService<Services.IInfobaseRepository>();
+        private readonly Services.ICustomConfigTypesStore _store = AppServices.GetRequiredService<Services.ICustomConfigTypesStore>();
         private readonly Services.IAppLogger _logger = AppServices.GetRequiredService<Services.IAppLogger>();
         private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -109,11 +110,10 @@ namespace Configuration_Management
         {
             try
             {
-                var settings = _repository.LoadSettings();
-                var custom = settings.CustomConfigTypes ?? new List<OneCConfigType>();
+                // Общий список типовых = встроенные + пользовательские из файла
+                // custom_config_types.json (единый загрузчик — issue #321).
                 _configs.Clear();
-                _configs.AddRange(BuiltInConfigTypes.All);
-                _configs.AddRange(custom);
+                _configs.AddRange(_store.LoadAll());
             }
             catch (Exception ex)
             {

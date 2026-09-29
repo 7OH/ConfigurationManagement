@@ -1,0 +1,161 @@
+<Window x:Class="Configuration_Management.ConfigTypeEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Icon="{StaticResource AppIcon}"
+        Width="680" Height="580"
+        MinHeight="500" MinWidth="560"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <!-- Основная зелёная кнопка -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#16A34A"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#15803D"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#166534"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Серая кнопка-контур -->
+        <Style x:Key="OutlineButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ItemHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="EditorTitle" Grid.Row="0" FontSize="15" FontWeight="SemiBold"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+            <StackPanel>
+                <!-- Код конфигурации: стабильный код для связи ИБ ↔ конфигурация.
+                     При добавлении с пустым кодом он генерируется из наименования. -->
+                <TextBlock Text="{loc:Loc Updates.ConfigCode}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="CodeBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+
+                <TextBlock Text="{loc:Loc Updates.Name}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <TextBox x:Name="NameBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+
+                <TextBlock Text="{loc:Loc Updates.UrlCode}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <TextBox x:Name="UrlCodeBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+
+                <TextBlock Text="{loc:Loc Updates.Nick}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <TextBox x:Name="NickBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+
+                <TextBlock Text="{loc:Loc Updates.Editions}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <ListBox Grid.Row="0" Grid.ColumnSpan="4" x:Name="EditionsList" MaxHeight="110"
+                             Margin="0,0,0,6" SelectionChanged="OnEditionSelectionChanged"
+                             DisplayMemberPath="Name">
+                    </ListBox>
+
+                    <TextBox Grid.Row="1" Grid.Column="0" x:Name="EditionNameBox" Margin="0,0,6,0" Padding="6,5"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="EditionRedBox" Margin="0,0,6,0" Padding="6,5"/>
+                    <TextBox Grid.Row="1" Grid.Column="2" x:Name="EditionSubRedBox" Margin="0,0,6,0" Padding="6,5"/>
+                    <TextBox Grid.Row="1" Grid.Column="3" x:Name="EditionUrlOverrideBox" Padding="6,5"/>
+
+                    <StackPanel Grid.Row="2" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button x:Name="AddEditionButton" Height="30" Style="{StaticResource OutlineButtonStyle}"
+                                Margin="0,0,8,0" Click="OnAddEditionClick">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Plus" Width="16" Height="16"/>
+                                <TextBlock Text="{loc:Loc Updates.Add}" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="RemoveEditionButton" Height="30" Style="{StaticResource OutlineButtonStyle}"
+                                Click="OnRemoveEditionClick">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Minus" Width="16" Height="16" Foreground="#EF4444"/>
+                                <TextBlock Text="{loc:Loc Updates.Delete}" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="SaveButton" Width="140" Height="34" Margin="0,0,10,0" IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}" Click="OnSaveClick">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="Check" Width="16" Height="16" Foreground="White"/>
+                    <TextBlock Text="{loc:Loc Updates.Save}" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="White"/>
+                </StackPanel>
+            </Button>
+            <Button Width="120" Height="34" IsCancel="True" Style="{StaticResource OutlineButtonStyle}"
+                    Click="OnCancelClick">
+                <TextBlock Text="{loc:Loc Updates.Cancel}" VerticalAlignment="Center"/>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

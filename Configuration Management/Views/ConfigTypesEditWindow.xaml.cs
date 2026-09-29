@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
@@ -14,48 +13,34 @@ using Configuration_Management.ViewModels;
 namespace Configuration_Management;
 
 /// <summary>
-/// Окно редактирования списка типовых конфигураций 1С: позволяет добавить, изменить и удалить
-/// пользовательские конфигурации (имя, сегмент URL и редакции/каталоги релизов). Предопределённые
-/// конфигурации из <see cref="BuiltInConfigTypes"/> показываются только для чтения. Список
-/// пользовательских конфигураций загружается из и сохраняется в <see cref="AppSettings.CustomConfigTypes"/>
-/// через репозиторий при закрытии окна.
+/// Окно «Типовые конфигурации» (issue #321): список предопределённых (только для чтения)
+/// и пользовательских конфигураций 1С. Добавление/правка выполняются в отдельном модальном
+/// окне <see cref="ConfigTypeEditWindow"/> — «Правка» больше не переключает это окно «два в
+/// одном», а «Закрыть» закрывает только список. Изменения сохраняются сразу в файл
+/// <c>custom_config_types.json</c> через <see cref="ICustomConfigTypesStore"/> и переживают
+/// перезапуск. Предопределённые конфигурации из <see cref="BuiltInConfigTypes"/> нельзя
+/// изменять или удалять (общие статические экземпляры — их мутация «расползалась» по другим
+/// окнам: актуальные релизы, проверка обновлений, связь с конфигурацией).
 /// </summary>
 public partial class ConfigTypesEditWindow : Window
 {
-    private readonly IInfobaseRepository _repository = AppServices.GetRequiredService<IInfobaseRepository>();
+    private readonly ICustomConfigTypesStore _store = AppServices.GetRequiredService<ICustomConfigTypesStore>();
     private readonly IAppLogger _logger = AppServices.GetRequiredService<IAppLogger>();
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
     private readonly List<OneCConfigType> _customTypes = new();
     private readonly ObservableCollection<ConfigTypeItemViewModel> _rows = new();
-    private readonly ObservableCollection<OneCConfigEdition> _editions = new();
-
-    private ConfigTypeItemViewModel? _editingRow;
-    private bool _editingIsNew;
 
     /// <summary>
     /// Открывает окно редактирования списка типовых конфигураций.
     /// </summary>
-    /// <param name="initialCustomTypes">Необязательные начальные пользовательские конфигурации.
-    /// Если не заданы — загружаются из настроек репозитория.</param>
-    public ConfigTypesEditWindow(IEnumerable<OneCConfigType>? initialCustomTypes = null)
+    public ConfigTypesEditWindow()
     {
         InitializeComponent();
         ConfigGrid.ItemsSource = _rows;
-        EditionsList.ItemsSource = _editions;
 
-        if (initialCustomTypes is not null)
-        {
-            foreach (var ct in initialCustomTypes)
-                _customTypes.Add(ct);
-        }
-        else
-        {
-            LoadCustomTypes();
-        }
-
+        LoadCustomTypes();
         RebuildRows();
-        Closing += (_, _) => SaveCustomTypes();
 
         // Закрытие окна по Esc (issue #265): единообразно с Avalonia-базой ModalWindowBase.
         PreviewKeyDown += OnWindow_PreviewKeyDown;
@@ -75,9 +60,8 @@ public partial class ConfigTypesEditWindow : Window
     {
         try
         {
-            var settings = _repository.LoadSettings();
             _customTypes.Clear();
-            foreach (var ct in settings.CustomConfigTypes ?? new List<OneCConfigType>())
+            foreach (var ct in _store.Load())
                 _customTypes.Add(ct);
         }
         catch (Exception ex)
@@ -101,13 +85,40 @@ public partial class ConfigTypesEditWindow : Window
         _rows.Add(new ConfigTypeItemViewModel(config, OnEditRow, OnDeleteRow));
     }
 
+    /// <summary>Открывает отдельное окно правки пользовательской конфигурации.</summary>
     private void OnEditRow(ConfigTypeItemViewModel row)
     {
-        OpenEditor(row, isNew: false);
+        if (row.IsBuiltIn)
+            return; // Предопределённые конфигурации только для чтения.
+
+        var edit = new ConfigTypeEditWindow(row.Model) { Owner = this };
+        if (edit.ShowDialog() != true || edit.Result is not { } updated)
+            return; // Отмена — модель не изменялась (правка велась на копии).
+
+        ApplyTo(row.Model, updated);
+        row.Refresh();
+        Save();
+    }
+
+    /// <summary>Открывает отдельное окно создания новой пользовательской конфигурации.</summary>
+    private void OnAddConfigClick(object sender, RoutedEventArgs e)
+    {
+        var edit = new ConfigTypeEditWindow() { Owner = this };
+        if (edit.ShowDialog() != true || edit.Result is not { } created)
+            return;
+
+        created.IsBuiltIn = false;
+        created.IsTracked = true;
+        _customTypes.Add(created);
+        AddRow(created);
+        Save();
     }
 
     private void OnDeleteRow(ConfigTypeItemViewModel row)
     {
+        if (row.IsBuiltIn)
+            return; // Предопределённые конфигурации нельзя удалить.
+
         if (!_dialogs.Confirm(LocalizationManager.T("Updates.ConfirmDelete"),
                 LocalizationManager.T("Updates.ConfigTypesTitle")))
             return;
@@ -115,6 +126,7 @@ public partial class ConfigTypesEditWindow : Window
         {
             _customTypes.Remove(row.Model);
             _rows.Remove(row);
+            Save();
         }
         catch (Exception ex)
         {
@@ -122,153 +134,29 @@ public partial class ConfigTypesEditWindow : Window
         }
     }
 
-    private void OnAddConfigClick(object sender, RoutedEventArgs e)
-    {
-        var config = new OneCConfigType { IsBuiltIn = false, IsTracked = true };
-        _customTypes.Add(config);
-        var row = new ConfigTypeItemViewModel(config, OnEditRow, OnDeleteRow);
-        _rows.Add(row);
-        OpenEditor(row, isNew: true);
-    }
-
-    private void OpenEditor(ConfigTypeItemViewModel row, bool isNew)
-    {
-        _editingRow = row;
-        _editingIsNew = isNew;
-
-        EditorTitle.Text = isNew
-            ? LocalizationManager.T("Updates.AddConfig")
-            : LocalizationManager.T("Updates.EditConfig");
-
-        NameBox.Text = row.Model.Name;
-        UrlCodeBox.Text = row.Model.UrlCode;
-
-        _editions.Clear();
-        foreach (var ed in row.Model.Editions)
-            _editions.Add(ed);
-        EditionNameBox.Text = string.Empty;
-        EditionRedBox.Text = string.Empty;
-        EditionSubRedBox.Text = string.Empty;
-        EditionUrlOverrideBox.Text = string.Empty;
-
-        ConfigGrid.Visibility = Visibility.Collapsed;
-        EditorPanel.Visibility = Visibility.Visible;
-        NameBox.Focus();
-    }
-
-    private void OnEditorSaveClick(object sender, RoutedEventArgs e)
-    {
-        if (_editingRow is null)
-            return;
-
-        CommitEditionFields();
-
-        var name = NameBox.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            _dialogs.ShowWarning(LocalizationManager.T("Updates.NoConfigSelected"),
-                LocalizationManager.T("Updates.ConfigTypesTitle"));
-            NameBox.Focus();
-            return;
-        }
-
-        var model = _editingRow.Model;
-        model.Name = name;
-        model.UrlCode = UrlCodeBox.Text?.Trim() ?? string.Empty;
-        model.Editions.Clear();
-        foreach (var ed in _editions)
-            model.Editions.Add(ed);
-
-        _editingRow.Refresh();
-        CloseEditor();
-    }
-
-    private void OnEditorCancelClick(object sender, RoutedEventArgs e)
-    {
-        if (_editingIsNew && _editingRow is not null)
-        {
-            // Новая конфигурация, добавленная на «Добавить», но не сохранённая — убрать её.
-            _customTypes.Remove(_editingRow.Model);
-            _rows.Remove(_editingRow);
-        }
-        CloseEditor();
-    }
-
-    private void CloseEditor()
-    {
-        _editingRow = null;
-        _editingIsNew = false;
-        ConfigGrid.Visibility = Visibility.Visible;
-        EditorPanel.Visibility = Visibility.Collapsed;
-    }
-
-    private void OnAddEditionClick(object sender, RoutedEventArgs e)
-    {
-        CommitEditionFields();
-        var edition = new OneCConfigEdition { Name = LocalizationManager.T("Updates.Name") };
-        _editions.Add(edition);
-        EditionsList.SelectedItem = edition;
-    }
-
-    private void OnRemoveEditionClick(object sender, RoutedEventArgs e)
-    {
-        if (EditionsList.SelectedItem is not OneCConfigEdition edition)
-            return;
-        var index = _editions.IndexOf(edition);
-        _editions.Remove(edition);
-        EditionNameBox.Text = string.Empty;
-        EditionRedBox.Text = string.Empty;
-        EditionSubRedBox.Text = string.Empty;
-        EditionUrlOverrideBox.Text = string.Empty;
-        if (_editions.Count > 0)
-            EditionsList.SelectedIndex = Math.Min(index, _editions.Count - 1);
-    }
-
-    private void OnEditionSelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        CommitEditionFields();
-        if (EditionsList.SelectedItem is OneCConfigEdition edition)
-            LoadEditionFields(edition);
-        else
-        {
-            EditionNameBox.Text = string.Empty;
-            EditionRedBox.Text = string.Empty;
-            EditionSubRedBox.Text = string.Empty;
-            EditionUrlOverrideBox.Text = string.Empty;
-        }
-    }
-
-    /// <summary>Переносит значения полей редактора в выбранную редакцию.</summary>
-    private void CommitEditionFields()
-    {
-        if (EditionsList.SelectedItem is not OneCConfigEdition edition)
-            return;
-        edition.Name = EditionNameBox.Text?.Trim() ?? string.Empty;
-        edition.Red = EditionRedBox.Text?.Trim() ?? string.Empty;
-        edition.SubRed = EditionSubRedBox.Text?.Trim() ?? string.Empty;
-        edition.UrlOverride = EditionUrlOverrideBox.Text?.Trim() ?? string.Empty;
-    }
-
-    private void LoadEditionFields(OneCConfigEdition edition)
-    {
-        EditionNameBox.Text = edition.Name;
-        EditionRedBox.Text = edition.Red;
-        EditionSubRedBox.Text = edition.SubRed;
-        EditionUrlOverrideBox.Text = edition.UrlOverride;
-    }
-
-    private void SaveCustomTypes()
+    /// <summary>Сразу сохраняет пользовательские конфигурации в файл custom_config_types.json.</summary>
+    private void Save()
     {
         try
         {
-            var settings = _repository.LoadSettings();
-            settings.CustomConfigTypes = new List<OneCConfigType>(_customTypes);
-            _repository.SaveSettings(settings);
+            _store.Save(_customTypes);
         }
         catch (Exception ex)
         {
             _logger.Error("Ошибка сохранения списка типовых конфигураций", ex);
         }
+    }
+
+    /// <summary>Переносит отредактированную копию в модель строки (изменение одной строки не
+    /// влияет на другие конфигурации — правка велась на отдельном экземпляре).</summary>
+    private static void ApplyTo(OneCConfigType target, OneCConfigType source)
+    {
+        target.Code = source.Code;
+        target.Name = source.Name;
+        target.UrlCode = source.UrlCode;
+        target.Nick = source.Nick;
+        target.Editions.Clear();
+        target.Editions.AddRange(source.Editions);
     }
 
     private void OnClose_Click(object sender, RoutedEventArgs e)

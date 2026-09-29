@@ -2116,6 +2116,11 @@
     "Updates.CheckTitle": "Check for updates",
     "Updates.ActualReleasesTitle": "Actual releases",
     "Updates.ConfigTypesTitle": "Standard configurations",
+    "Updates.ConfigTypesExplanation": "List of 1C update release catalogs used by the update check (F9) and the \"Actual releases\" window. Configurations marked with ★ are built-in and cannot be edited or deleted. The rest are added, edited and deleted with the row buttons.",
+    "Updates.CustomStorageHint": "Custom configurations are stored in the custom_config_types.json file next to the application settings — you can edit it manually and share it.",
+    "Updates.ConfigCode": "Code",
+    "Updates.Nick": "Nickname on releases.1c.ru",
+    "Updates.NameRequired": "Specify the configuration name.",
 
     "Backup.ScenariosTitle": "Backup scenarios",
     "Backup.AddScenario": "New scenario",

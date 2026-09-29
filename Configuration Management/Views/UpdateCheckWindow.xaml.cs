@@ -23,6 +23,7 @@ public partial class UpdateCheckWindow : Window
 {
     private readonly IOneCUpdatesService _updates = AppServices.GetRequiredService<IOneCUpdatesService>();
     private readonly IInfobaseRepository _repository = AppServices.GetRequiredService<IInfobaseRepository>();
+    private readonly ICustomConfigTypesStore _store = AppServices.GetRequiredService<ICustomConfigTypesStore>();
     private readonly IAppLogger _logger = AppServices.GetRequiredService<IAppLogger>();
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -110,32 +111,17 @@ public partial class UpdateCheckWindow : Window
         }
     }
 
-    /// <summary>Находит типовую конфигурацию, связанную с базой (по коду связи).</summary>
+    /// <summary>Находит типовую конфигурацию, связанную с базой (по коду связи).
+    /// Общий список типовых = встроенные + пользовательские из файла custom_config_types.json
+    /// (единый загрузчик <see cref="ICustomConfigTypesStore"/> — issue #321).</summary>
     private OneCConfigType? FindLinkedConfig()
     {
         var code = _infobase.UpdateConfigCode;
         if (string.IsNullOrWhiteSpace(code))
             return null;
 
-        var all = BuiltInConfigTypes.All
-            .Concat(LoadCustomTypes())
-            .ToList();
-        return all.FirstOrDefault(c =>
+        return _store.LoadAll().FirstOrDefault(c =>
             string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private System.Collections.Generic.List<OneCConfigType> LoadCustomTypes()
-    {
-        try
-        {
-            var settings = _repository.LoadSettings();
-            return settings.CustomConfigTypes ?? new System.Collections.Generic.List<OneCConfigType>();
-        }
-        catch (Exception ex)
-        {
-            _logger.Warn("Не удалось загрузить пользовательские конфигурации для проверки: " + ex.Message);
-            return new System.Collections.Generic.List<OneCConfigType>();
-        }
     }
 
     /// <summary>Обновляет блок статуса, ошибок и деталей (версия/URL/кнопка «Скачать») после проверки.</summary>

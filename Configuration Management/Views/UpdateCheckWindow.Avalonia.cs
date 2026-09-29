@@ -29,6 +29,7 @@ namespace Configuration_Management
     {
         private readonly Services.IOneCUpdatesService _updates = AppServices.GetRequiredService<Services.IOneCUpdatesService>();
         private readonly Services.IInfobaseRepository _repository = AppServices.GetRequiredService<Services.IInfobaseRepository>();
+        private readonly Services.ICustomConfigTypesStore _store = AppServices.GetRequiredService<Services.ICustomConfigTypesStore>();
         private readonly Services.IAppLogger _logger = AppServices.GetRequiredService<Services.IAppLogger>();
         private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -147,32 +148,17 @@ namespace Configuration_Management
             }
         }
 
-        /// <summary>Находит типовую конфигурацию, связанную с базой (по коду связи).</summary>
+        /// <summary>Находит типовую конфигурацию, связанную с базой (по коду связи).
+        /// Общий список типовых = встроенные + пользовательские из файла custom_config_types.json
+        /// (единый загрузчик <see cref="Services.ICustomConfigTypesStore"/> — issue #321).</summary>
         private OneCConfigType? FindLinkedConfig()
         {
             var code = _infobase.UpdateConfigCode;
             if (string.IsNullOrWhiteSpace(code))
                 return null;
 
-            var all = BuiltInConfigTypes.All
-                .Concat(LoadCustomTypes())
-                .ToList();
-            return all.FirstOrDefault(c =>
+            return _store.LoadAll().FirstOrDefault(c =>
                 string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private System.Collections.Generic.List<OneCConfigType> LoadCustomTypes()
-        {
-            try
-            {
-                var settings = _repository.LoadSettings();
-                return settings.CustomConfigTypes ?? new System.Collections.Generic.List<OneCConfigType>();
-            }
-            catch (Exception ex)
-            {
-                _logger.Warn("Не удалось загрузить пользовательские конфигурации для проверки: " + ex.Message);
-                return new System.Collections.Generic.List<OneCConfigType>();
-            }
         }
 
         /// <summary>Обновляет текстовые ячейки деталей и состояние кнопок из модели строки.</summary>

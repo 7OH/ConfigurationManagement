@@ -23,6 +23,7 @@ public partial class ConfigUpdateLinkWindow : Window
 {
     private readonly IOneCUpdatesService _updates = AppServices.GetRequiredService<IOneCUpdatesService>();
     private readonly IInfobaseRepository _repository = AppServices.GetRequiredService<IInfobaseRepository>();
+    private readonly ICustomConfigTypesStore _store = AppServices.GetRequiredService<ICustomConfigTypesStore>();
     private readonly IAppLogger _logger = AppServices.GetRequiredService<IAppLogger>();
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -69,11 +70,10 @@ public partial class ConfigUpdateLinkWindow : Window
     {
         try
         {
-            var settings = _repository.LoadSettings();
-            var custom = settings.CustomConfigTypes ?? new List<OneCConfigType>();
+            // Общий список типовых = встроенные + пользовательские из файла
+            // custom_config_types.json (единый загрузчик — issue #321).
             _configs.Clear();
-            _configs.AddRange(BuiltInConfigTypes.All);
-            _configs.AddRange(custom);
+            _configs.AddRange(_store.LoadAll());
         }
         catch (Exception ex)
         {
