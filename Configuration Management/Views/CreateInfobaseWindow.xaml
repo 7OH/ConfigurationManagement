@@ -73,18 +73,11 @@
                     <!-- Колонка 1: сервер 1С, имя базы, СУБД, галочки. -->
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="{loc:Loc CreateInfobase.ServerLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
-                        <!-- Сервер 1С выбирается вместе с портом (server:port), как в окне правки
-                             свойств базы (issue #305). Редактируемые ComboBox: выбор из списка + свободный ввод. -->
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="90"/>
-                            </Grid.ColumnDefinitions>
-                            <ComboBox x:Name="ServerBox" IsEditable="True"
-                                      SelectionChanged="OnServerBox_SelectionChanged"/>
-                            <ComboBox x:Name="ServerPortBox" Grid.Column="1" Margin="8,0,0,0" IsEditable="True"
-                                      ToolTip="{loc:Loc CreateInfobase.ServerPortTooltip}"/>
-                        </Grid>
+                        <!-- Сервер 1С выбирается одним полем «server:port», как в окне правки
+                             свойств базы (issue #305): выбор из списка + свободный ввод,
+                             отдельное поле порта не нужно — порт копируется вместе с сервером. -->
+                        <ComboBox x:Name="ServerBox" IsEditable="True" Margin="0,0,0,10"
+                                  SelectionChanged="OnServerBox_SelectionChanged"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.RefLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <TextBox x:Name="RefBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,10"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.DbmsLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>

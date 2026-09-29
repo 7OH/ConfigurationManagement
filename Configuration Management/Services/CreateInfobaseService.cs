@@ -214,11 +214,13 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
     }
 
     /// <summary>
-    /// Разбирает строку «server:port» (или «server») из выпадающего списка серверов 1С
-    /// (issue #305) на имя сервера и порт. Если справа от последнего двоеточия не число
-    /// или порт вне диапазона 1..65535 — вся строка считается именем сервера, порт = 0.
+    /// Разбирает строку «server:port» (или «server») из единого поля «Сервер 1С» окна
+    /// создания ИБ (issue #305) на имя сервера и порт. Формат — как в окне правки свойств
+    /// базы: сервер копируется одним целым вместе с портом. Если справа от последнего
+    /// двоеточия не число или порт вне диапазона 1..65535 — вся строка считается именем
+    /// сервера, порт = 0.
     /// </summary>
-    public static void Split1CServer(string? value, out string server, out int port)
+    public static void ParseServerPort(string? value, out string server, out int port)
     {
         var text = (value ?? string.Empty).Trim();
         server = text;

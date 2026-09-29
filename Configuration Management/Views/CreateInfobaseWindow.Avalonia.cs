@@ -48,9 +48,8 @@ namespace Configuration_Management
         // Поля клиент-серверного варианта.
         private readonly StackPanel _serverPanel = new() { Spacing = 8 };
         // Редактируемый ComboBox: выбор из списка известных серверов 1С + свободный ввод (issue #305).
+        // Сервер выбирается одним полем «server:port», как в окне правки свойств базы.
         private readonly ComboBox _serverBox = new() { IsEditable = true };
-        // Порт сервера 1С (выбирается вместе с сервером «server:port», issue #305).
-        private readonly ComboBox _serverPortBox = new() { IsEditable = true };
         private readonly TextBox _refBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly ComboBox _dbmsBox = new() { IsEditable = true };
         private readonly TextBox _dbServerBox = new TextBox().Styled(ControlThemes.ModernTextBox);
@@ -286,17 +285,9 @@ namespace Configuration_Management
             _serverBox.Items.Clear();
             foreach (var s in _availableServers)
                 _serverBox.Items.Add(new ComboBoxItem { Content = s });
-            // Сервер 1С выбирается вместе с портом (server:port), как в окне правки свойств базы (issue #305).
-            var serverRow = new Grid();
-            serverRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            serverRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(90)));
-            Grid.SetColumn(_serverBox, 0);
-            serverRow.Children.Add(_serverBox);
-            ToolTip.SetTip(_serverPortBox, LocalizationManager.T("CreateInfobase.ServerPortTooltip"));
-            Grid.SetColumn(_serverPortBox, 1);
-            _serverPortBox.Margin = new Thickness(8, 0, 0, 0);
-            serverRow.Children.Add(_serverPortBox);
-            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), serverRow));
+            // Сервер 1С выбирается одним полем «server:port», как в окне правки
+            // свойств базы (issue #305): отдельное поле порта не нужно.
+            leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.ServerLabel"), _serverBox));
             // Имя базы на сервере (кнопка «скопировать в наименование» — у поля «Наименование», issue #306).
             leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.RefLabel"), _refBox));
             leftCol.Children.Add(Field(LocalizationManager.T("CreateInfobase.DbmsLabel"), _dbmsBox));
@@ -579,13 +570,15 @@ namespace Configuration_Management
             Height = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
 
             // Окно стояло у нижнего края экрана и выросло при смене типа — поднимаем его,
-            // чтобы нижняя часть не уходила за экран (рабочая область в физических пикселях).
+            // чтобы нижняя часть не уходила за экран. Расчёт позиции — чистый
+            // WindowSizeMath.FitTop (общий с WPF); координаты в физических пикселях.
             if (Screens.ScreenFromWindow(this) is { } screen)
             {
                 var wa = screen.WorkingArea;
                 var heightPx = (int)(Height * screen.Scaling);
-                if (Position.Y + heightPx > wa.Bottom)
-                    Position = new PixelPoint(Position.X, Math.Max(wa.Y, wa.Bottom - heightPx));
+                var newTopPx = (int)WindowSizeMath.FitTop(Position.Y, heightPx, wa.Y, wa.Bottom);
+                if (newTopPx != Position.Y)
+                    Position = new PixelPoint(Position.X, newTopPx);
             }
         }
 
@@ -919,17 +912,16 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Выбор сервера 1С из списка (issue #305): элемент «server:port» разносится
-        /// на поле «Сервер 1С» и поле «Порт сервера».
+        /// Выбор сервера 1С из списка (issue #305): строка «server:port» остаётся в поле
+        /// целиком, как в окне правки свойств базы; при создании она разнесётся
+        /// на сервер и порт.
         /// </summary>
         private void SplitSelectedServer()
         {
             if (_serverBox.SelectedItem is not ComboBoxItem { Content: string item })
                 return;
 
-            CreateInfobaseService.Split1CServer(item, out var server, out var port);
-            _serverBox.Text = server;
-            _serverPortBox.Text = port > 0 ? port.ToString() : "";
+            _serverBox.Text = item;
             // Сбрасываем выделение, чтобы повторный выбор того же пункта снова сработал.
             _serverBox.SelectedItem = null;
         }
@@ -968,11 +960,11 @@ namespace Configuration_Management
 
         private void OnCreate_Click()
         {
-            // Сервер 1С может быть выбран как «server:port» — разносим на сервер и порт (issue #305).
-            CreateInfobaseService.Split1CServer(_serverBox.Text, out var serverName, out var serverPortFromName);
+            // Сервер 1С выбирается одним полем «server:port» — разносим на сервер и порт (issue #305).
+            CreateInfobaseService.ParseServerPort(_serverBox.Text, out var serverName, out var serverPortFromName);
             var serverPort = serverPortFromName > 0
                 ? serverPortFromName.ToString()
-                : (_serverPortBox.Text?.Trim() ?? "");
+                : "";
 
             var request = new CreateInfobaseRequest
             {

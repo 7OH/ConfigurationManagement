@@ -130,45 +130,63 @@ public sealed class CreateInfobaseDbServerStringTests
     }
 
     [Fact]
-    public void Split1CServer_WithPort_SplitsIntoServerAndPort()
+    public void ParseServerPort_WithPort_SplitsIntoServerAndPort()
     {
-        CreateInfobaseService.Split1CServer("srv1c:1541", out var server, out var port);
+        CreateInfobaseService.ParseServerPort("srv1c:1541", out var server, out var port);
 
         Assert.Equal("srv1c", server);
         Assert.Equal(1541, port);
     }
 
     [Fact]
-    public void Split1CServer_WithoutPort_ReturnsWholeStringAsServer()
+    public void ParseServerPort_WithoutPort_ReturnsWholeStringAsServer()
     {
-        CreateInfobaseService.Split1CServer("srv1c", out var server, out var port);
+        CreateInfobaseService.ParseServerPort("srv1c", out var server, out var port);
 
         Assert.Equal("srv1c", server);
         Assert.Equal(0, port);
     }
 
     [Fact]
-    public void Split1CServer_NonNumericSuffix_TreatsWholeStringAsServer()
+    public void ParseServerPort_NonNumericSuffix_TreatsWholeStringAsServer()
     {
-        CreateInfobaseService.Split1CServer("srv1c:prod", out var server, out var port);
+        CreateInfobaseService.ParseServerPort("srv1c:prod", out var server, out var port);
 
         Assert.Equal("srv1c:prod", server);
         Assert.Equal(0, port);
     }
 
     [Fact]
-    public void Split1CServer_OutOfRangePort_TreatsWholeStringAsServer()
+    public void ParseServerPort_OutOfRangePort_TreatsWholeStringAsServer()
     {
-        CreateInfobaseService.Split1CServer("srv1c:70000", out var server, out var port);
+        CreateInfobaseService.ParseServerPort("srv1c:70000", out var server, out var port);
 
         Assert.Equal("srv1c:70000", server);
         Assert.Equal(0, port);
     }
 
     [Fact]
-    public void Split1CServer_Empty_ReturnsEmptyServerAndZeroPort()
+    public void ParseServerPort_ExtraColons_UsesLastColonAsPortSeparator()
     {
-        CreateInfobaseService.Split1CServer("   ", out var server, out var port);
+        CreateInfobaseService.ParseServerPort("srv1c:prod:1541", out var server, out var port);
+
+        Assert.Equal("srv1c:prod", server);
+        Assert.Equal(1541, port);
+    }
+
+    [Fact]
+    public void ParseServerPort_TrailingColon_TreatsWholeStringAsServer()
+    {
+        CreateInfobaseService.ParseServerPort("srv1c:1541:", out var server, out var port);
+
+        Assert.Equal("srv1c:1541:", server);
+        Assert.Equal(0, port);
+    }
+
+    [Fact]
+    public void ParseServerPort_Empty_ReturnsEmptyServerAndZeroPort()
+    {
+        CreateInfobaseService.ParseServerPort("   ", out var server, out var port);
 
         Assert.Equal(string.Empty, server);
         Assert.Equal(0, port);

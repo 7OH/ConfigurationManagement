@@ -9,6 +9,22 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.150] — 2026-09-29
+
+### Изменено
+
+- **Создание серверной базы (issue #305)** — сервер 1С снова выбирается одним полем
+  `server:port`, как в окне правки свойств базы (отдельное поле порта убрано — порт
+  копируется вместе с сервером одним целым, см.
+  [`Views/CreateInfobaseWindow.xaml`](Configuration%20Management/Views/CreateInfobaseWindow.xaml)
+  и [`Views/CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs));
+  при смене типа «Файловая ↔ Клиент-серверная» окно поднимается, если его нижняя часть
+  уходит за нижний край экрана (пересчёт позиции через чистый
+  [`Services/WindowSizeMath.cs`](Configuration%20Management/Services/WindowSizeMath.cs),
+  общий для WPF и Avalonia). Разбор строки `server:port` вынесен в чистый
+  `CreateInfobaseService.ParseServerPort` и покрыт юнит-тестами
+  ([`CreateInfobaseDbServerStringTests.cs`](ConfigurationManagement.Tests/CreateInfobaseDbServerStringTests.cs)).
+
 ## [0.3.9.149] — 2026-09-29
 
 ### Исправлено

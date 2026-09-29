@@ -613,17 +613,16 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Выбор сервера 1С из списка (issue #305): элемент вида «server:port» разносится
-        /// на поле «Сервер 1С» и поле «Порт сервера». Свободный ввод не затрагивается.
+        /// Выбор сервера 1С из списка (issue #305): строка «server:port» остаётся в поле
+        /// целиком, как в окне правки свойств базы; при создании она разнесётся на сервер
+        /// и порт. Свободный ввод не затрагивается.
         /// </summary>
         private void OnServerBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ServerBox.SelectedItem is not string item)
                 return;
 
-            CreateInfobaseService.Split1CServer(item, out var server, out var port);
-            ServerBox.Text = server;
-            ServerPortBox.Text = port > 0 ? port.ToString() : "";
+            ServerBox.Text = item;
             // Сбрасываем выделение, чтобы повторный выбор того же пункта снова сработал.
             ServerBox.SelectedItem = null;
         }
@@ -689,11 +688,11 @@ namespace Configuration_Management
 
         private void OnCreate_Click(object sender, RoutedEventArgs e)
         {
-            // Сервер 1С может быть выбран как «server:port» — разносим на сервер и порт (issue #305).
-            CreateInfobaseService.Split1CServer(ServerBox.Text, out var serverName, out var serverPortFromName);
+            // Сервер 1С выбирается одним полем «server:port» — разносим на сервер и порт (issue #305).
+            CreateInfobaseService.ParseServerPort(ServerBox.Text, out var serverName, out var serverPortFromName);
             var serverPort = serverPortFromName > 0
                 ? serverPortFromName.ToString()
-                : (ServerPortBox.Text?.Trim() ?? "");
+                : "";
 
             var request = new CreateInfobaseRequest
             {
