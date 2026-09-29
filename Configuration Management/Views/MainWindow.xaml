@@ -670,118 +670,147 @@
                                         <MenuItem Header="{loc:Loc Updates.ActualReleasesTitle}" Command="{Binding ShowActualReleasesCommand}" InputGestureText="{Binding HotkeyActualReleases}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="CloudDownload" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                         </MenuItem>
-                                        <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
                                         <!-- Встроенный монитор серверов 1С (0.3.9.124, цикл 0.3.9.123–126):
                                              подключение к серверу через rac, кластеры/процессы/сеансы/соединения/
                                              блокировки. Не связан с конкретной базой — активен при любой строке.
-                                             Хоткей Ctrl+Alt+S передан встроенному монитору (решение планирования). -->
-                                        <Separator/>
+                                             Хоткей Ctrl+Alt+S передан встроенному монитору (решение планирования).
+                                             На верхнем уровне рядом с «Актуальными релизами» (issue #318). -->
                                         <MenuItem Header="{loc:Loc ServerMonitor.Title}" Command="{Binding ServerMonitorCommand}" InputGestureText="{Binding HotkeyServerConsole}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="ServerNetwork" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                         </MenuItem>
                                         <!-- Внешняя оснастка осталась (решение планирования, раздел 5): пункт
-                                             «Консоль администрирования серверов (внешняя)» — без хоткея. -->
+                                             «Консоль администрирования серверов (внешняя)» — без хоткея.
+                                             На верхнем уровне рядом с «Актуальными релизами» (issue #318). -->
                                         <MenuItem Header="{loc:Loc Admin.ServerConsoleExternal}" Command="{Binding OpenServerConsoleCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Server" Width="16" Height="16" Foreground="#64748B"/></MenuItem.Icon>
                                         </MenuItem>
-                                        <!-- Центр обслуживания (0.3.9.89): сводная панель состояния всех баз —
-                                             доступность, последняя копия, размер, кэш, конфигурация, возраст данных,
-                                             проверка обновлений. Стоит сразу после «Консоли серверов». -->
-                                        <MenuItem Header="{loc:Loc Maintenance.Title}" Command="{Binding MaintenanceCenterCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="MonitorDashboard" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
-                                        </MenuItem>
+                                        <Separator/>
                                         <!-- «Блокировка приложения» перенесена из контекстного меню базы в «Утилиты»
                                              сразу после «Консоли администрирования серверов», не в конец списка (issue #294). -->
                                         <MenuItem Header="{loc:Loc AppLock.LockTitle}" Command="{Binding LockAppCommand}" InputGestureText="{Binding HotkeyLockApp}" Style="{DynamicResource ModernMenuItem}" ToolTip="{loc:Loc AppLock.MenuTooltip}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Lock" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
                                         </MenuItem>
-                                        <!-- Смена пароля блокировки: пароль больше не «одноразовый» (issue #294). -->
-                                        <MenuItem Header="{loc:Loc AppLock.ChangeMenu}" Command="{Binding ChangeAppLockCommand}" Style="{DynamicResource ModernMenuItem}" ToolTip="{loc:Loc AppLock.ChangeMenuTooltip}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Key" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Приватные базы (0.3.9.85): разблокировка паролем профиля открывает
-                                             скрытые базы; при отсутствии пароля профиля — предлагает его задать. -->
-                                        <MenuItem Header="{loc:Loc Private.OpenCommand}" Command="{Binding UnlockPrivateBasesCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="LockOpenVariant" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                        <!-- Подменю «Опции блокировки» (issue #318): приватные базы, пароль
+                                             блокировки и резервирование свернуты в подменю, чтобы сократить
+                                             высоту меню «Утилиты». -->
+                                        <MenuItem Header="{loc:Loc Utilities.Submenu.LockOptions}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Lock" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
+                                            <!-- Приватные базы (0.3.9.85): разблокировка паролем профиля открывает
+                                                 скрытые базы; при отсутствии пароля профиля — предлагает его задать. -->
+                                            <MenuItem Header="{loc:Loc Private.OpenCommand}" Command="{Binding UnlockPrivateBasesCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="LockOpenVariant" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <!-- Смена пароля блокировки: пароль больше не «одноразовый» (issue #294). -->
+                                            <MenuItem Header="{loc:Loc AppLock.ChangeMenu}" Command="{Binding ChangeAppLockCommand}" Style="{DynamicResource ModernMenuItem}" ToolTip="{loc:Loc AppLock.ChangeMenuTooltip}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="Key" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator/>
+                                            <!-- «Выполнить резервирование» (issue #293): запуск сценария
+                                                 резервирования для выбранной базы. -->
+                                            <MenuItem Header="{loc:Loc Backup.RunTitle}" Command="{Binding RunBackupScenarioCommand}" InputGestureText="{Binding HotkeyRunBackup}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseExport" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                            </MenuItem>
                                         </MenuItem>
                                         <Separator/>
-                                        <MenuItem Header="{loc:Loc Settings.Bases.RemoveMissing}" Command="{Binding RemoveMissingFileBasesCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="FolderRemove" Width="16" Height="16" Foreground="#EF4444"/></MenuItem.Icon>
+                                        <!-- Подменю «Информация» (issue #318): справка о состоянии баз,
+                                             типовых конфигурациях, расписаниях и статистике. -->
+                                        <MenuItem Header="{loc:Loc Utilities.Submenu.Information}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Information" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
+                                            <!-- Центр обслуживания (0.3.9.89): сводная панель состояния всех баз —
+                                                 доступность, последняя копия, размер, кэш, конфигурация, возраст
+                                                 данных, проверка обновлений. -->
+                                            <MenuItem Header="{loc:Loc Maintenance.Title}" Command="{Binding MaintenanceCenterCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="MonitorDashboard" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator/>
+                                            <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
+                                            <Separator/>
+                                            <!-- Задания по расписанию (issue #286): резервная копия, обновление
+                                                 конфигурации ИБ, «копия → обновление», обновление приложения. -->
+                                            <MenuItem Header="{loc:Loc Schedule.Title}" Click="OnScheduledTasksMenuClick" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="CalendarClock" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <!-- «Сценарии резервирования» и «Выполнить резервирование» не привязаны
+                                                 к конкретной базе, поэтому перенесены из контекстного меню базы
+                                                 в «Утилиты» (issue #293). -->
+                                            <MenuItem Header="{loc:Loc Backup.ScenariosTitle}" Command="{Binding ShowBackupScenariosCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="Cog" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator/>
+                                            <!-- Сценарии запуска скриптов (issue #308): настройка сценариев
+                                                 и выполнение выбранного сценария для базы (F5, контекстное меню). -->
+                                            <MenuItem Header="{loc:Loc Script.SettingsTitle}" Command="{Binding ShowScriptsSettingsCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="CodeBraces" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator/>
+                                            <!-- Статистика использования баз (0.3.9.95): аналитика по истории запусков —
+                                                 число запусков, первый/последний запуск, сводка и распределение
+                                                 по дням недели. -->
+                                            <MenuItem Header="{loc:Loc Stats.Title}" Command="{Binding UsageStatisticsCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="History" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                            </MenuItem>
                                         </MenuItem>
-                                        <MenuItem Header="{loc:Loc Settings.Bases.KillProcesses}" Command="{Binding KillOneCProcessesCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="CloseNetwork" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <Separator/>
-                                        <!-- Задания по расписанию (issue #286): резервная копия, обновление
-                                             конфигурации ИБ, «копия → обновление», обновление приложения. -->
-                                        <MenuItem Header="{loc:Loc Schedule.Title}" Click="OnScheduledTasksMenuClick" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="CalendarClock" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- «Сценарии резервирования» и «Выполнить резервирование» не привязаны
-                                             к конкретной базе, поэтому перенесены из контекстного меню базы
-                                             в «Утилиты» (issue #293). -->
-                                        <MenuItem Header="{loc:Loc Backup.ScenariosTitle}" Command="{Binding ShowBackupScenariosCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Cog" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <MenuItem Header="{loc:Loc Backup.RunTitle}" Command="{Binding RunBackupScenarioCommand}" InputGestureText="{Binding HotkeyRunBackup}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseExport" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Сценарии запуска скриптов (issue #308): настройка сценариев
-                                             и выполнение выбранного сценария для базы (F5, контекстное меню). -->
-                                        <MenuItem Header="{loc:Loc Script.SettingsTitle}" Command="{Binding ShowScriptsSettingsCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="CodeBraces" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
-                                             баз с заполненным хранилищем + последовательный прогон с логом. -->
-                                        <MenuItem Header="{loc:Loc RepoUpdate.Title}" Command="{Binding RepositoryBatchUpdateCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="SourceBranch" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Обозреватель хранилища конфигурации (0.3.9.128): окно для выбранной
-                                             базы с хранилищем — подключение, список версий и состав версии. -->
-                                        <MenuItem Header="{loc:Loc RepositoryBrowser.Title}" Command="{Binding RepositoryBrowserCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="SourceBranch" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
-                                             в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»). -->
-                                        <MenuItem Header="{loc:Loc Utilities.ExportCsv}" Command="{Binding ExportBasesCsvCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="FileDelimited" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Экспорт отчёта по базам в HTML (0.3.9.131): самодостаточный файл
-                                             со сводкой и таблицами по группам, открывается в любом браузере. -->
-                                        <MenuItem Header="{loc:Loc Utilities.ExportHtml}" Command="{Binding ExportBasesHtmlCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="FileDocument" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122):
-                                             в отличие от CSV переносится всё — базы со всеми полями, иерархия
-                                             групп, теги, закладки 1–9, закрепление, приватные базы (при
-                                             разблокированном профиле); импорт — добавляющий, дубликаты по
-                                             строке подключения пропускаются. -->
-                                        <MenuItem Header="{loc:Loc Utilities.ExportJson}" Command="{Binding ExportBasesJsonCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="FileExport" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <MenuItem Header="{loc:Loc Utilities.ImportJson}" Command="{Binding ImportBasesJsonCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseImport" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов 1С
-                                             с режимом, пользователем, PID и завершением выбранного процесса. -->
-                                        <MenuItem Header="{loc:Loc ProcessInspector.Title}" Command="{Binding ProcessInspectorCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="ApplicationCog" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Статистика использования баз (0.3.9.95): аналитика по истории запусков —
-                                             число запусков, первый/последний запуск, сводка и распределение по дням недели. -->
-                                        <MenuItem Header="{loc:Loc Stats.Title}" Command="{Binding UsageStatisticsCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="History" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Сравнение конфигураций (0.3.9.99): сравнение конфигурации базы с .cf
-                                             или двух .cf между собой; отчёт об отличиях по типам метаданных. -->
-                                        <MenuItem Header="{loc:Loc ConfigDiff.Title}" Command="{Binding ConfigDiffCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Compare" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <!-- Обозреватель метаданных (0.3.9.133): дерево метаданных конфигурации
-                                             (подсистемы → типы → объекты) без интерактивного конфигуратора —
-                                             выгрузка XML через /DumpConfigToFiles, источник — база или файл .cf. -->
-                                        <MenuItem Header="{loc:Loc MetadataExplorer.Title}" Command="{Binding MetadataExplorerCommand}" Style="{DynamicResource ModernMenuItem}">
-                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Sitemap" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                        <!-- Подменю «Операции» (issue #318): сравнение конфигураций, хранилища,
+                                             экспорт/импорт списка баз и обслуживание процессов. -->
+                                        <MenuItem Header="{loc:Loc Utilities.Submenu.Operations}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Tune" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                            <!-- Сравнение конфигураций (0.3.9.99): сравнение конфигурации базы с .cf
+                                                 или двух .cf между собой; отчёт об отличиях по типам метаданных. -->
+                                            <MenuItem Header="{loc:Loc ConfigDiff.Title}" Command="{Binding ConfigDiffCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="Compare" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <!-- Обозреватель метаданных (0.3.9.133): дерево метаданных конфигурации
+                                                 (подсистемы → типы → объекты) без интерактивного конфигуратора —
+                                                 выгрузка XML через /DumpConfigToFiles, источник — база или файл .cf. -->
+                                            <MenuItem Header="{loc:Loc MetadataExplorer.Title}" Command="{Binding MetadataExplorerCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="Sitemap" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator/>
+                                            <!-- Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
+                                                 баз с заполненным хранилищем + последовательный прогон с логом. -->
+                                            <MenuItem Header="{loc:Loc RepoUpdate.Title}" Command="{Binding RepositoryBatchUpdateCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="SourceBranch" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <!-- Обозреватель хранилища конфигурации (0.3.9.128): окно для выбранной
+                                                 базы с хранилищем — подключение, список версий и состав версии. -->
+                                            <MenuItem Header="{loc:Loc RepositoryBrowser.Title}" Command="{Binding RepositoryBrowserCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="SourceBranch" Width="16" Height="16" Foreground="#8B5CF6"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator/>
+                                            <!-- Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
+                                                 в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»). -->
+                                            <MenuItem Header="{loc:Loc Utilities.ExportCsv}" Command="{Binding ExportBasesCsvCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="FileDelimited" Width="16" Height="16" Foreground="#22C55E"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <!-- Экспорт отчёта по базам в HTML (0.3.9.131): самодостаточный файл
+                                                 со сводкой и таблицами по группам, открывается в любом браузере. -->
+                                            <MenuItem Header="{loc:Loc Utilities.ExportHtml}" Command="{Binding ExportBasesHtmlCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="FileDocument" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <!-- Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): в отличие
+                                                 от CSV переносится всё — базы со всеми полями, иерархия
+                                                 групп, теги, закладки 1–9, закрепление, приватные базы (при
+                                                 разблокированном профиле); импорт — добавляющий, дубликаты по
+                                                 строке подключения пропускаются. -->
+                                            <MenuItem Header="{loc:Loc Utilities.ExportJson}" Command="{Binding ExportBasesJsonCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="FileExport" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="{loc:Loc Utilities.ImportJson}" Command="{Binding ImportBasesJsonCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="DatabaseImport" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator/>
+                                            <!-- Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов 1С
+                                                 с режимом, пользователем, PID и завершением выбранного процесса. -->
+                                            <MenuItem Header="{loc:Loc ProcessInspector.Title}" Command="{Binding ProcessInspectorCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="ApplicationCog" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="{loc:Loc Settings.Bases.KillProcesses}" Command="{Binding KillOneCProcessesCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="CloseNetwork" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator/>
+                                            <MenuItem Header="{loc:Loc Settings.Bases.RemoveMissing}" Command="{Binding RemoveMissingFileBasesCommand}" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="FolderRemove" Width="16" Height="16" Foreground="#EF4444"/></MenuItem.Icon>
+                                            </MenuItem>
                                         </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">

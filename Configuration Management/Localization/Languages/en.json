@@ -1679,6 +1679,10 @@
     "Main.ErrExportFailed": "Export failed.\n{0}",
     "Main.ExportErrorTitle": "Export error",
 
+    "Utilities.Submenu.LockOptions": "Lock options",
+    "Utilities.Submenu.Information": "Information",
+    "Utilities.Submenu.Operations": "Operations",
+
     "Utilities.ExportCsv": "Export base list to CSV…",
     "Utilities.ExportHtml": "Export base report (HTML)…",
     "Utilities.ExportJson": "Export base list to JSON…",

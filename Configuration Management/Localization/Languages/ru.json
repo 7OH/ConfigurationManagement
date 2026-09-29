@@ -1679,6 +1679,10 @@
     "Main.ErrExportFailed": "Не удалось выполнить экспорт.\n{0}",
     "Main.ExportErrorTitle": "Ошибка экспорта",
 
+    "Utilities.Submenu.LockOptions": "Опции блокировки",
+    "Utilities.Submenu.Information": "Информация",
+    "Utilities.Submenu.Operations": "Операции",
+
     "Utilities.ExportCsv": "Экспорт списка баз в CSV…",
     "Utilities.ExportHtml": "Экспорт отчёта по базам (HTML)…",
     "Utilities.ExportJson": "Экспорт списка баз (JSON)…",

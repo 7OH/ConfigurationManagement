@@ -1641,55 +1641,67 @@ namespace Configuration_Management
             menu.Items.Add(MenuAction("Main.CommandPalette", _vm.CommandPaletteCommand, _vm.HotkeyCommandPalette, "IconSearch", "#3B82F6"));
             menu.Items.Add(MenuSeparator());
 
-            // Общие команды, перенесённые из контекстного меню базы.
+            // Верхний уровень (issue #318): «Актуальные релизы», встроенный монитор серверов
+            // и внешняя оснастка остаются на верхнем уровне — частые пункты не углубляются
+            // в подменю.
             menu.Items.Add(MenuAction("Updates.ActualReleasesTitle", _vm.ShowActualReleasesCommand, _vm.HotkeyActualReleases, "IconCloudDownload", "#14B8A6"));
-
-            var manageItem = new MenuItem { Header = LocalizationManager.T("Updates.ManageList") };
-            manageItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            manageItem.Click += (_, _) => _vm.OpenConfigTypesEdit();
-            menu.Items.Add(manageItem);
 
             // Встроенный монитор серверов 1С (0.3.9.124, цикл 0.3.9.123–126): подключение
             // к серверу через rac, кластеры/процессы/сеансы/соединения/блокировки. Не связан
             // с конкретной базой — активен при любой строке (issue #295). Хоткей Ctrl+Alt+S
             // передан встроенному монитору (решение планирования, раздел 5).
-            menu.Items.Add(MenuSeparator());
             menu.Items.Add(MenuAction("ServerMonitor.Title", _vm.ServerMonitorCommand, _vm.HotkeyServerConsole, "IconServer", "#14B8A6"));
             // Внешняя оснастка осталась (решение планирования): «Консоль администрирования
             // серверов (внешняя)» — без хоткея.
             menu.Items.Add(MenuAction("Admin.ServerConsoleExternal", _vm.OpenServerConsoleCommand, null, "IconServer", "#64748B"));
-            // Центр обслуживания (0.3.9.89): сводная панель состояния всех баз —
-            // доступность, последняя копия, размер, кэш, конфигурация, возраст данных,
-            // проверка обновлений. Стоит сразу после «Консоли серверов».
-            menu.Items.Add(MenuAction("Maintenance.Title", _vm.MaintenanceCenterCommand, null, "IconMonitoring", "#0EA5E9"));
+
             menu.Items.Add(MenuSeparator());
 
+            // «Блокировка приложения» перенесена из контекстного меню базы в «Утилиты»
+            // (issue #294): временная блокировка интерфейса паролем.
             menu.Items.Add(MenuAction("AppLock.LockTitle", _vm.LockAppCommand, _vm.HotkeyLockApp, "IconExitToApp", "#8B5CF6", "AppLock.MenuTooltip"));
-            // Смена пароля блокировки: пароль больше не «одноразовый» (issue #294).
-            menu.Items.Add(MenuAction("AppLock.ChangeMenu", _vm.ChangeAppLockCommand, "", "IconAccountKey", "#8B5CF6", "AppLock.ChangeMenuTooltip"));
-            menu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
+
+            // Подменю «Опции блокировки» (issue #318): приватные базы, пароль блокировки
+            // и резервирование свернуты в подменю, чтобы сократить высоту меню «Утилиты».
+            var lockOptionsMenu = new MenuItem
+            {
+                Header = LocalizationManager.T("Utilities.Submenu.LockOptions"),
+                Icon = MenuIcon("IconExitToApp", "#8B5CF6")
+            };
+            lockOptionsMenu.Styled(Themes.ControlThemes.ModernMenuItem);
             // Приватные базы (0.3.9.85): разблокировка паролем профиля открывает скрытые
             // базы; при отсутствии пароля профиля — предлагает его задать.
-            menu.Items.Add(MenuAction("Private.OpenCommand", _vm.UnlockPrivateBasesCommand, "", "IconAccountKey", "#22C55E"));
-
-            // Обслуживание списка и приложения (issue #279): удаление отсутствующих
-            // файловых баз, завершение процессов платформы и проверка обновлений самого
-            // приложения. В WPF те же пункты в том же порядке.
-            menu.Items.Add(MenuSeparator());
-
-            var removeMissingItem = new MenuItem { Header = LocalizationManager.T("Settings.Bases.RemoveMissing") };
-            removeMissingItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            removeMissingItem.Icon = MenuIcon("IconFolderRemove", "#EF4444");
-            removeMissingItem.Click += (_, _) => _vm.RemoveMissingFileBases();
-            menu.Items.Add(removeMissingItem);
-
-            var killProcessesItem = new MenuItem { Header = LocalizationManager.T("Settings.Bases.KillProcesses") };
-            killProcessesItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            killProcessesItem.Icon = MenuIcon("IconClose", "#F59E0B");
-            killProcessesItem.Click += (_, _) => _vm.KillOneCProcesses();
-            menu.Items.Add(killProcessesItem);
+            lockOptionsMenu.Items.Add(MenuAction("Private.OpenCommand", _vm.UnlockPrivateBasesCommand, "", "IconAccountKey", "#22C55E"));
+            // Смена пароля блокировки: пароль больше не «одноразовый» (issue #294).
+            lockOptionsMenu.Items.Add(MenuAction("AppLock.ChangeMenu", _vm.ChangeAppLockCommand, "", "IconAccountKey", "#8B5CF6", "AppLock.ChangeMenuTooltip"));
+            lockOptionsMenu.Items.Add(MenuSeparator());
+            // «Выполнить резервирование» (issue #293): запуск сценария резервирования
+            // для выбранной базы; хоткей Ctrl+F7 показан на пункте.
+            lockOptionsMenu.Items.Add(MenuAction("Backup.RunTitle", _vm.RunBackupScenarioCommand, _vm.HotkeyRunBackup, "IconDatabaseExport", "#22C55E"));
+            menu.Items.Add(lockOptionsMenu);
 
             menu.Items.Add(MenuSeparator());
+
+            // Подменю «Информация» (issue #318): справка о состоянии баз, типовых
+            // конфигурациях, расписаниях и статистике.
+            var informationMenu = new MenuItem
+            {
+                Header = LocalizationManager.T("Utilities.Submenu.Information"),
+                Icon = MenuIcon("IconInfo", "#0EA5E9")
+            };
+            informationMenu.Styled(Themes.ControlThemes.ModernMenuItem);
+            // Центр обслуживания (0.3.9.89): сводная панель состояния всех баз —
+            // доступность, последняя копия, размер, кэш, конфигурация, возраст данных,
+            // проверка обновлений.
+            informationMenu.Items.Add(MenuAction("Maintenance.Title", _vm.MaintenanceCenterCommand, null, "IconMonitoring", "#0EA5E9"));
+            informationMenu.Items.Add(MenuSeparator());
+
+            var manageItem = new MenuItem { Header = LocalizationManager.T("Updates.ManageList") };
+            manageItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            manageItem.Click += (_, _) => _vm.OpenConfigTypesEdit();
+            informationMenu.Items.Add(manageItem);
+
+            informationMenu.Items.Add(MenuSeparator());
 
             // Задания по расписанию (issue #286): резервная копия, обновление конфигурации
             // ИБ, «копия → обновление», обновление приложения. Открывается отложенно,
@@ -1702,47 +1714,81 @@ namespace Configuration_Management
                 var win = new ScheduledTasksWindow();
                 win.ShowSync(this);
             });
-            menu.Items.Add(scheduleItem);
+            informationMenu.Items.Add(scheduleItem);
 
             // «Сценарии резервирования» и «Выполнить резервирование» не привязаны к конкретной
             // базе, поэтому перенесены из контекстного меню базы в «Утилиты» (issue #293).
-            menu.Items.Add(MenuAction("Backup.ScenariosTitle", _vm.ShowBackupScenariosCommand, null, "IconSettings", "#F59E0B"));
-            menu.Items.Add(MenuAction("Backup.RunTitle", _vm.RunBackupScenarioCommand, _vm.HotkeyRunBackup, "IconDatabaseExport", "#22C55E"));
+            informationMenu.Items.Add(MenuAction("Backup.ScenariosTitle", _vm.ShowBackupScenariosCommand, null, "IconSettings", "#F59E0B"));
+            informationMenu.Items.Add(MenuSeparator());
             // Сценарии запуска скриптов (issue #308): настройка сценариев; выполнение
             // выбранного сценария для базы — F5 и контекстное меню строки.
-            menu.Items.Add(MenuAction("Script.SettingsTitle", _vm.ShowScriptsSettingsCommand, null, "IconScript", "#06B6D4"));
-            // Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
-            // баз с заполненным хранилищем + последовательный прогон с логом.
-            menu.Items.Add(MenuAction("RepoUpdate.Title", _vm.RepositoryBatchUpdateCommand, null, "IconCloudDownload", "#06B6D4"));
-            // Обозреватель хранилища конфигурации (0.3.9.128): окно для выбранной базы
-            // с хранилищем — подключение, список версий и состав версии.
-            menu.Items.Add(MenuAction("RepositoryBrowser.Title", _vm.RepositoryBrowserCommand, null, "IconCloudDownload", "#8B5CF6"));
-            // Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
-            // в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»).
-            menu.Items.Add(MenuAction("Utilities.ExportCsv", _vm.ExportBasesCsvCommand, null, "IconFileExport", "#22C55E"));
-            // Экспорт отчёта по базам в HTML (0.3.9.131): самодостаточный файл со сводкой
-            // и таблицами по группам, открывается в любом браузере.
-            menu.Items.Add(MenuAction("Utilities.ExportHtml", _vm.ExportBasesHtmlCommand, null, "IconFileDocument", "#F59E0B"));
-            // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): в отличие
-            // от CSV переносится всё — базы со всеми полями, иерархия групп, теги,
-            // закладки 1–9, закрепление, приватные базы (при разблокированном профиле);
-            // импорт — добавляющий, дубликаты по строке подключения пропускаются.
-            menu.Items.Add(MenuAction("Utilities.ExportJson", _vm.ExportBasesJsonCommand, null, "IconFileExport", "#06B6D4"));
-            menu.Items.Add(MenuAction("Utilities.ImportJson", _vm.ImportBasesJsonCommand, null, "IconImport", "#06B6D4"));
-            // Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов платформы
-            // с режимом, пользователем, PID и завершением выбранного процесса.
-            menu.Items.Add(MenuAction("ProcessInspector.Title", _vm.ProcessInspectorCommand, null, "IconApplicationCog", "#0EA5E9"));
+            informationMenu.Items.Add(MenuAction("Script.SettingsTitle", _vm.ShowScriptsSettingsCommand, null, "IconScript", "#06B6D4"));
+            informationMenu.Items.Add(MenuSeparator());
             // Статистика использования баз (0.3.9.95): аналитика по истории запусков —
             // число запусков, первый/последний запуск, сводка и распределение по дням недели.
-            menu.Items.Add(MenuAction("Stats.Title", _vm.UsageStatisticsCommand, null, "IconHistory", "#14B8A6"));
+            informationMenu.Items.Add(MenuAction("Stats.Title", _vm.UsageStatisticsCommand, null, "IconHistory", "#14B8A6"));
+            menu.Items.Add(informationMenu);
+
+            // Подменю «Операции» (issue #318): сравнение конфигураций, хранилища,
+            // экспорт/импорт списка баз и обслуживание процессов.
+            var operationsMenu = new MenuItem
+            {
+                Header = LocalizationManager.T("Utilities.Submenu.Operations"),
+                Icon = MenuIcon("IconTune", "#06B6D4")
+            };
+            operationsMenu.Styled(Themes.ControlThemes.ModernMenuItem);
             // Сравнение конфигураций (0.3.9.99): сравнение конфигурации базы с .cf
             // или двух .cf между собой; отчёт об отличиях по типам метаданных.
-            menu.Items.Add(MenuAction("ConfigDiff.Title", _vm.ConfigDiffCommand, null, "IconCompare", "#06B6D4"));
+            operationsMenu.Items.Add(MenuAction("ConfigDiff.Title", _vm.ConfigDiffCommand, null, "IconCompare", "#06B6D4"));
             // Обозреватель метаданных (0.3.9.133): дерево метаданных конфигурации
             // (подсистемы → типы → объекты) без интерактивного конфигуратора — выгрузка
             // XML через /DumpConfigToFiles, источник — база или файл .cf. Иконки Sitemap
             // в Themes/Icons.axaml нет — переиспользуем IconCompare (как у сравнения).
-            menu.Items.Add(MenuAction("MetadataExplorer.Title", _vm.MetadataExplorerCommand, null, "IconCompare", "#06B6D4"));
+            operationsMenu.Items.Add(MenuAction("MetadataExplorer.Title", _vm.MetadataExplorerCommand, null, "IconCompare", "#06B6D4"));
+            operationsMenu.Items.Add(MenuSeparator());
+            // Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
+            // баз с заполненным хранилищем + последовательный прогон с логом.
+            operationsMenu.Items.Add(MenuAction("RepoUpdate.Title", _vm.RepositoryBatchUpdateCommand, null, "IconCloudDownload", "#06B6D4"));
+            // Обозреватель хранилища конфигурации (0.3.9.128): окно для выбранной базы
+            // с хранилищем — подключение, список версий и состав версии.
+            operationsMenu.Items.Add(MenuAction("RepositoryBrowser.Title", _vm.RepositoryBrowserCommand, null, "IconCloudDownload", "#8B5CF6"));
+            operationsMenu.Items.Add(MenuSeparator());
+            // Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
+            // в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»).
+            operationsMenu.Items.Add(MenuAction("Utilities.ExportCsv", _vm.ExportBasesCsvCommand, null, "IconFileExport", "#22C55E"));
+            // Экспорт отчёта по базам в HTML (0.3.9.131): самодостаточный файл со сводкой
+            // и таблицами по группам, открывается в любом браузере.
+            operationsMenu.Items.Add(MenuAction("Utilities.ExportHtml", _vm.ExportBasesHtmlCommand, null, "IconFileDocument", "#F59E0B"));
+            // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): в отличие
+            // от CSV переносится всё — базы со всеми полями, иерархия групп, теги,
+            // закладки 1–9, закрепление, приватные базы (при разблокированном профиле);
+            // импорт — добавляющий, дубликаты по строке подключения пропускаются.
+            operationsMenu.Items.Add(MenuAction("Utilities.ExportJson", _vm.ExportBasesJsonCommand, null, "IconFileExport", "#06B6D4"));
+            operationsMenu.Items.Add(MenuAction("Utilities.ImportJson", _vm.ImportBasesJsonCommand, null, "IconImport", "#06B6D4"));
+            operationsMenu.Items.Add(MenuSeparator());
+            // Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов платформы
+            // с режимом, пользователем, PID и завершением выбранного процесса.
+            operationsMenu.Items.Add(MenuAction("ProcessInspector.Title", _vm.ProcessInspectorCommand, null, "IconApplicationCog", "#0EA5E9"));
+            // Завершение процессов платформы (issue #279): принудительное завершение
+            // процессов 1С, связанных с базой.
+            var killProcessesItem = new MenuItem { Header = LocalizationManager.T("Settings.Bases.KillProcesses") };
+            killProcessesItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            killProcessesItem.Icon = MenuIcon("IconClose", "#F59E0B");
+            killProcessesItem.Click += (_, _) => _vm.KillOneCProcesses();
+            operationsMenu.Items.Add(killProcessesItem);
+            // Блокировка сеансов информационной базы (функция №20, Ctrl+Alt+L): установка
+            // периода блокировки сеансов ИБ. Пункт существовал в «Утилитах» Avalonia с
+            // исходного состава меню (в WPF он только в контекстном меню строки).
+            operationsMenu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
+            operationsMenu.Items.Add(MenuSeparator());
+            // Удаление отсутствующих файловых баз (issue #279): очистка списка от баз,
+            // чей каталог больше не существует.
+            var removeMissingItem = new MenuItem { Header = LocalizationManager.T("Settings.Bases.RemoveMissing") };
+            removeMissingItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            removeMissingItem.Icon = MenuIcon("IconFolderRemove", "#EF4444");
+            removeMissingItem.Click += (_, _) => _vm.RemoveMissingFileBases();
+            operationsMenu.Items.Add(removeMissingItem);
+            menu.Items.Add(operationsMenu);
 
             menu.Items.Add(MenuSeparator());
 
