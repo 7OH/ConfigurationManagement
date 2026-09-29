@@ -2363,8 +2363,7 @@
     "AppLock.ChangeMenu": "Сменить пароль блокировки",
     "AppLock.ChangeMenuTooltip": "Изменить пароль блокировки приложения: потребуется текущий пароль, затем новый и его повтор.",
     "AppLock.ChangePrompt": "Введите текущий пароль и задайте новый. Новый пароль действует сразу и будет запрошен при следующей разблокировке.",
-    "AppLock.CurrentPassword": "Текущий пароль"
-  },
+    "AppLock.CurrentPassword": "Текущий пароль",
     "ConfigDiff.Title": "Сравнение конфигураций…",
     "ConfigDiff.Description": "Сравните конфигурацию базы с эталонным файлом .cf или два файла .cf между собой. Отчёт показывает отличия по объектам метаданных: добавленные, изменённые и удалённые.",
     "ConfigDiff.ModeBaseVsCf": "База ↔ файл .cf",
@@ -2442,6 +2441,7 @@
     "ConfigDiff.Type.Sequence": "Последовательности",
     "ConfigDiff.Type.CommonPicture": "Общие картинки",
     "ConfigDiff.Type.Extension": "Расширения конфигурации",
+    "ConfigDiff.Type.Subsystem": "Подсистемы",
     "MetadataExplorer.Title": "Обозреватель метаданных…",
     "MetadataExplorer.SourceBase": "Информационная база",
     "MetadataExplorer.SourceCf": "Файл .cf",
@@ -2514,4 +2514,5 @@
     "MetadataExplorer.Report.TypeHeaderFormat": "{0} — {1}",
     "MetadataExplorer.Report.ObjectLineFormat": "    {0} | {1} | реквизитов: {2} | ТЧ: {3} | форм: {4} | размер: {5}",
     "Launcher.OperationDumpConfigToFiles": "Выгрузка конфигурации в файлы"
+  }
 }

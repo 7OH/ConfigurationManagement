@@ -2364,8 +2364,7 @@
     "AppLock.ChangeMenu": "Change lock password",
     "AppLock.ChangeMenuTooltip": "Change the application lock password: the current password is required, then a new one and its confirmation.",
     "AppLock.ChangePrompt": "Enter the current password and set a new one. The new password takes effect immediately and will be asked on the next unlock.",
-    "AppLock.CurrentPassword": "Current password"
-  },
+    "AppLock.CurrentPassword": "Current password",
     "ConfigDiff.Title": "Compare configurations…",
     "ConfigDiff.Description": "Compare an infobase configuration with a reference .cf file or two .cf files against each other. The report shows differences by metadata objects: added, changed and removed.",
     "ConfigDiff.ModeBaseVsCf": "Base ↔ .cf file",
@@ -2443,6 +2442,7 @@
     "ConfigDiff.Type.Sequence": "Sequences",
     "ConfigDiff.Type.CommonPicture": "Common pictures",
     "ConfigDiff.Type.Extension": "Configuration extensions",
+    "ConfigDiff.Type.Subsystem": "Subsystems",
     "MetadataExplorer.Title": "Metadata Explorer…",
     "MetadataExplorer.SourceBase": "Infobase",
     "MetadataExplorer.SourceCf": ".cf file",
@@ -2515,4 +2515,5 @@
     "MetadataExplorer.Report.TypeHeaderFormat": "{0} — {1}",
     "MetadataExplorer.Report.ObjectLineFormat": "    {0} | {1} | attributes: {2} | tab. sections: {3} | forms: {4} | size: {5}",
     "Launcher.OperationDumpConfigToFiles": "Dump configuration to files"
+  }
 }
