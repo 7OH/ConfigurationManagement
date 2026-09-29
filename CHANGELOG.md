@@ -9,6 +9,26 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.153] — 2026-09-29
+
+### Исправлено
+
+- **Выбор версии платформы (issue #304)** — папка/лист выбранной версии сохраняется при
+  переключении разрядности; выделение больше не перескакивает на линию при фильтре.
+  Причина: суффикс разрядности в результате диалога подставлялся по активному фильтру даже
+  когда у выбранной папки не было сборок этой разрядности — результат «8.5.1 (64)» не
+  существовал, и запуск уходил на другую x64-версию линии; восстановление выделения по
+  листу «8.5.1 (64)» не отдавало приоритет точному листу. Теперь суффикс добавляется только
+  при реально видимых сборках нужной разрядности, а `FindBestNode` для частичной версии с
+  явной разрядностью сначала ищет точный лист, затем папку группы сборок, и только потом
+  линию:
+  [`Services/PlatformVersionService.cs`](Configuration%20Management/Services/PlatformVersionService.cs)
+  и [`Services/PlatformVersionService.Linux.cs`](Configuration%20Management/Services/PlatformVersionService.Linux.cs) —
+  `FindBestNode`, новый `BuildResultVariant` (результат диалога без «фантомного» суффикса);
+  [`Views/PlatformVersionPickerWindow.xaml.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.xaml.cs)
+  и [`Views/PlatformVersionPickerWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.Avalonia.cs) —
+  результат диалога через `BuildResultVariant`, сброс цели восстановления при ненайденном узле.
+
 ## [0.3.9.152] — 2026-09-29
 
 ### Исправлено

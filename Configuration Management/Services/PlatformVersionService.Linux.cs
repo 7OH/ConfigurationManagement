@@ -708,13 +708,16 @@ namespace Configuration_Management.Services
         /// отфильтрован (например, при переключении фильтра разрядности), делается fallback на
         /// доступный узел того же семейства: лист той же версии → группа сборок → линия, чтобы
         /// выделение не «скакало» и результат диалога не терялся (issue #304).
+        /// Версия группы сборок с явной разрядностью («8.5.1 (64)») сначала ищется как точный
+        /// лист: после переключения фильтра на ту же разрядность выделение остаётся на листе,
+        /// а не на папке (issue #304).
         /// </summary>
         public static PlatformVersionGroup? FindBestNode(
             IEnumerable<PlatformVersionGroup> nodes, string currentVersion)
         {
             if (string.IsNullOrWhiteSpace(currentVersion)) return null;
 
-            ParseVariantOptionalArch(currentVersion, out var version, out _);
+            ParseVariantOptionalArch(currentVersion, out var version, out var architecture);
             var parts = version.Split('.', StringSplitOptions.RemoveEmptyEntries);
 
             if (parts.Length >= 4)
@@ -740,7 +743,17 @@ namespace Configuration_Management.Services
                 // Группа сборок «8.5.1» → сама папка группы. Папка сохраняется в дереве при
                 // фильтре разрядности, пока линия видима (см. BuildGroupedTree, #304), поэтому
                 // fallback на линию срабатывает только когда версий 8.5.1.* нет в данных вовсе.
-                return FindBuildGroup(line, string.Join(".", parts.Take(3))) ?? line;
+                var groupKey = string.Join(".", parts.Take(3));
+
+                // Разрядность задана явно («8.5.1 (64)») — сначала точный лист этой версии:
+                // лист отображается в дереве, когда у 8.5.1 есть сборка нужной разрядности.
+                if (architecture != null)
+                {
+                    var exact = FindExactLeaf(nodes, currentVersion);
+                    if (exact is not null) return exact;
+                }
+
+                return FindBuildGroup(line, groupKey) ?? line;
             }
 
             // Только линия «8.5» → сама папка линии.
@@ -808,6 +821,57 @@ namespace Configuration_Management.Services
                 return false;
 
             return curArch is null || string.Equals(arch, curArch, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Формирует строку выбора для узла дерева — результат диалога. Лист отдаёт полный вариант
+        /// («8.3.27.1688 (64)»), узел линии/группы сборок — частичную версию с суффиксом разрядности,
+        /// если он однозначен (issue #142). Суффикс берётся из активного фильтра ТОЛЬКО когда в узле
+        /// есть видимый лист этой разрядности: пустая при фильтре папка «8.5.1» (у версии нет x64-
+        /// сборок) даёт чистую «8.5.1», а не несуществующую «8.5.1 (64)» (issue #304).
+        /// </summary>
+        public static string BuildResultVariant(PlatformVersionGroup node, string archFilter)
+        {
+            if (node.IsLeaf && !string.IsNullOrEmpty(node.Variant))
+                return node.Variant!;
+
+            var name = node.Name ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(name))
+                return string.Empty;
+
+            var archSuffix = GetNodeArchSuffix(node, archFilter);
+            return string.IsNullOrEmpty(archSuffix) ? name : $"{name} ({archSuffix})";
+        }
+
+        /// <summary>
+        /// Суффикс разрядности для частичной версии. В режиме «Все» (авто) разрядность не
+        /// подставляем — выбор папки/линии дерева даёт чистую версию без суффикса (issue #251),
+        /// разрядность разрешается при запуске. При активном фильтре x32/x64 суффикс добавляется
+        /// только если в узле реально есть видимый лист этой разрядности (issue #304).
+        /// </summary>
+        private static string? GetNodeArchSuffix(PlatformVersionGroup node, string archFilter)
+        {
+            if (archFilter == "all") return null;
+
+            var kind = archFilter == "x64"
+                ? PlatformNodeKind.LeafX64
+                : PlatformNodeKind.LeafX32;
+            if (!HasVisibleLeafOfKind(node, kind))
+                return null;
+
+            return archFilter == "x64" ? "64" : "32";
+        }
+
+        private static bool HasVisibleLeafOfKind(PlatformVersionGroup node, PlatformNodeKind kind)
+        {
+            foreach (var child in node.Children)
+            {
+                if (child.IsLeaf && child.Kind == kind)
+                    return true;
+                if (HasVisibleLeafOfKind(child, kind))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>

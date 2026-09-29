@@ -164,37 +164,12 @@ namespace Configuration_Management
         /// <summary>
         /// Формирует строку выбора для узла дерева. Лист отдаёт полный вариант
         /// («8.3.27.1688 (64)»), узел линии/группы сборок — частичную версию
-        /// с суффиксом разрядности, если он однозначен (issue #142).
+        /// с суффиксом разрядности, если он однозначен (issue #142). Суффикс
+        /// подставляется только при реально видимых сборках нужной разрядности,
+        /// иначе результат — чистая частичная версия («8.5.1», issue #304).
         /// </summary>
         private string BuildResult(PlatformVersionGroup node)
-        {
-            if (node.IsLeaf && !string.IsNullOrEmpty(node.Variant))
-                return node.Variant!;
-
-            var name = node.Name ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(name))
-                return string.Empty;
-
-            var archSuffix = GetNodeArchSuffix(node, _archFilter);
-            return string.IsNullOrEmpty(archSuffix) ? name : $"{name} ({archSuffix})";
-        }
-
-        /// <summary>
-        /// Определяет суффикс разрядности для частичной версии: берётся из активного
-        /// фильтра (x32/x64) либо из однотипных листьев узла. При неоднозначности
-        /// возвращает null — тогда разрядность остаётся на усмотрение лаунчера/настроек.
-        /// </summary>
-        private static string? GetNodeArchSuffix(PlatformVersionGroup node, string archFilter)
-        {
-            if (archFilter == "x32") return "32";
-            if (archFilter == "x64") return "64";
-
-            // Режим «Все» (авто): разрядность для частичной версии не подставляем, чтобы
-            // выбор папки/линии дерева давал чистую версию без суффикса (issue #251) —
-            // как её обычно показывает родной стартер и колонка списка («8.3.27»).
-            // Разрядность в этом случае разрешается при запуске (сессия / приоритет базы).
-            return null;
-        }
+            => PlatformVersionService.BuildResultVariant(node, _archFilter);
 
         private void OnPlatformsTree_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {

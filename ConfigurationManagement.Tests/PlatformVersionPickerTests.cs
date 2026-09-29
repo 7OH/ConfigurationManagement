@@ -250,6 +250,161 @@ public sealed class PlatformVersionPickerTests
         Assert.DoesNotContain(tree, n => n.Name == "8.5" && n.Kind == PlatformNodeKind.BuildGroup);
     }
 
+    // =================== Сценарий #304: папка/лист 8.5.1 при фильтре x64 ===================
+
+    [Fact]
+    public void Scenario_854Select851SwitchX64_NoX64Builds_SelectionAndResultStayOn851()
+    {
+        // (а) У 8.5.1 НЕТ x64-сборок: при фильтре x64 папка 8.5.1 остаётся в дереве
+        // (пустой), FindBestNode возвращает её, а не линию 8.5; результат диалога —
+        // чистая «8.5.1», а не несуществующая «8.5.1 (64)» (#304).
+        var all = Infos("8.5.4 (64)", "8.5.4 (32)", "8.5.1 (32)");
+
+        // Пользователь выбрал лист «8.5.1 (x32)» или папку 8.5.1 → _currentVersion «8.5.1 (32)»/«8.5.1».
+        foreach (var current in new[] { "8.5.1", "8.5.1 (32)" })
+        {
+            var tree = PlatformVersionService.BuildGroupedTree(all, "x64");
+            var node = PlatformVersionService.FindBestNode(tree, current);
+
+            Assert.NotNull(node);
+            Assert.False(node!.IsLeaf);
+            Assert.Equal("8.5.1", node.Name);
+            Assert.Equal(PlatformNodeKind.BuildGroup, node.Kind);
+
+            Assert.Equal("8.5.1", PlatformVersionService.BuildResultVariant(node, "x64"));
+        }
+    }
+
+    [Fact]
+    public void Scenario_854Select851SwitchX64_HasX64Builds_SelectionStaysOn851Leaf()
+    {
+        // (б) У 8.5.1 ЕСТЬ x64-сборка: лист «8.5.1 (64)» виден при фильтре x64;
+        // восстановление по выбранному листу возвращает сам лист, а не папку/линию;
+        // результат диалога — полный вариант «8.5.1 (64)» (#304, #142).
+        var all = Infos("8.5.4 (64)", "8.5.4 (32)", "8.5.1 (64)", "8.5.1 (32)");
+
+        var tree = PlatformVersionService.BuildGroupedTree(all, "x64");
+        var leaf = PlatformVersionService.FindBestNode(tree, "8.5.1 (64)");
+
+        Assert.NotNull(leaf);
+        Assert.True(leaf!.IsLeaf);
+        Assert.Equal("8.5.1 (64)", leaf.Variant);
+        Assert.Equal("8.5.1 (64)", PlatformVersionService.BuildResultVariant(leaf, "x64"));
+
+        // Папка 8.5.1 тоже остаётся доступной и даёт суффикс x64 (в папке есть x64-лист).
+        var folder = PlatformVersionService.FindBestNode(tree, "8.5.1");
+        Assert.NotNull(folder);
+        Assert.Equal("8.5.1", folder!.Name);
+        Assert.Equal("8.5.1 (64)", PlatformVersionService.BuildResultVariant(folder, "x64"));
+    }
+
+    [Fact]
+    public void FindBestNode_PartialWithExplicitArch_PrefersExactLeaf()
+    {
+        // «8.5.1 (64)» при наличии точного листа выбирает лист, а не папку группы (#304).
+        var tree = BuildTree("8.5.1 (64)", "8.5.1 (32)");
+
+        var node = PlatformVersionService.FindBestNode(tree, "8.5.1 (64)");
+
+        Assert.NotNull(node);
+        Assert.True(node!.IsLeaf);
+        Assert.Equal("8.5.1 (64)", node.Variant);
+    }
+
+    [Fact]
+    public void FindBestNode_PartialWithExplicitArch_Filtered_FallsBackToFolderNotLine()
+    {
+        // Лист «8.5.1 (32)» скрыт фильтром x64 (у 8.5.1 нет x64-сборок): восстановление
+        // должно идти на папку 8.5.1, а НЕ на линию 8.5 (#304).
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.4 (64)", "8.5.1 (32)"), "x64");
+
+        var node = PlatformVersionService.FindBestNode(tree, "8.5.1 (32)");
+
+        Assert.NotNull(node);
+        Assert.False(node!.IsLeaf);
+        Assert.Equal("8.5.1", node.Name);
+        Assert.Equal(PlatformNodeKind.BuildGroup, node.Kind);
+    }
+
+    [Fact]
+    public void FindBestNode_LineSelection_SwitchFilters_StaysOnLine()
+    {
+        // Выбор линии «8.5» не скачет: и в режиме «Все», и при фильтре x64/x32
+        // восстановление возвращает саму линию 8.5 (#304).
+        var all = Infos("8.5.4 (64)", "8.5.4 (32)", "8.5.1 (32)");
+
+        foreach (var filter in new[] { "all", "x64", "x32" })
+        {
+            var tree = PlatformVersionService.BuildGroupedTree(all, filter);
+            var node = PlatformVersionService.FindBestNode(tree, "8.5");
+
+            Assert.NotNull(node);
+            Assert.False(node!.IsLeaf);
+            Assert.Equal("8.5", node.Name);
+            Assert.Equal(PlatformNodeKind.Line, node.Kind);
+        }
+    }
+
+    // ==================== Результат диалога (BuildResultVariant) ====================
+
+    [Fact]
+    public void BuildResultVariant_EmptyFolderUnderFilter_ReturnsCleanVersion()
+    {
+        // Папка 8.5.1 пустая при фильтре x64 (только x32-сборки): результат «8.5.1»,
+        // а не несуществующая «8.5.1 (64)» — иначе при создании базы лаунчер уходил
+        // на другую x64-версию линии (#304).
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.4 (64)", "8.5.1 (32)"), "x64");
+        var folder = PlatformVersionService.FindBestNode(tree, "8.5.1");
+
+        Assert.Equal("8.5.1", PlatformVersionService.BuildResultVariant(folder!, "x64"));
+    }
+
+    [Fact]
+    public void BuildResultVariant_FolderWithMatchingArch_AddsSuffix()
+    {
+        // Папка 8.5.4 при фильтре x64 содержит видимый x64-лист: результат «8.5.4 (64)»
+        // (регресс #142/#251 не ломаем — суффикс разрядности сохраняется).
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.4 (64)", "8.5.4 (32)"), "x64");
+        var folder = PlatformVersionService.FindBestNode(tree, "8.5.4");
+
+        Assert.Equal("8.5.4 (64)", PlatformVersionService.BuildResultVariant(folder!, "x64"));
+    }
+
+    [Fact]
+    public void BuildResultVariant_LineWithVisibleX64_AddsSuffix()
+    {
+        // Линия 8.5 при фильтре x64 имеет видимые x64-листья в поддереве:
+        // результат «8.5 (64)» (#142).
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.4 (64)", "8.5.1 (32)"), "x64");
+        var line = PlatformVersionService.FindBestNode(tree, "8.5");
+
+        Assert.Equal("8.5 (64)", PlatformVersionService.BuildResultVariant(line!, "x64"));
+    }
+
+    [Fact]
+    public void BuildResultVariant_AllFilter_ReturnsCleanVersionForFolder()
+    {
+        // Режим «Все» (авто): папка даёт чистую частичную версию без суффикса (#251).
+        var tree = BuildTree("8.5.4 (64)", "8.5.1 (32)");
+        var folder = PlatformVersionService.FindBestNode(tree, "8.5.1");
+
+        Assert.Equal("8.5.1", PlatformVersionService.BuildResultVariant(folder!, "all"));
+    }
+
+    [Fact]
+    public void BuildResultVariant_Leaf_ReturnsFullVariant()
+    {
+        // Лист всегда отдаёт полный вариант с разрядностью (#142).
+        var tree = BuildTree("8.5.1.1000 (64)", "8.5.1.1000 (32)");
+        var leaf = PlatformVersionService.FindBestNode(tree, "8.5.1.1000 (64)");
+
+        Assert.Equal("8.5.1.1000 (64)", PlatformVersionService.BuildResultVariant(leaf!, "all"));
+    }
+
     // ======================= Хелперы =======================
 
     private static List<PlatformVersionInfo> Infos(params string[] displays)
