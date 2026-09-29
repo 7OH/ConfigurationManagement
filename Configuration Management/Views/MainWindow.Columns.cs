@@ -348,7 +348,10 @@ namespace Configuration_Management
             // Порядок колонок влияет на состав суммы минимальной ширины (перенос «Действий»,
             // смена мест): после перестановки определений пересчитываем ширину заголовка и
             // минимум контента, иначе полоса оставалась бы по прежнему порядку и могла не
-            // дотягивать до последней (новой) колонки (issue #309).
+            // дотягивать до последней (новой) колонки (issue #309). Замер фактической
+            // ширины строк обновляется вместе с суммой — строки уже перестроены под
+            // новый порядок колонок.
+            UpdateTreeMinWidthContent();
             SyncHeaderWidthWithList();
         }
 
@@ -550,6 +553,12 @@ namespace Configuration_Management
             if (rowGrid is null)
                 return;
 
+            // Фактическая ширина строк уже известна (первая строка материализована):
+            // обновляем кэш минимума контента до синхронизации ширины заголовка, чтобы
+            // полоса дотягивала до конца длинных названий, а не только до суммы колонок
+            // (issue #309). Редкий путь — стабилизация выравнивания на ApplicationIdle.
+            UpdateTreeMinWidthContent(rowGrid);
+
             // Позиция первой колонки данных строки базы (отсчитывается от левого края сетки).
             double rowStart = 0;
             for (var i = 0; i < RowFirstDataColumn; i++)
@@ -669,6 +678,23 @@ namespace Configuration_Management
         private const double NameColumnMinWidth = 220;
 
         /// <summary>
+        /// Кэш фактической желаемой ширины строк дерева (issue #309). Сумма ширин колонок —
+        /// нижний предел минимума контента, но реальная строка может быть шире: блок имени
+        /// (горизонтальный StackPanel, ColumnSpan=5 в MainWindow.xaml) меряет NameText без
+        /// ограничения ширины, и длинное название делает строку фактически шире суммы колонок.
+        /// Внутренний ScrollViewer дерева (CanContentScroll) меряет панель вьюпортной шириной,
+        /// поэтому ExtentWidth сам не растёт под контент, и минимум приходится досчитывать
+        /// замером первых строк с бесконечной шириной. Обновляется только в редких точках
+        /// (стабилизация выравнивания, применение ширин, смена верхней строки при прокрутке),
+        /// чтобы не нагружать горячий путь <see cref="UpdateTreeMinWidth"/> (анти-регресс #255).
+        /// Ноль означает «строки ещё нет или контент уже покрывается суммой колонок».
+        /// </summary>
+        private double _treeMinWidthContent;
+
+        /// <summary>Данные верхней видимой строки при последнем замере <see cref="_treeMinWidthContent"/>.</summary>
+        private object? _treeMinWidthAnchorData;
+
+        /// <summary>
         /// Минимальная ширина колонки «Действия»: совпадает с MinWidth=120, заданной трём
         /// ColumnDefinition этой колонки (заголовок, группа, база) в MainWindow.xaml, чтобы
         /// три кнопки-иконки (Запуск, Конфигуратор, Очистить кеш) оставались доступными.
@@ -713,7 +739,12 @@ namespace Configuration_Management
             // абсолютную ширину (конвертер ColumnVis) и места не занимает (issue #255).
             // Расчёт общий с Linux/Avalonia (ListMinWidthCalculator), чтобы сумма не
             // расходилась с фактическим набором колонок (issue #309).
-            var total = ListMinWidthCalculator.Compute(nameWidth, NameColumnMinWidth, leading, 0, values);
+            // К сумме добавляется фактическая желаемая ширина строк дерева
+            // (_treeMinWidthContent, issue #309): длинное название в горизонтальном
+            // StackPanel раздвигает строку шире суммы колонок, и прокрутка обязана
+            // дотягивать до конца контента, а не до «расчётной» границы.
+            var total = ListMinWidthCalculator.Compute(
+                nameWidth, NameColumnMinWidth, leading, 0, values, _treeMinWidthContent);
 
             // Минимум задаём КОНТЕНТУ прокрутки (внутреннему ScrollContentPresenter дерева),
             // а не самому MainTree: у дерева собственный внутренний ScrollViewer, и MinWidth
@@ -725,6 +756,52 @@ namespace Configuration_Management
             var presenter = GetTreeScrollContentPresenter();
             if (presenter is not null)
                 presenter.MinWidth = total;
+        }
+
+        /// <summary>
+        /// Пересчитывает <see cref="_treeMinWidthContent"/> замером первых видимых строк
+        /// дерева с бесконечной шириной (issue #309). Горизонтальный StackPanel блока имени
+        /// (MainWindow.xaml, ColumnSpan=5) меряет NameText без ограничения ширины, поэтому
+        /// при бесконечном constraint Grid строки отдаёт звёздной колонке «Название»
+        /// желание контента — DesiredSize совпадает с фактической шириной строки, а не
+        /// с суммой колонок. Внутренний ScrollViewer дерева сам этого не учитывает
+        /// (CanContentScroll меряет панель вьюпортной шириной), поэтому минимум контента
+        /// досчитывается здесь. Вызов дороже обычного пересчёта суммы (замер до трёх
+        /// строк), поэтому выполняется только в редких точках — стабилизация выравнивания
+        /// (AlignHeaderToData), применение ширин/порядка колонок и смена верхней строки
+        /// при прокрутке, а не в горячем пути <see cref="UpdateTreeMinWidth"/> (#255).
+        /// </summary>
+        private void UpdateTreeMinWidthContent(Grid? knownRowGrid = null)
+        {
+            _treeMinWidthContent = 0;
+            if (knownRowGrid is not null)
+                MeasureRow(knownRowGrid);
+
+            if (MainTree is null)
+                return;
+
+            var measured = knownRowGrid is null ? 0 : 1;
+            foreach (var row in GetVisibleTreeViewItems())
+            {
+                if (measured >= 3)
+                    break;
+                var grid = FindGridByMarker(row, RowGridMarker)
+                           ?? FindGridByMarker(row, GroupGridMarker);
+                if (grid is null || ReferenceEquals(grid, knownRowGrid))
+                    continue;
+                MeasureRow(grid);
+                measured++;
+            }
+
+            void MeasureRow(Grid g)
+            {
+                // Замер «как хотела бы строка без ограничений»: ширина контента при
+                // бесконечном constraint (текст названия не обрезается). Высота берётся
+                // текущая, чтобы не ломать вертикальную раскладку строки.
+                g.Measure(new Size(double.PositiveInfinity, g.ActualHeight));
+                if (g.DesiredSize.Width > _treeMinWidthContent)
+                    _treeMinWidthContent = g.DesiredSize.Width;
+            }
         }
 
         /// <summary>Спецификация колонки заголовка для расчёта минимальной ширины.</summary>
@@ -872,6 +949,10 @@ namespace Configuration_Management
                     ServerColumn?.ActualWidth ?? 0,
                     LastLaunchColumn?.ActualWidth ?? 0,
                     ActionsColumn?.ActualWidth ?? 0);
+                // Новая ширина колонки меняет желаемую ширину строки (звёздная «Название»
+                // при бесконечном замере получает остаток) — пересчитываем фактическую
+                // ширину контента до синхронизации минимума (issue #309).
+                UpdateTreeMinWidthContent();
                 SyncHeaderWidthWithList();
             }
 

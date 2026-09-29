@@ -735,6 +735,13 @@ namespace Configuration_Management
             if ((inner ?? _boundTreeScroll) is { } treeScroll && treeScroll.Extent.Width > target)
                 target = treeScroll.Extent.Width;
 
+            // Фактическая желаемая ширина первой строки, замеренная после материализации
+            // строк (AlignHeaderToRows): страховка на случай, когда Extent внутренней
+            // прокрутки ещё не отразил контент строк (первый запуск, пересборка окна
+            // компактным режимом) — issue #309.
+            if (_rowContentWidth > target)
+                target = _rowContentWidth;
+
             if (Math.Abs(_listContent.Width - target) > 0.5)
                 _listContent.Width = target;
         }
@@ -803,6 +810,14 @@ namespace Configuration_Management
             double offset = 0;
             if (rowGrid is not null && rowGrid.ColumnDefinitions.Count > NameRowColumn)
             {
+                // Фактическая желаемая ширина первой строки (длинные названия баз): внешняя
+                // полоса обязана дотягивать до реального контента строк, а не только до
+                // суммы колонок (issue #309). Замер с бесконечной шириной повторяет
+                // поведение внутреннего ScrollViewer дерева (он меряет контент без
+                // ограничения) и выполняется после материализации строк — на ранних
+                // проходах Extent может ещё не отразить фактический контент.
+                rowGrid.Measure(Size.Infinity);
+                _rowContentWidth = rowGrid.DesiredSize.Width;
                 double rowLead = 0;
                 for (var i = 0; i < NameRowColumn; i++)
                     rowLead += rowGrid.ColumnDefinitions[i].ActualWidth;

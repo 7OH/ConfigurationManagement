@@ -232,7 +232,12 @@ public sealed class EtapHotkeysFavoritesTests
     /// снимает их ключи из набора свёрнутых. Узлы дерева пересоздаются при пересборке
     /// по набору свёрнутых групп, поэтому оставшийся ключ свёрнутой группы-предка
     /// снова свернул бы её и спрятал целевую базу (см. ExpandChainToRoot).
+    /// Тест обёрнут в #if !LINUX: общий статический метод живёт в WINDOWS-only
+    /// MainViewModel.Commands.cs, а в Avalonia та же логика встроена инлайн
+    /// (MainViewModel.Avalonia.Commands.cs) — иначе кросс-сборка тестового
+    /// проекта с BuildLinux=true падала бы CS0117.
     /// </summary>
+#if !LINUX
     [Fact]
     public void ExpandChainToRoot_UncollapsesAncestorsAndRemovesKeys()
     {
@@ -259,6 +264,7 @@ public sealed class EtapHotkeysFavoritesTests
         Assert.DoesNotContain(mid.NodeKey, collapsed);
         Assert.DoesNotContain(deep.NodeKey, collapsed);
     }
+#endif
 
     /// <summary>
     /// Поиск строки «Найти в списке» (issue #285): домашний узел базы во «Все базы» —

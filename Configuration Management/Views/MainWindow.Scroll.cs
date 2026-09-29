@@ -273,7 +273,33 @@ namespace Configuration_Management
             // себе вызов дёшев: при неизменной сумме MinWidth устанавливается на то же
             // значение и не инвалидирует раскладку.
             if (e.ExtentWidthChange != 0)
+            {
                 UpdateTreeMinWidth();
+
+                // Фактическая ширина контента зависит от верхней видимой строки: при
+                // вертикальной прокрутке наверх приходит строка с другим названием, и
+                // кэш _treeMinWidthContent, замеренный по прежней строке, может не
+                // дотягивать до её реальной ширины (issue #309). Пересчитываем замер
+                // только когда полоса реально есть (минимум больше вьюпорта) и верхняя
+                // строка сменилась — при помещающихся колонках замер не нужен вовсе,
+                // а при горизонтальной прокрутке верхняя строка не меняется.
+                if (e.HorizontalChange == 0 && _treeMinWidthContent > 0)
+                {
+                    var presenter = GetTreeScrollContentPresenter();
+                    if (presenter is not null
+                        && sender is ScrollViewer treeScroll
+                        && presenter.MinWidth > treeScroll.ViewportWidth + 0.5)
+                    {
+                        var top = GetTopVisibleRowData();
+                        if (!ReferenceEquals(top, _treeMinWidthAnchorData))
+                        {
+                            _treeMinWidthAnchorData = top;
+                            UpdateTreeMinWidthContent();
+                            UpdateTreeMinWidth();
+                        }
+                    }
+                }
+            }
         }
 
         private void OnMainTree_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

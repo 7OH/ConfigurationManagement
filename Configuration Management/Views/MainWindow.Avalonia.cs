@@ -79,6 +79,14 @@ namespace Configuration_Management
         private Grid? _listContent;
         /// <summary>Текущая сумма ширин видимых колонок списка (минимум области, issue #309).</summary>
         private double _listMinWidth;
+
+        /// <summary>
+        /// Фактическая желаемая ширина первой строки дерева (замер с бесконечной шириной,
+        /// issue #309): длинное название раздвигает строку шире расчётной суммы колонок,
+        /// и внешняя полоса обязана дотягивать до реального контента. Обновляется в
+        /// <c>AlignHeaderToRows</c> после материализации строк (Loaded-приоритет).
+        /// </summary>
+        private double _rowContentWidth;
         /// <summary>Шаг прокрутки колесом, как у штатного ScrollContentPresenter.</summary>
         private const double WheelScrollStep = 50;
 
