@@ -703,9 +703,13 @@ public static class PlatformVersionService
     /// <summary>
     /// Дерево выбора платформы (как в стартере 1С):
     /// линия (8.3) → группа сборок (8.3.27) → полная версия «8.3.27.2214 (x64)».
+    /// При активном фильтре разрядности скрываются только листья другой разрядности,
+    /// а папки (линии и группы сборок) сохраняются, если в линии остался хотя бы один
+    /// видимый вариант: выбор папки «8.5.1» не должен «перескакивать» на линию 8.5 при
+    /// переключении фильтра, пока семейство 8.5 хоть как-то видимо (issue #304).
     /// </summary>
     public static List<Models.PlatformVersionGroup> BuildGroupedTree(
-        IEnumerable<Models.PlatformVersionInfo> infos)
+        IEnumerable<Models.PlatformVersionInfo> infos, string archFilter = "all")
     {
         var list = infos?.ToList() ?? new List<Models.PlatformVersionInfo>();
         var roots = new List<Models.PlatformVersionGroup>();
@@ -716,6 +720,12 @@ public static class PlatformVersionService
 
         foreach (var lineGroup in byLine)
         {
+            // Линия остаётся в дереве, только если в ней есть хотя бы один лист,
+            // проходящий фильтр разрядности. Иначе папка «8.5» пуста — показывать
+            // нечего, fallback не нужен (issue #304).
+            if (!lineGroup.Any(i => PassesArchFilter(i.Display, archFilter)))
+                continue;
+
             var lineNode = new Models.PlatformVersionGroup { Name = lineGroup.Key, Kind = Models.PlatformNodeKind.Line };
 
             var byBuild = lineGroup
@@ -724,10 +734,16 @@ public static class PlatformVersionService
 
             foreach (var buildGroup in byBuild)
             {
+                // Папка группы сборок («8.5.1») сохраняется даже без собственных
+                // видимых листьев: линия видима, а выбранная папка должна оставаться
+                // доступной при переключении разрядности (issue #304).
                 var buildNode = new Models.PlatformVersionGroup { Name = buildGroup.Key, Kind = Models.PlatformNodeKind.BuildGroup };
 
                 foreach (var info in buildGroup.OrderByDescending(i => i.Display, new VersionComparer()))
                 {
+                    if (!PassesArchFilter(info.Display, archFilter))
+                        continue;
+
                     ParseVariant(info.Display, out var version, out var arch);
                     var archLabel = FormatArchitectureLabel(arch);
                     var leafName = string.IsNullOrEmpty(archLabel)
@@ -797,8 +813,9 @@ public static class PlatformVersionService
 
         if (parts.Length == 3)
         {
-            // Группа сборок «8.5.1» → сама папка группы; если она отфильтрована (все её сборки
-            // другой разрядности) — fallback на линию (#304).
+            // Группа сборок «8.5.1» → сама папка группы. Папка сохраняется в дереве при
+            // фильтре разрядности, пока линия видима (см. BuildGroupedTree, #304), поэтому
+            // fallback на линию срабатывает только когда версий 8.5.1.* нет в данных вовсе.
             return FindBuildGroup(line, string.Join(".", parts.Take(3))) ?? line;
         }
 
@@ -877,19 +894,21 @@ public static class PlatformVersionService
     /// </summary>
     public static List<Models.PlatformVersionInfo> FilterByArchitecture(
         IEnumerable<Models.PlatformVersionInfo> infos, string filter)
+        => infos.Where(i => PassesArchFilter(i.Display, filter)).ToList();
+
+    /// <summary>
+    /// Проходит ли вариант листа активный фильтр разрядности. Варианты БЕЗ явного суффикса
+    /// («8.3.27», частичная версия) проходят в обоих фильтрах: их разрядность неизвестна,
+    /// решать должен лаунчер (issue #251/#304).
+    /// </summary>
+    private static bool PassesArchFilter(string display, string filter)
     {
-        if (filter == "all")
-            return infos.ToList();
+        if (filter == "all") return true;
+        if (!HasExplicitArchitecture(display)) return true;
 
-        return infos.Where(i =>
-        {
-            if (!HasExplicitArchitecture(i.Display))
-                return true;
-
-            ParseVariant(i.Display, out _, out var arch);
-            var label = FormatArchitectureLabel(arch);
-            return filter == "x64" ? label == "x64" : label == "x32";
-        }).ToList();
+        ParseVariant(display, out _, out var arch);
+        var label = FormatArchitectureLabel(arch);
+        return filter == "x64" ? label == "x64" : label == "x32";
     }
 
     private static bool IsVersionDirectory(string name)

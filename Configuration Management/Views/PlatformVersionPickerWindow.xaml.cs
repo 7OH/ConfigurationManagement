@@ -51,8 +51,11 @@ namespace Configuration_Management
 
         private void RefreshTree()
         {
-            var filtered = PlatformVersionService.FilterByArchitecture(_allInfos, _archFilter);
-            var tree = PlatformVersionService.BuildGroupedTree(filtered);
+            // Дерево строится из полного списка версий, а фильтр разрядности скрывает
+            // только листья: папки (линии/группы сборок) сохраняются, пока в линии есть
+            // хоть один видимый вариант, — выбор «8.5.1» не перескакивает на линию 8.5
+            // при переключении разрядности (issue #304).
+            var tree = PlatformVersionService.BuildGroupedTree(_allInfos, _archFilter);
             if (_sortAscending)
                 tree = ReverseTreeOrder(tree);
 

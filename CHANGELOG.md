@@ -9,6 +9,25 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.138] — 2026-09-29
+
+### Исправлено
+
+- **«Выбор папки в выборе платформы» (issue #304)** — выбор «8.5.1» (лист или папка)
+  больше не «перескакивает» на линию 8.5 при переключении фильтра разрядности
+  (Windows/WPF + Linux/Avalonia). Раньше при фильтре x64 у версии 8.5.1 без x64-сборки
+  все её листья отфильтровывались из списка, пустая папка группы сборок не попадала
+  в дерево, и восстановление выбора делало fallback на линию. Теперь дерево окна
+  строится из полного списка установленных версий, а фильтр разрядности скрывает
+  только листья: папка «8.5.1» остаётся доступной, пока в линии 8.5 есть хотя бы один
+  видимый вариант; fallback на линию выполняется лишь когда семейство полностью
+  отфильтровано ([`Services/PlatformVersionService.cs`](Configuration%20Management/Services/PlatformVersionService.cs),
+  [`Services/PlatformVersionService.Linux.cs`](Configuration%20Management/Services/PlatformVersionService.Linux.cs),
+  [`Views/PlatformVersionPickerWindow.xaml.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.xaml.cs),
+  [`Views/PlatformVersionPickerWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformVersionPickerWindow.Avalonia.cs)).
+  Поведение #251/#142 сохранено: папка в режиме «Все» даёт чистую версию, при активном
+  фильтре — с суффиксом разрядности; листы и папки выбираются как раньше.
+
 ## [0.3.9.137] — 2026-09-29
 
 ### Исправлено

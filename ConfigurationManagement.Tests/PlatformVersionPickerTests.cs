@@ -151,6 +151,105 @@ public sealed class PlatformVersionPickerTests
         Assert.False(PlatformVersionService.MatchesCurrent("8.5.4 (64)", "8.5.1 (64)"));
     }
 
+    // ============ Сценарий #304: 8.5.4 → 8.5.1 → фильтр x64 ============
+
+    [Fact]
+    public void BuildGroupedTree_WithArchFilter_KeepsFolderWhenLineHasVisibleVariant()
+    {
+        // У 8.5.1 только x32-сборка, у 8.5.4 — x32 и x64. При фильтре x64 папка «8.5.1»
+        // должна остаться в дереве (линия 8.5 видима), хотя её листья скрыты (#304).
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.4 (64)", "8.5.4 (32)", "8.5.1 (32)"), "x64");
+
+        var line = Assert.Single(tree);
+        Assert.Equal("8.5", line.Name);
+        Assert.Equal(PlatformNodeKind.Line, line.Kind);
+
+        var group51 = Assert.Single(line.Children, g => g.Name == "8.5.1");
+        Assert.Equal(PlatformNodeKind.BuildGroup, group51.Kind);
+        Assert.Empty(group51.Children); // все листья 8.5.1 скрыты фильтром
+
+        var group54 = Assert.Single(line.Children, g => g.Name == "8.5.4");
+        Assert.Single(group54.Children); // остался только лист «8.5.4 (64)»
+        Assert.Equal("8.5.4 (64)", group54.Children[0].Variant);
+    }
+
+    [Fact]
+    public void BuildGroupedTree_WithArchFilter_HidesOtherArchLeaves()
+    {
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.1 (64)", "8.5.1 (32)"), "x64");
+
+        var line = Assert.Single(tree);
+        var group = Assert.Single(line.Children, g => g.Name == "8.5.1");
+        var leaf = Assert.Single(group.Children);
+        Assert.Equal("8.5.1 (64)", leaf.Variant);
+    }
+
+    [Fact]
+    public void BuildGroupedTree_WithArchFilter_OmitsFullyFilteredLine()
+    {
+        // Вся линия 8.5 — только x32: при фильтре x64 её не показываем вовсе,
+        // fallback бессмыслен (issue #304).
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.1 (32)", "8.5.4 (32)"), "x64");
+
+        Assert.Empty(tree);
+    }
+
+    [Fact]
+    public void FindBestNode_PartialVersionInFilteredTree_ReturnsBuildGroupFolder()
+    {
+        // Главный сценарий: текущая 8.5.4, выбрана папка «8.5.1», переключаем фильтр
+        // на x64 — выделение должно остаться на папке 8.5.1, а НЕ уходить на линию 8.5.
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.4 (64)", "8.5.4 (32)", "8.5.1 (32)"), "x64");
+
+        var node = PlatformVersionService.FindBestNode(tree, "8.5.1");
+
+        Assert.NotNull(node);
+        Assert.False(node!.IsLeaf);
+        Assert.Equal("8.5.1", node.Name);
+        Assert.Equal(PlatformNodeKind.BuildGroup, node.Kind);
+    }
+
+    [Fact]
+    public void FindBestNode_LeafFullVersionFiltered_FallsBackToBuildGroupFolder()
+    {
+        // Выбран лист «8.5.1.1000 (32)»; у 8.5.1 нет x64-сборок — при фильтре x64
+        // выделение переходит на папку группы сборок 8.5.1, а не на линию 8.5 (#304).
+        var tree = PlatformVersionService.BuildGroupedTree(
+            Infos("8.5.1.1000 (32)", "8.5.4 (64)"), "x64");
+
+        var node = PlatformVersionService.FindBestNode(tree, "8.5.1.1000 (32)");
+
+        Assert.NotNull(node);
+        Assert.False(node!.IsLeaf);
+        Assert.Equal("8.5.1", node.Name);
+        Assert.Equal(PlatformNodeKind.BuildGroup, node.Kind);
+    }
+
+    [Fact]
+    public void Scenario_854To851SwitchX64_KeepsSelectionOn851()
+    {
+        // Полный сценарий из комментария @7OH: «Была 8.5.4, выбираю 8.5.1,
+        // переключаю на х64 и выделяет 8.5». После исправления выделение остаётся
+        // на папке 8.5.1.
+        var all = Infos("8.5.4 (64)", "8.5.4 (32)", "8.5.1 (32)");
+
+        // Окно открыто с текущей версией 8.5.4 (64); пользователь выбрал папку 8.5.1,
+        // затем переключил фильтр разрядности на x64 — RefreshTree строит дерево
+        // из ПОЛНОГО списка версий с активным фильтром и восстанавливает выбор.
+        var tree = PlatformVersionService.BuildGroupedTree(all, "x64");
+        var node = PlatformVersionService.FindBestNode(tree, "8.5.1");
+
+        Assert.NotNull(node);
+        Assert.False(node!.IsLeaf);
+        Assert.Equal("8.5.1", node.Name);
+        Assert.Equal(PlatformNodeKind.BuildGroup, node.Kind);
+        Assert.DoesNotContain(tree, n => n.Name == "8.5" && n.Kind == PlatformNodeKind.BuildGroup);
+    }
+
     // ======================= Хелперы =======================
 
     private static List<PlatformVersionInfo> Infos(params string[] displays)
