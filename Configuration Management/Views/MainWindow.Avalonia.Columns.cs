@@ -835,6 +835,14 @@ namespace Configuration_Management
             if (_columnHeaderRow is null || _tree is null)
                 return;
 
+            // Как в WPF (MainWindow.Columns.cs, SyncHeaderWidthWithList): синхронизация ширины
+            // заголовка держит и минимум контента в актуальном состоянии. Выравнивание шапки
+            // пересчитывается на появление строк/изменение размеров области, и если к этому
+            // моменту колонки изменились без события модели (загрузка настроек прямым
+            // присвоением), без явного пересчёта полоса осталась бы прежней ширины и не
+            // доехала бы до последней колонки (issue #309).
+            UpdateListMinWidth();
+
             double extent = _tree.Bounds.Width;
             double viewport = _tree.Bounds.Width;
             if (TreeScroll is { } scroll)

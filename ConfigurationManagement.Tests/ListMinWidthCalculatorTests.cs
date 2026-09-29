@@ -125,4 +125,43 @@ public sealed class ListMinWidthCalculatorTests
         Assert.Equal(150 + 50 + 16 + 200, total);
         Assert.True(total <= viewport, "Минимальная ширина не должна превышать вьюпорт — полоса прокрутки не нужна.");
     }
+
+    /// <summary>
+    /// Fallback имени при нулевой ширине «Названия»: пока колонка звёздная (ширина не
+    /// задана перетаскиванием разделителя), в расчёт идёт фиксированный минимум, а не
+    /// ноль — иначе сумма занижалась бы и полоса не доезжала бы до последней колонки
+    /// (issue #309).
+    /// </summary>
+    [Fact]
+    public void Compute_NameZeroWidth_UsesFallback()
+    {
+        var leading = new[] { C(24), C(26) };
+        var values = new[] { C(120), C(80) };
+
+        var total = ListMinWidthCalculator.Compute(nameWidth: 0, nameFallback: 220, leading, 0, values);
+
+        // 220 (fallback) + 50 + 200 = 470: ноль ширины имени не обнуляет её вклад.
+        Assert.Equal(220 + 50 + 200, total);
+    }
+
+    /// <summary>
+    /// Последняя (одна) колонка в конце списка достижима: сумма видимых колонок,
+    /// включая самую правую широкую, попадает в минимум целиком — горизонтальная
+    /// полоса обязана дотягивать до неё, а не обрезать (issue #309).
+    /// </summary>
+    [Fact]
+    public void Compute_SingleWideLastColumn_Reachable()
+    {
+        var leading = new[] { C(24), C(26) };
+        // В конце стоит единственная широкая колонка — минимум обязан включать её всю.
+        var values = new[] { C(500) };
+
+        const double viewport = 400; // уже: одна широкая колонка не помещается
+        var total = ListMinWidthCalculator.Compute(220, 220, leading, 0, values);
+
+        Assert.Equal(220 + 50 + 500, total);
+        Assert.True(total > viewport, "Полоса нужна: сумма колонок больше вьюпорта.");
+        Assert.True(total >= 220 + 50 + 500,
+            "Минимум должен включать правую колонку целиком — последняя колонка достижима.");
+    }
 }

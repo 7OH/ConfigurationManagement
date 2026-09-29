@@ -217,6 +217,12 @@ namespace Configuration_Management
                     try
                     {
                         RestoreLastSelection();
+                        // Настройки колонок модель загружает прямым присвоением полей БЕЗ
+                        // PropertyChanged, поэтому событийный пересчёт на старте не сработает:
+                        // единственная гарантия применения сохранённых видимостей/ширин к
+                        // минимальной ширине списка — явный пересчёт после завершения фоновой
+                        // инициализации (дерево построено, binding'ы колонок применены, issue #309).
+                        UpdateTreeMinWidth();
                         QueueHeaderAlign();
                     }
                     catch { /* не блокируем запуск из-за восстановления выделения */ }
@@ -336,6 +342,14 @@ namespace Configuration_Management
                     or nameof(MainViewModel.ConfigurationVersionColumnWidth)
                     or nameof(MainViewModel.ActionsColumnWidth))
                 {
+                    // Минимальная ширина области списка пересчитывается сразу, а не только
+                    // через цепочку выравнивания заголовка (QueueHeaderAlign -> AlignHeaderToData):
+                    // та требует наличия первой строки дерева и выполняется на ApplicationIdle,
+                    // поэтому при пустом списке или до материализации строк горизонтальная
+                    // полоса оставалась бы прежней ширины и не доезжала до последней колонки
+                    // (issue #309). Прямой пересчёт дёшев: при неизменной сумме MinWidth
+                    // ставится на то же значение и не инвалидирует раскладку.
+                    UpdateTreeMinWidth();
                     QueueHeaderAlign();
                 }
 

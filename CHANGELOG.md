@@ -9,6 +9,28 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.152] — 2026-09-29
+
+### Исправлено
+
+- **Горизонтальная прокрутка списка баз (issue #309)** — минимальная ширина списка
+  пересчитывается после загрузки настроек колонок и при изменении их видимости/ширин;
+  полоса теперь доходит до последней видимой колонки. Пересчёт был привязан только к
+  косвенной цепочке выравнивания заголовка, которая требует наличия первой строки дерева
+  и не срабатывала при загрузке настроек прямым присвоением полей модели (без событий):
+  [`Views/MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs) —
+  `UpdateTreeMinWidth()` вызывается сразу после завершения фоновой инициализации и при
+  изменении видимости/ширин колонок;
+  [`Views/MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs) —
+  прямой пересчёт при старте в `OnWindowLoaded`, не зависящий от материализации строк;
+  [`Views/MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs) —
+  пересчёт после применения порядка колонок (`ApplyColumnOrder`);
+  [`Views/MainWindow.Avalonia.Columns.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Columns.cs) —
+  `SyncHeaderWidthWithList` теперь тоже держит минимум контента в актуальном состоянии
+  (зеркально WPF);
+  [`Views/MainWindow.Avalonia.Scroll.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Scroll.cs) —
+  синхронизация ширины контента при (пере)привязке внутренней прокрутки дерева.
+
 ## [0.3.9.151] — 2026-09-29
 
 ### Исправлено

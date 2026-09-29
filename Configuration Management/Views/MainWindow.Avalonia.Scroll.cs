@@ -114,6 +114,11 @@ namespace Configuration_Management
                 .Subscribe(new PropertyObserver<Size>(_ => SyncListWidthToViewport(scroll))));
 
             Sync();
+            // При (пере)привязке прокрутки сразу выставляем ширину контента списка по её
+            // фактическому extent/вьюпорту: при пересборке окна (компактный режим) вьюпорт
+            // уже ненулевой, и отложенная до первого ScrollChanged синхронизация оставила бы
+            // полосу без последней колонки до следующего изменения размеров (issue #309).
+            SyncListWidthToViewport(scroll);
         }
 
         /// <summary>

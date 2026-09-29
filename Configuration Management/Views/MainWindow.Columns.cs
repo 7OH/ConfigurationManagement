@@ -344,6 +344,12 @@ namespace Configuration_Management
                 ReorderGridColumns(grid, RowFirstDataColumn);
                 SetColumnOrderApplied(grid, true);
             }
+
+            // Порядок колонок влияет на состав суммы минимальной ширины (перенос «Действий»,
+            // смена мест): после перестановки определений пересчитываем ширину заголовка и
+            // минимум контента, иначе полоса оставалась бы по прежнему порядку и могла не
+            // дотягивать до последней (новой) колонки (issue #309).
+            SyncHeaderWidthWithList();
         }
 
         /// <summary>
