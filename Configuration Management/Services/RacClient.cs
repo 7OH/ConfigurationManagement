@@ -106,18 +106,22 @@ public sealed class RacClient : IRacClient
 
     /// <summary>
     /// Собирает аргументы командной строки rac:
-    /// <c>[--host=addr --port=N --user=U --password=P] <команда> [--cluster=uuid ...]</c>.
-    /// Параметры подключения опускаются, если пусты (пароль/логин) или некорректны (порт ≤ 0).
-    /// Internal — для юнит-тестов сборки аргументов (без запуска процесса).
+    /// <c>[адрес[:порт] --user=U --password=P] <команда> [--cluster=uuid ...]</c>.
+    /// Точка подключения передаётся ЕДИНЫМ токеном в формате <c>host:port</c> первым аргументом
+    /// (rac.exe host:port cluster list) — раздельные <c>--host=</c>/<c>--port=</c> не разбираются
+    /// новыми версиями платформы (issue #324). Если порт ≤ 0 — только <c>host</c>; если адрес
+    /// пуст — токен подключения опускается. Логин/пароль передаются как <c>--user=</c>/<c>--password=</c>.
+    /// Значение с пробелами (адрес, пароль) остаётся одним токеном — аргументы передаются через
+    /// ArgumentList без shell. Internal — для юнит-тестов сборки аргументов (без запуска процесса).
     /// </summary>
     internal static IReadOnlyList<string> BuildArguments(
         RacConnectionParams parameters, params string[] commandAndArgs)
     {
         var args = new List<string>(commandAndArgs.Length + 5);
         if (!string.IsNullOrWhiteSpace(parameters.Address))
-            args.Add($"--host={parameters.Address}");
-        if (parameters.Port > 0)
-            args.Add($"--port={parameters.Port}");
+            args.Add(parameters.Port > 0
+                ? $"{parameters.Address}:{parameters.Port}"
+                : parameters.Address);
         if (!string.IsNullOrEmpty(parameters.User))
             args.Add($"--user={parameters.User}");
         if (!string.IsNullOrEmpty(parameters.Password))

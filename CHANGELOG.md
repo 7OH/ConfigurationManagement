@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.157] — 2026-09-29
+
+### Исправлено
+
+- **Монитор серверов 1С: подключение rac через единый токен «host:port» (issue #324)** —
+  команды rac снова выполняются на новых версиях платформы 1С. Причина: `RacClient`
+  передавал точку подключения раздельными аргументами `--host=addr` и `--port=N`,
+  которые rac новых версий не разбирает («Ошибка разбора параметра: --host=localhost»),
+  хотя `rac.exe localhost:27545 cluster list` в командной строке работает. Теперь
+  `BuildArguments` собирает адрес и порт в ОДИН токен первым аргументом —
+  `rac host:port cluster list`; при порте ≤ 0 остаётся только `host`, при пустом адресе
+  токен подключения опускается. Логин/пароль по-прежнему передаются как `--user=`/`--password=`,
+  поэтому маскирование пароля в журнале (`SensitiveDataMasker.MaskRacPassword`) продолжает
+  работать — в лог rac-команда попадает без значения пароля. Адрес с пробелами остаётся
+  одним токеном (передача через `ArgumentList` без shell):
+  [`Services/RacClient.cs`](Configuration%20Management/Services/RacClient.cs) — `BuildArguments`,
+  тесты [`ConfigurationManagement.Tests/RacClientTests.cs`](ConfigurationManagement.Tests/RacClientTests.cs).
+
+- **Монитор серверов 1С: тексты строк и заголовков по вертикали по центру (issue #324)** —
+  в окне монитора серверов тексты ячеек и заголовков колонок больше не прижаты к верхнему
+  краю. В WPF для всех таблиц окна задан явный стиль заголовков колонок с
+  `VerticalContentAlignment=Center` (`ServerMonitorWindow.xaml`, стиль `CenteredColumnHeader`),
+  в Avalonia контейнеры строк `ListBoxItem` получили `VerticalContentAlignment=Center` и
+  единую высоту `MinHeight=36` (аналог `RowHeight` WPF-версии). Сами ячейки уже
+  центрировались глобальным стилем `DataGridCell`.
+
 ## [0.3.9.156] — 2026-09-29
 
 ### Исправлено

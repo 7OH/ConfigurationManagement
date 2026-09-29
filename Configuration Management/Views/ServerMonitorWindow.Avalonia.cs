@@ -10,6 +10,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Configuration_Management.Controls;
 using Configuration_Management.Localization;
@@ -230,6 +231,17 @@ namespace Configuration_Management
             {
                 ItemTemplate = new FuncDataTemplate<object>((item, _) => rowFactory(item))
             };
+            // Тексты строк по вертикали по центру (issue #324): контейнер ListBoxItem
+            // центрирует содержимое, MinHeight задаёт единую комфортную высоту строки
+            // (аналог RowHeight=34 у DataGrid в WPF-версии окна).
+            list.Styles.Add(new Style(x => x.OfType<ListBoxItem>())
+            {
+                Setters =
+                {
+                    new Setter(ListBoxItem.MinHeightProperty, 36d),
+                    new Setter(ListBoxItem.VerticalContentAlignmentProperty, VerticalAlignment.Center)
+                }
+            });
             list.Bind(ListBox.ItemsSourceProperty, new Binding(binding));
             if (selectedBinding is not null)
                 list.Bind(ListBox.SelectedItemProperty, new Binding(selectedBinding, BindingMode.TwoWay));

@@ -23,6 +23,15 @@
         <Style x:Key="CellTextAccent" TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
+
+        <!-- Заголовки колонок: текст по вертикали по центру (issue #324; глобальный шаблон
+             темы центрирует ContentPresenter, здесь фиксируем явно для окна монитора). -->
+        <Style x:Key="CenteredColumnHeader" TargetType="DataGridColumnHeader"
+               BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="8,0"/>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="16">
@@ -95,6 +104,7 @@
             <TabItem Header="{loc:Loc ServerMonitor.Tabs.Processes}">
                 <DataGrid x:Name="ProcessesGrid" AutoGenerateColumns="False" IsReadOnly="True"
                           HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          ColumnHeaderStyle="{StaticResource CenteredColumnHeader}"
                           SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
                           RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
                           BorderThickness="0">
@@ -146,6 +156,7 @@
                     <DataGrid x:Name="SessionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                               SelectedItem="{Binding SelectedSession}"
                               HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                              ColumnHeaderStyle="{StaticResource CenteredColumnHeader}"
                           SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
                           RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
                           BorderThickness="0">
@@ -224,6 +235,7 @@
                     <DataGrid x:Name="ConnectionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                               SelectedItem="{Binding SelectedConnection}"
                               HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                              ColumnHeaderStyle="{StaticResource CenteredColumnHeader}"
                           SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
                           RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
                           BorderThickness="0">
@@ -269,6 +281,7 @@
             <TabItem Header="{loc:Loc ServerMonitor.Tabs.Locks}">
                 <DataGrid x:Name="LocksGrid" AutoGenerateColumns="False" IsReadOnly="True"
                           HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          ColumnHeaderStyle="{StaticResource CenteredColumnHeader}"
                           SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
                           RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
                           BorderThickness="0">
