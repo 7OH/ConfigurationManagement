@@ -1738,6 +1738,11 @@ namespace Configuration_Management
             // Сравнение конфигураций (0.3.9.99): сравнение конфигурации базы с .cf
             // или двух .cf между собой; отчёт об отличиях по типам метаданных.
             menu.Items.Add(MenuAction("ConfigDiff.Title", _vm.ConfigDiffCommand, null, "IconCompare", "#06B6D4"));
+            // Обозреватель метаданных (0.3.9.133): дерево метаданных конфигурации
+            // (подсистемы → типы → объекты) без интерактивного конфигуратора — выгрузка
+            // XML через /DumpConfigToFiles, источник — база или файл .cf. Иконки Sitemap
+            // в Themes/Icons.axaml нет — переиспользуем IconCompare (как у сравнения).
+            menu.Items.Add(MenuAction("MetadataExplorer.Title", _vm.MetadataExplorerCommand, null, "IconCompare", "#06B6D4"));
 
             menu.Items.Add(MenuSeparator());
 

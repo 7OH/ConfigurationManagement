@@ -1656,5 +1656,26 @@ public partial class MainViewModel : ViewModelBase
             _settings.LastFileCreatePlatformVersion ?? string.Empty);
         window.ShowDialogSync(OwnerWindow());
     }
+
+    // ======================= Обозреватель метаданных (0.3.9.133) =======================
+
+    private System.Windows.Input.ICommand? _metadataExplorerCommand;
+
+    /// <summary>
+    /// Команда «Обозреватель метаданных…»: окно просмотра дерева метаданных конфигурации
+    /// (подсистемы → типы → объекты) без интерактивного конфигуратора — источник (база
+    /// или файл .cf) выгружается в XML через /DumpConfigToFiles (0.3.9.132–0.3.9.136).
+    /// Источник выбирается в окне, поэтому активна всегда.
+    /// </summary>
+    public System.Windows.Input.ICommand MetadataExplorerCommand =>
+        _metadataExplorerCommand ??= new RelayCommand(_ => ExecuteMetadataExplorer());
+
+    private void ExecuteMetadataExplorer()
+    {
+        var window = new Configuration_Management.MetadataExplorerWindow(
+            _allInfobases.ToList(),
+            SelectedInfobase);
+        window.ShowDialogSync(OwnerWindow());
+    }
 }
 #endif

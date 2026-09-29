@@ -777,6 +777,12 @@
                                         <MenuItem Header="{loc:Loc ConfigDiff.Title}" Command="{Binding ConfigDiffCommand}" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Compare" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
                                         </MenuItem>
+                                        <!-- Обозреватель метаданных (0.3.9.133): дерево метаданных конфигурации
+                                             (подсистемы → типы → объекты) без интерактивного конфигуратора —
+                                             выгрузка XML через /DumpConfigToFiles, источник — база или файл .cf. -->
+                                        <MenuItem Header="{loc:Loc MetadataExplorer.Title}" Command="{Binding MetadataExplorerCommand}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="Sitemap" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>

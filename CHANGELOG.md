@@ -9,6 +9,42 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.133] — 2026-09-29
+
+### Добавлено
+
+- **Обозреватель метаданных конфигурации — окно, ViewModel и ленивое дерево (этап 2
+  цикла 0.3.9.132–0.3.9.136)** — рабочее окно «Обозреватель метаданных…» (меню
+  «Утилиты»): просмотр дерева метаданных конфигурации 1С без интерактивного
+  конфигуратора — выгрузка XML через `/DumpConfigToFiles` (сервис этапа 1).
+  - **Источник** — панель «Информационная база» / «Файл .cf» + кнопка «Загрузить»:
+    валидация (база выбрана / .cf существует), выгрузка с окном прогресса (этапы из
+    события `StageChanged`); шапка окна — «имя версия» из корневого `Configuration.xml`.
+  - **Ленивое дерево** — [`ViewModels/MetadataTreeNodeViewModel.cs`](Configuration%20Management/ViewModels/MetadataTreeNodeViewModel.cs):
+    узел (Kind: Root/Subsystem/NoSubsystemGroup/Type/Object) с `EnsureLoaded()` —
+    дети подгружаются при раскрытии узла один раз (идемпотентно); «Конфигурация →
+    Подсистемы (+ Без подсистемы)», без подсистем — «Все объекты»; пустая конфигурация
+    (нет каталога объектов) — статус «конфигурация пуста», дерево без узлов.
+    Типы локализуются через `MetadataTypeLocalizer` (добавлены алиасы «множественное →
+    ключ локализации» для каталогов 8.3.24+ `Catalogs/`, `Documents/`, …).
+  - **Детали объекта** — [`ViewModels/MetadataExplorerViewModel.cs`](Configuration%20Management/ViewModels/MetadataExplorerViewModel.cs):
+    панель справа (имя, синоним, комментарий, реквизиты/ТЧ/формы/команды, иерархичность,
+    размер, путь в выгрузке) по запросу при выборе (`MetadataXmlParser.ReadObjectDetails`);
+    `Dispose()` удаляет временный каталог `%TEMP%\cm_metaeplorer_*` при закрытии окна.
+  - **Окна** — [`Views/MetadataExplorerWindow.xaml`](Configuration%20Management/Views/MetadataExplorerWindow.xaml)
+    (WPF: TreeView + GridSplitter + панель деталей, раскрытие → `EnsureLoaded`,
+    Closed → Dispose) и [`Views/MetadataExplorerWindow.Avalonia.cs`](Configuration%20Management/Views/MetadataExplorerWindow.Avalonia.cs)
+    (Avalonia/Linux: TreeView + `FuncTreeDataTemplate`, `ThemeBrushes.Bind`);
+    окно прогресса `MetadataExplorerProgressWindow` (WPF + Avalonia); кнопки
+    «Экспорт CSV…»/«Экспорт TXT…» — заготовки disabled (реализация на этапе 4);
+    локализация `MetadataExplorer.*` (ru/en), темизация.
+
+### Исправлено
+
+- `MetadataTypeLocalizer` — каталоги типов во множественном числе (формат выгрузки
+  8.3.24+) теперь локализуются и без нормализации парсером (алиасы `Catalogs→Catalog`
+  и т.п.); добавлен юнит-тест.
+
 ## [0.3.9.132] — 2026-09-29
 
 ### Добавлено

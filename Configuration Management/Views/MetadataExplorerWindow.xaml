@@ -1,0 +1,230 @@
+<Window x:Class="Configuration_Management.MetadataExplorerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        xmlns:conv="clr-namespace:Configuration_Management.Converters"
+        xmlns:vm="clr-namespace:Configuration_Management.ViewModels"
+        Icon="{StaticResource AppIcon}"
+        Height="640" Width="1080" MinHeight="480" MinWidth="900"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis"/>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
+
+        <!-- Строка ошибки: видна только при непустом ErrorMessage. -->
+        <Style x:Key="ErrorMessageStyle" TargetType="TextBlock">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ErrorMessage}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Узел дерева: имя + счётчик «(N)»; узел-заглушка раскрывалки скрыт. -->
+        <HierarchicalDataTemplate DataType="{x:Type vm:MetadataTreeNodeViewModel}"
+                                  ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding CountText}" Margin="6,0,0,0"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </HierarchicalDataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <TextBlock FontSize="15" FontWeight="SemiBold" Text="{loc:Loc MetadataExplorer.Title}"/>
+
+        <!-- Панель источника: база / файл .cf -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
+            <RadioButton Content="{loc:Loc MetadataExplorer.SourceBase}" IsChecked="{Binding IsSourceBase}"
+                         VerticalAlignment="Center" Margin="0,0,18,0"/>
+            <RadioButton Content="{loc:Loc MetadataExplorer.SourceCf}" IsChecked="{Binding IsSourceCf}"
+                         VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <ComboBox Width="280" ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}"
+                      DisplayMemberPath="Name" VerticalAlignment="Center" Margin="0,0,10,0"
+                      IsEnabled="{Binding IsSourceBase}"/>
+            <TextBox Width="320" Text="{Binding CfPath, UpdateSourceTrigger=PropertyChanged}"
+                     VerticalContentAlignment="Center" Margin="0,0,8,0"
+                     IsEnabled="{Binding IsSourceCf}"
+                     ToolTip="{loc:Loc MetadataExplorer.CfPathHint}"/>
+            <Button Width="100" Content="{loc:Loc MetadataExplorer.Browse}" Command="{Binding BrowseCfCommand}"
+                    Margin="0,0,8,0" IsEnabled="{Binding IsSourceCf}"/>
+            <Button Width="120" Content="{loc:Loc MetadataExplorer.Load}" Command="{Binding LoadCommand}"
+                    Background="{DynamicResource AccentBrush}" Foreground="White"/>
+        </StackPanel>
+
+        <!-- Шапка конфигурации -->
+        <TextBlock Grid.Row="2" x:Name="ConfigurationTitleText" FontSize="14" FontWeight="SemiBold"
+                   Margin="0,12,0,4" Text="{Binding ConfigurationTitle}"/>
+
+        <!-- Статус / ошибка -->
+        <TextBlock Grid.Row="3" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding StatusText}"/>
+        <TextBlock Grid.Row="3" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
+                   Foreground="#DC2626" Text="{Binding ErrorMessage}"
+                   Style="{StaticResource ErrorMessageStyle}"
+                   VerticalAlignment="Bottom" MaxHeight="60"/>
+
+        <!-- Дерево + панель деталей -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="300"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="360" MinWidth="260"/>
+            </Grid.ColumnDefinitions>
+
+            <TreeView x:Name="MetadataTree" Grid.Column="0"
+                      ItemsSource="{Binding TreeNodes}"
+                      BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+                      Padding="4" VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="TreeViewItem">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                    </Style>
+                </TreeView.ItemContainerStyle>
+            </TreeView>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch" Background="{DynamicResource BorderBrush}"/>
+
+            <!-- Панель деталей выбранного объекта -->
+            <Border Grid.Column="2" Margin="12,0,0,0" Padding="12"
+                    BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+                    CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="{loc:Loc MetadataExplorer.Details.Title}" FontSize="13"
+                                   FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <TextBlock Text="{loc:Loc MetadataExplorer.Details.EmptyHint}"
+                                   FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasDetails, Converter={StaticResource InverseBoolToVis}}"/>
+
+                        <StackPanel Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}">
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="{loc:Loc MetadataExplorer.Details.Name}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Column="1" Text="{Binding DetailsName}" FontWeight="SemiBold"
+                                           TextWrapping="Wrap" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Row="1" Text="{loc:Loc MetadataExplorer.Details.Synonym}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetailsSynonym}"
+                                           TextWrapping="Wrap" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Row="2" Text="{loc:Loc MetadataExplorer.Details.Comment}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DetailsComment}"
+                                           TextWrapping="Wrap" VerticalAlignment="Top"/>
+                            </Grid>
+
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,8"/>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="{loc:Loc MetadataExplorer.Details.Attributes}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding DetailsAttributesText}" FontSize="12"/>
+                                <TextBlock Grid.Row="1" Text="{loc:Loc MetadataExplorer.Details.TabularSections}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetailsTabularSectionsText}" FontSize="12"/>
+                                <TextBlock Grid.Row="2" Text="{loc:Loc MetadataExplorer.Details.Forms}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DetailsFormsText}" FontSize="12"/>
+                                <TextBlock Grid.Row="3" Text="{loc:Loc MetadataExplorer.Details.Commands}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DetailsCommandsText}" FontSize="12"/>
+                                <TextBlock Grid.Row="4" Text="{loc:Loc MetadataExplorer.Details.Hierarchical}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DetailsHierarchicalText}" FontSize="12"/>
+                            </Grid>
+
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,8"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="{loc:Loc MetadataExplorer.Details.Size}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Column="1" Text="{Binding DetailsSizeText}" FontSize="12" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Row="1" Text="{loc:Loc MetadataExplorer.Details.Path}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetailsRelPath}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                           VerticalAlignment="Top"/>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Кнопки экспорта (заготовки этапа 4) -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="{loc:Loc MetadataExplorer.ExportCsv}" Width="140" Margin="0,0,8,0" IsEnabled="False"/>
+            <Button Content="{loc:Loc MetadataExplorer.ExportTxt}" Width="140" Margin="0,0,8,0" IsEnabled="False"/>
+            <Button Content="{loc:Loc Common.Close}" Width="100" IsCancel="True" Click="OnClose_Click"/>
+        </StackPanel>
+
+        <!-- Подсказка -->
+        <TextBlock Grid.Row="6" Margin="0,8,0,0" FontSize="11"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Text="{loc:Loc MetadataExplorer.Hint}" TextWrapping="Wrap"/>
+    </Grid>
+</Window>

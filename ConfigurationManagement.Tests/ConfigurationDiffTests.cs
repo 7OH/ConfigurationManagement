@@ -213,6 +213,21 @@ public sealed class ConfigurationDiffTests : IDisposable
     }
 
     [Fact]
+    public void MetadataTypeLocalizer_PluralTypeDir_8_3_24_Plus_LocalizedViaAlias()
+    {
+        // Каталоги типов выгрузки 8.3.24+ — во множественном числе (разведка этапа 1):
+        // даже если имя каталога пришло без нормализации, оно локализуется через алиас
+        // «множественное → ключ локализации» (задача этапа 2, MetadataExplorer).
+        Assert.Equal("KEY:ConfigDiff.Type.Catalog", MetadataTypeLocalizer.GetDisplayName("Catalogs", key => "KEY:" + key));
+        Assert.Equal("KEY:ConfigDiff.Type.Document", MetadataTypeLocalizer.GetDisplayName("Documents", key => "KEY:" + key));
+        Assert.Equal("KEY:ConfigDiff.Type.Subsystem", MetadataTypeLocalizer.GetDisplayName("Subsystems", key => "KEY:" + key));
+        Assert.Equal("KEY:ConfigDiff.Type.Enum", MetadataTypeLocalizer.GetDisplayName("Enums", key => "KEY:" + key));
+        Assert.Equal("KEY:ConfigDiff.Type.Report", MetadataTypeLocalizer.GetDisplayName("Reports", key => "KEY:" + key));
+        // Единственное число по-прежнему работает.
+        Assert.Equal("KEY:ConfigDiff.Type.Catalog", MetadataTypeLocalizer.GetDisplayName("Catalog", key => "KEY:" + key));
+    }
+
+    [Fact]
     public void MetadataTypeLocalizer_SortTypes_KnownFirstUnknownsLast()
     {
         var sorted = MetadataTypeLocalizer.SortTypes(new[] { "ZetaUnknown", "Document", "AlphaUnknown", "Catalog" }).ToList();
