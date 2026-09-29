@@ -9,6 +9,26 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.146] — 2026-09-29
+
+### Исправлено
+
+- **Пустое незакрываемое окно редактора сценария и окна создания ИБ (issue #308, #305)** —
+  регресс авторазмера окон: `SizeToContent=Height` мог схлопывать окно в пустой прямоугольник
+  при модальном показе («надписи на миг появляются и пропадают», закрыть можно только Alt-F4;
+  «странное окно» при открытии создания ИБ). Вместо хрупкого авторазмера окна открываются
+  с явной высотой; окно создания ИБ после первой отрисовки подгоняет высоту под содержимое
+  (клампинг `MinHeight..MaxHeight`) и при изменении типа базы удерживается в рабочей области
+  экрана — нижняя часть не уходит за край. Windows/WPF —
+  [`Views/ScriptScenarioEditWindow.xaml`](Configuration%20Management/Views/ScriptScenarioEditWindow.xaml)
+  и [`Views/CreateInfobaseWindow.xaml`](Configuration%20Management/Views/CreateInfobaseWindow.xaml)
+  (+ code-behind); Linux/Avalonia —
+  [`Views/ScriptScenarioEditWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptScenarioEditWindow.Avalonia.cs)
+  и [`Views/CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs).
+  Общий расчёт размеров/позиции вынесен в чистый
+  [`Services/WindowSizeMath.cs`](Configuration%20Management/Services/WindowSizeMath.cs) и покрыт
+  юнит-тестами ([`WindowSizeMathTests.cs`](ConfigurationManagement.Tests/WindowSizeMathTests.cs)).
+
 ## [0.3.9.145] — 2026-09-29
 
 ### Добавлено

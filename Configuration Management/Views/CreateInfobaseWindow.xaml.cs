@@ -86,6 +86,43 @@ namespace Configuration_Management
 
             if (fromTemplate)
                 LoadInstalledTemplates();
+
+            // Высота окна — явная (не SizeToContent=Height): после первой отрисовки один раз
+            // подстраиваемся под контент и держим окно в рабочей области. Регресс «странного/
+            // пустого окна» (issues #305/#308) был связан с хрупким авторазмером при модальном показе.
+            ContentRendered += (_, _) => FitHeightToContent();
+        }
+
+        /// <summary>
+        /// Подгоняет высоту окна под содержимое (явно, без <c>SizeToContent=Height</c>) и не даёт
+        /// окну уйти за нижний край рабочей области при изменении типа базы (issue #305).
+        /// Логика клампинга — чистый <see cref="WindowSizeMath"/> (общий с Avalonia, покрыт тестами).
+        /// </summary>
+        private void FitHeightToContent()
+        {
+            if (RootGrid is null || !IsLoaded || !IsVisible)
+                return;
+
+            // Измеряем контент при бесконечной высоте: сколько места нужно, чтобы внутренний
+            // ScrollViewer не прокручивался (он вернёт полную высоту содержимого).
+            var availableWidth = RootGrid.ActualWidth > 0 ? RootGrid.ActualWidth : Math.Max(400, Width);
+            RootGrid.Measure(new Size(availableWidth, double.PositiveInfinity));
+            var desired = RootGrid.DesiredSize.Height;
+            if (desired <= 0)
+                return;
+
+            // Хром (заголовок окна + рамки) — разница между полной высотой и клиентской областью.
+            var chrome = Math.Max(0, ActualHeight - (RootGrid.ActualHeight > 0 ? RootGrid.ActualHeight : desired));
+            var target = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
+            if (Math.Abs(target - Height) > 1)
+                Height = target;
+
+            // Окно стояло у нижнего края экрана и выросло при смене типа — поднимаем его,
+            // чтобы нижняя часть не уходила за экран.
+            var wa = SystemParameters.WorkArea;
+            var newTop = WindowSizeMath.FitTop(Top, Height, wa.Top, wa.Bottom);
+            if (Math.Abs(newTop - Top) > 1)
+                Top = newTop;
         }
 
         /// <summary>
@@ -225,6 +262,11 @@ namespace Configuration_Management
                     preferredSelection: GetPlatformSelection(isFile));
                 RememberPlatformSelection(isFile, PlatformBox.Text);
             }
+
+            // После смены типа высота пересчитывается под новый набор полей и окно
+            // удерживается в рабочей области (issue #305). Отложенный вызов — панели
+            // должны сначала перестроиться по новому типу.
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(FitHeightToContent));
         }
 
         private void OnPickPlatform_Click(object sender, RoutedEventArgs e)

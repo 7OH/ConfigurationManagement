@@ -57,15 +57,15 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _vm = new ScriptScenarioEditViewModel(scenario);
         Title = T(scenario is null ? "Script.AddTitle" : "Script.EditTitle");
         Width = 640;
+        Height = 680;
         MinWidth = 560;
         MinHeight = 580;
-        // Авторазмер по содержимому (issue #308): высота подстраивается под контент, чтобы
-        // не было внутреннего скролла — как в CreateInfobaseWindow (0.3.9.113). MaxHeight
-        // не даёт окну вытянуться слишком высоко (тогда появляется скролл), MinHeight —
-        // слишком сжаться.
+        // Явная высота вместо SizeToContent.Height: авторазмер мог схлопывать окно в пустой
+        // прямоугольник при модальном показе (регресс «пустого незакрываемого окна», issue #308).
+        // Контент при необходимости прокручивается внутренним ScrollViewer; MaxHeight ограничивает
+        // рост при ручном изменении размера, MinHeight — слишком сильное сжатие.
         MaxHeight = 800;
         CanResize = true;
-        SizeToContent = SizeToContent.Height;
         FontSize = 13;
         Content = BuildRoot();
 

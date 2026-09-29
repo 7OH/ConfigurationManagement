@@ -84,6 +84,8 @@ namespace Configuration_Management
             Margin = new Thickness(0, 0, 0, 6),
             IsVisible = false
         };
+        // Корневой контейнер окна: по нему измеряется нужная высота контента (issue #305).
+        private Grid? _rootGrid;
         private int _templateLoadGeneration;
         private bool _closed;
         private List<OneCTemplateService.TemplateInfo> _flatTemplates = new();
@@ -117,21 +119,17 @@ namespace Configuration_Management
                 ? LocalizationManager.T("CreateInfobase.TitleFromTemplate")
                 : LocalizationManager.T("CreateInfobase.TitleEmpty");
             Width = 560;
-            if (fromTemplate)
-            {
-                // Авторазмер по содержимому (issue #305): высота подстраивается под
-                // контент и растёт при раскрытии дерева шаблонов; MaxHeight не даёт
-                // окну вытянуться слишком высоко, MinHeight — слишком сжаться.
-                SizeToContent = SizeToContent.Height;
-                MinHeight = 420;
-                MaxHeight = 800;
-                CanResize = true;
-            }
-            else
-            {
-                SizeToContent = SizeToContent.Height;
-                CanResize = false;
-            }
+            Height = 640;
+            MinHeight = 420;
+            MaxHeight = 800;
+            CanResize = _fromTemplate;
+            // Явная высота вместо SizeToContent.Height: авторазмер мог схлопывать окно в пустой
+            // прямоугольник при модальном показе (регресс «странного/пустого окна», issue #305,
+            // общий с редактором сценария #308). После показа окно один раз подгоняется под
+            // контент (FitHeightToContent) и удерживается в рабочей области; MaxHeight
+            // ограничивает рост, MinHeight — слишком сильное сжатие.
+            Opened += (_, _) =>
+                Avalonia.Threading.Dispatcher.UIThread.Post(FitHeightToContent, Avalonia.Threading.DispatcherPriority.Background);
 
             _groupPathBox.Text = string.IsNullOrWhiteSpace(_selectedGroupPath)
                 ? LocalizationManager.T("Connection.NoGroup")
@@ -153,6 +151,7 @@ namespace Configuration_Management
         private Control BuildRoot()
         {
             var grid = new Grid { Margin = new Thickness(16) };
+            _rootGrid = grid;
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             // Область полей растягивается, когда окно фиксированной высоты
@@ -552,6 +551,42 @@ namespace Configuration_Management
                 replaceSelection: true,
                 preferredSelection: GetPlatformSelection(isFile));
             RememberPlatformSelection(isFile, _platformBox.Text);
+
+            // Высота окна пересчитывается под новый набор полей и окно удерживается
+            // в рабочей области (issue #305). Отложенный вызов — панели должны сначала
+            // перестроиться по новому типу.
+            Avalonia.Threading.Dispatcher.UIThread.Post(FitHeightToContent, Avalonia.Threading.DispatcherPriority.Background);
+        }
+
+        /// <summary>
+        /// Подгоняет высоту окна под содержимое (явно, без <c>SizeToContent.Height</c>) и не даёт
+        /// окну уйти за нижний край рабочей области при изменении типа базы (issue #305).
+        /// Логика клампинга — чистый <see cref="WindowSizeMath"/> (общий с WPF, покрыт тестами).
+        /// </summary>
+        private void FitHeightToContent()
+        {
+            if (_rootGrid is null || !IsVisible)
+                return;
+
+            var availableWidth = _rootGrid.Bounds.Width > 0 ? _rootGrid.Bounds.Width : Math.Max(400, Width);
+            _rootGrid.Measure(new Size(availableWidth, double.PositiveInfinity));
+            var desired = _rootGrid.DesiredSize.Height;
+            if (desired <= 0)
+                return;
+
+            // Хром (заголовок + рамки/декор) — разница между полной высотой и клиентской областью.
+            var chrome = Math.Max(0, ClientSize.Height - (_rootGrid.Bounds.Height > 0 ? _rootGrid.Bounds.Height : desired));
+            Height = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
+
+            // Окно стояло у нижнего края экрана и выросло при смене типа — поднимаем его,
+            // чтобы нижняя часть не уходила за экран (рабочая область в физических пикселях).
+            if (Screens.ScreenFromWindow(this) is { } screen)
+            {
+                var wa = screen.WorkingArea;
+                var heightPx = (int)(Height * screen.Scaling);
+                if (Position.Y + heightPx > wa.Bottom)
+                    Position = new PixelPoint(Position.X, Math.Max(wa.Y, wa.Bottom - heightPx));
+            }
         }
 
         private static Control BuildTemplateRow(object? item)
