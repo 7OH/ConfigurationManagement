@@ -65,6 +65,10 @@ public static class AppServices
         // хранилища через DESIGNER (выгрузка версии .cf, отчёт по истории, захват/отмена
         // захвата) + состав версии. Чистый сервис — без UI-зависимостей.
         services.AddSingleton<IRepositoryStorageService, RepositoryStorageService>();
+        // Обозреватель метаданных конфигурации (цикл 0.3.9.132–0.3.9.136): выгрузка
+        // /DumpConfigToFiles из базы или .cf (переиспользование инфраструктуры сравнения)
+        // без удаления каталога до закрытия окна. Чистый сервис — без UI-зависимостей.
+        services.AddSingleton<IMetadataExplorerService, MetadataExplorerService>();
         // Индикатор «база сейчас запущена» и инспектор процессов: список процессов 1С
         // с командными строками и подробностями (PID, время старта, владелец).
         // Windows — WMI (Win32_Process), Linux — обход /proc; тип один, реализация

@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.131</Version>
-    <AssemblyVersion>0.3.9.131</AssemblyVersion>
-    <FileVersion>0.3.9.131</FileVersion>
-    <InformationalVersion>0.3.9.131</InformationalVersion>
+    <Version>0.3.9.132</Version>
+    <AssemblyVersion>0.3.9.132</AssemblyVersion>
+    <FileVersion>0.3.9.132</FileVersion>
+    <InformationalVersion>0.3.9.132</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -414,6 +414,18 @@
     <Compile Include="Services\ConfigurationDiffReporter.cs" />
     <Compile Remove="Services\ConfigurationDiffService.cs" />
     <Compile Include="Services\ConfigurationDiffService.cs" />
+    <!-- Модели и сервисный слой «Обозревателя метаданных» (0.3.9.132–0.3.9.136):
+         чистые модели выгрузки, парсер XML (/DumpConfigToFiles) и оркестратор выгрузки
+         (копия паттернов ConfigurationDiffService) — используются и Windows, и Linux;
+         на Linux подключаются явно паттерном Remove+Include, как ConfigurationDiffService. -->
+    <Compile Remove="Models\MetadataExplorerModels.cs" />
+    <Compile Include="Models\MetadataExplorerModels.cs" />
+    <Compile Remove="Services\MetadataXmlParser.cs" />
+    <Compile Include="Services\MetadataXmlParser.cs" />
+    <Compile Remove="Services\IMetadataExplorerService.cs" />
+    <Compile Include="Services\IMetadataExplorerService.cs" />
+    <Compile Remove="Services\MetadataExplorerService.cs" />
+    <Compile Include="Services\MetadataExplorerService.cs" />
     <!-- Клонирование клиент-серверной ИБ (0.3.9.100, функция №10): модель запроса
          и чистые сервисы планировщика/оркестратора — используются и Windows,
          и Linux; на Linux подключаются явно паттерном Remove+Include. -->

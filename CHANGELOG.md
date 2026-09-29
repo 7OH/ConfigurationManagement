@@ -9,6 +9,42 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.132] — 2026-09-29
+
+### Добавлено
+
+- **Обозреватель метаданных конфигурации — сервисный слой (этап 1 цикла 0.3.9.132–0.3.9.136)** —
+  подготовка к окну «Обозреватель метаданных…» (меню «Утилиты»): выгрузка конфигурации
+  в XML через `/DumpConfigToFiles` без интерактивного конфигуратора + чистый ленивый парсер
+  выгрузки. Без изменения семантики сравнения конфигураций (0.3.9.99) — паттерны скопированы.
+  - **Выгрузка** — [`Services/MetadataExplorerService.cs`](Configuration%20Management/Services/MetadataExplorerService.cs):
+    источник — база (`DumpFromBaseAsync`) или файл .cf (`DumpFromCfAsync`: временная файловая
+    ИБ `CREATEINFOBASE /UseTemplate`, таймаут 30 мин); `RunDesignerBatch(DumpConfigToFiles)` +
+    ожидание по событию `DesignerBatchCompleted` (таймаут 60 мин); каталог
+    `%TEMP%\cm_metaeplorer_<guid>` НЕ удаляется до вызова `MetadataDump.Delete()` (владелец —
+    окно обозревателя).
+  - **Парсер** — [`Services/MetadataXmlParser.cs`](Configuration%20Management/Services/MetadataXmlParser.cs)
+    (`System.Xml.Linq`, null-safe, битый XML не роняет): заголовок конфигурации
+    (`Properties/Name`, `Properties/Version`), типы метаданных (порядок
+    `MetadataTypeLocalizer.SortTypes`), объекты (файл `<Имя>.xml` или каталог-объект с размером
+    и числом файлов), детали объекта (синоним — первый `v8:item/v8:content` с учётом `v8:lang`,
+    комментарий, `Hierarchical`/`OrderedHierarchical`, счётчики реквизитов/ТЧ/форм/команд/
+    шаблонов по подкаталогам объекта или `ChildObjects` файлового объекта), дерево подсистем
+    (вложенные по `ChildObjects/Subsystem` + состав `Content/v8:item/v8:content`). Поддерживаются
+    оба фактических формата выгрузки: исторический `Configuration/<Тип>/` и современный
+    (8.3.24+, разведка на реальной платформе) с каталогами верхнего уровня во множественном
+    числе (`Catalogs/Контрагенты.xml` + `Catalogs/Контрагенты/Attributes/*.xml`). Модули
+    (`Ext/Modules`) не читаются.
+  - **Модели** — [`Models/MetadataExplorerModels.cs`](Configuration%20Management/Models/MetadataExplorerModels.cs):
+    `MetadataObjectSummary`, `MetadataObjectDetails`, `MetadataSubsystem`, `MetadataDump`,
+    исключение `MetadataExplorerException`; DI-регистрация `IMetadataExplorerService` в общем
+    блоке (обе платформы).
+  - **Тесты** — `MetadataExplorerTests`: заголовок (в т.ч. отсутствие/битый файл), типы
+    (порядок и служебные каталоги), объекты (файл vs каталог, HasNested/FileCount/TotalBytes),
+    детали (синоним по языку, комментарий, иерархичность, счётчики по подкаталогам и по
+    ChildObjects, битый XML → дефолт), подсистемы (вложенные, Content, пустой Content),
+    `MetadataDump.Delete()`.
+
 ## [0.3.9.131] — 2026-09-28
 
 ### Добавлено
