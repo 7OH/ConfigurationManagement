@@ -9,6 +9,25 @@ namespace Configuration_Management.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
+    /// <summary>
+    /// Подтверждать выполнение пользовательских действий перед запуском (0.3.9.197):
+    /// глобальная настройка окна настроек; индивидуально переопределяется флагом
+    /// действия «Выполнять без подтверждения». Хранится в общем файле настроек
+    /// (как и остальные настройки Avalonia — через <c>_settings</c>).
+    /// </summary>
+    public bool ConfirmCustomActions
+    {
+        get => _settings.ConfirmCustomActions;
+        set
+        {
+            if (_settings.ConfirmCustomActions == value)
+                return;
+            _settings.ConfirmCustomActions = value;
+            SaveSettingsSilently();
+            OnPropertyChanged();
+        }
+    }
+
     private partial bool ConfirmCustomAction(string message, string title) => _dialog.Confirm(message, title);
 
     partial void ShowCustomActionWarning(string message, string title) => _dialog.ShowWarning(message, title);

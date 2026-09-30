@@ -381,6 +381,8 @@ public partial class MainViewModel : ViewModelBase
         _catchUpMissedTasks = settings.CatchUpMissedTasks;
         _maintenanceFreeSpaceWarningGb = Math.Max(0, settings.MaintenanceFreeSpaceWarningGb);
         _escapeToTray = settings.EscapeToTray;
+        // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
+        _confirmCustomActions = settings.ConfirmCustomActions;
         _afterLaunchAction = settings.AfterLaunchAction ?? "None";
         _compactMode = settings.CompactMode;
         _explorerIntegrationEnabled = settings.ExplorerIntegrationEnabled;

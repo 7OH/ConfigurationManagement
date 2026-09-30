@@ -1817,6 +1817,11 @@
                                                           VerticalContentAlignment="Center"
                                                           SelectionChanged="OnDoubleClickActionGlobal_SelectionChanged"/>
                                             </StackPanel>
+                                            <!-- Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197):
+                                                 глобальная настройка; индивидуально переопределяется флагом действия. -->
+                                            <CheckBox x:Name="ConfirmCustomActionsCheck"
+                                                      Content="{loc:Loc Settings.Bases.ConfirmCustomActions}"
+                                                      IsChecked="True" Margin="0,2,0,10"/>
                                             <!-- Импорт баз и настроек платформы из программы StartManager (issue #163). -->
                                             <Button Style="{DynamicResource SecondaryButton}" Margin="0,0,0,8" Padding="10,8"
                                                     HorizontalAlignment="Stretch"

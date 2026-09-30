@@ -118,6 +118,9 @@ public partial class MainViewModel
         Func<string, int, CancellationToken, Task<bool>>? executeAsync = null)
     {
         ArgumentNullException.ThrowIfNull(action);
+        // Защита от повторного вызова во время выполнения (двойной клик по пункту меню).
+        if (IsCustomActionRunning)
+            return;
 
         var targets = SelectCustomActionTargets(context);
         if (targets.Count == 0)
@@ -189,6 +192,14 @@ public partial class MainViewModel
         return CustomActionExecutionPlan.SelectTargets(
             context, SelectedInfobase, Infobases.ToList(), BatchSelectedIds, currentGroup, canShowPrivate);
     }
+
+    /// <summary>
+    /// Видимые цели контекста для индикации подменю контекстного меню (0.3.9.197):
+    /// та же фильтрация, что и при выполнении <see cref="ExecuteCustomActionAsync"/>
+    /// (приватные базы скрытого профиля исключаются). Пустой список — подменю не показывается.
+    /// </summary>
+    public IReadOnlyList<Infobase> GetCustomActionTargets(CustomActionContext context)
+        => SelectCustomActionTargets(context);
 
     /// <summary>Системное уведомление о завершении действия со сводкой (fire-and-forget).</summary>
     private void NotifyCustomActionCompleted(CustomAction action, int succeeded, int failed)

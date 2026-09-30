@@ -2235,6 +2235,15 @@ namespace Configuration_Management
             dblClickRow.Children.Add(dblClickBox);
             basesListPanel.Children.Add(dblClickRow);
 
+            // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
+            var confirmCustomActionsCheck = new CheckBox
+            {
+                Content = LocalizationManager.T("Settings.Bases.ConfirmCustomActions"),
+                IsChecked = _viewModel.ConfirmCustomActions,
+                Margin = new Thickness(0, 8, 0, 0)
+            };
+            basesListPanel.Children.Add(confirmCustomActionsCheck);
+
             basesListPanel.Children.Add(timestampCheckRow);
 
             // Как в Windows-разметке (SettingsWindow.xaml:1419): подпись сверху, поле —
@@ -3089,6 +3098,9 @@ namespace Configuration_Management
                 // Глубина истории запусков одной базы (issue #246).
                 if (int.TryParse(historyDepthBox.Text, out var historyDepth))
                     _viewModel.MaxLaunchHistoryPerBase = historyDepth;
+
+                // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
+                _viewModel.ConfirmCustomActions = confirmCustomActionsCheck.IsChecked == true;
 
                 // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96).
                 if (int.TryParse(freeSpaceWarningBox.Text, out var freeSpaceWarningGb))

@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.197] — 2026-09-30
+
+### Добавлено
+
+- **Пользовательские действия контекстного меню (функция 7, пятый этап): интеграция
+  в контекстное меню WPF** — подменю «Пользовательские действия…» в контекстном меню
+  дерева базы/группы:
+  - [`MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml) — пункт
+    `CustomActionsMenu` (Tag="User" — работает и в режиме «Пользователь») сразу после
+    «Выполнить скрипт», с разделителем, управляемым кодом вместе с подменю.
+  - [`MainWindow.CustomActions.cs`](Configuration%20Management/Views/MainWindow.CustomActions.cs) —
+    наполнение подменю при открытии меню: контекст (одиночная база / мультивыделение
+    с заголовком «Пользовательские действия для выделенных (N)…» / группа), отбор действий
+    по области через `CustomActionFilter.SelectActions`, проверка видимости целей (приватные
+    базы скрытого профиля скрывают подменю), пункты с горячей клавишей и иконкой,
+    пункт «Настроить действия…»; на время выполнения пункты блокируются, в заголовке
+    показывается текст текущего действия.
+  - Защита от повторного запуска (`IsCustomActionRunning`) в
+    [`ExecuteCustomActionAsync`](Configuration%20Management/ViewModels/MainViewModel.CustomActions.cs)
+    и публичный `GetCustomActionTargets` — единая фильтрация целей для меню и выполнения.
+  - Флажок «Подтверждать выполнение пользовательских действий» (`Settings.Bases.ConfirmCustomActions`)
+    в окне настроек (вкладка «Базы» → «Список баз») на обеих платформах: WPF
+    [`SettingsWindow.xaml`](Configuration%20Management/Views/SettingsWindow.xaml) и Avalonia
+    [`SettingsWindow.Avalonia.cs`](Configuration%20Management/Views/SettingsWindow.Avalonia.cs).
+  - Ключи локализации `Main.CustomActionsMenu`, `Main.CustomActionsBatchTitle`,
+    `Settings.Bases.ConfirmCustomActions` в
+    [`ru.json`](Configuration%20Management/Localization/Languages/ru.json)/[`en.json`](Configuration%20Management/Localization/Languages/en.json).
+
 ## [0.3.9.196] — 2026-09-30
 
 ### Добавлено

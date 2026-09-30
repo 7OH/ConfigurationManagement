@@ -115,6 +115,9 @@ namespace Configuration_Management
                 UpdatesPasswordBox.Password = viewModel.UpdatesPassword;
             // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
             InitGlobalDoubleClickCombo();
+            // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
+            if (ConfirmCustomActionsCheck != null)
+                ConfirmCustomActionsCheck.IsChecked = viewModel.ConfirmCustomActions;
             // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка
             // приложения паролем (функция №19): показываем текущие значения сочетаний.
             if (HotkeySessionLockBox != null)
@@ -580,6 +583,8 @@ namespace Configuration_Management
                 _viewModel.UpdatesLogin = UpdatesLoginBox.Text?.Trim() ?? "";
             if (UpdatesPasswordBox != null)
                 _viewModel.UpdatesPassword = UpdatesPasswordBox.Password;
+            // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
+            _viewModel.ConfirmCustomActions = ConfirmCustomActionsCheck?.IsChecked ?? true;
             _viewModel.SaveSettings();
 
             var templatePaths = TemplatePathsList?.Items.Cast<string>().Where(s => !string.IsNullOrWhiteSpace(s)).ToList()

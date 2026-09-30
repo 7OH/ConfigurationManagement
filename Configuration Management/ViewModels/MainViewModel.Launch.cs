@@ -655,6 +655,7 @@ public partial class MainViewModel : ViewModelBase
             CatchUpMissedTasks = _catchUpMissedTasks,
             MaintenanceFreeSpaceWarningGb = _maintenanceFreeSpaceWarningGb,
             EscapeToTray = _escapeToTray,
+            ConfirmCustomActions = _confirmCustomActions,
             CompactMode = _compactMode,
             ExplorerIntegrationEnabled = _explorerIntegrationEnabled,
             // Автозапуск при старте ОС (функция №31) и копия экрана (функция №30, Этап 8).

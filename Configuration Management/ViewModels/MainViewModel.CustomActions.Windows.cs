@@ -9,6 +9,24 @@ namespace Configuration_Management.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
+    private bool _confirmCustomActions = true;
+
+    /// <summary>
+    /// Подтверждать выполнение пользовательских действий перед запуском (0.3.9.197):
+    /// глобальная настройка окна настроек; индивидуально переопределяется флагом
+    /// действия «Выполнять без подтверждения». Отложенное сохранение — как у
+    /// остальных настроек главной модели (ScheduleSaveSettings).
+    /// </summary>
+    public bool ConfirmCustomActions
+    {
+        get => _confirmCustomActions;
+        set
+        {
+            if (SetProperty(ref _confirmCustomActions, value))
+                ScheduleSaveSettings();
+        }
+    }
+
     private partial bool ConfirmCustomAction(string message, string title) => _dialogs.Confirm(message, title);
 
     partial void ShowCustomActionWarning(string message, string title) => _dialogs.ShowWarning(message, title);

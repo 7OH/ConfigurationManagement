@@ -122,6 +122,12 @@ namespace Configuration_Management
                     sep.Visibility = prevVisible && nextVisible ? Visibility.Visible : Visibility.Collapsed;
                 }
             }
+
+            // Пользовательские действия (0.3.9.197): наполняем подменю в конце — после
+            // batch-логики и общего прохода видимости. Финальную видимость подменю и его
+            // разделителя метод устанавливает явно (в т.ч. в restricted-режиме, где общий
+            // проход оставляет Tag="User" видимым).
+            PopulateCustomActionsMenu(menu);
         }
 
         /// <summary>

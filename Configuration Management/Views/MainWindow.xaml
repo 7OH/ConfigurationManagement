@@ -2444,6 +2444,14 @@
                                 <MenuItem Header="{loc:Loc Script.RunTitle}" Tag="User" Command="{Binding RunScriptForSelectedCommand}" InputGestureText="{Binding HotkeyRunScript}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="CodeBraces" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
                                 </MenuItem>
+                                <!-- Пользовательские действия (функция 7): произвольные команды с подстановкой
+                                     параметров базы. Содержимое перестраивает OnBaseContextMenu_Opened;
+                                     Tag="User" — работает и в режиме «Пользователь». -->
+                                <Separator x:Name="CustomActionsSeparator" Visibility="Collapsed"/>
+                                <MenuItem x:Name="CustomActionsMenu" Tag="User" Header="{loc:Loc Main.CustomActionsMenu}"
+                                          Visibility="Collapsed" Style="{DynamicResource ModernMenuItem}">
+                                    <MenuItem.Icon><materialDesign:PackIcon Kind="CodeBraces" Width="16" Height="16" Foreground="#06B6D4"/></MenuItem.Icon>
+                                </MenuItem>
                                 <Separator/>
                                 <MenuItem Header="{loc:Loc Main.ToFavorites}" Tag="User" Command="{Binding ToggleFavoriteCommand}" InputGestureText="{Binding HotkeyFavorite}" Style="{DynamicResource ModernMenuItem}">
                                     <MenuItem.Icon><materialDesign:PackIcon Kind="Star" Width="16" Height="16" Foreground="#FBBF24"/></MenuItem.Icon>
