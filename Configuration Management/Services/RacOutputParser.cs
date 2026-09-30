@@ -268,6 +268,44 @@ public static class RacOutputParser
     }
 
     /// <summary>
+    /// Разбирает вывод «infobase summary list» в список информационных баз кластера.
+    /// Колонки: infobase, name, descr, dbms, db-server, db-name, db-user, locale,
+    /// security-level, licensed. Минимальный набор — первые 2 колонки; отсутствующие
+    /// справа — значения по умолчанию, лишние — игнорируются.
+    /// </summary>
+    public static IReadOnlyList<RacInfobaseSummary> ToInfobaseSummaries(string output)
+    {
+        const int minColumns = 2;
+        var infobases = new List<RacInfobaseSummary>();
+
+        foreach (var row in ParseTable(output))
+        {
+            if (row.Count < minColumns)
+                continue;
+
+            var id = ParseGuid(row[0]);
+            if (id == Guid.Empty)
+                continue; // строка заголовка или мусор
+
+            infobases.Add(new RacInfobaseSummary
+            {
+                InfobaseId = id,
+                Name = row[1].Trim(),
+                Descr = Col(row, 2).Trim(),
+                Dbms = Col(row, 3).Trim(),
+                DbServer = Col(row, 4).Trim(),
+                DbName = Col(row, 5).Trim(),
+                DbUser = Col(row, 6).Trim(),
+                Locale = Col(row, 7).Trim(),
+                SecurityLevel = ParseInt(Col(row, 8)),
+                Licensed = ParseBool(Col(row, 9))
+            });
+        }
+
+        return infobases;
+    }
+
+    /// <summary>
     /// Разбирает вывод «cluster info» (формат «ключ: значение») в <see cref="RacClusterInfo"/>:
     /// сохраняет полный словарь свойств и заполняет типизированные частые поля.
     /// </summary>

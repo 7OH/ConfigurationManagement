@@ -527,6 +527,13 @@ public sealed class ServerMonitorViewModelTests
             });
         }
 
+        // Базы кластера монитор серверов не использует — пустой список.
+        public Task<IReadOnlyList<RacInfobaseSummary>> GetInfobasesAsync(
+            RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<RacInfobaseSummary>>(Array.Empty<RacInfobaseSummary>());
+        }
+
         public Task<bool> TerminateSessionAsync(
             RacConnectionParams parameters, Guid clusterId, Guid sessionId,
             CancellationToken cancellationToken = default)

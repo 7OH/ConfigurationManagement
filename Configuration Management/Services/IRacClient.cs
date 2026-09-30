@@ -82,6 +82,13 @@ public interface IRacClient
         RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Информационные базы кластера (команда «infobase summary list --cluster=...»).
+    /// Используется функцией импорта баз из кластера 1С (цикл 0.3.9.172–0.3.9.175).
+    /// </summary>
+    Task<IReadOnlyList<RacInfobaseSummary>> GetInfobasesAsync(
+        RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Завершение сеанса пользователя (команда «session terminate --cluster=... --session=...»).
     /// Реализация — этап 3 (0.3.9.125): возвращает true при ExitCode 0; при неудаче — false
     /// и текст ошибки (включая stderr rac) в <see cref="LastActionError"/>.

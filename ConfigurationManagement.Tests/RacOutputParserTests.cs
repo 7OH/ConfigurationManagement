@@ -351,6 +351,88 @@ public sealed class RacOutputParserTests
         Assert.Equal(0, info.Port);
     }
 
+    // ---------- ToInfobaseSummaries ----------
+
+    [Fact]
+    public void ToInfobaseSummaries_ParsesSample()
+    {
+        const string output =
+            "infobase\tname\tdescr\tdbms\tdb-server\tdb-name\tdb-user\tlocale\tsecurity-level\tlicensed\n" +
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\tБухгалтерия предприятия\tОсновная база с пробелами\tMSSQLServer\tsql-01\tbuho\tsa\tru\t0\t0\n" +
+            "11111111-2222-3333-4444-555555555555\tЗарплата и кадры\t\tPostgreSQL\tpg-01\tzpkor\tpostgres\tru_RU\t1\t1\n";
+
+        var infobases = RacOutputParser.ToInfobaseSummaries(output);
+
+        Assert.Equal(2, infobases.Count);
+        Assert.Equal(Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), infobases[0].InfobaseId);
+        Assert.Equal("Бухгалтерия предприятия", infobases[0].Name);
+        Assert.Equal("Основная база с пробелами", infobases[0].Descr); // кириллица и пробелы
+        Assert.Equal("MSSQLServer", infobases[0].Dbms);
+        Assert.Equal("sql-01", infobases[0].DbServer);
+        Assert.Equal("buho", infobases[0].DbName);
+        Assert.Equal("sa", infobases[0].DbUser);
+        Assert.Equal("ru", infobases[0].Locale);
+        Assert.Equal(0, infobases[0].SecurityLevel);
+        Assert.False(infobases[0].Licensed);
+        Assert.Equal(Guid.Parse("11111111-2222-3333-4444-555555555555"), infobases[1].InfobaseId);
+        Assert.Equal("Зарплата и кадры", infobases[1].Name);
+        Assert.Equal(string.Empty, infobases[1].Descr);
+        Assert.Equal("PostgreSQL", infobases[1].Dbms);
+        Assert.Equal(1, infobases[1].SecurityLevel);
+        Assert.True(infobases[1].Licensed);
+    }
+
+    [Fact]
+    public void ToInfobaseSummaries_ParsesPartialColumns_WithDefaults()
+    {
+        const string output =
+            "infobase\tname\tdescr\n" +
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\tБухгалтерия\tОписание\n";
+
+        var infobase = Assert.Single(RacOutputParser.ToInfobaseSummaries(output));
+
+        Assert.Equal("Бухгалтерия", infobase.Name);
+        Assert.Equal("Описание", infobase.Descr);
+        Assert.Equal(string.Empty, infobase.Dbms);          // отсутствующие справа — default
+        Assert.Equal(string.Empty, infobase.DbServer);
+        Assert.Equal(string.Empty, infobase.DbName);
+        Assert.Equal(string.Empty, infobase.DbUser);
+        Assert.Equal(string.Empty, infobase.Locale);
+        Assert.Equal(0, infobase.SecurityLevel);
+        Assert.False(infobase.Licensed);
+    }
+
+    [Fact]
+    public void ToInfobaseSummaries_TwoColumns_MinimalSet()
+    {
+        const string output =
+            "infobase\tname\n" +
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\tБухгалтерия\n";
+
+        var infobase = Assert.Single(RacOutputParser.ToInfobaseSummaries(output));
+
+        Assert.Equal("Бухгалтерия", infobase.Name);
+        Assert.Equal(string.Empty, infobase.Descr);
+    }
+
+    [Fact]
+    public void ToInfobaseSummaries_SkipsHeader_InvalidUuid_AndShortRow()
+    {
+        const string output =
+            "infobase\tname\tdescr\n" +                    // строка заголовка — пропускается
+            "не-uuid\tКривой идентификатор\tописание\n" +   // невалидный GUID — пропускается
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n";       // меньше 2 колонок — пропускается
+
+        Assert.Empty(RacOutputParser.ToInfobaseSummaries(output));
+    }
+
+    [Fact]
+    public void ToInfobaseSummaries_EmptyOutput_ReturnsEmpty()
+    {
+        Assert.Empty(RacOutputParser.ToInfobaseSummaries(string.Empty));
+        Assert.Empty(RacOutputParser.ToInfobaseSummaries("infobase\tname\tdescr\n"));
+    }
+
     // ---------- Устойчивость к «кривым» данным ----------
 
     [Fact]
@@ -362,6 +444,7 @@ public sealed class RacOutputParserTests
         Assert.Empty(RacOutputParser.ToSessions("111-222\t333-444\t\n"));
         Assert.Empty(RacOutputParser.ToConnections("111-222\n"));
         Assert.Empty(RacOutputParser.ToLocks(null!));
+        Assert.Empty(RacOutputParser.ToInfobaseSummaries("мусор без табуляций\n"));
 
         Assert.NotNull(RacOutputParser.ToClusterInfo("только текст без двоеточия\n"));
     }

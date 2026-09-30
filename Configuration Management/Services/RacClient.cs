@@ -88,6 +88,16 @@ public sealed class RacClient : IRacClient
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<RacInfobaseSummary>> GetInfobasesAsync(
+        RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
+    {
+        var output = await RunAsync(parameters, cancellationToken, "infobase", "summary", "list",
+                $"--cluster={clusterId}")
+            .ConfigureAwait(false);
+        return RacOutputParser.ToInfobaseSummaries(output);
+    }
+
+    /// <inheritdoc />
     public Task<bool> TerminateSessionAsync(
         RacConnectionParams parameters, Guid clusterId, Guid sessionId,
         CancellationToken cancellationToken = default) =>

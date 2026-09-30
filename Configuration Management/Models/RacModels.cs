@@ -261,3 +261,43 @@ public sealed class RacClusterInfo
     /// <summary>Максимальная длительность существования сеанса (свойство «sessionMaxTimeLimit»).</summary>
     public long SessionMaxTimeLimit { get; set; }
 }
+
+/// <summary>
+/// Информационная база кластера серверов 1С:Предприятие — строка вывода команды rac
+/// «infobase summary list». Поля соответствуют колонкам вывода (формат документирован на ИТС):
+/// <c>infobase</c>, <c>name</c>, <c>descr</c>, <c>dbms</c>, <c>db-server</c>, <c>db-name</c>,
+/// <c>db-user</c>, <c>locale</c>, <c>security-level</c>, <c>licensed</c>. Лишние колонки справа
+/// игнорируются парсером, отсутствующие — принимают значения по умолчанию.
+/// </summary>
+public sealed class RacInfobaseSummary
+{
+    /// <summary>Идентификатор информационной базы в кластере (колонка «infobase»).</summary>
+    public Guid InfobaseId { get; set; }
+
+    /// <summary>Имя информационной базы (колонка «name») — значение Ref строки подключения.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Описание информационной базы (колонка «descr», может содержать пробелы и кириллицу).</summary>
+    public string Descr { get; set; } = string.Empty;
+
+    /// <summary>Тип СУБД (колонка «dbms»); пусто для файловой информационной базы кластера.</summary>
+    public string Dbms { get; set; } = string.Empty;
+
+    /// <summary>Имя сервера СУБД (колонка «db-server»).</summary>
+    public string DbServer { get; set; } = string.Empty;
+
+    /// <summary>Имя базы данных в СУБД (колонка «db-name»).</summary>
+    public string DbName { get; set; } = string.Empty;
+
+    /// <summary>Пользователь СУБД (колонка «db-user»).</summary>
+    public string DbUser { get; set; } = string.Empty;
+
+    /// <summary>Локаль информационной базы (колонка «locale»).</summary>
+    public string Locale { get; set; } = string.Empty;
+
+    /// <summary>Уровень безопасности информационной базы (колонка «security-level»).</summary>
+    public int SecurityLevel { get; set; }
+
+    /// <summary>Признак лицензированной информационной базы (колонка «licensed», «0»/«1»).</summary>
+    public bool Licensed { get; set; }
+}
