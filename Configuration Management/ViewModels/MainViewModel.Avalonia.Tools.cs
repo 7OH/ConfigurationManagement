@@ -1613,6 +1613,73 @@ public partial class MainViewModel : ViewModelBase
         window.ShowDialogSync(OwnerWindow());
     }
 
+    // ======================= Импорт баз из кластера 1С (0.3.9.174) =======================
+
+    private System.Windows.Input.ICommand? _importClusterInfobasesCommand;
+
+    /// <summary>
+    /// Команда «Импорт из кластера 1С…»: импорт информационных баз из кластера сервера
+    /// 1С через утилиту rac (цикл 0.3.9.172–0.3.9.175) — окно с подключением к ragent/RAS,
+    /// чеклистом баз кластера (дубликаты по строке подключения сняты и помечены), сводкой
+    /// «будет добавлено» и созданием недостающих групп по имени кластера при группировке.
+    /// Активна всегда — кластер не привязан к конкретной базе списка (как ServerMonitorCommand).
+    /// </summary>
+    public System.Windows.Input.ICommand ImportClusterInfobasesCommand =>
+        _importClusterInfobasesCommand ??= new RelayCommand(_ => ExecuteImportClusterInfobases());
+
+    private void ExecuteImportClusterInfobases()
+    {
+        var window = new Configuration_Management.ClusterImportWindow(
+            AppServices.GetRequiredService<IRacClient>(),
+            AppServices.GetRequiredService<IInfobaseRepository>(),
+            _allInfobases.ToList());
+        if (!window.ShowDialogSync(OwnerWindow()) || window.SelectedBases.Count == 0)
+            return;
+
+        // Страховка от дубликатов: окно уже фильтровало по строкам подключения, но
+        // список мог измениться с момента построения чеклиста — лишнее не добавляем.
+        var added = window.SelectedBases
+            .Where(b => !RacInfobaseMapper.IsDuplicate(_allInfobases, b))
+            .ToList();
+        if (added.Count == 0)
+            return;
+
+        _allInfobases.AddRange(added);
+        SyncFavoriteHotkeys();
+
+        // Недостающие группы по именам из импортируемых баз (имя кластера при
+        // группировке) добавляются как корневые — как при добавляющем импорте JSON.
+        var existingGroupNames = new HashSet<string>(
+            _groups.Select(g => (g.Name ?? "").Trim()), StringComparer.OrdinalIgnoreCase);
+        var groupsToAdd = added
+            .Select(b => (b.Group ?? "").Trim())
+            .Where(n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(existingGroupNames.Add)
+            .Select(name => new Group { Name = name })
+            .ToList();
+        if (groupsToAdd.Count > 0)
+            _groups.AddRange(groupsToAdd);
+
+        SelectedInfobase = null;
+        var saved = SaveSilently();
+        saved &= SaveGroupsSilently();
+        RebuildTree();
+
+        if (!saved)
+        {
+            _dialog.ShowError(
+                string.Format(LocalizationManager.T("Main.ErrLoadFailed"),
+                    LocalizationManager.T("Main.SaveFailedHint")),
+                LocalizationManager.T("Main.LoadErrorTitle"));
+            return;
+        }
+
+        StatusBarInfo = string.Format(LocalizationManager.T("ClusterImport.SuccessFormat"), added.Count);
+        _logger.Info($"Импорт из кластера 1С: добавлено {added.Count} баз, " +
+                     $"пропущено дубликатов {window.SelectedBases.Count - added.Count}");
+    }
+
     // ======================= Статистика использования баз (0.3.9.95) =======================
 
     private System.Windows.Input.ICommand? _usageStatisticsCommand;

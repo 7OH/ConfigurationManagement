@@ -1,0 +1,112 @@
+<!-- Окно «Импорт из кластера 1С» (0.3.9.174, Avalonia/Linux).
+     Windows-аналог: Views/ClusterImportWindow.xaml. Раскладка повторяет его:
+     панель подключения к ragent/RAS (адрес/порт/логин/пароль), подсказка про порты
+     1540/1545 и политику пароля, выбор кластера, чеклист баз с флажками (колонки
+     «Имя», «Описание», «Кластер», «Подключение»), сводка «будет добавлено»,
+     переключатель группировки по кластеру и кнопки. Вся логика — в чистой
+     ClusterImportViewModel; кнопки (Подключиться/Получить базы/Выделить все/Снять
+     все/Импортировать/Закрыть) строит код за разметкой в хостах ConnectHost/
+     LoadHost/BulkHost/ImportHost (паттерн BaseSelectionWindow.axaml). -->
+<local:ModalWindowBase xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:local="clr-namespace:Configuration_Management"
+                       xmlns:loc="clr-namespace:Configuration_Management.Localization"
+                       xmlns:controls="clr-namespace:Configuration_Management.Controls"
+                       x:Class="Configuration_Management.ClusterImportWindow"
+                       Title="{loc:Loc ClusterImport.Title}"
+                       Width="1100" Height="640"
+                       MinWidth="900" MinHeight="480"
+                       FontSize="13"
+                       CanResize="True">
+    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
+
+        <!-- Параметры подключения к ragent/RAS. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+            <TextBlock Text="{loc:Loc ClusterImport.Address}" VerticalAlignment="Center"/>
+            <TextBox x:Name="AddressBox" Width="140" Padding="6,3"
+                     VerticalContentAlignment="Center"/>
+            <TextBlock Text="{loc:Loc ClusterImport.Port}" VerticalAlignment="Center"/>
+            <TextBox x:Name="PortBox" Width="60" Padding="6,3"
+                     VerticalContentAlignment="Center"/>
+            <TextBlock Text="{loc:Loc ClusterImport.User}" VerticalAlignment="Center"/>
+            <TextBox x:Name="UserBox" Width="130" Padding="6,3"
+                     VerticalContentAlignment="Center"/>
+            <TextBlock Text="{loc:Loc ClusterImport.Password}" VerticalAlignment="Center"/>
+            <!-- В Avalonia 11 встроенного PasswordBox нет — используем замену проекта
+                 Controls.PasswordBox (как LoginWindow/ServerMonitorWindow). Имя
+                 PasswordInput, а не PasswordBox: x:Name создаёт поле с именем типа,
+                 которое скрывает тип при FindControl<PasswordBox> (member-hides-type). -->
+            <controls:PasswordBox x:Name="PasswordInput" Width="130" Padding="6,3"
+                                  VerticalContentAlignment="Center"/>
+            <ContentControl x:Name="ConnectHost" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Подсказка: порты 1540/1545 и политика хранения пароля. -->
+        <TextBlock Grid.Row="1" Text="{loc:Loc ClusterImport.Hint}"
+                   FontSize="11" Opacity="0.65" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+        <!-- Выбор кластера + кнопка «Получить базы» + статус. -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+            <TextBlock Text="{loc:Loc ClusterImport.ClusterLabel}" VerticalAlignment="Center"/>
+            <ComboBox x:Name="ClusterCombo" Width="360"
+                      VerticalContentAlignment="Center" Padding="6,2"/>
+            <ContentControl x:Name="LoadHost" VerticalAlignment="Center"/>
+            <TextBlock x:Name="StatusText" FontSize="12" Opacity="0.65"
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Чеклист баз кластера. -->
+        <ListBox Grid.Row="3" x:Name="BasesList"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnDefinitions="Auto,1.6*,150,1.8*,130" Margin="2,2">
+                        <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Center"
+                                  Grid.Column="0" Margin="0,0,8,0"
+                                  ToolTip.Tip="{Binding SkipReason}"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Subtitle}" FontSize="11" Opacity="0.65"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding ClusterName}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="3" Text="{Binding ConnectionString}"
+                                   FontSize="11" Opacity="0.7" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="4" Text="{Binding SkipReason}"
+                                   FontSize="11" Foreground="#B45309" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Сводка перед подтверждением + переключатель группировки по кластеру. -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="14" Margin="0,8,0,0">
+            <TextBlock x:Name="SummaryText" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <CheckBox x:Name="GroupByClusterCheck"
+                      Content="{loc:Loc ClusterImport.GroupByCluster}"
+                      VerticalAlignment="Center"/>
+            <TextBlock x:Name="DuplicateSummaryText" FontSize="12" Opacity="0.65"
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Действия: выделить все / снять все (слева), импортировать (справа). -->
+        <DockPanel Grid.Row="5" Margin="0,10,0,0">
+            <ContentControl x:Name="BulkHost" DockPanel.Dock="Left" VerticalAlignment="Center"/>
+            <ContentControl x:Name="ImportHost" DockPanel.Dock="Right" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- Индикатор занятости и сообщение об ошибке. -->
+        <StackPanel Grid.Row="6" Margin="0,10,0,0" Spacing="6">
+            <!-- Имя BusyProgress, а не ProgressBar: x:Name создаёт поле с именем типа
+                 (тот же member-hides-type при FindControl<ProgressBar>). -->
+            <ProgressBar x:Name="BusyProgress" Height="4" IsIndeterminate="True"
+                         Foreground="#06B6D4" IsVisible="False"/>
+            <TextBlock x:Name="ErrorText" FontSize="12" Foreground="#DC2626"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+    </Grid>
+</local:ModalWindowBase>

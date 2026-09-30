@@ -1,0 +1,203 @@
+<!-- Окно «Импорт из кластера 1С» (0.3.9.174, Windows/WPF): подключение к агенту
+     сервера 1С/RAS через rac (адрес/порт/логин/пароль), выбор кластера, чеклист
+     информационных баз кластера с пометкой дубликатов и файловых баз, сводка
+     «будет добавлено» и импорт выбранных баз в список приложения. Вся логика —
+     в чистой ViewModel ClusterImportViewModel; окно — тонкая обёртка: префилл
+     настроек RAS, пароль из PasswordBox передаётся в VM вручную (на диск не
+     сохраняется), адрес/порт/логин сохраняются при успешном подключении.
+     Ключи локализации ClusterImport.* добавляются на этапе 4 (0.3.9.175). -->
+<Window x:Class="Configuration_Management.ClusterImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Icon="{StaticResource AppIcon}"
+        Height="640" Width="1100" MinHeight="480" MinWidth="900"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <!-- Вертикальное выравнивание содержимого ячеек по центру (как в ServerMonitorWindow). -->
+        <Style x:Key="CenteredCellText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+
+        <Style x:Key="CenteredColumnHeader" TargetType="DataGridColumnHeader"
+               BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="8,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Параметры подключения к ragent/RAS: адрес, порт, логин, пароль, кнопка. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="{loc:Loc ClusterImport.Address}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox Width="140" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                     Text="{Binding ServerAddress, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="{loc:Loc ClusterImport.Port}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+            <TextBox Width="60" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                     Text="{Binding ServerPort, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="{loc:Loc ClusterImport.User}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+            <TextBox Width="130" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                     Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="{loc:Loc ClusterImport.Password}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+            <PasswordBox x:Name="PasswordBox" Width="130" Padding="6,3"/>
+
+            <Button x:Name="ConnectButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="14,0,8,0"
+                    Click="OnConnect_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔌" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc ClusterImport.Connect}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <!-- Подсказка: порты 1540/1545 и политика хранения пароля. -->
+        <TextBlock Grid.Row="1" FontSize="11" Opacity="0.65"
+                   TextWrapping="Wrap" Margin="0,0,0,8"
+                   Text="{loc:Loc ClusterImport.Hint}"/>
+
+        <!-- Выбор кластера + кнопка «Получить базы» + статус. -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="{loc:Loc ClusterImport.ClusterLabel}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="ClusterCombo" Width="360" Style="{StaticResource ModernComboBox}"
+                      ItemsSource="{Binding Clusters}" SelectedValuePath="Id"
+                      SelectedValue="{Binding SelectedClusterId}"
+                      VerticalContentAlignment="Center" Padding="6,2">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Port, StringFormat=' [{0}]'}" Opacity="0.6"
+                                       Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button x:Name="LoadBasesButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="10,0,0,0"
+                    Click="OnLoadBases_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⟳" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc ClusterImport.LoadBases}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <TextBlock x:Name="StatusSummary" VerticalAlignment="Center" Margin="14,0,0,0"
+                       FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                       Text="{Binding StatusText}"/>
+        </StackPanel>
+
+        <!-- Чеклист баз кластера: флажок, имя, описание, кластер, подключение, статус. -->
+        <DataGrid x:Name="BasesGrid" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True"
+                  HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                  ColumnHeaderStyle="{StaticResource CenteredColumnHeader}"
+                  SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
+                  RowHeight="38" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                  Background="{DynamicResource CardBackgroundBrush}"
+                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Padding" Value="0"/>
+                </Style>
+            </DataGrid.CellStyle>
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Width="44" Header="" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      ToolTip="{Binding SkipReason}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Width="1.3*" Header="{loc:Loc ClusterImport.Columns.Name}"
+                                    Binding="{Binding Name}" ElementStyle="{StaticResource CenteredCellText}"/>
+                <DataGridTextColumn Width="1.6*" Header="{loc:Loc ClusterImport.Columns.Description}"
+                                    Binding="{Binding Subtitle}" ElementStyle="{StaticResource CenteredCellText}"/>
+                <DataGridTextColumn Width="150" Header="{loc:Loc ClusterImport.Columns.Cluster}"
+                                    Binding="{Binding ClusterName}" ElementStyle="{StaticResource CenteredCellText}"/>
+                <DataGridTextColumn Width="1.8*" Header="{loc:Loc ClusterImport.Columns.Connection}"
+                                    Binding="{Binding ConnectionString}" ElementStyle="{StaticResource CenteredCellText}"/>
+                <DataGridTextColumn Width="130" Header="{loc:Loc ClusterImport.Columns.Status}"
+                                    Binding="{Binding SkipReason}" ElementStyle="{StaticResource CenteredCellText}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Сводка перед подтверждением + переключатель группировки по кластеру. -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,8,0,0">
+            <TextBlock x:Name="SummaryText" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <CheckBox x:Name="GroupByClusterCheck" VerticalAlignment="Center" Margin="18,0,0,0"
+                      Content="{loc:Loc ClusterImport.GroupByCluster}"
+                      IsChecked="{Binding UseClusterGrouping}"
+                      Checked="OnGroupByCluster_Toggled" Unchecked="OnGroupByCluster_Toggled"/>
+            <TextBlock x:Name="DuplicateSummaryText" VerticalAlignment="Center" Margin="14,0,0,0"
+                       FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
+
+        <!-- Действия: выделить все / снять все, импортировать, закрыть. -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button x:Name="SelectAllButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                    Click="OnSelectAll_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="☑" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc Selection.SelectAll}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="SelectNoneButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="8,0,0,0"
+                    Click="OnSelectNone_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="☐" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc Selection.None}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="ImportButton" Style="{StaticResource ModernButton}"
+                    Background="#06B6D4" Foreground="White" Padding="16,5" Margin="18,0,8,0"
+                    Click="OnImport_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⇩" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="White"/>
+                    <TextBlock Text="{loc:Loc ClusterImport.ImportButton}" VerticalAlignment="Center" Foreground="White"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="CloseButton" Style="{StaticResource ModernButton}" IsCancel="True"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
+                    Click="OnClose_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc Common.Close}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <!-- Индикатор занятости и сообщение об ошибке. -->
+        <StackPanel Grid.Row="6" Margin="0,10,0,0">
+            <ProgressBar x:Name="ProgressBar" Height="4" IsIndeterminate="True"
+                         Visibility="Collapsed" Foreground="#06B6D4"/>
+            <TextBlock x:Name="ErrorText" FontSize="12" Foreground="#DC2626" TextWrapping="Wrap"
+                       Margin="0,6,0,0" Text="{Binding ErrorMessage}"/>
+        </StackPanel>
+    </Grid>
+</Window>

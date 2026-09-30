@@ -1778,6 +1778,10 @@ namespace Configuration_Management
             // импорт — добавляющий, дубликаты по строке подключения пропускаются.
             operationsMenu.Items.Add(MenuAction("Utilities.ExportJson", _vm.ExportBasesJsonCommand, null, "IconFileExport", "#06B6D4"));
             operationsMenu.Items.Add(MenuAction("Utilities.ImportJson", _vm.ImportBasesJsonCommand, null, "IconImport", "#06B6D4"));
+            // Импорт информационных баз из кластера сервера 1С через утилиту rac (0.3.9.174,
+            // цикл 0.3.9.172–0.3.9.175): подключение к ragent/RAS, выбор кластера, чеклист
+            // баз с пометкой дубликатов, добавление недостающих групп по имени кластера.
+            operationsMenu.Items.Add(MenuAction("ClusterImport.Title", _vm.ImportClusterInfobasesCommand, null, "IconImport", "#06B6D4"));
             operationsMenu.Items.Add(MenuSeparator());
             // Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов платформы
             // с режимом, пользователем, PID и завершением выбранного процесса.
