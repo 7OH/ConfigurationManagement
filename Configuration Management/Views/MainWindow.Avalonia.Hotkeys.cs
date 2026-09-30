@@ -8,6 +8,8 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using Configuration_Management.Controls;
 using Configuration_Management.Localization;
+using Configuration_Management.Models;
+using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
 
 namespace Configuration_Management
@@ -332,6 +334,13 @@ namespace Configuration_Management
                 return;
             }
 
+            // Пользовательские действия по горячей клавише (0.3.9.198): в самом конце
+            // цепочки — системные хоткеи (KeyBindings) и закладки имеют приоритет.
+            // Обработка во всплывающем KeyDown, а не в KeyBindings: сочетания, совпадающие
+            // с правкой текста, не отберут клавишу у поля ввода (как Delete выше).
+            if (HandleCustomActionHotkey(e))
+                return;
+
             // Esc при открытом диалоге закрывает сам диалог. Пока пользователь не
             // кликнул внутри диалога, событие приходит именно сюда: сфокусированной
             // остаётся кнопка главного окна, которой диалог и открыли, а клавиатурное
@@ -607,6 +616,52 @@ namespace Configuration_Management
             if (command is null || !Controls.HotkeyBox.TryParse(gesture, out var parsed) || parsed is null)
                 return;
             KeyBindings.Add(new KeyBinding { Gesture = parsed, Command = command });
+        }
+
+        /// <summary>
+        /// Выполняет пользовательское действие по совпавшей горячей клавише (0.3.9.198):
+        /// ключ <see cref="MainViewModel.HotkeyCustomActions"/> разбирается
+        /// <see cref="Controls.HotkeyBox.TryParse"/> и сравнивается с текущим нажатием;
+        /// контекст — как в подменю (мультивыделение → база → группа,
+        /// <see cref="CustomActionExecutionPlan.DetermineMenuContext"/>). Не срабатывает
+        /// во время выполнения другого действия и при вводе текста. Возвращает true,
+        /// если сочетание распознано как хоткей действия.
+        /// </summary>
+        private bool HandleCustomActionHotkey(KeyEventArgs e)
+        {
+            if (_vm is null || _vm.IsCustomActionRunning || _vm.HotkeyCustomActions.Count == 0)
+                return false;
+            // Не срабатываем, пока вводится текст (поле поиска и т.п.): событие —
+            // всплывающее, поэтому клавиша уже передана полю и текстовая правка не страдает.
+            if (FocusManager?.GetFocusedElement() is TextBox)
+                return false;
+
+            foreach (var pair in _vm.HotkeyCustomActions)
+            {
+                if (!Controls.HotkeyBox.TryParse(pair.Key, out var gesture) || gesture is null)
+                    continue;
+                if (gesture.Key != e.Key || gesture.KeyModifiers != e.KeyModifiers)
+                    continue;
+
+                var context = CustomActionExecutionPlan.DetermineMenuContext(
+                    _vm.BatchSelectedCount,
+                    _vm.SelectedInfobase is not null,
+                    _vm.SelectedGroupNode is not null);
+                if (context is null)
+                    return false;
+                e.Handled = true;
+                _ = ExecuteCustomActionHotkeyAsync(pair.Value, context.Value);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Выполняет действие по горячей клавише через общий мост (с тем же подтверждением и индикацией).</summary>
+        private async Task ExecuteCustomActionHotkeyAsync(CustomAction action, CustomActionContext context)
+        {
+            if (_vm is null || _vm.IsCustomActionRunning)
+                return;
+            await _vm.ExecuteCustomActionAsync(action, context);
         }
     }
 }

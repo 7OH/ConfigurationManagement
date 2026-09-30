@@ -169,4 +169,82 @@ public sealed class CustomActionExecutionPlanTests
         Assert.Contains("***", entry.Details);
         Assert.DoesNotContain("pass", entry.Details);
     }
+
+    // ---------- Построение подменю и контекст (0.3.9.198) ----------
+
+    [Fact]
+    public void DetermineMenuContext_BatchWinsOverSelection()
+    {
+        var context = CustomActionExecutionPlan.DetermineMenuContext(
+            batchSelectedCount: 3, hasSelectedInfobase: true, hasSelectedGroupNode: false);
+
+        Assert.Equal(CustomActionContext.Batch, context);
+    }
+
+    [Fact]
+    public void DetermineMenuContext_SingleBase_WhenInfobaseSelected()
+    {
+        var context = CustomActionExecutionPlan.DetermineMenuContext(
+            batchSelectedCount: 1, hasSelectedInfobase: true, hasSelectedGroupNode: false);
+
+        Assert.Equal(CustomActionContext.SingleBase, context);
+    }
+
+    [Fact]
+    public void DetermineMenuContext_Group_WhenGroupSelected()
+    {
+        var context = CustomActionExecutionPlan.DetermineMenuContext(
+            batchSelectedCount: 1, hasSelectedInfobase: false, hasSelectedGroupNode: true);
+
+        Assert.Equal(CustomActionContext.Group, context);
+    }
+
+    [Fact]
+    public void DetermineMenuContext_Null_WhenNoSelection()
+    {
+        var context = CustomActionExecutionPlan.DetermineMenuContext(
+            batchSelectedCount: 1, hasSelectedInfobase: false, hasSelectedGroupNode: false);
+
+        Assert.Null(context);
+    }
+
+    [Fact]
+    public void SelectMenuActions_EmptyTargets_ReturnsEmpty()
+    {
+        var actions = new[]
+        {
+            new CustomAction { Name = "База", Scope = CustomActionScope.Base },
+            new CustomAction { Name = "Обе", Scope = CustomActionScope.Both }
+        };
+
+        var selected = CustomActionExecutionPlan.SelectMenuActions(
+            actions, CustomActionContext.SingleBase, Array.Empty<Infobase>());
+
+        Assert.Empty(selected);
+    }
+
+    [Fact]
+    public void SelectMenuActions_EmptyActions_ReturnsEmpty()
+    {
+        var selected = CustomActionExecutionPlan.SelectMenuActions(
+            Array.Empty<CustomAction>(), CustomActionContext.SingleBase, new[] { Base("Цель") });
+
+        Assert.Empty(selected);
+    }
+
+    [Fact]
+    public void SelectMenuActions_SingleBase_FiltersByScope()
+    {
+        var actions = new[]
+        {
+            new CustomAction { Name = "Только база", Scope = CustomActionScope.Base },
+            new CustomAction { Name = "Обе", Scope = CustomActionScope.Both },
+            new CustomAction { Name = "Только группа", Scope = CustomActionScope.Group }
+        };
+
+        var selected = CustomActionExecutionPlan.SelectMenuActions(
+            actions, CustomActionContext.SingleBase, new[] { Base("Цель") });
+
+        Assert.Equal(new[] { "Только база", "Обе" }, selected.Select(a => a.Name));
+    }
 }

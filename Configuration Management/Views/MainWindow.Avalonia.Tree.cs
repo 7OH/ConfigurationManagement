@@ -30,6 +30,18 @@ namespace Configuration_Management
     /// </summary>
     public partial class MainWindow : Window
     {
+        /// <summary>
+        /// Подменю «Пользовательские действия…» контекстного меню дерева (0.3.9.198, функция 7):
+        /// строится один раз при сборке меню, наполняется в <c>Opening</c> по единой логике
+        /// <see cref="MainViewModel.BuildCustomActionMenuItems"/> (как WPF-версия
+        /// MainWindow.CustomActions.cs). Скрывается вместе с разделителем при отсутствии
+        /// контекста, действий или целей.
+        /// </summary>
+        private MenuItem? _customActionsMenu;
+
+        /// <summary>Разделитель перед подменю действий: управляется вместе с ним.</summary>
+        private Separator? _customActionsSeparator;
+
         /// <summary>Строит строку дерева: заголовок группы или карточку базы.</summary>
         private Control BuildTreeRow(object? item)
         {
@@ -1862,6 +1874,24 @@ namespace Configuration_Management
             menu.Items.Add(MenuAction("Main.LaunchConfigurator", _vm.LaunchConfiguratorCommand, _vm.HotkeyConfigurator, "IconSettings", "#3B82F6"));
             // «Выполнить скрипт» (issue #308): запуск выбранного сценария для базы (F5).
             menu.Items.Add(MenuAction("Script.RunTitle", _vm.RunScriptForSelectedCommand, _vm.HotkeyRunScript, "IconScript", "#06B6D4"));
+
+            // Подменю «Пользовательские действия…» (0.3.9.198, функция 7): наполнение —
+            // в Opening по единой логике BuildCustomActionMenuItems (как WPF). Разделитель
+            // перед подменю управляется кодом вместе с ним; ниже идёт обычный разделитель
+            // перед «Избранное», как в WPF-разметке (MainWindow.xaml:2450-2455). Иконка —
+            // IconScript (как у «Выполнить скрипт»): IconCodeBraces в Icons.axaml нет.
+            _customActionsSeparator = MenuSeparator();
+            _customActionsSeparator.IsVisible = false;
+            menu.Items.Add(_customActionsSeparator);
+            _customActionsMenu = new MenuItem
+            {
+                Header = LocalizationManager.T("Main.CustomActionsMenu"),
+                Icon = MenuIcon("IconScript", "#06B6D4"),
+                IsVisible = false
+            };
+            _customActionsMenu.Styled(Themes.ControlThemes.ModernMenuItem);
+            menu.Items.Add(_customActionsMenu);
+
             menu.Items.Add(MenuSeparator());
             menu.Items.Add(MenuAction("Main.ToFavorites", _vm.ToggleFavoriteCommand, _vm.HotkeyFavorite, "IconStar", "#FBBF24"));
             menu.Items.Add(MenuAction("Main.Pin", _vm.TogglePinCommand, _vm.HotkeyPin, "IconPin", "#8B5CF6"));
@@ -1899,6 +1929,11 @@ namespace Configuration_Management
                 var restricted = _vm?.IsSystemMenuRestricted ?? false;
                 batchMenu.Header = _vm?.BatchMenuTitle ?? batchMenu.Header;
                 batchMenu.IsVisible = !restricted && count > 1;
+
+                // Пользовательские действия (0.3.9.198): контекст/действия/цели могли
+                // измениться с прошлого открытия (выделение, приватность, правки окна
+                // настроек) — подменю перестраивается каждый раз, как batch-блок.
+                PopulateCustomActionsMenu();
             };
 
             menu.Items.Add(MenuSeparator());
@@ -2001,6 +2036,75 @@ namespace Configuration_Management
         /// </summary>
         private static Control MenuIcon(string iconKey, string colorHex)
             => IconHelper.MakeIcon(iconKey, 16, new SolidColorBrush(Color.Parse(colorHex)));
+
+        // ======================= Пользовательские действия (0.3.9.198) =======================
+
+        /// <summary>
+        /// Перестраивает подменю «Пользовательские действия…» для текущего контекста строки
+        /// дерева. Вызывается из <c>Opening</c> контекстного меню: контекст, отбор действий
+        /// и проверка целей — в едином <see cref="MainViewModel.BuildCustomActionMenuItems"/>
+        /// (та же логика, что в WPF-версии <see cref="MainWindow.PopulateCustomActionsMenu"/>).
+        /// Пустое подменю и его разделитель скрываются целиком (Avalonia не открывает
+        /// пустое меню — пунктов нет вовсе).
+        /// </summary>
+        private void PopulateCustomActionsMenu()
+        {
+            if (_vm is null || _customActionsMenu is null || _customActionsSeparator is null)
+            {
+                HideCustomActionsBlock();
+                return;
+            }
+
+            var items = _vm.BuildCustomActionMenuItems(out var context, out var targetCount);
+            if (items.Count == 0)
+            {
+                HideCustomActionsBlock();
+                return;
+            }
+
+            // Индикация выполнения: заголовок показывает текст текущего действия,
+            // пункты действий недоступны (повторный запуск блокируется и в VM).
+            var running = _vm.IsCustomActionRunning;
+            var header = context == CustomActionContext.Batch
+                ? string.Format(LocalizationManager.T("Main.CustomActionsBatchTitle"), targetCount)
+                : LocalizationManager.T("Main.CustomActionsMenu");
+            _customActionsMenu.Header = running && !string.IsNullOrEmpty(_vm.RunningCustomActionText)
+                ? _vm.RunningCustomActionText
+                : header;
+
+            _customActionsMenu.Items.Clear();
+            foreach (var info in items)
+            {
+                var action = info.Action;
+                var item = new MenuItem { Header = action.Name, IsEnabled = !running };
+                item.Styled(Themes.ControlThemes.ModernMenuItem);
+                item.Icon = MenuIcon("IconScript", "#06B6D4");
+                if (Controls.HotkeyBox.TryParse(action.Hotkey, out var gesture) && gesture is not null)
+                    item.InputGesture = gesture;
+                item.Click += async (_, _) => await _vm.ExecuteCustomActionAsync(action, info.Context);
+                _customActionsMenu.Items.Add(item);
+            }
+
+            _customActionsMenu.Items.Add(MenuSeparator());
+
+            var settingsItem = new MenuItem { Header = LocalizationManager.T("Main.CustomActionsSettings") };
+            settingsItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            settingsItem.Icon = MenuIcon("IconTune", "#06B6D4");
+            settingsItem.Click += (_, _) => _vm.ShowCustomActionsSettingsCommand.Execute(null);
+            _customActionsMenu.Items.Add(settingsItem);
+
+            _customActionsMenu.IsVisible = true;
+            _customActionsSeparator.IsVisible = true;
+        }
+
+        /// <summary>Скрывает подменю действий и его разделитель (нет контекста, действий или целей).</summary>
+        private void HideCustomActionsBlock()
+        {
+            if (_customActionsMenu is not null)
+                _customActionsMenu.IsVisible = false;
+            if (_customActionsSeparator is not null)
+                _customActionsSeparator.IsVisible = false;
+        }
 
         /// <summary>Пункт пакетной операции (0.3.9.90): подпись из словаря, значок, клик.</summary>
         private static MenuItem BatchMenuAction(string textKey, Action onClick, string? iconKey = null, string? iconColor = null)

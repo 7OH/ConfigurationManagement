@@ -534,19 +534,74 @@ namespace Configuration_Management
                 return;
             }
 
-            if (Keyboard.Modifiers != ModifierKeys.Alt)
-                return;
-
-            if (key >= Key.D1 && key <= Key.D9)
+            // Alt+1…Alt+9 — запуск Предприятия избранных баз (надёжный fallback
+            // KeyBinding, см. RegisterFavoriteHotkeys). Обрабатываются РАНЬШЕ хоткеев
+            // действий: системные сочетания закладок имеют приоритет (0.3.9.198).
+            if (mods == ModifierKeys.Alt && key >= Key.D1 && key <= Key.D9)
             {
                 _viewModel.LaunchFavoriteByHotkey(key - Key.D0);
                 e.Handled = true;
+                return;
             }
-            else if (key >= Key.NumPad1 && key <= Key.NumPad9)
+            if (mods == ModifierKeys.Alt && key >= Key.NumPad1 && key <= Key.NumPad9)
             {
                 _viewModel.LaunchFavoriteByHotkey(key - Key.NumPad0);
                 e.Handled = true;
+                return;
             }
+
+            // Пользовательские действия по горячей клавише (0.3.9.198): в самом конце
+            // цепочки — системные хоткеи (InputBindings) и закладки имеют приоритет.
+            // Не срабатываем, пока вводится текст (поле поиска, инлайн-правка тега).
+            if (HandleCustomActionHotkey(key))
+            {
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
+        /// Выполняет пользовательское действие по совпавшей горячей клавише (0.3.9.198):
+        /// ключ <see cref="MainViewModel.HotkeyCustomActions"/> разбирается TryParseKeyGesture
+        /// и сравнивается с текущим нажатием; контекст определяется как в подменю
+        /// (мультивыделение → база → группа, <see cref="CustomActionExecutionPlan.DetermineMenuContext"/>).
+        /// Не срабатывает во время выполнения другого действия и при вводе текста.
+        /// Возвращает true, если сочетание распознано как хоткей действия.
+        /// </summary>
+        private bool HandleCustomActionHotkey(Key key)
+        {
+            if (_viewModel is null || _viewModel.IsCustomActionRunning || _viewModel.HotkeyCustomActions.Count == 0)
+                return false;
+            // Не срабатываем, пока вводится текст: поле поиска, пароль/другие TextBox-поля,
+            // инлайн-правка тега строки базы (issue #283).
+            if (Keyboard.FocusedElement is TextBox or PasswordBox || IsFocusInsideTagEditor())
+                return false;
+
+            var mods = Keyboard.Modifiers;
+            foreach (var pair in _viewModel.HotkeyCustomActions)
+            {
+                if (!TryParseKeyGesture(pair.Key, out var parsedKey, out var parsedMods))
+                    continue;
+                if (parsedKey != key || parsedMods != mods)
+                    continue;
+
+                var context = CustomActionExecutionPlan.DetermineMenuContext(
+                    _viewModel.BatchSelectedCount,
+                    _viewModel.SelectedInfobase is not null,
+                    _viewModel.SelectedGroupNode is not null);
+                if (context is null)
+                    return false;
+                _ = ExecuteCustomActionHotkeyAsync(pair.Value, context.Value);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Выполняет действие по горячей клавише через общий мост (с тем же подтверждением и индикацией).</summary>
+        private async Task ExecuteCustomActionHotkeyAsync(CustomAction action, CustomActionContext context)
+        {
+            if (_viewModel is null || _viewModel.IsCustomActionRunning)
+                return;
+            await _viewModel.ExecuteCustomActionAsync(action, context);
         }
 
         /// <summary>

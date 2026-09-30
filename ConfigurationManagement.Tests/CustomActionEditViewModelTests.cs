@@ -157,4 +157,103 @@ public sealed class CustomActionEditViewModelTests
         Assert.Contains("Бухгалтерия (тест)", commandLine);
         Assert.Contains("pass", commandLine);
     }
+
+    // ---------- Валидация конфликтов горячих клавиш (0.3.9.198) ----------
+
+    [Fact]
+    public void Validate_OccupiedHotkey_ReturnsHotkeyConflictKey()
+    {
+        var others = new[]
+        {
+            new CustomAction { Name = "Чужое", Hotkey = "F8" },
+            new CustomAction { Name = "Ещё одно", Hotkey = "Ctrl+Alt+F8" }
+        };
+        var vm = new CustomActionEditViewModel(null, others)
+        {
+            Name = "Действие",
+            Command = "echo x",
+            TimeoutSeconds = 30,
+            Hotkey = "F8"
+        };
+
+        Assert.Equal("CustomAction.HotkeyConflict", vm.Validate());
+    }
+
+    [Fact]
+    public void Validate_OccupiedHotkey_CaseInsensitiveAndTrimmed()
+    {
+        // « f8 » нормализуется (Trim) и сравнивается без учёта регистра с занятым «F8».
+        var others = new[] { new CustomAction { Name = "Чужое", Hotkey = "F8" } };
+        var vm = new CustomActionEditViewModel(null, others)
+        {
+            Name = "Действие",
+            Command = "echo x",
+            TimeoutSeconds = 30,
+            Hotkey = " f8 "
+        };
+
+        Assert.Equal("CustomAction.HotkeyConflict", vm.Validate());
+    }
+
+    [Fact]
+    public void Validate_OwnHotkeyWhenEditing_IsAllowed()
+    {
+        // Свой хоткей редактируемого действия (сравнение по Id) конфликтом не считается,
+        // даже если он есть в списке существующих действий.
+        var existing = new CustomAction { Id = "self-id", Name = "Моё", Command = "echo a", Hotkey = "F8" };
+        var other = new CustomAction { Id = "other-id", Name = "Чужое", Command = "echo b", Hotkey = "Ctrl+F9" };
+
+        var vm = new CustomActionEditViewModel(existing, new[] { existing, other })
+        {
+            Name = "Моё",
+            Command = "echo a",
+            TimeoutSeconds = 30,
+            Hotkey = "F8" // совпадает только с самим собой
+        };
+
+        Assert.Null(vm.Validate());
+    }
+
+    [Fact]
+    public void Validate_HotkeyOfAnotherAction_StillConflictsWhenEditing()
+    {
+        var existing = new CustomAction { Id = "self-id", Name = "Моё", Command = "echo a", Hotkey = "F8" };
+        var other = new CustomAction { Id = "other-id", Name = "Чужое", Command = "echo b", Hotkey = "F9" };
+
+        // Меняем хоткей на сочетание, занятое ДРУГИМ действием (не своим).
+        var vm = new CustomActionEditViewModel(existing, new[] { existing, other })
+        {
+            Name = "Моё",
+            Command = "echo a",
+            TimeoutSeconds = 30,
+            Hotkey = "F9"
+        };
+
+        Assert.Equal("CustomAction.HotkeyConflict", vm.Validate());
+    }
+
+    [Fact]
+    public void Validate_EmptyHotkey_IsAllowedEvenIfReserved()
+    {
+        var others = new[] { new CustomAction { Name = "Чужое", Hotkey = "F5" } };
+        var vm = new CustomActionEditViewModel(null, others)
+        {
+            Name = "Действие",
+            Command = "echo x",
+            TimeoutSeconds = 30,
+            Hotkey = ""
+        };
+
+        Assert.Null(vm.Validate());
+    }
+
+    [Fact]
+    public void GetKnownSystemHotkeys_IncludesHardcodedRunScriptHotkey()
+    {
+        // Жёсткое системное сочетание «Выполнить скрипт» (F5) входит в список всегда,
+        // даже если настройки профиля недоступны (в тестовом контексте AppServices пуст).
+        Assert.Contains(
+            CustomActionEditViewModel.GetKnownSystemHotkeys(),
+            h => h.Equals("F5", StringComparison.OrdinalIgnoreCase));
+    }
 }

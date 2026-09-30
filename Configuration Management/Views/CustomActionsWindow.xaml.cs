@@ -79,7 +79,8 @@ public partial class CustomActionsWindow : Window
 
     private void OnAdd_Click(object sender, RoutedEventArgs e)
     {
-        var edit = new CustomActionEditWindow();
+        // Существующие действия передаются в редактор для валидации конфликтов хоткеев (0.3.9.198).
+        var edit = new CustomActionEditWindow(null, _store.LoadAll());
         // Модальность относительно списка действий, как в окне сценариев (issue #291):
         // без владельца редактор мог оказаться под активированным извне главным окном.
         edit.Owner = this;
@@ -101,7 +102,7 @@ public partial class CustomActionsWindow : Window
     {
         if (item is null)
             return;
-        var edit = new CustomActionEditWindow(item.Action);
+        var edit = new CustomActionEditWindow(item.Action, _store.LoadAll());
         edit.Owner = this;
         if (edit.ShowDialog() == true && edit.Result is { } updated)
         {

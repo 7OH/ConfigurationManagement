@@ -155,7 +155,8 @@ public sealed class CustomActionsWindow : ModalWindowBase
 
     private void AddAction()
     {
-        var edit = new CustomActionEditWindow();
+        // Существующие действия передаются в редактор для валидации конфликтов хоткеев (0.3.9.198).
+        var edit = new CustomActionEditWindow(null, _store.LoadAll());
         if (edit.ShowDialogSync(this) && edit.Result is { } created)
         {
             _store.Save(created);
@@ -174,7 +175,7 @@ public sealed class CustomActionsWindow : ModalWindowBase
     {
         if (item is null)
             return;
-        var edit = new CustomActionEditWindow(item.Action);
+        var edit = new CustomActionEditWindow(item.Action, _store.LoadAll());
         if (edit.ShowDialogSync(this) && edit.Result is { } updated)
         {
             _store.Save(updated);

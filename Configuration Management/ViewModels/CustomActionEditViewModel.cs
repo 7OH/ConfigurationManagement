@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
 
@@ -47,8 +48,26 @@ public class CustomActionEditViewModel : ViewModelBase
     /// <summary>Верхняя граница таймаута, секунды (10 минут).</summary>
     public const int MaxTimeoutSeconds = 600;
 
-    public CustomActionEditViewModel(CustomAction? action)
+    /// <summary>Редактируемое действие (для сравнения по Id при проверке занятого хоткея); null — новое.</summary>
+    private readonly CustomAction? _sourceAction;
+
+    /// <summary>
+    /// Остальные действия списка (0.3.9.198): их горячие клавиши считаются занятыми;
+    /// собственное действие при редактировании исключается по Id.
+    /// </summary>
+    private readonly IReadOnlyList<CustomAction> _existingActions;
+
+    /// <param name="action">Редактируемое действие или <c>null</c> для нового.</param>
+    /// <param name="existingActions">
+    /// Существующие действия из хранилища (0.3.9.198): их горячие клавиши считаются занятыми,
+    /// кроме самого редактируемого действия (сравнение по Id). Дополнительно проверяются
+    /// известные системные сочетания главного окна (<see cref="GetKnownSystemHotkeys"/>).
+    /// Пусто/null — проверка конфликтов не выполняется (тесты, изолированный контекст).
+    /// </param>
+    public CustomActionEditViewModel(CustomAction? action, IReadOnlyList<CustomAction>? existingActions = null)
     {
+        _sourceAction = action;
+        _existingActions = existingActions ?? Array.Empty<CustomAction>();
         if (action is not null)
         {
             Name = action.Name;
@@ -96,7 +115,8 @@ public class CustomActionEditViewModel : ViewModelBase
 
     /// <summary>
     /// Валидация полей формы. Возвращает ключ локализации ошибки либо <c>null</c>,
-    /// если всё корректно: имя и команда непустые, таймаут в диапазоне [1..600] секунд.
+    /// если всё корректно: имя и команда непустые, таймаут в диапазоне [1..600] секунд,
+    /// горячая клавиша (если задана) не занята другим действием/системным сочетанием.
     /// </summary>
     public string? Validate()
     {
@@ -106,7 +126,80 @@ public class CustomActionEditViewModel : ViewModelBase
             return "CustomAction.CommandRequired";
         if (TimeoutSeconds < MinTimeoutSeconds || TimeoutSeconds > MaxTimeoutSeconds)
             return "CustomAction.TimeoutInvalid";
+        var hotkey = Hotkey?.Trim();
+        if (!string.IsNullOrEmpty(hotkey) && IsHotkeyTaken(hotkey))
+            return "CustomAction.HotkeyConflict";
         return null;
+    }
+
+    /// <summary>
+    /// Занято ли сочетание (0.3.9.198): нормализованное сравнение без учёта регистра
+    /// с хоткеями остальных действий (собственное действие исключается по Id) и с
+    /// известными системными сочетаниями главного окна.
+    /// </summary>
+    private bool IsHotkeyTaken(string hotkey)
+    {
+        foreach (var existing in _existingActions)
+        {
+            // Свой хоткей редактируемого действия конфликтом не считается.
+            if (_sourceAction is not null && existing.Id == _sourceAction.Id)
+                continue;
+            var value = existing.Hotkey?.Trim();
+            if (string.IsNullOrEmpty(value))
+                continue;
+            if (string.Equals(value, hotkey, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        foreach (var system in GetKnownSystemHotkeys())
+        {
+            if (string.Equals(system, hotkey, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Известные системные сочетания главного окна: настраиваемые хоткеи из настроек
+    /// профиля (<see cref="AppSettings"/> через <see cref="IInfobaseRepository"/>) и жёстко
+    /// заданные в коде («Выполнить скрипт» — F5). Редактор предупреждает о конфликте с ними
+    /// (<see cref="Validate"/>), чтобы действие не перебивало штатные клавиши. При
+    /// недоступности настроек возвращаются только жёсткие сочетания.
+    /// </summary>
+    public static IReadOnlyList<string> GetKnownSystemHotkeys()
+    {
+        var result = new List<string>();
+        try
+        {
+            var settings = AppServices.GetRequiredService<IInfobaseRepository>().LoadSettings();
+            if (settings is not null)
+            {
+                result.AddRange(new[]
+                {
+                    settings.HotkeyEnterprise, settings.HotkeyConfigurator, settings.HotkeyFavorite,
+                    settings.HotkeyPin, settings.HotkeyAdd, settings.HotkeyDelete, settings.HotkeyEdit,
+                    settings.HotkeyClearCache, settings.HotkeyLockApp, settings.HotkeySessionLock,
+                    settings.HotkeyCheckUpdate, settings.HotkeyActualReleases, settings.HotkeyRunBackup,
+                    settings.HotkeyExportsList, settings.HotkeyFindInList, settings.HotkeyCommandPalette,
+                    settings.HotkeySwitchUser, settings.HotkeyClearSearch, settings.HotkeyClearTags,
+                    settings.HotkeyRightPanelDetails, settings.HotkeyShowAll, settings.HotkeyShowFavorites,
+                    settings.HotkeyShowRecent, settings.HotkeyZoomIn, settings.HotkeyZoomOut,
+                    settings.HotkeyZoomReset, settings.HotkeyCheckIntegrity, settings.HotkeyServerConsole,
+                    settings.ScreenshotHotkey
+                });
+            }
+        }
+        catch
+        {
+            // Редактор работает и без настроек: системные сочетания не известны.
+        }
+        // Жёстко заданные в коде сочетания (не настраиваются): «Выполнить скрипт» (F5).
+        result.Add("F5");
+        return result
+            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .Select(h => h!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>

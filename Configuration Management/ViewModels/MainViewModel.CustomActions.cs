@@ -34,7 +34,34 @@ public partial class MainViewModel
     public void ReloadCustomActions()
     {
         _customActionsCache = LoadCustomActionsFromStore();
+        _hotkeyCustomActions = null;
         OnPropertyChanged(nameof(CustomActions));
+        OnPropertyChanged(nameof(HotkeyCustomActions));
+    }
+
+    private IReadOnlyDictionary<string, CustomAction>? _hotkeyCustomActions;
+
+    /// <summary>
+    /// Действия по нормализованной горячей клавише (0.3.9.198): ключ — сочетание без
+    /// ведущих/хвостовых пробелов, сравнение без учёта регистра; пустые хоткеи пропускаются.
+    /// Дубли в редакторе запрещены валидацией, но при ручной правке JSON-файла берётся
+    /// последний по порядку список. Используется для регистрации хоткеев окна (WPF/Avalonia).
+    /// </summary>
+    public IReadOnlyDictionary<string, CustomAction> HotkeyCustomActions =>
+        _hotkeyCustomActions ??= BuildHotkeyCustomActions();
+
+    private IReadOnlyDictionary<string, CustomAction> BuildHotkeyCustomActions()
+    {
+        var result = new Dictionary<string, CustomAction>(StringComparer.OrdinalIgnoreCase);
+        foreach (var action in CustomActions)
+        {
+            var hotkey = action.Hotkey?.Trim();
+            if (string.IsNullOrEmpty(hotkey))
+                continue;
+            // Дубль сочетания при ручной правке файла: побеждает последний по порядку.
+            result[hotkey] = action;
+        }
+        return result;
     }
 
     private IReadOnlyList<CustomAction> LoadCustomActionsFromStore()
@@ -201,6 +228,38 @@ public partial class MainViewModel
     public IReadOnlyList<Infobase> GetCustomActionTargets(CustomActionContext context)
         => SelectCustomActionTargets(context);
 
+    /// <summary>
+    /// Готовая структура пунктов подменю «Пользовательские действия…» (0.3.9.198):
+    /// единая точка отбора для WPF и Avalonia. Определяет контекст по состоянию выделения
+    /// (мультивыделение > база > группа), отбирает действия
+    /// <see cref="CustomActionFilter.SelectActions"/> и проверяет видимость целей
+    /// <see cref="GetCustomActionTargets"/> (приватные базы скрытого профиля скрывают
+    /// подменю). Нет контекста/действий/целей → пустой список.
+    /// </summary>
+    /// <param name="context">Определённый контекст (SingleBase при отсутствии контекста).</param>
+    /// <param name="targetCount">Число видимых целей контекста (0 — подменю не показывать).</param>
+    public IReadOnlyList<CustomActionMenuItemInfo> BuildCustomActionMenuItems(
+        out CustomActionContext context, out int targetCount)
+    {
+        var determined = CustomActionExecutionPlan.DetermineMenuContext(
+            BatchSelectedCount, SelectedInfobase is not null, SelectedGroupNode is not null);
+        if (determined is null)
+        {
+            context = CustomActionContext.SingleBase;
+            targetCount = 0;
+            return Array.Empty<CustomActionMenuItemInfo>();
+        }
+
+        context = determined.Value;
+        var menuContext = context;
+        var targets = GetCustomActionTargets(menuContext);
+        targetCount = targets.Count;
+        var actions = CustomActionExecutionPlan.SelectMenuActions(CustomActions, menuContext, targets);
+        return actions
+            .Select(a => new CustomActionMenuItemInfo(a, menuContext))
+            .ToList();
+    }
+
     /// <summary>Системное уведомление о завершении действия со сводкой (fire-and-forget).</summary>
     private void NotifyCustomActionCompleted(CustomAction action, int succeeded, int failed)
     {
@@ -282,6 +341,38 @@ public static class CustomActionExecutionPlan
         => globalConfirmEnabled && !action.RunWithoutConfirm;
 
     /// <summary>
+    /// Контекст подменю «Пользовательские действия…» по состоянию выделения (0.3.9.198):
+    /// мультивыделение > выбранная база > выбранная группа; нет контекста → <c>null</c>
+    /// (подменю скрыто). Единая точка определения для WPF и Avalonia (меню и горячие клавиши).
+    /// </summary>
+    public static CustomActionContext? DetermineMenuContext(
+        int batchSelectedCount, bool hasSelectedInfobase, bool hasSelectedGroupNode)
+    {
+        if (batchSelectedCount > 1)
+            return CustomActionContext.Batch;
+        if (hasSelectedInfobase)
+            return CustomActionContext.SingleBase;
+        if (hasSelectedGroupNode)
+            return CustomActionContext.Group;
+        return null;
+    }
+
+    /// <summary>
+    /// Отбирает действия для подменю (0.3.9.198): контекст и видимые цели непустые →
+    /// <see cref="CustomActionFilter.SelectActions"/>, иначе пустой список. Единая логика
+    /// построения подменю для WPF и Avalonia (риск «расхождения платформ»).
+    /// </summary>
+    public static IReadOnlyList<CustomAction> SelectMenuActions(
+        IReadOnlyList<CustomAction> actions,
+        CustomActionContext context,
+        IReadOnlyList<Infobase> visibleTargets)
+    {
+        if (actions is null || actions.Count == 0 || visibleTargets is null || visibleTargets.Count == 0)
+            return Array.Empty<CustomAction>();
+        return CustomActionFilter.SelectActions(actions, context);
+    }
+
+    /// <summary>
     /// Запись истории запуска базы: режим «Действие:<имя действия>» и полная командная
     /// строка с обёрткой интерпретатора, в которой значение пароля базы заменено на «***»
     /// (<see cref="CustomActionRunner.MaskSecrets"/>).
@@ -301,3 +392,11 @@ public static class CustomActionExecutionPlan
 /// <param name="Mode">Режим записи (префикс «Действие:<имя>»).</param>
 /// <param name="Details">Команда с маскированным паролем.</param>
 public sealed record CustomActionHistoryEntry(Infobase Infobase, string Mode, string Details);
+
+/// <summary>
+/// Пункт подменю «Пользовательские действия…» (0.3.9.198): действие и контекст вызова,
+/// для которого оно отобрано (<see cref="MainViewModel.BuildCustomActionMenuItems"/>).
+/// </summary>
+/// <param name="Action">Действие (пункт меню: имя, хоткей).</param>
+/// <param name="Context">Контекст вызова (определяет цели выполнения).</param>
+public sealed record CustomActionMenuItemInfo(CustomAction Action, CustomActionContext Context);

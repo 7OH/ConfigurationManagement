@@ -9,6 +9,35 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.198] — 2026-09-30
+
+### Добавлено
+
+- **Пользовательские действия контекстного меню (функция 7, шестой этап): меню Avalonia
+  и горячие клавиши**:
+  - [`MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs) —
+    подменю «Пользовательские действия…» в контекстном меню дерева базы/группы (после
+    «Выполнить скрипт», с разделителем, управляемым кодом); наполнение в `Opening` по той
+    же логике, что в WPF: контекст (база / мультивыделение с заголовком
+    «Пользовательские действия для выделенных (N)…» / группа), отбор действий по области,
+    проверка видимости целей (приватные базы скрытого профиля скрывают подменю),
+    пункты с хоткеем и иконкой, пункт «Настроить действия…», индикация выполнения.
+  - Единая точка отбора — [`BuildCustomActionMenuItems`](Configuration%20Management/ViewModels/MainViewModel.CustomActions.cs)
+    (структура `CustomActionMenuItemInfo`) и чистые помощники
+    [`CustomActionExecutionPlan.DetermineMenuContext`](Configuration%20Management/ViewModels/MainViewModel.CustomActions.cs)/
+    `SelectMenuActions`: контекст и построение пунктов одинаковы на обеих платформах
+    (риск «расхождения WPF/Avalonia»); WPF-наполнение осталось без изменений.
+  - **Горячие клавиши действий на обеих платформах**: [`HotkeyCustomActions`](Configuration%20Management/ViewModels/MainViewModel.CustomActions.cs) —
+    словарь «нормализованное сочетание → действие»; WPF — обработка в `PreviewKeyDown`
+    (`MainWindow.Hotkeys.cs`), Avalonia — во всплывающем `KeyDown` (`MainWindow.Avalonia.Hotkeys.cs`).
+    Приоритет: системные хоткеи → закладки → действия; в поле ввода текста не срабатывают.
+  - **Валидация конфликтов хоткеев в редакторе**: [`CustomActionEditViewModel`](Configuration%20Management/ViewModels/CustomActionEditViewModel.cs)
+    получает список занятых сочетаний (хоткеи остальных действий + известные системные
+    `Hotkey*` из настроек и жёсткий F5 «Выполнить скрипт»); совпадение (без учёта регистра,
+    кроме собственного действия по Id) → ошибка `CustomAction.HotkeyConflict`.
+    Окна WPF/Avalonia передают список существующих действий в
+    [`CustomActionEditWindow`](Configuration%20Management/Views/CustomActionEditWindow.xaml.cs).
+
 ## [0.3.9.197] — 2026-09-30
 
 ### Добавлено

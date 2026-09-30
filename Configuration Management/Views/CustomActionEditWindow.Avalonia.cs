@@ -56,10 +56,14 @@ public sealed class CustomActionEditWindow : ModalWindowBase
     public CustomAction? Result { get; private set; }
 
     /// <param name="action">Редактируемое действие или <c>null</c> для нового.</param>
-    public CustomActionEditWindow(CustomAction? action = null)
+    /// <param name="existingActions">
+    /// Остальные действия списка (0.3.9.198): их горячие клавиши считаются занятыми —
+    /// редактор не даст сохранить конфликтующее сочетание. null — без проверки.
+    /// </param>
+    public CustomActionEditWindow(CustomAction? action = null, IReadOnlyList<CustomAction>? existingActions = null)
     {
         _sourceAction = action;
-        _vm = new CustomActionEditViewModel(action);
+        _vm = new CustomActionEditViewModel(action, existingActions);
         Title = T(action is null ? "CustomAction.AddTitle" : "CustomAction.EditTitle");
         Width = 680;
         Height = 760;
