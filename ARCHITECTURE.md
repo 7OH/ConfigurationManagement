@@ -67,6 +67,45 @@ Configuration Management/
 - **Окна (*.xaml)** — тонкие «view»: только разметка и код, обслуживающий визуальное
   дерево (drag&drop, трей, хоткеи), без бизнес-логики.
 
+### Импорт баз из кластера 1С (rac)
+
+Функция «Утилиты → Операции → Импорт из кластера 1С…» (цикл 0.3.9.172–0.3.9.175) добавляет
+информационные базы сервера 1С в список приложения. Связка чистых сервисов (без платформенных
+зависимостей): [`IRacClient`](Configuration Management/Services/IRacClient.cs) →
+[`RacOutputParser`](Configuration Management/Services/RacOutputParser.cs) →
+[`RacInfobaseMapper`](Configuration Management/Services/RacInfobaseMapper.cs) →
+[`ClusterImportViewModel`](Configuration Management/ViewModels/ClusterImportViewModel.cs) → окна.
+
+- [`IRacClient`](Configuration Management/Services/IRacClient.cs) — запуск утилиты `rac`
+  (`ArgumentList` без shell, таймаут, маскирование пароля
+  [`SensitiveDataMasker.MaskRacPassword`](Configuration Management/Services/SensitiveDataMasker.cs));
+  список баз — команда `infobase summary list --cluster=<uuid>` (плюс `cluster list`/`cluster info`).
+- [`RacOutputParser`](Configuration Management/Services/RacOutputParser.cs) — позиционный парсер
+  табличного вывода в модель `RacInfobaseSummary` (минимальный набор — 2 колонки, лишние справа
+  игнорируются, строка заголовка и невалидный GUID пропускаются).
+- [`RacInfobaseMapper`](Configuration Management/Services/RacInfobaseMapper.cs) — чистый маппинг в
+  `Infobase`/`ConnectionSettings` (тип `ClientServer`): `Srvr` — хост из `cluster info` (`hostName`,
+  корректен для удалённого RAS) с fallback на host-часть введённого адреса, порт — порт КЛАСТЕРА
+  из `cluster list` (по умолчанию 1541, не порт ragent/RAS), `Ref` — имя ИБ в кластере,
+  аутентификация `Prompt`; дедупликация `IsDuplicate` по строке подключения без учёта регистра
+  (порт 1541 и его отсутствие — один ключ, одноимённые базы разных кластеров — разные).
+- [`ClusterImportViewModel`](Configuration Management/ViewModels/ClusterImportViewModel.cs) — чистая
+  вью-модель диалога: подключение (`GetClustersAsync` с автовыбором первого кластера), загрузка
+  баз с кэшем `cluster info` по `clusterId`, чеклист `ClusterImportRow` (пометка дубликатов и
+  файловых ИБ кластера), сводка, команды «Выделить все»/«Снять все»/«Импортировать»,
+  `IsBusy`-guard от гонок.
+- Окна — тонкие обёртки: WPF `Views/ClusterImportWindow.xaml` и Avalonia
+  `Views/ClusterImportWindow.axaml` + `.Avalonia.cs`; результат — `SelectedBases`, добавление баз
+  и создание недостающих групп выполняет `MainViewModel` (`ImportClusterInfobasesCommand`).
+
+Ограничения (см. план цикла 0.3.9.172–0.3.9.175, п. 8/11):
+- эквивалентность хостов `localhost` ↔ `127.0.0.1` при дедупликации не распознаётся
+  (нормализуются только регистр и порт по умолчанию);
+- файловые ИБ кластера (`dbms` пуст) в чеклисте помечаются «не импортируется» и в импорт не
+  попадают (для них нужен `file-descriptor` из `infobase list` — вне цикла);
+- пароль администратора кластера передаётся в VM из PasswordBox вручную и живёт только в памяти
+  окна: в настройках хранятся лишь адрес/порт/логин, в журнал пароль не попадает.
+
 ## 4. Выполненный рефакторинг
 
 ### Разбиение монолита `MainViewModel`
