@@ -391,6 +391,15 @@ public sealed class ServerMonitorViewModelTests
         public static readonly System.Guid FirstClusterId = System.Guid.Parse("11111111-1111-1111-1111-111111111111");
         private static readonly System.Guid SecondClusterId = System.Guid.Parse("22222222-2222-2222-2222-222222222222");
 
+        /// <summary>Идентификатор регламентного задания «Обмен данными».</summary>
+        public static readonly System.Guid FirstJobId = System.Guid.Parse("aaaaaaaa-1111-2222-3333-444455556666");
+
+        /// <summary>Идентификатор регламентного задания без базы (служебное).</summary>
+        public static readonly System.Guid SecondJobId = System.Guid.Parse("bbbbbbbb-1111-2222-3333-444455556666");
+
+        /// <summary>Идентификатор информационной базы-владельца первого задания.</summary>
+        public static readonly System.Guid FirstInfobaseId = System.Guid.Parse("cccccccc-1111-2222-3333-444455556666");
+
         private readonly bool _throwOnClusters;
         private readonly bool _throwOnAction;
         private readonly bool _actionFails;
@@ -417,6 +426,12 @@ public sealed class ServerMonitorViewModelTests
 
         /// <summary>Сколько раз запрошены рабочие процессы (для проверки флага занятости).</summary>
         public int ProcessCalls { get; private set; }
+
+        /// <summary>Сколько раз запрошены регламентные задания.</summary>
+        public int JobCalls { get; private set; }
+
+        /// <summary>Вызовы «job pause/resume/disable/enable»: (clusterId, jobId, action).</summary>
+        public List<(System.Guid clusterId, System.Guid jobId, RacJobAction action)> StateCalls { get; } = new();
 
         public Task<IReadOnlyList<RacCluster>> GetClustersAsync(
             RacConnectionParams parameters, CancellationToken cancellationToken = default)
@@ -532,6 +547,52 @@ public sealed class ServerMonitorViewModelTests
             RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<RacInfobaseSummary>>(Array.Empty<RacInfobaseSummary>());
+        }
+
+        public Task<IReadOnlyList<RacJobInfo>> GetJobsAsync(
+            RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
+        {
+            JobCalls++;
+            return Task.FromResult<IReadOnlyList<RacJobInfo>>(new[]
+            {
+                new RacJobInfo
+                {
+                    Id = FirstJobId,
+                    InfobaseId = FirstInfobaseId,
+                    Name = "Обмен данными",
+                    MethodName = "ВыполнитьОбмен",
+                    Predefined = true,
+                    Schedule = "0 0 3 * * ?",
+                    State = "scheduled",
+                    NextStart = new DateTime(2026, 10, 1, 3, 0, 0),
+                    LastStart = new DateTime(2026, 9, 30, 3, 0, 0),
+                    LastEnd = new DateTime(2026, 9, 30, 3, 10, 0),
+                    LastSuccess = true
+                },
+                new RacJobInfo
+                {
+                    Id = SecondJobId,
+                    InfobaseId = null,
+                    Name = "Служебное задание",
+                    MethodName = "СлужебныйМетод",
+                    State = "paused"
+                }
+            });
+        }
+
+        public Task<bool> SetJobStateAsync(
+            RacConnectionParams parameters, Guid clusterId, Guid jobId, RacJobAction action,
+            CancellationToken cancellationToken = default)
+        {
+            StateCalls.Add((clusterId, jobId, action));
+            if (_throwOnAction)
+                throw new RacClientException("нет прав администратора");
+            if (_actionFails)
+            {
+                LastActionError = "rac: у пользователя нет прав на изменение состояния задания";
+                return Task.FromResult(false);
+            }
+            return Task.FromResult(true);
         }
 
         public Task<bool> TerminateSessionAsync(

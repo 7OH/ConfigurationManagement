@@ -1,3 +1,4 @@
+using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Xunit;
 
@@ -145,5 +146,40 @@ public sealed class RacClientTests
 
         Assert.Equal(line, SensitiveDataMasker.MaskRacPassword(line));
         Assert.Null(SensitiveDataMasker.MaskRacPassword(null!));
+    }
+
+    [Fact]
+    public void BuildArguments_JobList_IncludesClusterOption()
+    {
+        var clusterId = Guid.NewGuid();
+        var args = RacClient.BuildArguments(Params(), "job", "list", $"--cluster={clusterId}");
+
+        Assert.Contains($"--cluster={clusterId}", args);
+        Assert.Equal("localhost:1540", args[0]);
+        Assert.Equal("--cluster=" + clusterId, args[^1]);
+    }
+
+    [Theory]
+    [InlineData("pause")]
+    [InlineData("resume")]
+    [InlineData("disable")]
+    [InlineData("enable")]
+    public void BuildArguments_SetJobState_IncludesCommandAndOptions(string expectedSubcommand)
+    {
+        var clusterId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var args = RacClient.BuildArguments(
+            Params(), "job", expectedSubcommand, $"--cluster={clusterId}", $"--job={jobId}");
+
+        Assert.Equal(new[]
+        {
+            "localhost:1540",
+            "--user=Admin",
+            "--password=secret",
+            "job",
+            expectedSubcommand,
+            "--cluster=" + clusterId,
+            "--job=" + jobId
+        }, args);
     }
 }

@@ -428,6 +428,16 @@ public sealed class ClusterImportViewModelTests
             RacConnectionParams parameters, System.Guid clusterId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<RacLockInfo>>(Array.Empty<RacLockInfo>());
 
+        // Регламентные задания импорт баз не использует — пустой список.
+        public Task<IReadOnlyList<RacJobInfo>> GetJobsAsync(
+            RacConnectionParams parameters, System.Guid clusterId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<RacJobInfo>>(Array.Empty<RacJobInfo>());
+
+        public Task<bool> SetJobStateAsync(
+            RacConnectionParams parameters, System.Guid clusterId, System.Guid jobId,
+            RacJobAction action, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+
         public Task<bool> TerminateSessionAsync(
             RacConnectionParams parameters, System.Guid clusterId, System.Guid sessionId,
             CancellationToken cancellationToken = default) =>
