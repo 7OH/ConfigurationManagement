@@ -9,6 +9,50 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.215] — 2026-10-01
+
+### Добавлено
+
+- **0.3.9.215: автообновление платформы — удаление старых версий** — продолжение
+  цикла 0.3.9.208–0.3.9.216:
+  - Чистый отбор кандидатов [`OldVersionCleaner.SelectCandidates`](Configuration%20Management/Services/OldVersionCleaner.cs):
+    исключаются новейшая установленная версия (численное сравнение Display через
+    `ParseVariant`/`CompareVersions`, обе разрядности новейшего номера), версии, на
+    которые ссылаются базы репозитория (`Infobase.PlatformVersion` — точное совпадение
+    или сегментный префикс, регистронезависимо; пустая версия не считается), и версии
+    запущенных процессов (путь бинарника из командной строки через
+    `ExtractExecutablePath` сопоставляется с каталогом версии); результат отсортирован
+    по убыванию, пустой вход — пустой список.
+  - Windows: [`PlatformInstaller.DeleteVersionDirectoryAsync`](Configuration%20Management/Services/PlatformInstaller.Windows.cs) —
+    удаление каталога версии `Remove-Item -Recurse -Force` через PowerShell с
+    `Verb="runas"` (UAC-паттерн `UpdateService`), ожидание завершения, пересканирование
+    установленных версий; записи реестра Uninstall и ярлыки не трогаются.
+  - Linux: команда `sudo dpkg -r 1c-enterprise83-<версия>`
+    (`PlatformInstallerCommands.BuildSudoUninstallCommand`) показывается в журнале окна
+    и копируется в буфер обмена (Avalonia).
+  - Команда «Удалить старые версии…» активирована в
+    [`PlatformUpdateViewModel`](Configuration%20Management/ViewModels/PlatformUpdateViewModel.cs):
+    диалог подтверждения со списком кандидатов (ключи
+    `PlatformUpdate.Confirm.RemoveTitle/.RemoveMessage`), последовательное удаление
+    (Windows) либо показ команд (Linux), перестроение списка после удаления,
+    уведомление `INotificationService` (evt: Update, ключ `Notify.PlatformUpdateRemoved`).
+  - Отображение совместимости с базами: новое свойство `CompatibleBaseNames` в
+    [`PlatformUpdateRowViewModel`](Configuration%20Management/ViewModels/PlatformUpdateRowViewModel.cs)
+    (через `PlatformUpdateMatcher.GetCompatibleBaseNames`) и вывод списка баз
+    (первые 5 + счётчик) в журнал при выборе строки окна.
+  - Локализация ru/en: `PlatformUpdate.Confirm.RemoveTitle/.RemoveMessage`,
+    `PlatformUpdate.RemoveNothing`, `PlatformUpdate.Error.DeleteFailed`,
+    `Notify.PlatformUpdateRemoved`.
+  - Тесты: новый [`OldVersionCleanerTests`](ConfigurationManagement.Tests/OldVersionCleanerTests.cs)
+    (новейшая исключена; используемые базами — точное/префиксное совпадение; запущенный
+    процесс исключён; пустой вход; сортировка; хелперы CleanVersion/ExtractExecutablePath);
+    дополненные [`PlatformUpdateViewModelTests`](ConfigurationManagement.Tests/PlatformUpdateViewModelTests.cs)
+    (RemoveOldVersions: кандидаты, подтверждение, обновление списка, отмена — no-op,
+    Linux-команда с копированием, ошибка удаления → уведомление, имена баз в журнале)
+    и [`PlatformInstallerWindowsTests`](ConfigurationManagement.Tests/PlatformInstallerWindowsTests.cs)
+    (DeleteVersionDirectoryCoreAsync: успех/ненулевой код/отказ запуска/отмена/пустой путь).
+    Полный прогон зелёный, Linux-сборка (`-p:BuildLinux=true`) без ошибок.
+
 ## [0.3.9.214] — 2026-10-01
 
 ### Добавлено

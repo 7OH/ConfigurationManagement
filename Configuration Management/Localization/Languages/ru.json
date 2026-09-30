@@ -2736,8 +2736,13 @@
     "PlatformUpdate.Linux.Copied": "Команда скопирована в буфер обмена",
     "PlatformUpdate.Confirm.InstallTitle": "Установка платформы 1С",
     "PlatformUpdate.Confirm.InstallMessage": "Будет установлена версия {0}. Продолжить?",
+    "PlatformUpdate.Confirm.RemoveTitle": "Удаление старых версий платформы",
+    "PlatformUpdate.Confirm.RemoveMessage": "Будут удалены версии:\n{0}\n\nУдаление безвозвратно. Продолжить?",
+    "PlatformUpdate.RemoveNothing": "Нет версий для удаления",
+    "PlatformUpdate.Error.DeleteFailed": "Не удалось удалить версию платформы",
     "PlatformUpdate.Preflight.Continue": "Установка продолжена пользователем",
     "Notify.PlatformUpdateDone": "Установлена версия платформы {0}",
+    "Notify.PlatformUpdateRemoved": "Удалены старые версии платформы: {0}",
     "Notify.PlatformUpdateError": "Не удалось обновить платформу: {0}"
   }
 }

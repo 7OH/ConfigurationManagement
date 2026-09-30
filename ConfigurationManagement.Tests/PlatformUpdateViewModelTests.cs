@@ -68,7 +68,13 @@ public sealed class PlatformUpdateViewModelTests
         Func<string, bool>? signed = null,
         Func<string, string, bool>? confirm = null,
         Action<string, string, NotificationKind, NotificationEvent>? notify = null,
-        FakeAppLogger? logger = null)
+        FakeAppLogger? logger = null,
+        Func<IReadOnlyList<PlatformVersionInfo>>? installedInfos = null,
+        Func<IReadOnlyList<string>>? runningBinPaths = null,
+        Func<PlatformVersionInfo, IProgress<string>?, CancellationToken,
+            Task<(bool Success, string? ErrorKey)>>? deleteVersion = null,
+        Func<string, string>? buildUninstall = null,
+        Action<string>? copyCommand = null)
     {
         return new PlatformUpdateViewModel(
             service ?? OkService(),
@@ -85,7 +91,12 @@ public sealed class PlatformUpdateViewModelTests
             signed ?? (_ => true),
             confirm ?? ((_, _) => true),
             notify ?? ((_, _, _, _) => { }),
-            logger);
+            logger,
+            installedInfos ?? (() => Array.Empty<PlatformVersionInfo>()),
+            runningBinPaths ?? (() => Array.Empty<string>()),
+            deleteVersion,
+            buildUninstall,
+            copyCommand);
     }
 
     // ---------- CheckUpdatesAsync ----------
@@ -620,7 +631,7 @@ public sealed class PlatformUpdateViewModelTests
         Assert.False(vm.DownloadAndInstallCommand.CanExecute(null)); // нет выделения
         Assert.False(vm.DownloadOnlyCommand.CanExecute(null));
         Assert.True(vm.ChooseInstallerCommand.CanExecute(null));
-        Assert.False(vm.RemoveOldVersionsCommand.CanExecute(null)); // заглушка до этапа 0.3.9.215
+        Assert.True(vm.RemoveOldVersionsCommand.CanExecute(null)); // активна с этапа 0.3.9.215
 
         vm.SelectedRow = vm.Rows.Single();
         Assert.True(vm.DownloadAndInstallCommand.CanExecute(null));
@@ -632,9 +643,196 @@ public sealed class PlatformUpdateViewModelTests
         Assert.False(vm.DownloadAndInstallCommand.CanExecute(null));
         Assert.False(vm.DownloadOnlyCommand.CanExecute(null));
         Assert.False(vm.ChooseInstallerCommand.CanExecute(null));
+        Assert.False(vm.RemoveOldVersionsCommand.CanExecute(null));
         vm.IsBusy = false;
 
         Assert.True(vm.DownloadAndInstallCommand.CanExecute(null));
+    }
+
+    // ---------- RemoveOldVersions (этап 0.3.9.215) ----------
+
+    [Fact]
+    public async Task RemoveOldVersions_Windows_DeletesCandidatesSequentiallyAndRefreshesRows()
+    {
+        var file = DistroFile(MiB);
+        var service = OkService(Release("8.3.27.2214", file), Release("8.3.27.1688"), Release("8.3.26.1890"));
+        service.PickedFile = file;
+
+        var installedInfos = new List<PlatformVersionInfo>
+        {
+            new() { Display = "8.3.27.2214", Path = @"C:\Program Files\1cv8\8.3.27.2214" },
+            new() { Display = "8.3.27.1688", Path = @"C:\Program Files\1cv8\8.3.27.1688" },
+            new() { Display = "8.3.26.1890", Path = @"C:\Program Files\1cv8\8.3.26.1890" },
+        };
+        var deleted = new List<string>();
+        var confirmCalls = 0;
+
+        var vm = CreateVm(
+            service,
+            // Строковый список (для перестроения строк) и инфо с путями (для кандидатов)
+            // — один источник, чтобы RefreshInstalledAsync после удаления видел актуальный состав.
+            installed: () => installedInfos.Select(v => OldVersionCleaner.CleanVersion(v.Display)).ToList(),
+            installedInfos: () => installedInfos.ToList(),
+            deleteVersion: (version, log, ct) =>
+            {
+                deleted.Add(version.Display);
+                installedInfos.RemoveAll(v => v.Display == version.Display);
+                return Task.FromResult((Success: true, ErrorKey: (string?)null));
+            },
+            confirm: (_, _) =>
+            {
+                confirmCalls++;
+                return true;
+            });
+
+        await vm.CheckUpdatesAsync();
+        Assert.Equal(3, vm.Rows.Count(r => r.IsInstalled));
+
+        await vm.RemoveOldVersionsAsync();
+
+        // Кандидаты собраны: новейшая 8.3.27.2214 исключена, остальные удалены последовательно.
+        Assert.Equal(1, confirmCalls);
+        Assert.Equal(new[] { "8.3.27.1688", "8.3.26.1890" }, deleted);
+        Assert.False(vm.IsBusy);
+
+        // Список перестроен: удалённые версии теперь доступны, а не установлены.
+        Assert.False(vm.Rows.Single(r => r.Version == "8.3.27.1688").IsInstalled);
+        Assert.False(vm.Rows.Single(r => r.Version == "8.3.26.1890").IsInstalled);
+        Assert.True(vm.Rows.Single(r => r.Version == "8.3.27.2214").IsInstalled);
+    }
+
+    [Fact]
+    public async Task RemoveOldVersions_ExcludesBaseReferencedAndRunningVersions()
+    {
+        var service = OkService(Release("8.3.27.2214"), Release("8.3.27.1688"), Release("8.3.26.1890"));
+        var installedInfos = new List<PlatformVersionInfo>
+        {
+            new() { Display = "8.3.27.2214", Path = @"C:\Program Files\1cv8\8.3.27.2214" },
+            new() { Display = "8.3.27.1688", Path = @"C:\Program Files\1cv8\8.3.27.1688" },
+            new() { Display = "8.3.26.1890", Path = @"C:\Program Files\1cv8\8.3.26.1890" },
+        };
+        var deleted = new List<string>();
+
+        var vm = CreateVm(
+            service,
+            bases: new List<Infobase> { Base("1", "8.3.27.1688") }, // база ссылается на 8.3.27.1688
+            installedInfos: () => installedInfos.ToList(),
+            runningBinPaths: () => new List<string>
+            {
+                @"C:\Program Files\1cv8\8.3.26.1890\bin\1cv8c.exe", // процесс запущен из 8.3.26.1890
+            },
+            deleteVersion: (version, log, ct) =>
+            {
+                deleted.Add(version.Display);
+                return Task.FromResult((Success: true, ErrorKey: (string?)null));
+            });
+
+        await vm.RemoveOldVersionsAsync();
+
+        // Новейшая + используемая базой + запущенная — кандидатов нет.
+        Assert.Empty(deleted);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.RemoveNothing"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task RemoveOldVersions_CancelledDialog_IsNoOp()
+    {
+        var installedInfos = new List<PlatformVersionInfo>
+        {
+            new() { Display = "8.3.27.2214" },
+            new() { Display = "8.3.27.1688" },
+        };
+        var deleted = new List<string>();
+
+        var vm = CreateVm(
+            installedInfos: () => installedInfos.ToList(),
+            deleteVersion: (version, log, ct) =>
+            {
+                deleted.Add(version.Display);
+                return Task.FromResult((Success: true, ErrorKey: (string?)null));
+            },
+            confirm: (_, _) => false);
+
+        await vm.RemoveOldVersionsAsync();
+
+        Assert.Empty(deleted);
+        Assert.False(vm.IsBusy);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.Cancelled"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task RemoveOldVersions_Linux_ShowsSudoCommandAndCopiesToClipboard()
+    {
+        var installedInfos = new List<PlatformVersionInfo>
+        {
+            new() { Display = "8.3.27.2214" },
+            new() { Display = "8.3.27.1688" },
+            new() { Display = "8.3.26.1890" },
+        };
+        var copied = new List<string>();
+
+        // Без делегата удаления каталога — активна Linux-ветка (команда + буфер).
+        var vm = CreateVm(
+            installedInfos: () => installedInfos.ToList(),
+            buildUninstall: version => $"sudo dpkg -r 1c-enterprise83-{version}",
+            copyCommand: copied.Add,
+            confirm: (_, _) => true);
+
+        await vm.RemoveOldVersionsAsync();
+
+        // Команды для всех кандидатов (новейшая исключена) скопированы в буфер.
+        Assert.Equal(2, copied.Count);
+        Assert.Contains(copied, c => c.Contains("1c-enterprise83-8.3.27.1688"));
+        Assert.Contains(copied, c => c.Contains("1c-enterprise83-8.3.26.1890"));
+        Assert.DoesNotContain(copied, c => c.Contains("1c-enterprise83-8.3.27.2214"));
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Linux.Copied"), vm.LogText);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
+    public async Task RemoveOldVersions_DeleteFailed_NotifiesError()
+    {
+        var installedInfos = new List<PlatformVersionInfo>
+        {
+            new() { Display = "8.3.27.2214" },
+            new() { Display = "8.3.27.1688" },
+        };
+        var notified = new List<(string Title, string Message, NotificationKind Kind, NotificationEvent Evt)>();
+
+        var vm = CreateVm(
+            installedInfos: () => installedInfos.ToList(),
+            deleteVersion: (version, log, ct) =>
+                Task.FromResult((Success: false, ErrorKey: (string?)"PlatformUpdate.Error.DeleteFailed")),
+            notify: (title, message, kind, evt) => notified.Add((title, message, kind, evt)));
+
+        await vm.RemoveOldVersionsAsync();
+
+        var notification = Assert.Single(notified);
+        Assert.Equal(NotificationKind.Error, notification.Kind);
+        Assert.Equal(NotificationEvent.Update, notification.Evt);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.DeleteFailed"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task SelectRow_WithCompatibleBases_WritesNamesToLog()
+    {
+        var service = OkService(Release("8.3.27.2214"), Release("8.3.27.1688"));
+        var bases = new List<Infobase>
+        {
+            Base("1", "8.3.27.1644"),
+            Base("2", "8.3.27.1606"),
+            Base("3", "8.3.26.1182"),
+        };
+
+        var vm = CreateVm(service, bases, installed: () => new List<string> { "8.3.27.1688" });
+        await vm.CheckUpdatesAsync();
+
+        vm.SelectedRow = vm.Rows.Single(r => r.Version == "8.3.27.1688");
+
+        Assert.Equal(2, vm.SelectedRow.CompatibleBases);
+        Assert.Equal(new[] { "База 1", "База 2" }, vm.SelectedRow.CompatibleBaseNames);
+        Assert.Contains("База 1", vm.LogText);
+        Assert.Contains("База 2", vm.LogText);
     }
 
     // ---------- Хоткей окна (этап 0.3.9.214) ----------

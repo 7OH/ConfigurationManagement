@@ -67,7 +67,18 @@ public partial class PlatformUpdateWindow : Window
             hasValidSignature: PlatformInstaller.HasValidSignature,
             confirmDialog: (title, message) => dialogs.Confirm(message, title),
             notify: (title, message, kind, evt) => notifier.Show(title, message, kind, evt),
-            appLogger: logger);
+            appLogger: logger,
+            // Удаление старых версий (этап 0.3.9.215): инфо установленных версий с путями,
+            // пути бинарников запущенных процессов и удаление каталога через PlatformInstaller.
+            loadInstalledVersionInfos: () => PlatformVersionService.FindInstalledVersionInfos(),
+            loadRunningBinPaths: () => running.GetRunning()
+                .Select(p => OldVersionCleaner.ExtractExecutablePath(p.CommandLine))
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(p => p!)
+                .ToList(),
+            deleteVersionDirectory: (version, log, ct) =>
+                PlatformInstaller.DeleteVersionDirectoryAsync(version, log, ct));
 
         DataContext = _viewModel;
         RowsGrid.ItemsSource = _viewModel.Rows;

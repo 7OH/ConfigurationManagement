@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Xunit;
 
@@ -383,6 +384,120 @@ public sealed class PlatformInstallerWindowsTests : IDisposable
         Assert.False(result.Success);
         Assert.Equal(PlatformInstaller.ErrorCancelled, result.ErrorKey);
         Assert.False(Directory.Exists(createdDir));
+    }
+
+    // --- DeleteVersionDirectoryCoreAsync (этап 0.3.9.215) ---
+
+    [Fact]
+    public async Task DeleteVersionDirectory_Success_RunsElevatedRemoveItemAndRefreshes()
+    {
+        ProcessStartInfo? captured = null;
+        var refreshed = false;
+        var version = new PlatformVersionInfo
+        {
+            Display = "8.3.27.1688",
+            Path = @"C:\Program Files\1cv8\8.3.27.1688",
+        };
+
+        var result = await PlatformInstaller.DeleteVersionDirectoryCoreAsync(
+            version, null, CancellationToken.None,
+            psi =>
+            {
+                captured = psi;
+                return new FakeInstallerProcess(exitCode: 0, hasExited: () => true);
+            },
+            () => refreshed = true);
+
+        Assert.True(result.Success);
+        Assert.Null(result.ErrorKey);
+
+        // PowerShell с UAC и командой Remove-Item по каталогу версии.
+        Assert.NotNull(captured);
+        Assert.Equal("runas", captured.Verb);
+        Assert.True(captured.UseShellExecute);
+        Assert.Contains("powershell", captured.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Remove-Item", captured.Arguments);
+        Assert.Contains(@"C:\Program Files\1cv8\8.3.27.1688", captured.Arguments);
+
+        Assert.True(refreshed);
+    }
+
+    [Fact]
+    public async Task DeleteVersionDirectory_NonZeroExitCode_ReturnsDeleteFailed()
+    {
+        var version = new PlatformVersionInfo { Display = "8.3.27.1688", Path = @"C:\1cv8\8.3.27.1688" };
+        var refreshed = false;
+
+        var result = await PlatformInstaller.DeleteVersionDirectoryCoreAsync(
+            version, null, CancellationToken.None,
+            _ => new FakeInstallerProcess(exitCode: 2, hasExited: () => true),
+            () => refreshed = true);
+
+        Assert.False(result.Success);
+        Assert.Equal(PlatformInstaller.ErrorDeleteFailed, result.ErrorKey);
+        Assert.False(refreshed); // при неудаче кэш не пересканируется
+    }
+
+    [Fact]
+    public async Task DeleteVersionDirectory_StarterReturnsNull_ReturnsDeleteFailed()
+    {
+        var version = new PlatformVersionInfo { Display = "8.3.27.1688", Path = @"C:\1cv8\8.3.27.1688" };
+
+        var result = await PlatformInstaller.DeleteVersionDirectoryCoreAsync(
+            version, null, CancellationToken.None, _ => null, () => { });
+
+        Assert.False(result.Success);
+        Assert.Equal(PlatformInstaller.ErrorDeleteFailed, result.ErrorKey);
+    }
+
+    [Fact]
+    public async Task DeleteVersionDirectory_StarterThrows_ReturnsDeleteFailed()
+    {
+        var version = new PlatformVersionInfo { Display = "8.3.27.1688", Path = @"C:\1cv8\8.3.27.1688" };
+
+        var result = await PlatformInstaller.DeleteVersionDirectoryCoreAsync(
+            version, null, CancellationToken.None,
+            _ => throw new InvalidOperationException("UAC declined"),
+            () => { });
+
+        Assert.False(result.Success);
+        Assert.Equal(PlatformInstaller.ErrorDeleteFailed, result.ErrorKey);
+    }
+
+    [Fact]
+    public async Task DeleteVersionDirectory_Cancelled_ReturnsCancelledKey()
+    {
+        var version = new PlatformVersionInfo { Display = "8.3.27.1688", Path = @"C:\1cv8\8.3.27.1688" };
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var result = await PlatformInstaller.DeleteVersionDirectoryCoreAsync(
+            version, null, cts.Token,
+            _ => new FakeInstallerProcess(exitCode: 0, hasExited: () => true),
+            () => { });
+
+        Assert.False(result.Success);
+        Assert.Equal(PlatformInstaller.ErrorCancelled, result.ErrorKey);
+    }
+
+    [Fact]
+    public async Task DeleteVersionDirectory_EmptyPath_ReturnsDeleteFailed()
+    {
+        var version = new PlatformVersionInfo { Display = "8.3.27.1688", Path = "" };
+        var started = false;
+
+        var result = await PlatformInstaller.DeleteVersionDirectoryCoreAsync(
+            version, null, CancellationToken.None,
+            _ =>
+            {
+                started = true;
+                return new FakeInstallerProcess(exitCode: 0, hasExited: () => true);
+            },
+            () => { });
+
+        Assert.False(result.Success);
+        Assert.Equal(PlatformInstaller.ErrorDeleteFailed, result.ErrorKey);
+        Assert.False(started); // процесс не запускается без каталога
     }
 
     // --- Вспомогательные ---

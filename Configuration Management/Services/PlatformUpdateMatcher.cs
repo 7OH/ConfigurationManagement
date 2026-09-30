@@ -85,22 +85,40 @@ public static class PlatformUpdateMatcher
     /// <param name="bases">Базы репозитория.</param>
     /// <returns>Число совместимых баз.</returns>
     public static int CountCompatibleBases(string version, IReadOnlyList<Infobase> bases)
+        => GetCompatibleBaseNames(version, bases).Count;
+
+    /// <summary>
+    /// Имена баз репозитория, совместимых с выбранной версией платформы
+    /// (та же эвристика, что в <see cref="CountCompatibleBases"/>): база учитывается,
+    /// если её <see cref="Infobase.PlatformVersion"/> начинается с префикса выбранной
+    /// версии — точное совпадение 4 сегментов или префикс первых 3 сегментов
+    /// (<c>MatchesVersionPrefix</c>, issue #142). Пустая версия у базы не считается.
+    /// Имя берётся из <see cref="Infobase.Name"/>; база без имени попадает списком
+    /// своей версией. Порядок — как в репозитории.
+    /// </summary>
+    /// <param name="version">Выбранная версия платформы, например «8.3.27.2214».</param>
+    /// <param name="bases">Базы репозитория.</param>
+    /// <returns>Имена совместимых баз (для колонки/журнала окна «Совместимые базы»).</returns>
+    public static IReadOnlyList<string> GetCompatibleBaseNames(string version, IReadOnlyList<Infobase> bases)
     {
         var prefix = FirstSegments(version, 3);
         if (string.IsNullOrEmpty(prefix))
-            return 0;
+            return Array.Empty<string>();
 
-        var count = 0;
+        var result = new List<string>();
         foreach (var infobase in bases ?? Array.Empty<Infobase>())
         {
             var baseVersion = (infobase?.PlatformVersion ?? string.Empty).Trim();
             if (baseVersion.Length == 0)
                 continue;
-            if (MatchesVersionPrefix(baseVersion, prefix))
-                count++;
+            if (!MatchesVersionPrefix(baseVersion, prefix))
+                continue;
+
+            var name = (infobase?.Name ?? string.Empty).Trim();
+            result.Add(name.Length == 0 ? baseVersion : name);
         }
 
-        return count;
+        return result;
     }
 
     /// <summary>Первые <paramref name="count"/> сегментов версии через точку

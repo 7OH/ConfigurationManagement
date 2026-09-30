@@ -22,6 +22,7 @@ public sealed class PlatformUpdateRowViewModel : ViewModelBase
     private readonly Func<IReadOnlyList<PlatformReleaseFile>, PlatformReleaseFile?> _picker;
     private PlatformRelease? _release;
     private int _compatibleBases;
+    private IReadOnlyList<string> _compatibleBaseNames = Array.Empty<string>();
     private bool _isChecking;
     private bool _isDownloading;
     private double _progress;
@@ -49,6 +50,15 @@ public sealed class PlatformUpdateRowViewModel : ViewModelBase
     {
         get => _compatibleBases;
         set => SetProperty(ref _compatibleBases, value);
+    }
+
+    /// <summary>Имена информационных баз репозитория, совместимых с этой версией
+    /// (<see cref="PlatformUpdateMatcher.GetCompatibleBaseNames"/>): список для
+    /// журнала/подсказки при выборе строки (первые 5 + счётчик формирует вызывающий код).</summary>
+    public IReadOnlyList<string> CompatibleBaseNames
+    {
+        get => _compatibleBaseNames;
+        set => SetProperty(ref _compatibleBaseNames, value ?? Array.Empty<string>());
     }
 
     /// <summary>True — выполняется сетевая проверка строки.</summary>

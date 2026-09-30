@@ -42,6 +42,19 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
     private readonly Action<string, string, NotificationKind, NotificationEvent> _notify;
     private readonly Services.IAppLogger? _appLogger;
 
+    // Удаление старых версий (этап 0.3.9.215) — всё через делегаты, чтобы класс
+    // оставался чистым и тестируемым на обеих платформах.
+    private readonly Func<IReadOnlyList<PlatformVersionInfo>> _loadInstalledVersionInfos;
+    private readonly Func<IReadOnlyList<string>> _loadRunningBinPaths;
+    private readonly Func<PlatformVersionInfo, IProgress<string>?, CancellationToken,
+        Task<(bool Success, string? ErrorKey)>>? _deleteVersionDirectory;
+    private readonly Func<string, string> _buildUninstallCommand;
+    private readonly Action<string> _copyToClipboard;
+
+    /// <summary>True — Windows-ветка удаления (инжектирован делегат удаления каталога);
+    /// false — Linux-ветка (показ команды sudo с копированием в буфер).</summary>
+    private readonly bool _useWindowsDelete;
+
     private readonly StringBuilder _log = new();
     private IReadOnlyList<PlatformRelease> _availableReleases = new List<PlatformRelease>();
     private bool _isBusy;
@@ -74,14 +87,19 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
     /// <summary>Текст журнала операции (строки добавляются через <see cref="AppendLog"/>).</summary>
     public string LogText => _log.ToString();
 
-    /// <summary>Выбранная строка списка (для команд «Скачать и установить»/«Только скачать»).</summary>
+    /// <summary>Выбранная строка списка (для команд «Скачать и установить»/«Только скачать»).
+    /// При выборе строки с совместимыми базами их список (первые 5 + счётчик) пишется
+    /// в журнал окна.</summary>
     public PlatformUpdateRowViewModel? SelectedRow
     {
         get => _selectedRow;
         set
         {
             if (SetProperty(ref _selectedRow, value))
+            {
                 RefreshCommands();
+                LogCompatibleBases(value);
+            }
         }
     }
 
@@ -105,8 +123,10 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
     /// <summary>Команда «Выбрать файл установщика…».</summary>
     public RelayCommand ChooseInstallerCommand { get; }
 
-    /// <summary>Команда «Удалить старые версии…» — заглушка до этапа 0.3.9.215
-    /// (кнопка скрыта/недоступна).</summary>
+    /// <summary>Команда «Удалить старые версии…»: отбор кандидатов
+    /// (<see cref="OldVersionCleaner.SelectCandidates"/>), диалог подтверждения,
+    /// Windows — удаление каталогов версий последовательно, Linux — показ команды
+    /// sudo с копированием в буфер; уведомление о результате.</summary>
     public RelayCommand RemoveOldVersionsCommand { get; }
 
     /// <param name="service">Сервис каталога версий платформы (портал releases.1c.ru).</param>
@@ -135,7 +155,13 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         Func<string, bool>? hasValidSignature = null,
         Func<string, string, bool>? confirmDialog = null,
         Action<string, string, NotificationKind, NotificationEvent>? notify = null,
-        Services.IAppLogger? appLogger = null)
+        Services.IAppLogger? appLogger = null,
+        Func<IReadOnlyList<PlatformVersionInfo>>? loadInstalledVersionInfos = null,
+        Func<IReadOnlyList<string>>? loadRunningBinPaths = null,
+        Func<PlatformVersionInfo, IProgress<string>?, CancellationToken,
+            Task<(bool Success, string? ErrorKey)>>? deleteVersionDirectory = null,
+        Func<string, string>? buildUninstallCommand = null,
+        Action<string>? copyToClipboard = null)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _infobaseRepository = infobaseRepository ?? throw new ArgumentNullException(nameof(infobaseRepository));
@@ -155,6 +181,16 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         _notify = notify ?? ((_, _, _, _) => { });
         _appLogger = appLogger;
 
+        // Удаление старых версий (этап 0.3.9.215): по умолчанию — «ничего не удаляем»
+        // (Windows-ветка без делегата удаления выродилась бы в ложный успех, поэтому
+        // признак платформы определяется наличием делегата удаления каталога).
+        _loadInstalledVersionInfos = loadInstalledVersionInfos ?? (() => Array.Empty<PlatformVersionInfo>());
+        _loadRunningBinPaths = loadRunningBinPaths ?? (() => Array.Empty<string>());
+        _useWindowsDelete = deleteVersionDirectory is not null;
+        _deleteVersionDirectory = deleteVersionDirectory;
+        _buildUninstallCommand = buildUninstallCommand ?? (_ => string.Empty);
+        _copyToClipboard = copyToClipboard ?? (_ => { });
+
         CheckCommand = new RelayCommand(async () => await CheckUpdatesAsync(), () => !IsBusy);
         DownloadAndInstallCommand = new RelayCommand(
             async () => await DownloadAndInstallAsync(), () => !IsBusy && SelectedRow is not null);
@@ -162,10 +198,8 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
             async () => await DownloadOnlyAsync(), () => !IsBusy && SelectedRow is not null);
         ChooseInstallerCommand = new RelayCommand(
             async () => await ChooseInstallerAsync(), () => !IsBusy);
-        // Реализация удаления старых версий — этап 0.3.9.215; команда существует,
-        // но неактивна (кнопка недоступна).
         RemoveOldVersionsCommand = new RelayCommand(
-            () => AppendLog(LocalizationManager.T("PlatformUpdate.RemoveOld")), () => false);
+            async () => await RemoveOldVersionsAsync(), () => !IsBusy);
     }
 
     /// <summary>Добавляет строку в журнал и уведомляет UI (<see cref="LogText"/>).
@@ -490,6 +524,170 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         await Task.CompletedTask.ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// «Удалить старые версии…» (этап 0.3.9.215): отбирает кандидатов через
+    /// <see cref="OldVersionCleaner.SelectCandidates"/> (новейшая, используемые базами
+    /// и запущенные исключаются), показывает диалог подтверждения со списком версий.
+    /// Windows: удаляет каталоги версий последовательно через инжектируемый делегат
+    /// (<c>PlatformInstaller.DeleteVersionDirectoryAsync</c>) и перестраивает список.
+    /// Linux: показывает команду удаления (<c>PlatformInstaller.BuildSudoUninstallCommand</c>)
+    /// в журнале и копирует её в буфер обмена (делегат). Результат — уведомление
+    /// (<see cref="NotificationEvent.Update"/>, ключ «Notify.PlatformUpdateRemoved»).
+    /// Отмена диалога — no-op с записью в журнал.
+    /// </summary>
+    public async Task RemoveOldVersionsAsync()
+    {
+        if (IsBusy)
+            return;
+
+        IsBusy = true;
+        try
+        {
+            IReadOnlyList<PlatformVersionInfo> installed;
+            try
+            {
+                installed = _loadInstalledVersionInfos() ?? Array.Empty<PlatformVersionInfo>();
+            }
+            catch (Exception ex)
+            {
+                installed = Array.Empty<PlatformVersionInfo>();
+                AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}");
+            }
+
+            IReadOnlyList<Infobase> bases;
+            try
+            {
+                bases = _infobaseRepository.Load() ?? new List<Infobase>();
+            }
+            catch (Exception ex)
+            {
+                bases = new List<Infobase>();
+                AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}");
+            }
+
+            IReadOnlyList<string> runningBinPaths;
+            try
+            {
+                runningBinPaths = _loadRunningBinPaths() ?? Array.Empty<string>();
+            }
+            catch
+            {
+                runningBinPaths = Array.Empty<string>();
+            }
+
+            var candidates = OldVersionCleaner.SelectCandidates(installed, bases, runningBinPaths);
+            if (candidates.Count == 0)
+            {
+                AppendLog(LocalizationManager.T("PlatformUpdate.RemoveNothing"));
+                _appLogger?.Info("Обновление платформы: нет старых версий для удаления");
+                return;
+            }
+
+            // Диалог подтверждения со списком кандидатов.
+            var listText = string.Join("\n", candidates.Select(c => $"• {c.Display}"));
+            var message = string.Format(
+                LocalizationManager.T("PlatformUpdate.Confirm.RemoveMessage"), listText);
+            var confirmed = _confirmDialog(LocalizationManager.T("PlatformUpdate.Confirm.RemoveTitle"), message);
+            if (!confirmed)
+            {
+                AppendLog(LocalizationManager.T("PlatformUpdate.Error.Cancelled"));
+                _appLogger?.Info("Обновление платформы: удаление старых версий отменено пользователем");
+                return;
+            }
+
+            // Linux-ветка: команды sudo в журнал + копирование в буфер (без удаления из GUI).
+            if (!_useWindowsDelete)
+            {
+                foreach (var candidate in candidates)
+                {
+                    var command = _buildUninstallCommand(OldVersionCleaner.CleanVersion(candidate.Display));
+                    AppendLog(command);
+                    _copyToClipboard(command);
+                }
+
+                AppendLog(LocalizationManager.T("PlatformUpdate.Linux.Copied"));
+                _appLogger?.Info(
+                    $"Обновление платформы: показаны команды удаления для {candidates.Count} версий");
+                NotifyResult(string.Format(
+                    LocalizationManager.T("Notify.PlatformUpdateRemoved"),
+                    string.Join(", ", candidates.Select(c => c.Display))));
+                return;
+            }
+
+            // Windows-ветка: последовательное удаление каталогов выбранных версий.
+            var removed = new List<string>();
+            var failedCount = 0;
+            var deleteLog = new Progress<string>(AppendLog);
+            foreach (var candidate in candidates)
+            {
+                AppendLog(string.Format(LocalizationManager.T("PlatformUpdate.Progress.Install"), candidate.Display));
+                _appLogger?.Info($"Обновление платформы: удаление каталога версии {candidate.Display}");
+
+                var result = await _deleteVersionDirectory!(candidate, deleteLog, CancellationToken.None)
+                    .ConfigureAwait(false);
+                if (result.Success)
+                {
+                    removed.Add(candidate.Display);
+                    AppendLog(string.Format(LocalizationManager.T("PlatformUpdate.Progress.Done"), candidate.Display));
+                }
+                else
+                {
+                    failedCount++;
+                    var errorText = string.IsNullOrWhiteSpace(result.ErrorKey)
+                        ? LocalizationManager.T("PlatformUpdate.Error.DeleteFailed")
+                        : LocalizationManager.T(result.ErrorKey);
+                    AppendLog(errorText);
+                    _appLogger?.Error($"Обновление платформы: {errorText} — {candidate.Display}");
+                }
+            }
+
+            if (removed.Count > 0)
+            {
+                _appLogger?.Info("Обновление платформы: перечитывание установленных версий после удаления");
+                await RefreshInstalledAsync().ConfigureAwait(false);
+            }
+
+            if (failedCount > 0)
+            {
+                NotifyError(string.Format(
+                    LocalizationManager.T("Notify.PlatformUpdateError"),
+                    LocalizationManager.T("PlatformUpdate.Error.DeleteFailed")));
+            }
+            else if (removed.Count > 0)
+            {
+                NotifyResult(string.Format(
+                    LocalizationManager.T("Notify.PlatformUpdateRemoved"),
+                    string.Join(", ", removed)));
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}");
+            NotifyError(string.Format(
+                LocalizationManager.T("Notify.PlatformUpdateError"),
+                $"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}"));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Пишет в журнал список совместимых баз выбранной строки
+    /// (первые 5 имён + счётчик остальных) при выборе версии в окне.</summary>
+    private void LogCompatibleBases(PlatformUpdateRowViewModel? row)
+    {
+        if (row is null || row.CompatibleBaseNames.Count == 0)
+            return;
+
+        var total = row.CompatibleBaseNames.Count;
+        var names = string.Join(", ", row.CompatibleBaseNames.Take(5));
+        var text = total <= 5
+            ? $"{row.Version}: {names}"
+            : $"{row.Version}: {names} … ещё {total - 5}";
+        AppendLog(text);
+    }
+
     /// <summary>Лениво подгружает файлы дистрибутива релиза строки
     /// (<see cref="IPlatformUpdateService.LoadReleaseFilesAsync"/>).</summary>
     /// <returns>True — файлы готовы (или уже были загружены).</returns>
@@ -537,9 +735,11 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         {
             var release = available.FirstOrDefault(r =>
                 string.Equals(r.Version, match.Version, StringComparison.OrdinalIgnoreCase));
+            var compatibleNames = PlatformUpdateMatcher.GetCompatibleBaseNames(match.Version, bases);
             var row = new PlatformUpdateRowViewModel(match, release, files => _service.PickDistribution(files))
             {
-                CompatibleBases = PlatformUpdateMatcher.CountCompatibleBases(match.Version, bases),
+                CompatibleBases = compatibleNames.Count,
+                CompatibleBaseNames = compatibleNames,
             };
             Rows.Add(row);
         }

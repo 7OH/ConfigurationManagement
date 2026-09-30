@@ -7,6 +7,7 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using Configuration_Management.Models;
 
 namespace Configuration_Management.Services;
 
@@ -41,6 +42,12 @@ public static class PlatformInstaller
 
     /// <summary>Ключ локализации: установщик завершился, но версия не появилась при пересканировании.</summary>
     public const string ErrorVersionNotDetected = "PlatformUpdate.Error.VersionNotDetected";
+
+    /// <summary>Ключ локализации: не удалось удалить каталог старой версии платформы.</summary>
+    public const string ErrorDeleteFailed = "PlatformUpdate.Error.DeleteFailed";
+
+    /// <summary>Таймаут удаления каталога версии по умолчанию (каталоги могут быть большими).</summary>
+    internal static readonly TimeSpan DeleteTimeoutDefault = TimeSpan.FromMinutes(5);
 
     /// <summary>Таймаут установки по умолчанию (крупные дистрибутивы, «долгие» машины).</summary>
     internal static readonly TimeSpan SetupTimeoutDefault = TimeSpan.FromMinutes(15);
@@ -306,6 +313,165 @@ public static class PlatformInstaller
     public static void RefreshInstalledCache()
     {
         PlatformVersionService.FindInstalledVersionInfos();
+    }
+
+    /// <summary>
+    /// Удаляет каталог установленной версии платформы на Windows (этап 0.3.9.215):
+    /// выполняется <c>Remove-Item -LiteralPath '<путь>' -Recurse -Force</c> через
+    /// PowerShell с повышением прав (<c>Verb="runas"</c>, UAC — паттерн
+    /// <c>UpdateService.LaunchUpdater</c>), ожидается завершение до
+    /// <see cref="DeleteTimeoutDefault"/>; при успехе вызывается
+    /// <see cref="RefreshInstalledCache"/>. Результат: <c>(Success: true, null)</c> —
+    /// каталог удалён; <c>(false, ErrorCancelled)</c> — отмена;
+    /// <c>(false, ErrorDeleteFailed)</c> — отказ UAC/ошибка запуска/ненулевой код.
+    /// Записи реестра Uninstall и ярлыки не трогаются (вне цикла, см. план).
+    /// </summary>
+    /// <param name="version">Версия с путём каталога (<see cref="PlatformVersionInfo.Path"/>).</param>
+    /// <param name="log">Журнал этапов (сообщения для UI); может быть null.</param>
+    /// <param name="ct">Токен отмены операции.</param>
+    public static async Task<(bool Success, string? ErrorKey)> DeleteVersionDirectoryAsync(
+        PlatformVersionInfo version, IProgress<string>? log, CancellationToken ct)
+    {
+        var result = await DeleteVersionDirectoryCoreAsync(
+                version, log, ct, StartDeleteProcess, RefreshInstalledCache)
+            .ConfigureAwait(false);
+        return result;
+    }
+
+    /// <summary>
+    /// Ядро <see cref="DeleteVersionDirectoryAsync"/> с инжектируемым запускателем и
+    /// обновлением кэша (для тестов): собирает <see cref="ProcessStartInfo"/>
+    /// { FileName = powershell, Arguments = Remove-Item…, UseShellExecute = true,
+    /// Verb = "runas", WindowStyle = Hidden } и ожидает завершения процесса до
+    /// <see cref="DeleteTimeoutDefault"/>. null от запускателя (отказ UAC/ошибка),
+    /// таймаут или ненулевой код возврата — <c>(false, ErrorDeleteFailed)</c>;
+    /// отмена — <c>(false, ErrorCancelled)</c>.
+    /// </summary>
+    internal static async Task<(bool Success, string? ErrorKey)> DeleteVersionDirectoryCoreAsync(
+        PlatformVersionInfo version, IProgress<string>? log, CancellationToken ct,
+        Func<ProcessStartInfo, IInstallerProcess?> startProcess, Action refreshCache)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var dir = (version?.Path ?? string.Empty).Trim();
+            if (dir.Length == 0)
+                return (false, ErrorDeleteFailed);
+
+            log?.Report($"Удаление каталога {dir}...");
+            var psi = new ProcessStartInfo
+            {
+                FileName = ResolvePowerShellPath(),
+                UseShellExecute = true,
+                Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden,
+                CreateNoWindow = true,
+                Arguments = BuildRemoveItemArguments(dir),
+            };
+
+            IInstallerProcess? process;
+            try
+            {
+                process = startProcess(psi);
+            }
+            catch
+            {
+                // Исключение запускателя (отказ UAC/граница прав) — тот же сбой запуска.
+                process = null;
+            }
+
+            if (process is null)
+            {
+                log?.Report("Не удалось запустить удаление (отказ UAC или ошибка запуска).");
+                return (false, ErrorDeleteFailed);
+            }
+
+            using (process)
+            {
+                var deadline = DateTime.UtcNow + DeleteTimeoutDefault;
+                while (!process.HasExited)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (DateTime.UtcNow >= deadline)
+                    {
+                        process.Kill();
+                        log?.Report("Удаление не завершилось за отведённое время.");
+                        return (false, ErrorDeleteFailed);
+                    }
+
+                    await Task.Delay(200, ct).ConfigureAwait(false);
+                }
+
+                if (process.ExitCode != 0)
+                {
+                    log?.Report($"Remove-Item завершился с кодом {process.ExitCode}.");
+                    return (false, ErrorDeleteFailed);
+                }
+            }
+
+            refreshCache();
+            return (true, null);
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, ErrorCancelled);
+        }
+    }
+
+    /// <summary>Аргументы powershell.exe для удаления каталога:
+    /// <c>-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Remove-Item
+    /// -LiteralPath '<путь>' -Recurse -Force"</c>. Апострофы пути экранируются
+    /// удвоением (правило одинарных кавычек PowerShell).</summary>
+    private static string BuildRemoveItemArguments(string directoryPath)
+    {
+        var escaped = directoryPath.Replace("'", "''");
+        var command = $"Remove-Item -LiteralPath '{escaped}' -Recurse -Force";
+        return $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{command}\"";
+    }
+
+    /// <summary>Запускает powershell.exe через ShellExecute с runas; null — запуск
+    /// не состоялся (отказ UAC/граница прав/ошибка).</summary>
+    private static IInstallerProcess? StartDeleteProcess(ProcessStartInfo psi)
+    {
+        try
+        {
+            var process = Process.Start(psi);
+            return process is null ? null : new SetupProcess(process);
+        }
+        catch
+        {
+            // Отказ пользователя от запроса повышения прав (Win32Exception) и прочие
+            // ошибки запуска — результат несёт ErrorDeleteFailed.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Путь к PowerShell: предпочитается 64-битная версия — из 32-битного процесса
+    /// %SystemRoot%\System32 перенаправляется на SysWOW64, поэтому сначала пробуется
+    /// Sysnative (паттерн <c>UpdateService.ResolvePowerShellPath</c>). Запасной
+    /// вариант — powershell.exe из PATH.
+    /// </summary>
+    private static string ResolvePowerShellPath()
+    {
+        var sysRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (string.IsNullOrEmpty(sysRoot))
+            return "powershell.exe";
+
+        var candidates = new[]
+        {
+            Path.Combine(sysRoot, "Sysnative", "WindowsPowerShell", "v1.0", "powershell.exe"),
+            Path.Combine(sysRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        return "powershell.exe";
     }
 
     /// <summary>

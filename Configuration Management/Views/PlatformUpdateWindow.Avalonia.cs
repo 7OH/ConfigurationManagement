@@ -86,7 +86,29 @@ namespace Configuration_Management
                 hasValidSignature: _ => false,
                 confirmDialog: (title, message) => _dialogs.Confirm(message, title),
                 notify: (title, message, kind, evt) => _notifier.Show(title, message, kind, evt),
-                appLogger: _logger);
+                appLogger: _logger,
+                // Удаление старых версий (этап 0.3.9.215): инфо установленных версий с путями,
+                // пути бинарников запущенных процессов; команда удаления sudo + буфер обмена.
+                loadInstalledVersionInfos: () => PlatformVersionService.FindInstalledVersionInfos(),
+                loadRunningBinPaths: () => _running.GetRunning()
+                    .Select(p => OldVersionCleaner.ExtractExecutablePath(p.CommandLine))
+                    .Where(p => !string.IsNullOrWhiteSpace(p))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(p => p!)
+                    .ToList(),
+                buildUninstallCommand: version => PlatformInstaller.BuildSudoUninstallCommand(version),
+                copyToClipboard: text =>
+                {
+                    try
+                    {
+                        if (this.Clipboard is { } cb)
+                            _ = cb.SetTextAsync(text);
+                    }
+                    catch
+                    {
+                        // Буфер обмена недоступен — команда остаётся в журнале окна.
+                    }
+                });
 
             BuildRows();
             foreach (var row in _viewModel.Rows)

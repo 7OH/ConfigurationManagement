@@ -2737,8 +2737,13 @@
     "PlatformUpdate.Linux.Copied": "Command copied to clipboard",
     "PlatformUpdate.Confirm.InstallTitle": "1C platform installation",
     "PlatformUpdate.Confirm.InstallMessage": "Version {0} will be installed. Continue?",
+    "PlatformUpdate.Confirm.RemoveTitle": "Removing old platform versions",
+    "PlatformUpdate.Confirm.RemoveMessage": "The following versions will be removed:\n{0}\n\nThis action cannot be undone. Continue?",
+    "PlatformUpdate.RemoveNothing": "No versions to remove",
+    "PlatformUpdate.Error.DeleteFailed": "Failed to remove platform version",
     "PlatformUpdate.Preflight.Continue": "Installation continued by the user",
     "Notify.PlatformUpdateDone": "Platform version {0} installed",
+    "Notify.PlatformUpdateRemoved": "Old platform versions removed: {0}",
     "Notify.PlatformUpdateError": "Platform update failed: {0}"
   }
 }
