@@ -321,6 +321,117 @@
                 </DataGrid>
             </TabItem>
 
+            <!-- Регламентные задания -->
+            <TabItem Header="{loc:Loc ServerMonitor.Tabs.Jobs}">
+                <DockPanel>
+                    <!-- Панель фильтра по базе и действий (подтверждение — в VM). -->
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="{loc:Loc ServerMonitor.Columns.Job.Infobase}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="JobFilterCombo" Width="240" Style="{StaticResource ModernComboBox}"
+                                  ItemsSource="{Binding JobInfobaseFilterRows}" DisplayMemberPath="DisplayText"
+                                  SelectedValuePath="Id" SelectedValue="{Binding SelectedJobInfobaseId}"
+                                  VerticalContentAlignment="Center" Padding="6,2"/>
+                        <Button x:Name="PauseJobButton" Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                                Margin="12,0,8,0" IsEnabled="{Binding CanPauseSelectedJob}"
+                                Click="OnPauseJob_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⏸" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc ServerMonitor.PauseJob}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="ResumeJobButton" Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                                Margin="0,0,8,0" IsEnabled="{Binding CanResumeSelectedJob}"
+                                Click="OnResumeJob_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="▶" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc ServerMonitor.ResumeJob}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="JobDetailsButton" Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                                Click="OnJobDetails_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="ℹ" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc ServerMonitor.JobDetails}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Подсказка при пустом списке (нет заданий / нет прав администратора). -->
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="{loc:Loc ServerMonitor.Empty.Jobs}" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasJobs}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <DataGrid x:Name="JobsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectedItem="{Binding SelectedJob}"
+                              HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                              ColumnHeaderStyle="{StaticResource CenteredColumnHeader}"
+                              SelectionMode="Single" SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
+                              RowHeight="34" AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"
+                              BorderThickness="0">
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell">
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Padding" Value="0"/>
+                            </Style>
+                        </DataGrid.CellStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="1.4*" Header="{loc:Loc ServerMonitor.Columns.Job.Name}"
+                                                Binding="{Binding Name}" ElementStyle="{StaticResource CellTextAccent}"/>
+                            <DataGridTextColumn Width="1.1*" Header="{loc:Loc ServerMonitor.Columns.Job.Infobase}"
+                                                Binding="{Binding InfobaseName}" ElementStyle="{StaticResource CenteredCellText}"/>
+                            <DataGridTextColumn Width="1.1*" Header="{loc:Loc ServerMonitor.Columns.Job.Method}"
+                                                Binding="{Binding MethodName}" ElementStyle="{StaticResource CenteredCellText}"/>
+                            <DataGridTextColumn Width="1.1*" Header="{loc:Loc ServerMonitor.Columns.Job.Schedule}"
+                                                Binding="{Binding Schedule}" ElementStyle="{StaticResource CenteredCellText}"/>
+                            <DataGridTextColumn Width="110" Header="{loc:Loc ServerMonitor.Columns.Job.State}"
+                                                Binding="{Binding StateText}">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+                                        <Setter Property="Foreground" Value="#64748B"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding State}" Value="running">
+                                                <Setter Property="Foreground" Value="#16A34A"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding State}" Value="scheduled">
+                                                <Setter Property="Foreground" Value="#2563EB"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding State}" Value="paused">
+                                                <Setter Property="Foreground" Value="#D97706"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Width="130" Header="{loc:Loc ServerMonitor.Columns.Job.NextStart}"
+                                                Binding="{Binding NextStartText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                            <DataGridTextColumn Width="130" Header="{loc:Loc ServerMonitor.Columns.Job.LastStart}"
+                                                Binding="{Binding LastStartText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                            <DataGridTextColumn Width="80" Header="{loc:Loc ServerMonitor.Columns.Job.LastSuccess}"
+                                                Binding="{Binding LastSuccessText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                            <DataGridTextColumn Width="1.2*" Header="{loc:Loc ServerMonitor.Columns.Job.Result}"
+                                                Binding="{Binding ResultText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                            <DataGridTextColumn Width="90" Header="{loc:Loc ServerMonitor.Columns.Job.Predefined}"
+                                                Binding="{Binding PredefinedText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
             <!-- Информация о кластере -->
             <TabItem Header="{loc:Loc ServerMonitor.Tabs.Info}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">

@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.177</Version>
-    <AssemblyVersion>0.3.9.177</AssemblyVersion>
-    <FileVersion>0.3.9.177</FileVersion>
-    <InformationalVersion>0.3.9.177</InformationalVersion>
+    <Version>0.3.9.178</Version>
+    <AssemblyVersion>0.3.9.178</AssemblyVersion>
+    <FileVersion>0.3.9.178</FileVersion>
+    <InformationalVersion>0.3.9.178</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -258,6 +258,10 @@
          глобом *Window.Avalonia.cs ниже; разметка ClusterImportWindow.axaml собирается
          Avalonia-компилятором автоматически (как BaseSelectionWindow.axaml). -->
     <Compile Remove="Views\ClusterImportWindow.xaml.cs" />
+    <!-- Окно «Детали регламентного задания» (0.3.9.178, цикл 0.3.9.176–179): WPF code-behind
+         исключается, Avalonia-версия (JobDetailsWindow.Avalonia.cs) подключается глобом
+         *Window.Avalonia.cs ниже. -->
+    <Compile Remove="Views\JobDetailsWindow.xaml.cs" />
     <!-- Окно «Хранилище конфигурации» (0.3.9.128): WPF code-behind исключается,
          Avalonia-версия (RepositoryBrowserWindow.Avalonia.cs) подключается глобом
          *Window.Avalonia.cs ниже; окно прогресса RepositoryProgressWindow.cs под

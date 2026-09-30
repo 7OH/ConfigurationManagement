@@ -40,6 +40,7 @@ namespace Configuration_Management
             SessionsGrid.ItemsSource = _vm.Sessions;
             ConnectionsGrid.ItemsSource = _vm.Connections;
             LocksGrid.ItemsSource = _vm.Locks;
+            JobsGrid.ItemsSource = _vm.FilteredJobs;
 
             // Таймер автообновления останавливается при закрытии окна (без утечки).
             Closed += (_, _) => _vm.Dispose();
@@ -61,6 +62,20 @@ namespace Configuration_Management
 
         private void OnDisconnectConnection_Click(object sender, RoutedEventArgs e) =>
             _vm.DisconnectConnectionCommand.Execute(null);
+
+        private void OnPauseJob_Click(object sender, RoutedEventArgs e) =>
+            _vm.PauseJobCommand.Execute(null);
+
+        private void OnResumeJob_Click(object sender, RoutedEventArgs e) =>
+            _vm.ResumeJobCommand.Execute(null);
+
+        private void OnJobDetails_Click(object sender, RoutedEventArgs e)
+        {
+            var row = _vm.SelectedJob;
+            if (row is null)
+                return;
+            new JobDetailsWindow(row.DetailsText) { Owner = this }.ShowDialog();
+        }
 
         private void OnClose_Click(object sender, RoutedEventArgs e) => Close();
 

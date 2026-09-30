@@ -1,0 +1,42 @@
+<Window x:Class="Configuration_Management.JobDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Icon="{StaticResource AppIcon}"
+        Height="520" Width="680" MinHeight="320" MinWidth="480"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Текст деталей задания: «ключ: значение» построчно, моноширинный шрифт. -->
+        <Border Grid.Row="0" Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="10">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                <TextBlock x:Name="DetailsText" FontFamily="Consolas" FontSize="12"
+                           TextWrapping="Wrap"/>
+            </ScrollViewer>
+        </Border>
+
+        <Button Grid.Row="1" Style="{StaticResource ModernButton}"
+                Background="{DynamicResource ItemHoverBrush}" Padding="16,6"
+                Margin="0,12,0,0" HorizontalAlignment="Right" IsCancel="True"
+                Click="OnClose_Click">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <TextBlock Text="{loc:Loc Common.Close}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Button>
+    </Grid>
+</Window>

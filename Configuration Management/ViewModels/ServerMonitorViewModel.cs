@@ -191,6 +191,9 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     /// <summary>Регламентные задания с учётом фильтра по базе (таблица биндится сюда).</summary>
     public ObservableCollection<RacJobRow> FilteredJobs { get; } = new();
 
+    /// <summary>Есть ли хотя бы одно задание (для индикатора пустого списка).</summary>
+    public bool HasJobs => Jobs.Count > 0;
+
     /// <summary>Строки фильтра «по базе»: «Все базы» + информационные базы кластера.</summary>
     public IReadOnlyList<RacJobFilterRow> JobInfobaseFilterRows { get; private set; } =
         Array.Empty<RacJobFilterRow>();
@@ -675,6 +678,7 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
             ReplaceRows(Connections, connections.Select(c => new RacConnectionRow(c)));
             ReplaceRows(Locks, locks.Select(l => new RacLockRow(l)));
             ReplaceRows(Jobs, jobs.Select(j => new RacJobRow(j, InfobaseName(j))));
+            OnPropertyChanged(nameof(HasJobs));
             ClusterInfo = info;
             ClusterInfoText = FormatClusterInfo(info);
 

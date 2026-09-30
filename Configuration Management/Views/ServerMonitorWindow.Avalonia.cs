@@ -33,6 +33,7 @@ namespace Configuration_Management
     {
         private readonly ServerMonitorViewModel _vm;
         private readonly ComboBox _clusterCombo;
+        private TextBlock? _jobsEmptyHint;
 
         public ServerMonitorWindow()
         {
@@ -151,6 +152,13 @@ namespace Configuration_Management
             {
                 Header = LocalizationManager.T("ServerMonitor.Tabs.Locks"),
                 Content = BuildList("Locks", BuildLockRow)
+            });
+            // Регламентные задания кластера (0.3.9.178): фильтр по базе, кнопки
+            // «Приостановить/Возобновить» (подтверждение — в VM) и «Детали».
+            tabs.Items.Add(new TabItem
+            {
+                Header = LocalizationManager.T("ServerMonitor.Tabs.Jobs"),
+                Content = BuildJobsTab()
             });
             tabs.Items.Add(new TabItem
             {
@@ -325,6 +333,76 @@ namespace Configuration_Management
             return text;
         }
 
+        /// <summary>
+        /// Вкладка «Регламентные задания»: фильтр по базе, кнопки действий и таблица.
+        /// Подсказка пустого списка обновляется в <see cref="OnVmPropertyChanged"/>.
+        /// </summary>
+        private Control BuildJobsTab()
+        {
+            var filterCombo = new ComboBox { Width = 260, VerticalContentAlignment = VerticalAlignment.Center };
+            filterCombo.Styled(ControlThemes.ModernComboBox);
+            filterCombo.ItemsSource = _vm.JobInfobaseFilterRows;
+            filterCombo.ItemTemplate = new FuncDataTemplate<RacJobFilterRow>((row, _) =>
+                new TextBlock { Text = row.DisplayText });
+            filterCombo.SelectionChanged += (_, _) =>
+            {
+                if (filterCombo.SelectedItem is RacJobFilterRow row)
+                    _vm.SelectedJobInfobaseId = row.Id;
+            };
+
+            var pauseButton = BuildActionButton(LocalizationManager.T("ServerMonitor.PauseJob"), "⏸",
+                () => _vm.PauseJobCommand.Execute(null));
+            var resumeButton = BuildActionButton(LocalizationManager.T("ServerMonitor.ResumeJob"), "▶",
+                () => _vm.ResumeJobCommand.Execute(null));
+            var detailsButton = BuildActionButton(LocalizationManager.T("ServerMonitor.JobDetails"), "ℹ",
+                () =>
+                {
+                    if (_vm.SelectedJob is not null)
+                        new JobDetailsWindow(_vm.SelectedJob.DetailsText).ShowDialog(this);
+                });
+
+            // Кнопки действий зависят от состояния выбранного задания (VM уведомляет).
+            pauseButton.Bind(Button.IsEnabledProperty, new Binding("CanPauseSelectedJob"));
+            resumeButton.Bind(Button.IsEnabledProperty, new Binding("CanResumeSelectedJob"));
+
+            _jobsEmptyHint = new TextBlock
+            {
+                Text = LocalizationManager.T("ServerMonitor.Empty.Jobs"),
+                FontSize = 12,
+                Opacity = 0.65,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 6),
+                IsVisible = !_vm.HasJobs
+            };
+
+            var toolbar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 0, 0, 8),
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = LocalizationManager.T("ServerMonitor.Columns.Job.Infobase"),
+                        VerticalAlignment = VerticalAlignment.Center
+                    },
+                    filterCombo,
+                    pauseButton,
+                    resumeButton,
+                    detailsButton
+                }
+            };
+
+            var dock = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(toolbar, Dock.Top);
+            DockPanel.SetDock(_jobsEmptyHint, Dock.Top);
+            dock.Children.Add(toolbar);
+            dock.Children.Add(_jobsEmptyHint);
+            dock.Children.Add(BuildList("FilteredJobs", BuildJobRow, "SelectedJob"));
+            return dock;
+        }
+
         private static Control BuildProcessRow(object item)
         {
             var row = (RacProcessRow)item;
@@ -437,6 +515,38 @@ namespace Configuration_Management
             return grid;
         }
 
+        private static Control BuildJobRow(object item)
+        {
+            var row = (RacJobRow)item;
+            var grid = new Grid
+            {
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition(new GridLength(1.4, GridUnitType.Star)),
+                    new ColumnDefinition(new GridLength(1.1, GridUnitType.Star)),
+                    new ColumnDefinition(new GridLength(1.1, GridUnitType.Star)),
+                    new ColumnDefinition(new GridLength(1.1, GridUnitType.Star)),
+                    new ColumnDefinition(new GridLength(110)),
+                    new ColumnDefinition(new GridLength(130)),
+                    new ColumnDefinition(new GridLength(130)),
+                    new ColumnDefinition(new GridLength(80)),
+                    new ColumnDefinition(new GridLength(1.2, GridUnitType.Star)),
+                    new ColumnDefinition(new GridLength(90))
+                }
+            };
+            AddCell(grid, CellText("Name", bold: true), 0);
+            AddCell(grid, CellText("InfobaseName"), 1);
+            AddCell(grid, CellText("MethodName"), 2);
+            AddCell(grid, CellText("Schedule"), 3);
+            AddCell(grid, CellText("StateText", colorHex: row.StateColorHex), 4);
+            AddCell(grid, CellText("NextStartText"), 5);
+            AddCell(grid, CellText("LastStartText"), 6);
+            AddCell(grid, CellText("LastSuccessText"), 7);
+            AddCell(grid, CellText("ResultText"), 8);
+            AddCell(grid, CellText("PredefinedText"), 9);
+            return grid;
+        }
+
         private static Control BuildLockRow(object item)
         {
             var row = (RacLockRow)item;
@@ -471,6 +581,13 @@ namespace Configuration_Management
 
         private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (e.PropertyName == nameof(ServerMonitorViewModel.HasJobs) && _jobsEmptyHint is not null)
+            {
+                // Подсказка «заданий нет / нет прав администратора» видна только при пустом списке.
+                _jobsEmptyHint.IsVisible = !_vm.HasJobs;
+                return;
+            }
+
             if (e.PropertyName != nameof(ServerMonitorViewModel.SelectedClusterId))
                 return;
             if (_vm.SelectedClusterId is Guid id)
