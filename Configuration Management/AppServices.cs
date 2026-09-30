@@ -1,4 +1,5 @@
 using Configuration_Management.Services;
+using Configuration_Management.Services.EventLog;
 using Configuration_Management.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -43,6 +44,11 @@ public static class AppServices
         services.AddSingleton<IScheduledTaskStore, ScheduledTaskStore>();
         services.AddSingleton<IConfigUpdateService, ConfigUpdateService>();
         services.AddSingleton<SchedulerService>();
+        // Просмотр журнала регистрации ИБ (цикл 0.3.9.161–0.3.9.166): ридер
+        // SQLite-формата журнала (.lgd). Ридер последовательного формата (.lgf/.lgp)
+        // и фасад LgdReadSession добавляются следующими этапами; выбор ридера по
+        // формату журнала будет выполнять LgdReadSession.
+        services.AddSingleton<SqliteLgdReader>();
         // Блокировка сеансов файловой ИБ (функция №20): пакетный запуск конфигуратора
         // (/LockIB) без открытия «1С:Предприятия». Чистый сервис — без UI-зависимостей.
         services.AddSingleton<ISessionLockService, SessionLockService>();
