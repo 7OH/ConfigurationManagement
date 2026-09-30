@@ -1128,6 +1128,8 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+<RowDefinition Height="Auto"/>
 <RowDefinition Height="Auto"/>
 <RowDefinition Height="Auto"/>
 </Grid.RowDefinitions>
@@ -1259,6 +1261,12 @@
                             <TextBlock Grid.Row="24" Grid.Column="0" Text="{loc:Loc Settings.Hotkeys.CommandPalette}" VerticalAlignment="Center" Margin="0,6,0,6"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <controls:HotkeyBox x:Name="HotkeyCommandPaletteBox" Grid.Row="24" Grid.Column="1"
+                                                Height="34" Margin="0,6,0,6" FontSize="13"
+                                                Style="{StaticResource ModernTextBox}"/>
+                            <!-- Автообновление платформы 1С (функция 9, этап 0.3.9.214): Ctrl+F9. -->
+                            <TextBlock Grid.Row="25" Grid.Column="0" Text="{loc:Loc Settings.Hotkeys.PlatformUpdate}" VerticalAlignment="Center" Margin="0,6,0,6"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <controls:HotkeyBox x:Name="HotkeyPlatformUpdateBox" Grid.Row="25" Grid.Column="1"
                                                 Height="34" Margin="0,6,0,6" FontSize="13"
                                                 Style="{StaticResource ModernTextBox}"/>
                         </Grid>

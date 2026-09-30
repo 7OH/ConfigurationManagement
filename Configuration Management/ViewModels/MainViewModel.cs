@@ -171,6 +171,8 @@ public partial class MainViewModel : ViewModelBase
     private string _hotkeyConfigurator = "F4";
     private string _hotkeyCheckUpdate = "F9";
     private string _hotkeyActualReleases = "Alt+F9";
+    // Автообновление платформы 1С (функция 9, этап 0.3.9.214).
+    private string _hotkeyPlatformUpdate = "Ctrl+F9";
     // Авторизация на сайте 1С (HTTP Basic Auth) при проверке обновлений конфигураций.
     private string _updatesLogin = "";
     private string _updatesPassword = "";
@@ -399,6 +401,7 @@ public partial class MainViewModel : ViewModelBase
         _hotkeyConfigurator = string.IsNullOrWhiteSpace(settings.HotkeyConfigurator) ? "F4" : settings.HotkeyConfigurator.Trim();
         _hotkeyCheckUpdate = string.IsNullOrWhiteSpace(settings.HotkeyCheckUpdate) ? "F9" : settings.HotkeyCheckUpdate.Trim();
         _hotkeyActualReleases = string.IsNullOrWhiteSpace(settings.HotkeyActualReleases) ? "Alt+F9" : settings.HotkeyActualReleases.Trim();
+        _hotkeyPlatformUpdate = string.IsNullOrWhiteSpace(settings.HotkeyPlatformUpdate) ? "Ctrl+F9" : settings.HotkeyPlatformUpdate.Trim();
         // Авторизация на сайте 1С при проверке обновлений конфигураций.
         _updatesLogin = settings.UpdatesLogin ?? "";
         _updatesPassword = settings.UpdatesPassword ?? "";

@@ -424,6 +424,8 @@ public partial class MainViewModel : ViewModelBase
     public string HotkeySwitchUser => _settings.HotkeySwitchUser;
     public string HotkeyCheckUpdate => _settings.HotkeyCheckUpdate;
     public string HotkeyActualReleases => _settings.HotkeyActualReleases;
+    // Автообновление платформы 1С (функция 9, этап 0.3.9.214).
+    public string HotkeyPlatformUpdate => _settings.HotkeyPlatformUpdate;
     // Сценарии резервирования (функции №16/№18): выполнение сценария (Ctrl+Shift+F5) и «Список выгрузок» (Ctrl+Shift+F7).
     public string HotkeyRunBackup => _settings.HotkeyRunBackup;
     public string HotkeyExportsList => _settings.HotkeyExportsList;
@@ -439,7 +441,7 @@ public partial class MainViewModel : ViewModelBase
         string findInList = "", string sessionLock = "", string lockApp = "",
         string checkIntegrity = "", string serverConsole = "",
         string zoomIn = "", string zoomOut = "", string zoomReset = "",
-        string commandPalette = "")
+        string commandPalette = "", string platformUpdate = "")
     {
         _settings.HotkeyEnterprise = enterprise ?? string.Empty;
         _settings.HotkeyConfigurator = configurator ?? string.Empty;
@@ -469,6 +471,8 @@ public partial class MainViewModel : ViewModelBase
         _settings.HotkeyZoomIn = zoomIn ?? string.Empty;
         _settings.HotkeyZoomOut = zoomOut ?? string.Empty;
         _settings.HotkeyZoomReset = zoomReset ?? string.Empty;
+        // Автообновление платформы 1С (функция 9, этап 0.3.9.214).
+        _settings.HotkeyPlatformUpdate = platformUpdate ?? string.Empty;
 
         SaveSettingsSilently();
 
@@ -497,6 +501,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HotkeyZoomIn));
         OnPropertyChanged(nameof(HotkeyZoomOut));
         OnPropertyChanged(nameof(HotkeyZoomReset));
+        OnPropertyChanged(nameof(HotkeyPlatformUpdate));
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
     }
 

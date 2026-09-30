@@ -470,6 +470,8 @@ namespace Configuration_Management
             var hkFindInList = ReadHotkeyBox(HotkeyFindInListBox);
             // Командная палитра (Ctrl+K).
             var hkCommandPalette = ReadHotkeyBox(HotkeyCommandPaletteBox);
+            // Автообновление платформы 1С (функция 9, этап 0.3.9.214): Ctrl+F9.
+            var hkPlatformUpdate = ReadHotkeyBox(HotkeyPlatformUpdateBox);
             var hkSwitchUser = ReadHotkeyBox(HotkeySwitchUserBox);
             var hkSessionLock = ReadHotkeyBox(HotkeySessionLockBox);
             var hkLockApp = ReadHotkeyBox(HotkeyLockAppBox);
@@ -501,6 +503,7 @@ namespace Configuration_Management
                 (LocalizationManager.T("Main.CollapseRightPanel"), hkRightPanelDetails),
                 (LocalizationManager.T("Main.FindInList"), hkFindInList),
                 (LocalizationManager.T("Settings.Hotkeys.CommandPalette"), hkCommandPalette),
+                (LocalizationManager.T("Settings.Hotkeys.PlatformUpdate"), hkPlatformUpdate),
                 (LocalizationManager.T("Main.SwitchUser"), hkSwitchUser),
                 (LocalizationManager.T("SessionLock.Title"), hkSessionLock),
                 (LocalizationManager.T("AppLock.LockTitle"), hkLockApp),
@@ -575,6 +578,8 @@ namespace Configuration_Management
                 hotkeyZoomOut: hkZoomOut,
                 hotkeyZoomReset: hkZoomReset);
 
+            // Автообновление платформы 1С (функция 9, этап 0.3.9.214).
+            _viewModel.HotkeyPlatformUpdate = hkPlatformUpdate;
             // Копия экрана (функция №30, Этап 8): сочетание и каталог сохранения.
             _viewModel.ScreenshotHotkey = hkScreenshot;
             _viewModel.ScreenshotSaveDirectory = ScreenshotDirectoryBox?.Text?.Trim() ?? "";

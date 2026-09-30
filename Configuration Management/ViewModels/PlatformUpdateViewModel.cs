@@ -32,12 +32,23 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
     private readonly Func<string?, string?> _saveFileDialog;
     private readonly Func<string?, string?> _openFileDialog;
 
+    // Проверка готовности к установке (этап 0.3.9.214) — всё через делегаты,
+    // чтобы класс оставался чистым и тестируемым.
+    private readonly Func<IReadOnlyList<string>> _loadRunningProcesses;
+    private readonly Func<bool> _isAdministrator;
+    private readonly Func<string, long?> _getFreeBytes;
+    private readonly Func<string, bool> _hasValidSignature;
+    private readonly Func<string, string, bool> _confirmDialog;
+    private readonly Action<string, string, NotificationKind, NotificationEvent> _notify;
+    private readonly Services.IAppLogger? _appLogger;
+
     private readonly StringBuilder _log = new();
     private IReadOnlyList<PlatformRelease> _availableReleases = new List<PlatformRelease>();
     private bool _isBusy;
     private double _progress;
     private string? _selectedInstallerPath;
     private PlatformUpdateRowViewModel? _selectedRow;
+    private bool _installHadWarnings;
 
     /// <summary>Строки окна: установленные ∪ доступные версии (по убыванию).</summary>
     public ObservableCollection<PlatformUpdateRowViewModel> Rows { get; } = new();
@@ -117,7 +128,14 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         Func<string, string, string?, IProgress<string>?, CancellationToken,
             Task<(bool Success, string? ErrorKey, int ExitCode)>> installFromZip,
         Func<string?, string?>? saveFileDialog = null,
-        Func<string?, string?>? openFileDialog = null)
+        Func<string?, string?>? openFileDialog = null,
+        Func<IReadOnlyList<string>>? loadRunningProcesses = null,
+        Func<bool>? isAdministrator = null,
+        Func<string, long?>? getFreeBytes = null,
+        Func<string, bool>? hasValidSignature = null,
+        Func<string, string, bool>? confirmDialog = null,
+        Action<string, string, NotificationKind, NotificationEvent>? notify = null,
+        Services.IAppLogger? appLogger = null)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _infobaseRepository = infobaseRepository ?? throw new ArgumentNullException(nameof(infobaseRepository));
@@ -126,6 +144,16 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         _installFromZip = installFromZip ?? throw new ArgumentNullException(nameof(installFromZip));
         _saveFileDialog = saveFileDialog ?? (_ => null);
         _openFileDialog = openFileDialog ?? (_ => null);
+
+        // Проверка готовности к установке (этап 0.3.9.214): по умолчанию — «проблем нет»,
+        // чтобы существующие вызовы (WPF-окно этапа 213 и тесты) продолжали работать.
+        _loadRunningProcesses = loadRunningProcesses ?? (() => Array.Empty<string>());
+        _isAdministrator = isAdministrator ?? (() => true);
+        _getFreeBytes = getFreeBytes ?? (_ => null);
+        _hasValidSignature = hasValidSignature ?? (_ => true);
+        _confirmDialog = confirmDialog ?? ((_, _) => true);
+        _notify = notify ?? ((_, _, _, _) => { });
+        _appLogger = appLogger;
 
         CheckCommand = new RelayCommand(async () => await CheckUpdatesAsync(), () => !IsBusy);
         DownloadAndInstallCommand = new RelayCommand(
@@ -185,12 +213,14 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         IsBusy = true;
         Progress = 0;
         AppendLog(LocalizationManager.T("PlatformUpdate.Status.Checking"));
+        _appLogger?.Info("Обновление платформы: получение каталога версий с портала 1С");
         try
         {
             var result = await _service.GetAvailableReleasesAsync().ConfigureAwait(false);
             if (result.Status != PortalFetchStatus.Ok)
             {
                 AppendLog(LocalizationManager.T(result.ErrorKey));
+                _appLogger?.Warn($"Обновление платформы: каталог не получен — {result.ErrorKey}");
                 return;
             }
 
@@ -199,6 +229,7 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
             AppendLog(string.Format(
                 LocalizationManager.T("PlatformUpdate.Progress.Done"),
                 _availableReleases.FirstOrDefault()?.Version ?? "—"));
+            _appLogger?.Info($"Обновление платформы: получено {_availableReleases.Count} версий каталога");
         }
         catch (Exception ex)
         {
@@ -256,25 +287,70 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
 
             row.Progress = 1;
             Progress = 1;
+
+            // Проверка готовности к установке (этап 0.3.9.214): занятые процессы 1С,
+            // права администратора, свободное место, подпись файла. При замечаниях —
+            // диалог подтверждения; отмена останавливает операцию до запуска установщика.
+            _installHadWarnings = false;
+            var preflight = RunPreflight(downloaded, targetDir, picked.SizeBytes);
+            if (preflight.Count > 0)
+            {
+                foreach (var warning in preflight)
+                    AppendLog(warning.Text);
+
+                _appLogger?.Warn(
+                    $"Обновление платформы: замечания перед установкой версии {row.Version} — " +
+                    string.Join("; ", preflight.Select(w => w.Text)));
+
+                var message = string.Join("\n", preflight.Select(w => w.Text)) + "\n\n" +
+                    string.Format(LocalizationManager.T("PlatformUpdate.Confirm.InstallMessage"), row.Version);
+                var confirmed = _confirmDialog(
+                    LocalizationManager.T("PlatformUpdate.Confirm.InstallTitle"), message);
+                AppendLog(confirmed
+                    ? LocalizationManager.T("PlatformUpdate.Preflight.Continue")
+                    : LocalizationManager.T("PlatformUpdate.Error.Cancelled"));
+                if (!confirmed)
+                {
+                    _appLogger?.Info("Обновление платформы: установка отменена пользователем");
+                    return;
+                }
+
+                _installHadWarnings = preflight.Any(w => w.Kind == PlatformPreflightWarningKind.Warning);
+            }
+
             AppendLog(string.Format(LocalizationManager.T("PlatformUpdate.Progress.Install"), row.Version));
+            _appLogger?.Info($"Обновление платформы: запуск установщика версии {row.Version}");
 
             var installLog = new Progress<string>(AppendLog);
             var result = await _installFromZip(downloaded, row.Version, null, installLog, CancellationToken.None)
                 .ConfigureAwait(false);
+
+            _appLogger?.Info($"Обновление платформы: установщик версии {row.Version} завершился с кодом {result.ExitCode}");
+
             if (!result.Success)
             {
-                AppendLog(string.IsNullOrWhiteSpace(result.ErrorKey)
+                var errorText = string.IsNullOrWhiteSpace(result.ErrorKey)
                     ? LocalizationManager.T("PlatformUpdate.Error.Network")
-                    : LocalizationManager.T(result.ErrorKey));
+                    : LocalizationManager.T(result.ErrorKey);
+                AppendLog(errorText);
+                NotifyError(string.Format(LocalizationManager.T("Notify.PlatformUpdateError"), errorText));
                 return;
             }
 
             AppendLog(string.Format(LocalizationManager.T("PlatformUpdate.Progress.Done"), row.Version));
+            _appLogger?.Info($"Обновление платформы: перечитывание установленных версий после установки {row.Version}");
             await RefreshInstalledAsync().ConfigureAwait(false);
+
+            // Уведомление о результате: частичный успех (были предупреждения, например
+            // не проверена подпись) — Warning, иначе — Success.
+            NotifyResult(string.Format(LocalizationManager.T("Notify.PlatformUpdateDone"), row.Version));
         }
         catch (Exception ex)
         {
             AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}");
+            NotifyError(string.Format(
+                LocalizationManager.T("Notify.PlatformUpdateError"),
+                $"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}"));
         }
         finally
         {
@@ -328,16 +404,30 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
             if (string.IsNullOrWhiteSpace(saved))
             {
                 AppendLog(LocalizationManager.T("PlatformUpdate.Error.Network"));
+                NotifyError(string.Format(
+                    LocalizationManager.T("Notify.PlatformUpdateError"),
+                    LocalizationManager.T("PlatformUpdate.Error.Network")));
                 return;
             }
 
             row.Progress = 1;
             Progress = 1;
             AppendLog(string.Format(LocalizationManager.T("PlatformUpdate.Progress.Done"), targetPath));
+            _appLogger?.Info($"Обновление платформы: дистрибутив сохранён в «{targetPath}»");
+
+            // Уведомление о завершении загрузки (категория Update, вид — успех).
+            _notify(
+                LocalizationManager.T("PlatformUpdate.WindowTitle"),
+                string.Format(LocalizationManager.T("PlatformUpdate.Progress.Done"), targetPath),
+                NotificationKind.Success,
+                NotificationEvent.Update);
         }
         catch (Exception ex)
         {
             AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}");
+            NotifyError(string.Format(
+                LocalizationManager.T("Notify.PlatformUpdateError"),
+                $"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}"));
         }
         finally
         {
@@ -453,6 +543,79 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
             };
             Rows.Add(row);
         }
+    }
+
+    /// <summary>
+    /// Собирает замечания перед установкой через инжектируемые делегаты
+    /// (процессы 1С, права администратора, свободное место на целевом диске,
+    /// подпись файла) и формирует список <see cref="PlatformInstallPreflight.Check"/>.
+    /// Любой сбой отдельного источника тихо деградирует в «проблем нет» —
+    /// проверка не должна ронять установку из-за недоступности WMI/прав.
+    /// </summary>
+    private IReadOnlyList<PlatformInstallWarning> RunPreflight(string installerPath, string targetDir, long distributionSize)
+    {
+        IReadOnlyList<string> processes;
+        try
+        {
+            processes = _loadRunningProcesses() ?? Array.Empty<string>();
+        }
+        catch
+        {
+            processes = Array.Empty<string>();
+        }
+
+        bool isAdmin;
+        try
+        {
+            isAdmin = _isAdministrator();
+        }
+        catch
+        {
+            isAdmin = true;
+        }
+
+        long? freeBytes;
+        try
+        {
+            freeBytes = _getFreeBytes(targetDir);
+        }
+        catch
+        {
+            freeBytes = null;
+        }
+
+        bool isSigned;
+        try
+        {
+            isSigned = _hasValidSignature(installerPath);
+        }
+        catch
+        {
+            isSigned = true;
+        }
+
+        return PlatformInstallPreflight.Check(processes, isAdmin, freeBytes, distributionSize, isSigned);
+    }
+
+    /// <summary>Показывает уведомление о результате установки: при частичном успехе
+    /// (были предупреждения) — Warning, иначе — Success. Категория события — Update.</summary>
+    private void NotifyResult(string summary)
+    {
+        _notify(
+            LocalizationManager.T("PlatformUpdate.WindowTitle"),
+            summary,
+            _installHadWarnings ? NotificationKind.Warning : NotificationKind.Success,
+            NotificationEvent.Update);
+    }
+
+    /// <summary>Показывает уведомление об ошибке операции (категория Update, вид Error).</summary>
+    private void NotifyError(string summary)
+    {
+        _notify(
+            LocalizationManager.T("PlatformUpdate.WindowTitle"),
+            summary,
+            NotificationKind.Error,
+            NotificationEvent.Update);
     }
 
     /// <summary>Обновляет доступность всех команд после изменения состояния.</summary>

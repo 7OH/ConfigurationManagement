@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.213</Version>
-    <AssemblyVersion>0.3.9.213</AssemblyVersion>
-    <FileVersion>0.3.9.213</FileVersion>
-    <InformationalVersion>0.3.9.213</InformationalVersion>
+    <Version>0.3.9.214</Version>
+    <AssemblyVersion>0.3.9.214</AssemblyVersion>
+    <FileVersion>0.3.9.214</FileVersion>
+    <InformationalVersion>0.3.9.214</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -353,6 +353,9 @@
     <!-- Команды проверки обновлений MainViewModel (Avalonia/Linux): файл не совпадает
          с глобом *.Avalonia.cs (имя «MainViewModel.Avalonia.*.cs»), добавляется явно. -->
     <Compile Include="ViewModels\MainViewModel.Avalonia.Updates.cs" />
+    <!-- Команда окна «Обновление платформы 1С» (0.3.9.214, функция 9): имя
+         «MainViewModel.Avalonia.*.cs» не совпадает с глобом *.Avalonia.cs, добавляется явно. -->
+    <Compile Include="ViewModels\MainViewModel.Avalonia.PlatformUpdate.cs" />
     <!-- Общая модель строки диалога «Поиск потерянных баз 1С» (issue #247):
          чистый .NET без WPF-зависимостей, используется и Windows, и Linux. -->
     <Compile Include="ViewModels\FoundBaseRowViewModel.cs" />

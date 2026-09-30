@@ -638,6 +638,7 @@
     "Settings.Hotkeys.RightPanelDetails": "Панель информации (подробности):",
     "Settings.Hotkeys.FindInList": "Найти в списке:",
     "Settings.Hotkeys.CommandPalette": "Командная палитра:",
+    "Settings.Hotkeys.PlatformUpdate": "Окно обновления платформы:",
     "Settings.Hotkeys.SwitchUser": "Смена пользователя:",
     "Settings.Hotkeys.SessionLock": "Блокировка сеансов ИБ:",
     "Settings.Hotkeys.LockApp": "Временная блокировка приложения:",
@@ -2725,6 +2726,7 @@
     "PlatformUpdate.Error.SetupNotFound": "setup.exe не найден в дистрибутиве",
     "PlatformUpdate.Error.Signature": "Подпись файла не проверена",
     "PlatformUpdate.Error.NotEnoughSpace": "Недостаточно свободного места на диске",
+    "PlatformUpdate.Error.NotAdmin": "Установка выполняется без прав администратора — часть функций может быть недоступна",
     "PlatformUpdate.Error.RunningProcesses": "Запущены процессы 1С: {0}",
     "PlatformUpdate.Error.Cancelled": "Операция отменена",
     "PlatformUpdate.Error.ExtractFailed": "Не удалось распаковать дистрибутив",
@@ -2734,6 +2736,7 @@
     "PlatformUpdate.Linux.Copied": "Команда скопирована в буфер обмена",
     "PlatformUpdate.Confirm.InstallTitle": "Установка платформы 1С",
     "PlatformUpdate.Confirm.InstallMessage": "Будет установлена версия {0}. Продолжить?",
+    "PlatformUpdate.Preflight.Continue": "Установка продолжена пользователем",
     "Notify.PlatformUpdateDone": "Установлена версия платформы {0}",
     "Notify.PlatformUpdateError": "Не удалось обновить платформу: {0}"
   }

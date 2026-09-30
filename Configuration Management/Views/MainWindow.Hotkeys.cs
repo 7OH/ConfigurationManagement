@@ -93,6 +93,8 @@ namespace Configuration_Management
             // ИБ, ALT+F9 — окно «Актуальные релизы». Сочетания настраиваются в настройках.
             Add(_viewModel.HotkeyCheckUpdate, _viewModel.CheckUpdateCommand);
             Add(_viewModel.HotkeyActualReleases, _viewModel.ShowActualReleasesCommand);
+            // Автообновление платформы 1С (функция 9, этап 0.3.9.214): Ctrl+F9.
+            Add(_viewModel.HotkeyPlatformUpdate, _viewModel.ShowPlatformUpdateCommand);
 
             // Сценарии резервирования и «Список выгрузок» (функции №16/№18):
             // Ctrl+Shift+F5 — выполнить сценарий, Ctrl+Shift+F7 — список выгрузок.

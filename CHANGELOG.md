@@ -9,6 +9,46 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.214] — 2026-10-01
+
+### Добавлено
+
+- **Автообновление платформы 1С (функция 9, этап 7): интеграция, предупреждения и
+  уведомления** — продолжение цикла 0.3.9.208–0.3.9.216:
+  - Avalonia-окно [`PlatformUpdateWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformUpdateWindow.Avalonia.cs)
+    (`#if LINUX`, по образцу `ActualReleasesWindow`): упрощённая сетка строк
+    Версия/Размер/Статус/Совместимые базы с выбором строки кликом, панель прогресса
+    с журналом (видна при активной операции), кнопки нижней панели, закрытие по Esc;
+    сервисы через `AppServices`, открытие через `ShowSync(OwnerWindow())`.
+  - Интеграция в главное окно: команда `ShowPlatformUpdateCommand` и горячая клавиша
+    `Ctrl+F9` (`HotkeyPlatformUpdate`, по умолчанию «Ctrl+F9») в
+    [`MainViewModel.PlatformUpdate.cs`](Configuration%20Management/ViewModels/MainViewModel.PlatformUpdate.cs)
+    (`#if WINDOWS`) и [`MainViewModel.Avalonia.PlatformUpdate.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.PlatformUpdate.cs)
+    (`#if LINUX`); пункт меню в обоих главных окнах; настройка хоткея в окне настроек
+    (WPF и Avalonia, ключ `Settings.Hotkeys.PlatformUpdate`, сохраняется в
+    `AppSettings.HotkeyPlatformUpdate`).
+  - Проверка готовности перед установкой — чистый [`PlatformInstallPreflight`](Configuration%20Management/Services/PlatformInstallPreflight.cs):
+    занятые процессы 1С (через `IRunningInfobasesService`), права администратора,
+    свободное место на целевом диске (размер дистрибутива + 1 ГБ запаса,
+    `DiskFreeSpaceHelper`), подпись файла. Замечания выводятся в журнал и требуют
+    подтверждения «Продолжить?» (инжектируемый диалог); отмена останавливает операцию
+    до запуска установщика. Все источники — инжектируемые делегаты, модель остаётся чистой.
+  - Уведомление о результате: `INotificationService.Show(title, summary, kind, evt: Update)` —
+    Success при успехе, Warning при частичном успехе (были предупреждения, например
+    подпись не проверена), Error при ошибке; тексты `Notify.PlatformUpdateDone/.Error`.
+  - Журналирование `IAppLogger` этапов операции: получение каталога, выбор дистрибутива,
+    загрузка, запуск установщика и код возврата, предупреждения, пересканирование, результат.
+  - Локализация ru/en: новые ключи `PlatformUpdate.Error.NotAdmin`, `PlatformUpdate.Preflight.Continue`,
+    `Settings.Hotkeys.PlatformUpdate`.
+  - Тесты: новый [`PlatformInstallPreflightTests`](ConfigurationManagement.Tests/PlatformInstallPreflightTests.cs)
+    (пустой список → нет предупреждений; процессы → Warning; мало места → Warning;
+    не администратор → информирование; неподписанный файл → Warning); дополненные
+    [`PlatformUpdateViewModelTests`](ConfigurationManagement.Tests/PlatformUpdateViewModelTests.cs)
+    (предупреждения формируются и показываются до установки; отмена диалога →
+    установка не выполняется; уведомление с правильными kind/evt для Success/Warning/Error;
+    лог содержит предупреждения; хоткей по умолчанию «Ctrl+F9»). Полный прогон зелёный,
+    Linux-сборка (`-p:BuildLinux=true`) без ошибок.
+
 ## [0.3.9.213] — 2026-10-01
 
 ### Добавлено

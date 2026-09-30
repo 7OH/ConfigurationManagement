@@ -1670,6 +1670,8 @@ namespace Configuration_Management
             // и внешняя оснастка остаются на верхнем уровне — частые пункты не углубляются
             // в подменю.
             menu.Items.Add(MenuAction("Updates.ActualReleasesTitle", _vm.ShowActualReleasesCommand, _vm.HotkeyActualReleases, "IconCloudDownload", "#14B8A6"));
+            // Автообновление платформы 1С (функция 9, этап 0.3.9.214): Ctrl+F9.
+            menu.Items.Add(MenuAction("PlatformUpdate.WindowTitle", _vm.ShowPlatformUpdateCommand, _vm.HotkeyPlatformUpdate, "IconCloudDownload", "#14B8A6"));
 
             // Встроенный монитор серверов 1С (0.3.9.124, цикл 0.3.9.123–126): подключение
             // к серверу через rac, кластеры/процессы/сеансы/соединения/блокировки. Не связан

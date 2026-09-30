@@ -681,6 +681,7 @@ public partial class MainViewModel : ViewModelBase
             HotkeySwitchUser = _hotkeySwitchUser,
             HotkeyCheckUpdate = _hotkeyCheckUpdate,
             HotkeyActualReleases = _hotkeyActualReleases,
+            HotkeyPlatformUpdate = _hotkeyPlatformUpdate,
             // Авторизация на сайте 1С (HTTP Basic Auth) при проверке обновлений конфигураций.
             UpdatesLogin = _updatesLogin,
             UpdatesPassword = _updatesPassword,

@@ -638,6 +638,7 @@
     "Settings.Hotkeys.RightPanelDetails": "Info panel (details):",
     "Settings.Hotkeys.FindInList": "Find in list:",
     "Settings.Hotkeys.CommandPalette": "Command palette:",
+    "Settings.Hotkeys.PlatformUpdate": "Platform update window:",
     "Settings.Hotkeys.SwitchUser": "Switch user:",
     "Settings.Hotkeys.SessionLock": "Infobase session lock:",
     "Settings.Hotkeys.LockApp": "Temporary app lock:",
@@ -2726,6 +2727,7 @@
     "PlatformUpdate.Error.SetupNotFound": "setup.exe not found in the distribution",
     "PlatformUpdate.Error.Signature": "File signature not verified",
     "PlatformUpdate.Error.NotEnoughSpace": "Not enough free disk space",
+    "PlatformUpdate.Error.NotAdmin": "Installing without administrator rights — some features may be unavailable",
     "PlatformUpdate.Error.RunningProcesses": "1C processes are running: {0}",
     "PlatformUpdate.Error.Cancelled": "Operation cancelled",
     "PlatformUpdate.Error.ExtractFailed": "Failed to extract the distribution",
@@ -2735,6 +2737,7 @@
     "PlatformUpdate.Linux.Copied": "Command copied to clipboard",
     "PlatformUpdate.Confirm.InstallTitle": "1C platform installation",
     "PlatformUpdate.Confirm.InstallMessage": "Version {0} will be installed. Continue?",
+    "PlatformUpdate.Preflight.Continue": "Installation continued by the user",
     "Notify.PlatformUpdateDone": "Platform version {0} installed",
     "Notify.PlatformUpdateError": "Platform update failed: {0}"
   }

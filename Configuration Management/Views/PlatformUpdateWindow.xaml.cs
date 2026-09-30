@@ -35,6 +35,9 @@ public partial class PlatformUpdateWindow : Window
         var repository = AppServices.GetRequiredService<IInfobaseRepository>();
         var updates = AppServices.GetRequiredService<IOneCUpdatesService>();
         var dialogs = AppServices.GetRequiredService<IDialogService>();
+        var running = AppServices.GetRequiredService<IRunningInfobasesService>();
+        var notifier = AppServices.GetRequiredService<INotificationService>();
+        var logger = AppServices.GetRequiredService<IAppLogger>();
 
         _viewModel = new PlatformUpdateViewModel(
             service,
@@ -51,7 +54,20 @@ public partial class PlatformUpdateWindow : Window
             _ => dialogs.OpenFileDialog(
                 LocalizationManager.T("PlatformUpdate.ChooseInstaller"),
                 "Исполняемые файлы (*.exe)|*.exe|Пакеты Linux (*.deb;*.rpm)|*.deb;*.rpm|Все файлы (*.*)|*.*",
-                null));
+                null),
+            // Проверка готовности к установке (этап 0.3.9.214): процессы 1С, права,
+            // свободное место, подпись; диалог подтверждения и уведомление о результате.
+            loadRunningProcesses: () => running.GetRunning()
+                .Select(p => p.ProcessName)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            isAdministrator: PlatformInstaller.IsAdministrator,
+            getFreeBytes: path => DiskFreeSpaceHelper.TryGetInfo(path, DiskFreeSpaceHelper.DefaultDriveResolver)?.FreeBytes,
+            hasValidSignature: PlatformInstaller.HasValidSignature,
+            confirmDialog: (title, message) => dialogs.Confirm(message, title),
+            notify: (title, message, kind, evt) => notifier.Show(title, message, kind, evt),
+            appLogger: logger);
 
         DataContext = _viewModel;
         RowsGrid.ItemsSource = _viewModel.Rows;

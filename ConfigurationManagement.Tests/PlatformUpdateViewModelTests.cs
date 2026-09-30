@@ -61,7 +61,14 @@ public sealed class PlatformUpdateViewModelTests
         Func<string, string, string?, IProgress<string>?, CancellationToken,
             Task<(bool Success, string? ErrorKey, int ExitCode)>>? install = null,
         Func<string?, string?>? saveDialog = null,
-        Func<string?, string?>? openDialog = null)
+        Func<string?, string?>? openDialog = null,
+        Func<IReadOnlyList<string>>? runningProcesses = null,
+        Func<bool>? isAdmin = null,
+        Func<string, long?>? freeBytes = null,
+        Func<string, bool>? signed = null,
+        Func<string, string, bool>? confirm = null,
+        Action<string, string, NotificationKind, NotificationEvent>? notify = null,
+        FakeAppLogger? logger = null)
     {
         return new PlatformUpdateViewModel(
             service ?? OkService(),
@@ -71,7 +78,14 @@ public sealed class PlatformUpdateViewModelTests
             install ?? ((zip, version, dir, log, ct) =>
                 Task.FromResult((Success: true, ErrorKey: (string?)null, ExitCode: 0))),
             saveDialog,
-            openDialog);
+            openDialog,
+            runningProcesses ?? (() => new List<string>()),
+            isAdmin ?? (() => true),
+            freeBytes ?? (_ => null),
+            signed ?? (_ => true),
+            confirm ?? ((_, _) => true),
+            notify ?? ((_, _, _, _) => { }),
+            logger);
     }
 
     // ---------- CheckUpdatesAsync ----------
@@ -412,6 +426,180 @@ public sealed class PlatformUpdateViewModelTests
         Assert.False(vm.IsBusy);
     }
 
+    // ---------- Preflight и уведомления (этап 0.3.9.214) ----------
+
+    [Fact]
+    public async Task DownloadAndInstallAsync_PreflightWarnings_ShownBeforeInstall()
+    {
+        var file = DistroFile(50 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var confirmCalls = new List<(string Title, string Message)>();
+        var installCalls = new List<string>();
+        var logger = new FakeAppLogger();
+
+        var vm = CreateVm(
+            service,
+            install: (zip, version, dir, log, ct) =>
+            {
+                installCalls.Add(zip);
+                return Task.FromResult((Success: true, ErrorKey: (string?)null, ExitCode: 0));
+            },
+            runningProcesses: () => new List<string> { "1cv8c" },
+            confirm: (title, message) =>
+            {
+                confirmCalls.Add((title, message));
+                return true;
+            },
+            logger: logger);
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+        await vm.DownloadAndInstallAsync();
+
+        // Диалог подтверждения показан до установки, предупреждение в журнале окна.
+        Assert.Single(confirmCalls);
+        Assert.Equal(LocalizationManager.T("PlatformUpdate.Confirm.InstallTitle"), confirmCalls[0].Title);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.RunningProcesses"), confirmCalls[0].Message);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.RunningProcesses"), vm.LogText);
+
+        // Подтверждено — установка выполнилась; предупреждения попали в IAppLogger.
+        Assert.Single(installCalls);
+        Assert.Contains("замечания перед установкой", logger.WarningsJoined);
+    }
+
+    [Fact]
+    public async Task DownloadAndInstallAsync_PreflightCancelled_InstallNotExecuted()
+    {
+        var file = DistroFile(50 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var installCalls = new List<string>();
+        var vm = CreateVm(
+            service,
+            install: (zip, version, dir, log, ct) =>
+            {
+                installCalls.Add(zip);
+                return Task.FromResult((Success: true, ErrorKey: (string?)null, ExitCode: 0));
+            },
+            runningProcesses: () => new List<string> { "1cv8c" },
+            confirm: (_, _) => false);
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+        await vm.DownloadAndInstallAsync();
+
+        // Отмена диалога останавливает операцию до запуска установщика.
+        Assert.Empty(installCalls);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.Cancelled"), vm.LogText);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
+    public async Task DownloadAndInstallAsync_NotifySuccess_WithKindAndEvent()
+    {
+        var file = DistroFile(50 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var notified = new List<(string Title, string Message, NotificationKind Kind, NotificationEvent Evt)>();
+        var vm = CreateVm(service, notify: (title, message, kind, evt) =>
+            notified.Add((title, message, kind, evt)));
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+        await vm.DownloadAndInstallAsync();
+
+        var notification = Assert.Single(notified);
+        Assert.Equal(NotificationKind.Success, notification.Kind);
+        Assert.Equal(NotificationEvent.Update, notification.Evt);
+        Assert.Equal(
+            string.Format(LocalizationManager.T("Notify.PlatformUpdateDone"), "8.3.27.2214"),
+            notification.Message);
+    }
+
+    [Fact]
+    public async Task DownloadAndInstallAsync_PartialSuccess_NotifyWarning()
+    {
+        var file = DistroFile(50 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var notified = new List<(string Title, string Message, NotificationKind Kind, NotificationEvent Evt)>();
+        var vm = CreateVm(
+            service,
+            runningProcesses: () => new List<string> { "1cv8c" },
+            confirm: (_, _) => true,
+            notify: (title, message, kind, evt) =>
+                notified.Add((title, message, kind, evt)));
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+        await vm.DownloadAndInstallAsync();
+
+        // Установлено, но были предупреждения (занятые процессы) — Warning.
+        var notification = Assert.Single(notified);
+        Assert.Equal(NotificationKind.Warning, notification.Kind);
+        Assert.Equal(NotificationEvent.Update, notification.Evt);
+    }
+
+    [Fact]
+    public async Task DownloadAndInstallAsync_InstallFailed_NotifyError()
+    {
+        var file = DistroFile(10 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var notified = new List<(string Title, string Message, NotificationKind Kind, NotificationEvent Evt)>();
+        var vm = CreateVm(
+            service,
+            install: (zip, version, dir, log, ct) =>
+                Task.FromResult((Success: false, ErrorKey: (string?)"PlatformUpdate.Error.SetupNotFound", ExitCode: -1)),
+            notify: (title, message, kind, evt) =>
+                notified.Add((title, message, kind, evt)));
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+        await vm.DownloadAndInstallAsync();
+
+        var notification = Assert.Single(notified);
+        Assert.Equal(NotificationKind.Error, notification.Kind);
+        Assert.Equal(NotificationEvent.Update, notification.Evt);
+        Assert.Equal(
+            string.Format(
+                LocalizationManager.T("Notify.PlatformUpdateError"),
+                LocalizationManager.T("PlatformUpdate.Error.SetupNotFound")),
+            notification.Message);
+    }
+
+    [Fact]
+    public async Task DownloadOnlyAsync_NotifySuccess()
+    {
+        var file = DistroFile(10 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var notified = new List<(string Title, string Message, NotificationKind Kind, NotificationEvent Evt)>();
+        var vm = CreateVm(
+            service,
+            saveDialog: _ => "/tmp/cm_saved/platform_8.3.27.2214_x64.zip",
+            notify: (title, message, kind, evt) =>
+                notified.Add((title, message, kind, evt)));
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+        await vm.DownloadOnlyAsync();
+
+        var notification = Assert.Single(notified);
+        Assert.Equal(NotificationKind.Success, notification.Kind);
+        Assert.Equal(NotificationEvent.Update, notification.Evt);
+        Assert.Equal(
+            string.Format(LocalizationManager.T("PlatformUpdate.Progress.Done"), "/tmp/cm_saved/platform_8.3.27.2214_x64.zip"),
+            notification.Message);
+    }
+
     // ---------- CanExecute ----------
 
     [Fact]
@@ -447,6 +635,26 @@ public sealed class PlatformUpdateViewModelTests
         vm.IsBusy = false;
 
         Assert.True(vm.DownloadAndInstallCommand.CanExecute(null));
+    }
+
+    // ---------- Хоткей окна (этап 0.3.9.214) ----------
+
+    [Fact]
+    public void AppSettings_HotkeyPlatformUpdate_DefaultIsCtrlF9()
+    {
+        var settings = new AppSettings();
+
+        Assert.Equal("Ctrl+F9", settings.HotkeyPlatformUpdate);
+    }
+
+    [Fact]
+    public void AppSettings_NormalizeForLoad_PreservesHotkeyPlatformUpdate()
+    {
+        var settings = new AppSettings { HotkeyPlatformUpdate = "Ctrl+Shift+F10" };
+
+        settings.NormalizeForLoad();
+
+        Assert.Equal("Ctrl+Shift+F10", settings.HotkeyPlatformUpdate);
     }
 
     // ---------- Fake-сервисы ----------
@@ -540,5 +748,19 @@ public sealed class PlatformUpdateViewModelTests
 
         public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+    }
+
+    /// <summary>Fake логгера приложения: собирает сообщения в списки для проверки этапов.</summary>
+    private sealed class FakeAppLogger : IAppLogger
+    {
+        public List<string> Infos { get; } = new();
+        public List<string> Warnings { get; } = new();
+        public List<string> Errors { get; } = new();
+
+        public string WarningsJoined => string.Join(" | ", Warnings);
+
+        public void Info(string message) => Infos.Add(message);
+        public void Warn(string message) => Warnings.Add(message);
+        public void Error(string message, Exception? exception = null) => Errors.Add(message);
     }
 }
