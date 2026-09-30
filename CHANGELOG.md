@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.212] — 2026-10-01
+
+### Добавлено
+
+- **Автообновление платформы 1С (функция 9, этап 5): установка дистрибутива на Linux** —
+  продолжение цикла 0.3.9.208–0.3.9.216:
+  - Новый чистый [`PlatformInstallerCommands`](Configuration%20Management/Services/PlatformInstallerCommands.cs)
+    (обе платформы, без директив условной компиляции — тестируется и на Windows-прогоне):
+    перечисление `PackageType` (Dpkg/Rpm/TarGz/Other) и команды sudo для пользователя —
+    `DetectPackageType` (тип пакета по расширению имени файла, регистронезависимо:
+    .deb → Dpkg, .rpm → Rpm, .tar.gz/.tgz → TarGz, прочее/пустое → Other),
+    `BuildSudoInstallCommand` («sudo dpkg -i '<путь>'» / «sudo dnf install -y '<путь>'»; путь
+    заключается в одинарные кавычки, внутренние апострофы экранируются как «'\''»; для
+    .tar.gz — короткая инструкция «распакуйте и выполните ./install — команда требует root»),
+    `BuildSudoUninstallCommand` («sudo dpkg -r 1c-enterprise83-<версия>»; запасной вариант
+    «sudo rm -rf /opt/1cv8/<версия>» — на этапе удаления старых версий 0.3.9.215).
+  - Новый [`PlatformInstaller`](Configuration%20Management/Services/PlatformInstaller.Linux.cs)
+    (`#if LINUX`): делегирующие точки вызова команд (единообразие API с Windows-реализацией),
+    человекочитаемая `BuildInstallInstruction(PlatformReleaseFile)` — многострочная инструкция
+    с командой для терминала и пояснением о правах root (для .deb/.rpm — готовая команда sudo,
+    для .tar.gz — шаги распаковки `tar -xzf` и запуска `./install`/`./install_server`) — и
+    `RefreshInstalledCache()` — явная точка «Проверить снова»: отдельного кэша нет, список
+    установленных версий всегда перечитывается из ФС через
+    `PlatformVersionService.FindInstalledVersionInfos()` (корни `/opt/1cv8*`).
+  - В [`PlatformInstaller.Windows.cs`](Configuration%20Management/Services/PlatformInstaller.Windows.cs)
+    добавлен зеркальный `RefreshInstalledCache()` (маленькая правка, без изменения поведения).
+  - Тесты [`PlatformInstallerLinuxTests`](ConfigurationManagement.Tests/PlatformInstallerLinuxTests.cs):
+    классификация типов пакета (включая регистр, пустое имя и null), команды установки
+    (dpkg/dnf, экранирование пробелов и апострофа), удаление (dpkg -r с версией); тесты
+    инструкции обёрнуты в `#if LINUX` (метод существует только в Linux-сборке). Полный прогон
+    зелёный, Linux-сборка (`-p:BuildLinux=true`) без ошибок.
+
 ## [0.3.9.211] — 2026-10-01
 
 ### Добавлено

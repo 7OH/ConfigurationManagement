@@ -297,6 +297,18 @@ public static class PlatformInstaller
             .ToList();
 
     /// <summary>
+    /// Пересканирует установленные версии платформы. Отдельного кэша нет —
+    /// список всегда читается из файловой системы через
+    /// <see cref="PlatformVersionService.FindInstalledVersionInfos"/>; метод
+    /// служит явной точкой вызова из UI («Проверить снова») после установки
+    /// или удаления версий (зеркало Linux-реализации).
+    /// </summary>
+    public static void RefreshInstalledCache()
+    {
+        PlatformVersionService.FindInstalledVersionInfos();
+    }
+
+    /// <summary>
     /// Ядро <see cref="InstallFromZipAsync"/> с инжектируемыми зависимостями (для тестов):
     /// распаковка, поиск setup.exe, запуск установщика и пересканирование версий.
     /// </summary>
