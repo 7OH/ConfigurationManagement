@@ -598,6 +598,19 @@ public class OneCUpdatesService : IOneCUpdatesService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<string?> GetPageTextAsync(string url, CancellationToken ct = default)
+    {
+        var text = await GetTextAsync(url, ct).ConfigureAwait(false);
+        if (string.IsNullOrEmpty(text))
+        {
+            _logger.Warn($"[Updates] Не удалось получить страницу (пустое тело или HTTP-ошибка): {url}");
+            return null;
+        }
+
+        return text;
+    }
+
     /// <summary>Выполняет GET и возвращает тело ответа как строку; при сетевой ошибке или
     /// не-успешном статусе возвращает пустую строку.</summary>
     private async Task<string> GetTextAsync(string url, CancellationToken ct)

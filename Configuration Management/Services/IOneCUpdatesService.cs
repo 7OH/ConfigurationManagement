@@ -42,6 +42,15 @@ public interface IOneCUpdatesService
     Task<string?> DownloadUpdateAsync(
         string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// Выполняет авторизованный GET (Basic Auth + cookie-сессия портала) по указанному
+    /// адресу и возвращает тело ответа как строку. Ошибки сети/HTTP не бросают исключение:
+    /// при неуспехе возвращается null.
+    /// </summary>
+    /// <param name="url">Адрес страницы каталога или ответа version_files.</param>
+    /// <param name="ct">Токен отмены.</param>
+    Task<string?> GetPageTextAsync(string url, CancellationToken ct = default);
+
     /// <summary>Предопределённый набор типовых конфигураций 1С.</summary>
     System.Collections.Generic.IReadOnlyList<OneCConfigType> BuiltInConfigTypes { get; }
 }

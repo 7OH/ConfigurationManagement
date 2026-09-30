@@ -9,6 +9,35 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.208] — 2026-10-01
+
+### Добавлено
+
+- **Автообновление платформы 1С (функция 9, этап 1): модели каталога технологической
+  платформы и чистый парсер** — начало цикла 0.3.9.208–0.3.9.216:
+  - Новые модели каталога [`PlatformDistributionKind`](Configuration%20Management/Models/PlatformDistributionKind.cs)
+    (тип дистрибутива: WindowsSetupZip/LinuxDeb/LinuxRpm/LinuxTarGz/Other),
+    [`PlatformReleaseFile`](Configuration%20Management/Models/PlatformReleaseFile.cs)
+    (имя файла, прямая ссылка, размер, разрядность, тип) и
+    [`PlatformRelease`](Configuration%20Management/Models/PlatformRelease.cs)
+    (версия, ссылка на страницу файлов релиза, лениво заполняемый список файлов).
+  - Чистый статический парсер [`OneCPlatformCatalogParser`](Configuration%20Management/Services/OneCPlatformCatalogParser.cs)
+    (без сети, обе платформы): константа ника каталога `Platform83`;
+    `ParseVersions` — все строки таблицы `#versionsTable` страницы
+    `releases.1c.ru/project/Platform83` (не только первая), fallback по всему HTML,
+    дедупликация и сортировка по убыванию числовыми сегментами; `ParseDistributionFiles` —
+    файлы `.zip/.deb/.rpm/.tar.gz` из ответа `version_files` с классификацией типа,
+    разрядностью по токенам имени и размером из JSON-полей `size`/`filesize`;
+    `CompareVersions` — численное сравнение через переиспользование
+    `OneCUpdatesService.TryParseVersion`.
+  - Расширение портала [`IOneCUpdatesService.GetPageTextAsync`](Configuration%20Management/Services/IOneCUpdatesService.cs):
+    авторизованный GET страницы каталога с возвратом текста или null (не бросает исключений) —
+    основа для получения списка версий на следующих этапах.
+  - Тесты [`OneCPlatformCatalogParserTests`](ConfigurationManagement.Tests/OneCPlatformCatalogParserTests.cs):
+    стандартная таблица/fallback/пустой HTML/дубликаты/нормализация; классификация файлов,
+    размеры из JSON, ссылки с query; сравнение версий; `dotnet test` — зелёный,
+    Linux-сборка без ошибок.
+
 ## [0.3.9.200] — 2026-10-01
 
 ### Добавлено
