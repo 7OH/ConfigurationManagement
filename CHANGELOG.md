@@ -9,6 +9,42 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.211] — 2026-10-01
+
+### Добавлено
+
+- **Автообновление платформы 1С (функция 9, этап 4): установка дистрибутива на Windows** —
+  продолжение цикла 0.3.9.208–0.3.9.216:
+  - Новый [`PlatformInstaller`](Configuration%20Management/Services/PlatformInstaller.Windows.cs)
+    (`#if WINDOWS`): чистые функции установщика — `BuildSilentArguments` (аргументы тихой установки
+    `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` + опционально `/DIR="..."` с экранированием внутренних
+    кавычек и «&»), `IsAdministrator` (WindowsPrincipal, паттерн UpdateService), `HasValidSignature`
+    (проверка подписи Authenticode через `X509Certificate2.CreateFromSignedFile` в try/catch — не
+    бросает, false при отсутствии/нечитаемости подписи), `FindSetupExecutable` (поиск `setup.exe`
+    в корне распакованного архива и подкаталогах до глубины 3, регистронезависимо),
+    `DetectNewVersionInstalled` (появление версии среди строк Display после `ParseVariant`,
+    численное сравнение `OneCPlatformCatalogParser.CompareVersions == 0`).
+  - `RunSetupAsync` — запуск установщика через ShellExecute с глаголом `runas` (UAC) и ожидание
+    завершения с polling по таймауту (по умолчанию 15 минут) и токену отмены: по таймауту процесс
+    принудительно завершается (`Kill`) и возвращается признак `TimedOut`; на границе повышения прав
+    `Process.Start` может вернуть null (или выбросить при отказе UAC) — возвращается результат
+    `Started=false` с кодом 0, итоговый успех определяется пересканированием версий.
+  - Полный сценарий `InstallFromZipAsync(zip, version, installDirectory, log, ct)`: распаковка
+    дистрибутива через `IArchiveService.ExtractArchive` во временный каталог
+    `%TEMP%\cm_platforminst_<guid>`, поиск `setup.exe`, предупреждение о непроверенной подписи
+    (не блокирует), тихая установка, пересканирование
+    `PlatformVersionService.FindInstalledVersionInfos()` до 120 с (шаг 5 с) — появление версии =
+    успех; временный каталог удаляется в `finally` (паттерн TryDeleteDirectory). Итог —
+    `PlatformInstallResult(Success, ErrorKey, ExitCode)` с ключами локализации
+    «PlatformUpdate.Error.*» (распаковка/setup.exe не найден/таймаут/версия не обнаружена/отмена).
+  - Тесты [`PlatformInstallerWindowsTests`](ConfigurationManagement.Tests/PlatformInstallerWindowsTests.cs)
+    (`#if !LINUX`, только чистые части): аргументы тихой установки (по умолчанию, каталог с пробелами,
+    экранирование кавычек/«&»), поиск setup.exe (корень/вложенный подкаталог/регистр/глубина/отсутствие),
+    подпись (несуществующий и неподписанный файл → false), запуск на fake-процессе (код 0/ненулевой/
+    зависание до таймаута с Kill/отмена ct/граница UAC — Started=false), zip-сценарий на
+    fake-распаковке (успех с созданием и удалением временного каталога, ошибки, отмена).
+    Полный прогон зелёный, Linux-сборка (`-p:BuildLinux=true`) без ошибок.
+
 ## [0.3.9.210] — 2026-10-01
 
 ### Добавлено
