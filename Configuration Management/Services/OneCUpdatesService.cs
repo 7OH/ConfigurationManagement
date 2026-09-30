@@ -35,8 +35,15 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     private const int TimeoutSeconds = 15;
 
+    /// <summary>Таймаут одной попытки многопоточной загрузки (дольше основного — CDN дистрибутивов).</summary>
+    private static readonly TimeSpan ParallelAttemptTimeout = TimeSpan.FromMinutes(20);
+
     /// <summary>Максимальное число переходов при ручном следовании редиректам (защита от зацикливания).</summary>
     private const int MaxRedirects = 10;
+
+    /// <summary>User-Agent запросов к порталу и CDN дистрибутивов (единый для всех клиентов службы).</summary>
+    private const string UserAgent =
+        "ConfigurationManagement/0.3.9.3 (+https://github.com/sivatorov/ConfigurationManagement)";
 
     /// <summary>
     /// Адрес формы входа на портал 1С (сервис «1С:Обновление программ»). Ресурс
@@ -47,7 +54,14 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// </summary>
     private const string PortalLoginUrl = "https://login.1c.ru/login";
 
-    private static readonly HttpClient HttpClient = CreateHttpClient();
+    /// <summary>Хранилище session-cookie гибридной авторизации портала 1С: общее для основного
+    /// клиента и клиента многопоточной загрузки (после входа cookie попадают в оба).</summary>
+    private readonly CookieContainer _cookieContainer = new();
+
+    /// <summary>HTTP-обработчик, инжектируемый в тестах (fake вместо реальной сети); null — реальный стек.</summary>
+    private readonly HttpMessageHandler? _handlerOverride;
+
+    private readonly HttpClient _httpClient;
 
     private readonly IInfobaseRepository _repository;
     private readonly IAppLogger _logger;
@@ -62,9 +76,21 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <paramref name="logger"/> — для диагностики сетевых ошибок проверки обновлений.
     /// </summary>
     public OneCUpdatesService(IInfobaseRepository repository, IAppLogger logger)
+        : this(repository, logger, handler: null)
+    {
+    }
+
+    /// <summary>
+    /// Конструктор с инжектируемым HTTP-обработчиком (для тестов): весь сетевой стек
+    /// службы — основной клиент и клиент многопоточной загрузки — работает через
+    /// fake-обработчик, реальная сеть не используется.
+    /// </summary>
+    internal OneCUpdatesService(IInfobaseRepository repository, IAppLogger logger, HttpMessageHandler? handler)
     {
         _repository = repository;
         _logger = logger;
+        _handlerOverride = handler;
+        _httpClient = CreateHttpClient(handler);
     }
 
     /// <summary>Шаблон ссылки на архив дистрибутива конфигурации на странице каталога.</summary>
@@ -81,9 +107,9 @@ public class OneCUpdatesService : IOneCUpdatesService
             Services.BuiltInConfigTypes.All;
     }
 
-    private static HttpClient CreateHttpClient()
+    private HttpClient CreateHttpClient(HttpMessageHandler? handler)
     {
-        var client = new HttpClient(new HttpClientHandler
+        var client = new HttpClient(handler ?? new HttpClientHandler
         {
             // Перенаправления обрабатываем вручную (см. SendWithAuthAsync): автоперенаправление
             // .NET снимает заголовок Authorization при переходе на другой хост (CDN), из-за чего
@@ -92,13 +118,12 @@ public class OneCUpdatesService : IOneCUpdatesService
             AllowAutoRedirect = false,
             // Хранилище session-cookie для гибридной авторизации (вход на portal.1c.ru):
             // после успешного входа cookie автоматически добавляются к последующим запросам.
-            CookieContainer = new CookieContainer(),
+            CookieContainer = _cookieContainer,
         })
         {
             Timeout = TimeSpan.FromSeconds(TimeoutSeconds),
         };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "ConfigurationManagement/0.3.9.3 (+https://github.com/sivatorov/ConfigurationManagement)");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,*/*;q=0.8");
         return client;
     }
@@ -526,6 +551,170 @@ public class OneCUpdatesService : IOneCUpdatesService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<string?> DownloadDistributionAsync(
+        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(targetPath))
+            return null;
+
+        try
+        {
+            var dir = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                Directory.CreateDirectory(dir);
+
+                // Проверка свободного места на этом этапе не блокирует загрузку — только
+                // предупреждение в журнал; блокирующий вопрос пользователю — этап 0.3.9.214.
+                LogFreeSpaceWarning(dir, expectedSizeBytes: 0);
+            }
+
+            _logger.Info($"[Platform] Загрузка дистрибутива: {url} -> {targetPath}");
+
+            // 1) Многопоточная загрузка: отдельный HttpClient с авторизацией портала
+            //    (Basic Auth + общий CookieContainer) и AllowAutoRedirect=true для CDN;
+            //    клиент создаётся только на время операции и освобождается после неё.
+            using (var parallelClient = CreateParallelClient())
+            {
+                var parallelResult = await ParallelDownloader.TryDownloadAsync(
+                        parallelClient, url, targetPath,
+                        percent => progress?.Report(Math.Clamp(percent / 100.0, 0.0, 1.0)),
+                        expectedSize: 0, ct)
+                    .ConfigureAwait(false);
+
+                if (parallelResult is not null)
+                {
+                    _logger.Info($"[Platform] Дистрибутив загружен многопоточно: {targetPath}");
+                    // Метка докачки для разового временного файла не нужна — очищаем.
+                    TryDelete(targetPath + ".etag");
+                    return parallelResult;
+                }
+            }
+
+            // 2) Fallback: существующий однопоточный путь с авторизацией
+            //    (SendWithAuthAsync + ReadAsStream) — тот же прогресс и удаление файла
+            //    при ошибке/отмене.
+            _logger.Info("[Platform] Многопоточная загрузка недоступна (мал файл/нет Range/сбой) — однопоточная.");
+            return await DownloadUpdateAsync(url, targetPath, progress, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            TryDelete(targetPath);
+            return null;
+        }
+        catch
+        {
+            TryDelete(targetPath);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Создаёт HTTP-клиент для многопоточной загрузки дистрибутива: автоперенаправление
+    /// включено (CDN отдаёт финальный адрес редиректом), cookie-контейнер общий с основным
+    /// клиентом (сессия портала), Basic Auth — как в <see cref="AddBasicAuth"/> (учётные
+    /// данные читаются из настроек на каждый вызов; заголовок Authorization и пароль не
+    /// логируются), User-Agent/Accept — как у основного клиента, таймаут дольше (крупные
+    /// файлы). Клиент используется только в пределах одной операции загрузки и освобождается.
+    /// </summary>
+    private HttpClient CreateParallelClient()
+    {
+        var handler = _handlerOverride ?? new HttpClientHandler
+        {
+            // Для CDN дистрибутивов 1С автоследование безопаснее: сервер редиректит на
+            // хранилище файлов, учётные данные передаются заголовком DefaultRequestHeaders
+            // в пределах этой операции (клиент создаётся локально и освобождается).
+            AllowAutoRedirect = true,
+            CookieContainer = _cookieContainer,
+        };
+
+        var client = new HttpClient(handler)
+        {
+            Timeout = ParallelAttemptTimeout,
+        };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+        client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,*/*;q=0.8");
+
+        var settings = _repository.LoadSettings();
+        var login = settings.UpdatesLogin ?? string.Empty;
+        if (!string.IsNullOrEmpty(login))
+        {
+            var password = settings.UpdatesPassword ?? string.Empty;
+            var token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{login}:{password}"));
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", token);
+        }
+
+        return client;
+    }
+
+    /// <summary>
+    /// Выбор стратегии загрузки дистрибутива: многопоточность имеет смысл, когда размер
+    /// файла известен и даёт более одного сегмента по <c>MinSegmentBytes</c> (1 МБ), т.е.
+    /// файл не меньше 2 МБ. Переиспользует <see cref="ParallelDownloader.CanParallelize"/>.
+    /// </summary>
+    internal static bool ChooseDownloadStrategy(long totalBytes)
+        => ParallelDownloader.CanParallelize(totalBytes, ParallelDownloader.DefaultMaxParallelism);
+
+    /// <summary>
+    /// Формирует имя итогового файла дистрибутива платформы: префикс версии + имя файла
+    /// (символы, недопустимые в имени файла, заменяются на '_'). Пустые части пропускаются.
+    /// </summary>
+    /// <param name="version">Версия платформы, например «8.3.27.2214».</param>
+    /// <param name="fileName">Имя файла из каталога, например «8.3.27.2214_x64.zip».</param>
+    internal static string BuildTargetFileName(string version, string fileName)
+    {
+        var versionPart = SanitizeFileName(version);
+        var namePart = SanitizeFileName(fileName);
+        if (string.IsNullOrWhiteSpace(versionPart))
+            return namePart;
+        if (string.IsNullOrWhiteSpace(namePart))
+            return versionPart;
+        return $"{versionPart}_{namePart}";
+    }
+
+    /// <summary>Заменяет символы, недопустимые в имени файла, на '_' (пустая строка — пустая).</summary>
+    private static string SanitizeFileName(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var sb = new StringBuilder(value.Length);
+        foreach (var c in value)
+            sb.Append(Array.IndexOf(invalid, c) >= 0 ? '_' : c);
+        return sb.ToString().Trim();
+    }
+
+    /// <summary>
+    /// Журналирует предупреждение о малом свободном месте перед загрузкой (не блокирует).
+    /// Порог: свободно меньше <c>размер файла + 1 ГБ</c> (минимум 1 ГБ при неизвестном размере).
+    /// </summary>
+    private void LogFreeSpaceWarning(string targetDir, long expectedSizeBytes)
+    {
+        const long gb = 1024L * 1024 * 1024;
+        try
+        {
+            var info = DiskFreeSpaceHelper.TryGetInfo(targetDir, DiskFreeSpaceHelper.DefaultDriveResolver);
+            if (info is null)
+                return;
+
+            var requiredBytes = Math.Max(expectedSizeBytes, 0) + gb;
+            var requiredGb = (int)Math.Clamp((requiredBytes + gb - 1) / gb, 1, int.MaxValue);
+            if (DiskFreeSpaceHelper.IsWarning(info.FreeBytes, requiredGb))
+            {
+                _logger.Warn(
+                    $"[Platform] Мало свободного места на диске {DiskFreeSpaceHelper.ResolveDriveName(targetDir)}: " +
+                    $"свободно {DiskFreeSpaceHelper.FormatBytes(info.FreeBytes)}, " +
+                    $"требуется не менее {DiskFreeSpaceHelper.FormatBytes(requiredBytes)} ({targetDir}).");
+            }
+        }
+        catch
+        {
+            // Проверка места никогда не мешает загрузке.
+        }
+    }
+
     private static void TryDelete(string path)
     {
         try
@@ -647,7 +836,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         {
             AddBasicAuth(current);
 
-            var response = await HttpClient.SendAsync(current, completionOption, ct).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(current, completionOption, ct).ConfigureAwait(false);
 
             var status = (int)response.StatusCode;
 
@@ -749,7 +938,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             _logger.Info($"[Updates] Запрашиваю форму входа: {PortalLoginUrl}");
             using (var formRequest = new HttpRequestMessage(HttpMethod.Get, PortalLoginUrl))
             using (var formResponse =
-                   await HttpClient.SendAsync(formRequest, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false))
+                   await _httpClient.SendAsync(formRequest, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false))
             {
                 var html = await formResponse.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
                 var execution = ExtractFormExecution(html);
@@ -781,7 +970,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                     new MediaTypeHeaderValue("application/x-www-form-urlencoded");
 
                 using var postResponse =
-                    await HttpClient.SendAsync(postRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+                    await _httpClient.SendAsync(postRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
 
                 var postStatus = (int)postResponse.StatusCode;
                 var location = postResponse.Headers.Location?.ToString() ?? string.Empty;

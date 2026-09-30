@@ -297,6 +297,10 @@ public sealed class PlatformUpdateServiceTests
             string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
 
+        public Task<string?> DownloadDistributionAsync(
+            string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
+            => Task.FromResult<string?>(null);
+
         public Task<string?> GetPageTextAsync(string url, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
     }

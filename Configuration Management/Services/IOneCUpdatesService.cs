@@ -43,6 +43,19 @@ public interface IOneCUpdatesService
         string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default);
 
     /// <summary>
+    /// Скачивает файл дистрибутива технологической платформы по прямой ссылке:
+    /// сначала пытается многопоточная загрузка (HTTP Range, до конца файла), при
+    /// неудаче — существующий однопоточный путь с авторизацией портала. Возвращает
+    /// полный путь сохранённого файла или null при ошибке/отмене.
+    /// </summary>
+    /// <param name="url">Прямая ссылка на файл дистрибутива.</param>
+    /// <param name="targetPath">Полный путь итогового файла (каталог создаётся).</param>
+    /// <param name="progress">Прогресс загрузки 0..1.</param>
+    /// <param name="ct">Токен отмены.</param>
+    Task<string?> DownloadDistributionAsync(
+        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default);
+
+    /// <summary>
     /// Выполняет авторизованный GET (Basic Auth + cookie-сессия портала) по указанному
     /// адресу и возвращает тело ответа как строку. Ошибки сети/HTTP не бросают исключение:
     /// при неуспехе возвращается null.
