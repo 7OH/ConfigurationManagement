@@ -146,6 +146,77 @@ Configuration Management/
 - изменение расписания (`schedule set`), ручной запуск и история запусков глубже последнего —
   вне цикла.
 
+### Массовая замена в строке подключения баз
+
+Функция «Заменить в строках подключения…» (цикл 0.3.9.187–0.3.9.192) — массовое применение
+правила замены «найти → заменить на» к полям строки подключения выбранных баз с обязательным
+предпросмотром, подтверждением, одноуровневым откатом и JSON-бэкапом. Связка чистых слоёв
+(без платформенных зависимостей) и тонких платформенных обёрток:
+
+- [`Services/ConnectionReplaceModels.cs`](Configuration Management/Services/ConnectionReplaceModels.cs) —
+  типы правила: `ConnectionField` (Server/Port/Ref/FilePath/WebUrl/Any), `ConnectionMatchMode`
+  (Exact/Prefix/Substring/Regex) и запись `ConnectionStringReplaceRule` (Find/Replace/Field/Mode/IgnoreCase).
+- [`Services/ConnectionStringEditor.cs`](Configuration Management/Services/ConnectionStringEditor.cs) —
+  единый редактор: `Parse`/`Build` — тонкие обёртки над `ConnectionSettings.ParseConnectionString`/
+  `ToConnectionString` (единая точка нормализации, без дублирования логики); `TryApply` —
+  применение правила к одному полю **на копии** настроек с отдачей «было → станет»; `TryApplyRaw` —
+  замена по всей строке как тексту (сегментная пересборка сохраняет кавычки, экранирование и
+  прочие параметры Usr/Pwd/SchJobDn/disstt). Для Exact/Prefix/Substring искомый текст
+  экранируется (`Regex.Escape`) — литеральное сопоставление; для Regex — паттерн .NET, невалидный
+  выбрасывает `ArgumentException`; замена всегда литеральная.
+- [`Services/ConnectionReplacementPlanner.cs`](Configuration Management/Services/ConnectionReplacementPlanner.cs) —
+  планировщик: `SelectCandidates` — отбор кандидатов области (AllBases/BatchSelected/CurrentGroup)
+  из **уже видимого** списка (планировщик про приватность не знает), `FilterVisibleInfobases` —
+  единая фильтрация приватных база (использует мост в MainViewModel); `Plan` — построение плана
+  **без мутаций** (правило применяется к копии настроек; базы без подключения — в счётчик
+  `EmptyConnectionCount`); `Apply` — применение с глубокой копией всех полей прежних настроек
+  (`ConnectionReplaceUndoEntry.Before`) для отката; `Undo` — восстановление снапшотов.
+  План и применение используют одну функцию сопоставления (`TryApply`) — предпросмотр и результат
+  не расходятся.
+- [`ViewModels/ConnectionReplaceViewModel.cs`](Configuration Management/ViewModels/ConnectionReplaceViewModel.cs) —
+  чистый VM окна (обе платформы, по образцу `ClusterImportViewModel`): поля Найти/Заменить,
+  выбор поля/области/режима/регистра, коллекции `DisplayItem<T>` для ComboBox'ов, предпросмотр-
+  коллекция `PreviewRows`, сводка, команды `RefreshPreviewCommand`/`ApplyCommand`/`UndoLastCommand`;
+  колбэки `onApplied`/`onUndone` передают записи отката в MainViewModel (окна только привязываются).
+- [`Views/ConnectionReplaceWindow.xaml`](Configuration Management/Views/ConnectionReplaceWindow.xaml)
+  (WPF) и [`Views/ConnectionReplaceWindow.Avalonia.cs`](Configuration Management/Views/ConnectionReplaceWindow.Avalonia.cs)
+  (Linux) — тонкие обёртки над VM: DataGrid/список «База | Поле | Было | Станет» с подсветкой
+  изменённых строк (колонка «Станет» — зелёный фон WPF / Foreground Avalonia по `Changed`),
+  подтверждение через `IDialogService`/`AvaloniaDialogService`, кнопка «Отменить последнюю замену».
+- [`ViewModels/MainViewModel.ConnectionReplace.cs`](Configuration Management/ViewModels/MainViewModel.ConnectionReplace.cs)
+  — общий мост обеих платформ: `GetConnectionReplaceCandidates` (видимые базы: приватные скрытого
+  профиля исключаются через `FilterVisibleInfobases` + `IProfileService.CanShowPrivateBases`;
+  выделенные — по Id мультивыделения; текущая группа — по полному пути выбранного узла дерева);
+  `ApplyConnectionReplace` — одноуровневая undo-история (`_lastConnectionReplaceUndo`, повторное
+  применение замещает предыдущее), JSON-бэкап списка `connection_replace_backup_<yyyyMMdd_HHmmss>.json`
+  через `InfobaseJsonTransfer` в каталог данных приложения **ПЕРЕД** применением (ошибка записи не
+  блокирует — логируется Warn), журнал (`IAppLogger.Info`) и системное уведомление (kind Success);
+  `UndoLastConnectionReplace` — откат с той же персистентностью. Платформенный partial-хук
+  `AfterConnectionReplaceCommitted`: Windows (`MainViewModel.ConnectionReplace.Windows.cs`) —
+  `ScheduleSave`+`RebuildGroupTree`+`ExportToIbasesAfterLocalChange`; Linux (`*.Avalonia.cs`) —
+  `SaveSilently`+`RebuildTree`+`ExportToIbasesAfterLocalChange`. Точки вызова — пункт «Заменить в
+  строках подключения…» в блоке «Для выделенных (N)…» контекстного меню базы и в «Утилитах»
+  (WPF `MainWindow.xaml`/`MainWindow.Events.cs`, Avalonia `MainWindow.Avalonia.Tree.cs`), пункт
+  «Отменить последнюю замену строк подключения» (Enabled по `CanUndoConnectionReplace`).
+
+Ограничения и ключевые решения (см. план цикла 0.3.9.187–0.3.9.192, п. 3/6/9):
+- **структурное хранение подключений**: приложение хранит `ConnectionSettings` структурно,
+  поэтому замена оперирует полями, а каноническая строка `ToConnectionString` используется как
+  единый вид «было/станет» для предпросмотра и подтверждения; «сырые» тексты из ibases.v8i могут
+  содержать неизвестные параметры — их сохраняет режим `Any` (сегментная замена значения в исходном
+  тексте);
+- **порт 1541 опускается в строке** (`GetServerWithPort`): замена поля Port — семантическая
+  (числовой `ConnectionSettings.Port`), сборка сама добавляет/убирает «host:port»;
+- **одноуровневый undo + JSON-бэкап**: история отката живёт в памяти сессии и покрывает только
+  последнюю операцию; страховка вне сессии — автосоздаваемый JSON-файл всего списка перед применением;
+- **приватные базы исключаются на уровне кандидатов**: мост строит кандидатов из видимого списка
+  (`CanShowPrivateBases`) — окно никогда не получает скрытые приватные базы;
+- **миграция между типами подключения НЕ выполняется**: функция меняет содержимое полей, а не тип
+  подключения; если правило совпало в поле, не соответствующем типу базы (например FilePath у
+  серверной базы), база не затрагивается;
+- запущенные базы не блокируют операцию — изменение строки подключения не влияет на уже запущенные
+  процессы 1С (информационный счётчик в сводке).
+
 ## 4. Выполненный рефакторинг
 
 ### Разбиение монолита `MainViewModel`
