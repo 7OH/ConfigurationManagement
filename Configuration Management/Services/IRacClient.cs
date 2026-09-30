@@ -89,22 +89,6 @@ public interface IRacClient
         RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Регламентные задания кластера (команда «job list --cluster=...»).
-    /// Вкладка «Регламентные задания» монитора серверов (цикл 0.3.9.176–0.3.9.179).
-    /// </summary>
-    Task<IReadOnlyList<RacJobInfo>> GetJobsAsync(
-        RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Изменение состояния регламентного задания (команды «job pause/resume/disable/enable
-    /// --cluster=... --job=...»). Возвращает true при ExitCode 0; при неудаче — false
-    /// и текст ошибки (включая stderr rac) в <see cref="LastActionError"/>.
-    /// </summary>
-    Task<bool> SetJobStateAsync(
-        RacConnectionParams parameters, Guid clusterId, Guid jobId, RacJobAction action,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Завершение сеанса пользователя (команда «session terminate --cluster=... --session=...»).
     /// Реализация — этап 3 (0.3.9.125): возвращает true при ExitCode 0; при неудаче — false
     /// и текст ошибки (включая stderr rac) в <see cref="LastActionError"/>.

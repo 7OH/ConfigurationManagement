@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.176</Version>
-    <AssemblyVersion>0.3.9.176</AssemblyVersion>
-    <FileVersion>0.3.9.176</FileVersion>
-    <InformationalVersion>0.3.9.176</InformationalVersion>
+    <Version>0.3.9.177</Version>
+    <AssemblyVersion>0.3.9.177</AssemblyVersion>
+    <FileVersion>0.3.9.177</FileVersion>
+    <InformationalVersion>0.3.9.177</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -402,6 +402,12 @@
     <Compile Include="ViewModels\RacSessionRow.cs" />
     <Compile Include="ViewModels\RacConnectionRow.cs" />
     <Compile Include="ViewModels\RacLockRow.cs" />
+    <!-- Строка вкладки «Регламентные задания» и фильтр по базе (0.3.9.177, цикл
+         0.3.9.176–179): чистый .NET без WPF-зависимостей, используются обеими
+         платформами — на Linux подключаются явно (имена не совпадают с глобом
+         *.Avalonia.cs). -->
+    <Compile Include="ViewModels\RacJobRow.cs" />
+    <Compile Include="ViewModels\RacJobFilterRow.cs" />
     <!-- Вью-модель диалога импорта баз из кластера 1С (0.3.9.173, цикл 0.3.9.172–175):
          чистый .NET без WPF-зависимостей, используется и Windows, и Linux. -->
     <Compile Include="ViewModels\ClusterImportViewModel.cs" />

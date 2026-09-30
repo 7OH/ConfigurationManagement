@@ -40,11 +40,22 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     private string _clusterInfoText = string.Empty;
     private RacSessionRow? _selectedSession;
     private RacConnectionRow? _selectedConnection;
+    private RacJobRow? _selectedJob;
+    private Guid? _selectedJobInfobaseId;
 
     private ICommand? _connectCommand;
     private ICommand? _refreshCommand;
     private ICommand? _terminateSessionCommand;
     private ICommand? _disconnectConnectionCommand;
+    private ICommand? _pauseJobCommand;
+    private ICommand? _resumeJobCommand;
+
+    /// <summary>
+    /// Кэш имён информационных баз выбранного кластера (GUID из «job list» → имя из
+    /// «infobase summary list»). Заполняется при загрузке данных кластера; задания без
+    /// базы и неизвестные GUID показываются как «—».
+    /// </summary>
+    private readonly Dictionary<Guid, string> _infobaseNames = new();
 
     /// <param name="rac">Клиент rac (список кластеров, данные кластера).</param>
     /// <param name="dialogs">Диалоги (сообщения об ошибках; подтверждения действий — этап 3).</param>
@@ -118,6 +129,15 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
         {
             if (!SetProperty(ref _selectedClusterId, value))
                 return;
+
+            // Смена кластера делает фильтр по базе бессмысленным (идентификаторы
+            // баз другого кластера) — сбрасываем на «Все базы» и очищаем кэш имён.
+            if (value != _selectedJobInfobaseId)
+            {
+                _selectedJobInfobaseId = null;
+                OnPropertyChanged(nameof(SelectedJobInfobaseId));
+            }
+
             if (value is Guid id && HasConnected)
                 _ = LoadClusterDataAsync(id);
         }
@@ -143,6 +163,14 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     public ICommand DisconnectConnectionCommand =>
         _disconnectConnectionCommand ??= new RelayCommand(async () => await DisconnectConnectionAsync());
 
+    /// <summary>«Приостановить»: подтверждение → job pause → обновление списков.</summary>
+    public ICommand PauseJobCommand =>
+        _pauseJobCommand ??= new RelayCommand(async () => await PauseSelectedJobAsync());
+
+    /// <summary>«Возобновить»: подтверждение → job resume → обновление списков.</summary>
+    public ICommand ResumeJobCommand =>
+        _resumeJobCommand ??= new RelayCommand(async () => await ResumeSelectedJobAsync());
+
     // ===================== Вкладки =====================
 
     /// <summary>Рабочие процессы кластера (rphost/rmngr).</summary>
@@ -156,6 +184,16 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
 
     /// <summary>Блокировки объектов данных кластера.</summary>
     public ObservableCollection<RacLockRow> Locks { get; } = new();
+
+    /// <summary>Регламентные задания кластера (все, до фильтра по базе).</summary>
+    public ObservableCollection<RacJobRow> Jobs { get; } = new();
+
+    /// <summary>Регламентные задания с учётом фильтра по базе (таблица биндится сюда).</summary>
+    public ObservableCollection<RacJobRow> FilteredJobs { get; } = new();
+
+    /// <summary>Строки фильтра «по базе»: «Все базы» + информационные базы кластера.</summary>
+    public IReadOnlyList<RacJobFilterRow> JobInfobaseFilterRows { get; private set; } =
+        Array.Empty<RacJobFilterRow>();
 
     /// <summary>Информация о кластере (команда «cluster info»); null, если не получена.</summary>
     public RacClusterInfo? ClusterInfo
@@ -184,6 +222,41 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
         get => _selectedConnection;
         set => SetProperty(ref _selectedConnection, value);
     }
+
+    /// <summary>Выбранное регламентное задание на вкладке «Регламентные задания».</summary>
+    public RacJobRow? SelectedJob
+    {
+        get => _selectedJob;
+        set
+        {
+            if (!SetProperty(ref _selectedJob, value))
+                return;
+            // Кнопки «Приостановить/Возобновить» зависят от состояния выбранного задания.
+            OnPropertyChanged(nameof(CanPauseSelectedJob));
+            OnPropertyChanged(nameof(CanResumeSelectedJob));
+        }
+    }
+
+    /// <summary>
+    /// Фильтр «по базе»: null — все задания, GUID — только задания выбранной базы.
+    /// При изменении пересобирается <see cref="FilteredJobs"/>.
+    /// </summary>
+    public Guid? SelectedJobInfobaseId
+    {
+        get => _selectedJobInfobaseId;
+        set
+        {
+            if (!SetProperty(ref _selectedJobInfobaseId, value))
+                return;
+            ApplyJobFilter();
+        }
+    }
+
+    /// <summary>Разрешено ли «Приостановить» для выбранного задания.</summary>
+    public bool CanPauseSelectedJob => SelectedJob?.CanPause ?? false;
+
+    /// <summary>Разрешено ли «Возобновить» для выбранного задания.</summary>
+    public bool CanResumeSelectedJob => SelectedJob?.CanResume ?? false;
 
     // ===================== Автообновление =====================
 
@@ -268,9 +341,11 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Загружает данные выбранного кластера: процессы, сеансы, соединения, блокировки
-    /// и «cluster info» (параллельно). Результаты применяются через <see cref="_dispatchToUi"/>
-    /// (null — напрямую, тесты).
+    /// Загружает данные выбранного кластера: процессы, сеансы, соединения, блокировки,
+    /// регламентные задания, информационные базы (для имён владельцев заданий) и
+    /// «cluster info» (параллельно). Результаты применяются через <see cref="_dispatchToUi"/>
+    /// (null — напрямую, тесты). Сбой списка баз не роняет вкладку заданий — маппинг
+    /// имён просто остаётся пустым (см. <see cref="SafeInfobasesAsync"/>).
     /// </summary>
     public async Task LoadClusterDataAsync(Guid clusterId, CancellationToken cancellationToken = default)
     {
@@ -287,23 +362,27 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
             var sessionsTask = _rac.GetSessionsAsync(parameters, clusterId, cancellationToken);
             var connectionsTask = _rac.GetConnectionsAsync(parameters, clusterId, cancellationToken);
             var locksTask = _rac.GetLocksAsync(parameters, clusterId, cancellationToken);
+            var jobsTask = _rac.GetJobsAsync(parameters, clusterId, cancellationToken);
+            var infobasesTask = SafeInfobasesAsync(parameters, clusterId, cancellationToken);
             var infoTask = _rac.GetClusterInfoAsync(parameters, clusterId, cancellationToken);
 
             await Task.WhenAll(
-                processesTask, sessionsTask, connectionsTask, locksTask, infoTask)
+                processesTask, sessionsTask, connectionsTask, locksTask, jobsTask, infobasesTask, infoTask)
                 .ConfigureAwait(false);
 
             var processes = await processesTask.ConfigureAwait(false);
             var sessions = await sessionsTask.ConfigureAwait(false);
             var connections = await connectionsTask.ConfigureAwait(false);
             var locks = await locksTask.ConfigureAwait(false);
+            var jobs = await jobsTask.ConfigureAwait(false);
+            var infobases = await infobasesTask.ConfigureAwait(false);
             var info = await infoTask.ConfigureAwait(false);
 
-            ApplyClusterData(processes, sessions, connections, locks, info);
+            ApplyClusterData(processes, sessions, connections, locks, jobs, infobases, info);
 
             StatusText = string.Format(
                 LocalizationManager.T("ServerMonitor.Status.LoadedFormat"),
-                processes.Count, sessions.Count, connections.Count, locks.Count);
+                processes.Count, sessions.Count, connections.Count, locks.Count, jobs.Count);
         }
         catch (OperationCanceledException)
         {
@@ -419,6 +498,97 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
+    /// «Приостановить»: подтверждение, команда rac «job pause», обновление списков;
+    /// ошибка — предупреждение + статус-строка. Образец — <see cref="TerminateSessionAsync"/>.
+    /// </summary>
+    public async Task PauseSelectedJobAsync()
+    {
+        var row = SelectedJob;
+        if (row is null || !row.CanPause || !HasConnected || SelectedClusterId is not Guid clusterId)
+            return;
+
+        if (!_dialogs.Confirm(
+                string.Format(LocalizationManager.T("ServerMonitor.Job.PauseConfirmFormat"), row.Name),
+                LocalizationManager.T("ServerMonitor.Job.PauseTitle")))
+            return;
+
+        try
+        {
+            var ok = await _rac.SetJobStateAsync(BuildParams(), clusterId, row.Id, RacJobAction.Pause)
+                .ConfigureAwait(false);
+            if (!ok)
+            {
+                var detail = BuildActionError(_rac.LastActionError);
+                _dialogs.ShowWarning(
+                    string.Format(LocalizationManager.T("ServerMonitor.Job.PauseFailedFormat"), row.Name) + "\n" + detail,
+                    LocalizationManager.T("ServerMonitor.Job.PauseTitle"));
+                StatusText = detail;
+                return;
+            }
+
+            StatusText = string.Format(
+                LocalizationManager.T("ServerMonitor.Job.Status.PausedFormat"), row.Name);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowWarning(
+                string.Format(LocalizationManager.T("ServerMonitor.Job.PauseFailedFormat"), row.Name) + "\n" + BuildErrorMessage(ex),
+                LocalizationManager.T("ServerMonitor.Job.PauseTitle"));
+            StatusText = BuildErrorMessage(ex);
+        }
+        finally
+        {
+            // После действия состояние задания могло измениться — списки перечитываются.
+            Refresh();
+        }
+    }
+
+    /// <summary>
+    /// «Возобновить»: подтверждение, команда rac «job resume», обновление списков;
+    /// ошибка — предупреждение + статус-строка.
+    /// </summary>
+    public async Task ResumeSelectedJobAsync()
+    {
+        var row = SelectedJob;
+        if (row is null || !row.CanResume || !HasConnected || SelectedClusterId is not Guid clusterId)
+            return;
+
+        if (!_dialogs.Confirm(
+                string.Format(LocalizationManager.T("ServerMonitor.Job.ResumeConfirmFormat"), row.Name),
+                LocalizationManager.T("ServerMonitor.Job.ResumeTitle")))
+            return;
+
+        try
+        {
+            var ok = await _rac.SetJobStateAsync(BuildParams(), clusterId, row.Id, RacJobAction.Resume)
+                .ConfigureAwait(false);
+            if (!ok)
+            {
+                var detail = BuildActionError(_rac.LastActionError);
+                _dialogs.ShowWarning(
+                    string.Format(LocalizationManager.T("ServerMonitor.Job.ResumeFailedFormat"), row.Name) + "\n" + detail,
+                    LocalizationManager.T("ServerMonitor.Job.ResumeTitle"));
+                StatusText = detail;
+                return;
+            }
+
+            StatusText = string.Format(
+                LocalizationManager.T("ServerMonitor.Job.Status.ResumedFormat"), row.Name);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowWarning(
+                string.Format(LocalizationManager.T("ServerMonitor.Job.ResumeFailedFormat"), row.Name) + "\n" + BuildErrorMessage(ex),
+                LocalizationManager.T("ServerMonitor.Job.ResumeTitle"));
+            StatusText = BuildErrorMessage(ex);
+        }
+        finally
+        {
+            Refresh();
+        }
+    }
+
+    /// <summary>
     /// Запускает таймер автообновления данных выбранного кластера (5 с). Создаётся при
     /// успешном подключении; повторный запуск — no-op. Тик идёт через <see cref="Refresh"/>
     /// с тем же флагом занятости, что и ручное «Обновить» (наложение исключено).
@@ -478,6 +648,8 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
         IReadOnlyList<RacSessionInfo> sessions,
         IReadOnlyList<RacConnectionInfo> connections,
         IReadOnlyList<RacLockInfo> locks,
+        IReadOnlyList<RacJobInfo> jobs,
+        IReadOnlyList<RacInfobaseSummary> infobases,
         RacClusterInfo? info)
     {
         void Apply()
@@ -486,13 +658,38 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
             // Id остаётся выбранной, исчезнувшая (завершённый сеанс) — сбрасывается.
             var sessionId = SelectedSession?.Id;
             var connectionId = SelectedConnection?.Id;
+            var jobId = SelectedJob?.Id;
+            var jobFilter = SelectedJobInfobaseId;
+
+            // Кэш имён информационных баз кластера: колонка «База» и фильтр используют
+            // имя из «infobase summary list», тогда как задания отдают GUID ИБ.
+            _infobaseNames.Clear();
+            foreach (var ib in infobases)
+            {
+                if (ib.InfobaseId != Guid.Empty && !_infobaseNames.ContainsKey(ib.InfobaseId))
+                    _infobaseNames[ib.InfobaseId] = ib.Name;
+            }
 
             ReplaceRows(Processes, processes.Select(p => new RacProcessRow(p)));
             ReplaceRows(Sessions, sessions.Select(s => new RacSessionRow(s)));
             ReplaceRows(Connections, connections.Select(c => new RacConnectionRow(c)));
             ReplaceRows(Locks, locks.Select(l => new RacLockRow(l)));
+            ReplaceRows(Jobs, jobs.Select(j => new RacJobRow(j, InfobaseName(j))));
             ClusterInfo = info;
             ClusterInfoText = FormatClusterInfo(info);
+
+            JobInfobaseFilterRows = BuildJobFilterRows(infobases);
+            OnPropertyChanged(nameof(JobInfobaseFilterRows));
+
+            // Фильтр сохраняется по Id; если база исчезла из списка — сбрасываем на «Все».
+            if (jobFilter is Guid fid && !_infobaseNames.ContainsKey(fid))
+                jobFilter = null;
+            SelectedJobInfobaseId = jobFilter;
+
+            // Пересборка после ReplaceRows(Jobs, …): фильтр мог не меняться, поэтому
+            // ApplyJobFilter вызываем явно, затем восстанавливаем выбор по Id.
+            ApplyJobFilter();
+            SelectedJob = jobId is Guid j ? FilteredJobs.FirstOrDefault(x => x.Id == j) : null;
 
             SelectedSession = sessionId is Guid s ? Sessions.FirstOrDefault(x => x.Id == s) : null;
             SelectedConnection = connectionId is Guid c ? Connections.FirstOrDefault(x => x.Id == c) : null;
@@ -502,6 +699,53 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
             Apply();
         else
             _dispatchToUi(Apply);
+    }
+
+    /// <summary>Имя базы-владельца задания из кэша; «—» для заданий без базы/неизвестных GUID.</summary>
+    private string InfobaseName(RacJobInfo job) =>
+        job.InfobaseId is Guid id && _infobaseNames.TryGetValue(id, out var name) && !string.IsNullOrWhiteSpace(name)
+            ? name
+            : LocalizationManager.T("ServerMonitor.Job.UnknownBase");
+
+    /// <summary>Строки фильтра «по базе»: «Все базы» + имена баз кластера (по алфавиту).</summary>
+    private static IReadOnlyList<RacJobFilterRow> BuildJobFilterRows(
+        IReadOnlyList<RacInfobaseSummary> infobases)
+    {
+        var rows = new List<RacJobFilterRow> { RacJobFilterRow.All };
+        rows.AddRange(infobases
+            .Where(ib => ib.InfobaseId != Guid.Empty)
+            .OrderBy(ib => ib.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(ib => new RacJobFilterRow(ib.InfobaseId, ib.Name)));
+        return rows;
+    }
+
+    /// <summary>Пересобирает <see cref="FilteredJobs"/> по выбранному фильтру базы.</summary>
+    private void ApplyJobFilter()
+    {
+        var filter = SelectedJobInfobaseId;
+        IEnumerable<RacJobRow> rows = filter is Guid id
+            ? Jobs.Where(j => j.InfobaseId == id)
+            : Jobs;
+        ReplaceRows(FilteredJobs, rows);
+    }
+
+    /// <summary>
+    /// Загрузка списка баз для маппинга имён владельцев заданий: сбой не роняет вкладку
+    /// заданий — имена показываются как «—», текст ошибки попадает в статус-строку.
+    /// </summary>
+    private async Task<IReadOnlyList<RacInfobaseSummary>> SafeInfobasesAsync(
+        RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _rac.GetInfobasesAsync(parameters, clusterId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = BuildErrorMessage(ex);
+            return Array.Empty<RacInfobaseSummary>();
+        }
     }
 
     private static void ReplaceRows<T>(ObservableCollection<T> target, IEnumerable<T> rows)

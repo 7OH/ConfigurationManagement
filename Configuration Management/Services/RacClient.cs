@@ -98,23 +98,6 @@ public sealed class RacClient : IRacClient
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<RacJobInfo>> GetJobsAsync(
-        RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
-    {
-        var output = await RunAsync(parameters, cancellationToken, "job", "list",
-                $"--cluster={clusterId}")
-            .ConfigureAwait(false);
-        return RacOutputParser.ToJobs(output);
-    }
-
-    /// <inheritdoc />
-    public Task<bool> SetJobStateAsync(
-        RacConnectionParams parameters, Guid clusterId, Guid jobId, RacJobAction action,
-        CancellationToken cancellationToken = default) =>
-        RunActionAsync(parameters, cancellationToken, "job", JobActionCommand(action),
-            $"--cluster={clusterId}", $"--job={jobId}");
-
-    /// <inheritdoc />
     public Task<bool> TerminateSessionAsync(
         RacConnectionParams parameters, Guid clusterId, Guid sessionId,
         CancellationToken cancellationToken = default) =>
@@ -157,18 +140,8 @@ public sealed class RacClient : IRacClient
         return args;
     }
 
-    /// <summary>Подкоманда rac для операции управления регламентным заданием.</summary>
-    private static string JobActionCommand(RacJobAction action) => action switch
-    {
-        RacJobAction.Pause => "pause",
-        RacJobAction.Resume => "resume",
-        RacJobAction.Disable => "disable",
-        _ => "enable"
-    };
-
     /// <summary>
-    /// Выполняет rac-команду действия (завершение сеанса / разрыв соединения /
-    /// изменение состояния задания).
+    /// Выполняет rac-команду действия (завершение сеанса / разрыв соединения).
     /// Возвращает true при ExitCode 0; при неудаче — false и текст ошибки
     /// (сообщение rac + stderr) в <see cref="LastActionError"/>. Исключения наружу
     /// не пробрасываются: ViewModel показывает пользователю LastActionError.

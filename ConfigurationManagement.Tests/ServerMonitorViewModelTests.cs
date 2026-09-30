@@ -250,6 +250,165 @@ public sealed class ServerMonitorViewModelTests
         Assert.NotEmpty(vm.StatusText);
     }
 
+    // ===================== Регламентные задания =====================
+
+    [Fact]
+    public async Task LoadClusterDataAsync_FillsJobsTab_AndInfobaseFilter()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
+
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        Assert.Equal(2, vm.Jobs.Count);
+        Assert.Equal(2, vm.FilteredJobs.Count);
+        // Фильтр: «Все базы» + база-владелец из маппинга.
+        Assert.Contains(vm.JobInfobaseFilterRows, r => r.Id is null);
+        Assert.Contains(vm.JobInfobaseFilterRows, r => r.Id == FakeRacClient.FirstInfobaseId);
+        // Имя базы подставлено из кэша «infobase summary list»; задание без базы —
+        // помечается ключом-заглушкой (в тестах локализация не инициализирована —
+        // сравнение самосогласовано через тот же ключ).
+        Assert.Equal("Бухгалтерия", vm.Jobs.Single(j => j.Id == FakeRacClient.FirstJobId).InfobaseName);
+        Assert.Equal(
+            LocalizationManager.T("ServerMonitor.Job.UnknownBase"),
+            vm.Jobs.Single(j => j.Id == FakeRacClient.SecondJobId).InfobaseName);
+    }
+
+    [Fact]
+    public async Task JobFilter_FiltersByInfobase_AndAllRestores()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedJobInfobaseId = FakeRacClient.FirstInfobaseId;
+
+        var row = Assert.Single(vm.FilteredJobs);
+        Assert.Equal(FakeRacClient.FirstJobId, row.Id);
+
+        vm.SelectedJobInfobaseId = null;
+
+        Assert.Equal(2, vm.FilteredJobs.Count);
+    }
+
+    [Fact]
+    public async Task Reload_PreservesJobSelection_AndJobFilter()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedJob = vm.Jobs.Single(j => j.Id == FakeRacClient.FirstJobId);
+        vm.SelectedJobInfobaseId = FakeRacClient.FirstInfobaseId;
+
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        Assert.NotNull(vm.SelectedJob);
+        Assert.Equal(FakeRacClient.FirstJobId, vm.SelectedJob!.Id);
+        Assert.Equal(FakeRacClient.FirstInfobaseId, vm.SelectedJobInfobaseId);
+        Assert.Single(vm.FilteredJobs);
+    }
+
+    [Fact]
+    public async Task PauseSelectedJob_Confirm_CallsClient_WithPauseAction()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedJob = vm.Jobs.Single(j => j.Id == FakeRacClient.FirstJobId);
+        await vm.PauseSelectedJobAsync();
+
+        Assert.Single(dialogs.Confirms);
+        Assert.Empty(dialogs.Warnings);
+        var call = Assert.Single(client.StateCalls);
+        Assert.Equal((FakeRacClient.FirstClusterId, FakeRacClient.FirstJobId, RacJobAction.Pause), call);
+        Assert.NotEmpty(vm.StatusText);
+    }
+
+    [Fact]
+    public async Task PauseSelectedJob_Cancelled_DoesNotCallClient()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs { ConfirmResult = false };
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedJob = vm.Jobs.Single(j => j.Id == FakeRacClient.FirstJobId);
+        await vm.PauseSelectedJobAsync();
+
+        Assert.Single(dialogs.Confirms);
+        Assert.Empty(client.StateCalls);
+    }
+
+    [Fact]
+    public async Task PauseSelectedJob_NotAllowedForPausedJob_DoesNothing()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        // Второе задание в фейке имеет состояние «paused» — приостановить нельзя.
+        vm.SelectedJob = vm.Jobs.Single(j => j.Id == FakeRacClient.SecondJobId);
+        await vm.PauseSelectedJobAsync();
+
+        Assert.Empty(client.StateCalls);
+        Assert.Empty(dialogs.Confirms);
+    }
+
+    [Fact]
+    public async Task ResumeSelectedJob_Confirm_CallsClient_WithResumeAction()
+    {
+        var client = new FakeRacClient();
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedJob = vm.Jobs.Single(j => j.Id == FakeRacClient.SecondJobId);
+        await vm.ResumeSelectedJobAsync();
+
+        var call = Assert.Single(client.StateCalls);
+        Assert.Equal((FakeRacClient.FirstClusterId, FakeRacClient.SecondJobId, RacJobAction.Resume), call);
+        Assert.NotEmpty(vm.StatusText);
+    }
+
+    [Fact]
+    public async Task PauseSelectedJob_ClientReturnsFalse_ShowsWarning_WithDetail()
+    {
+        var client = new FakeRacClient(actionFails: true);
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedJob = vm.Jobs.Single(j => j.Id == FakeRacClient.FirstJobId);
+        await vm.PauseSelectedJobAsync();
+
+        Assert.Single(client.StateCalls);
+        var warning = Assert.Single(dialogs.Warnings);
+        Assert.Contains("нет прав", warning.message);
+        Assert.NotEmpty(vm.StatusText);
+    }
+
+    [Fact]
+    public async Task PauseSelectedJob_ClientThrows_ShowsWarning_DoesNotCrash()
+    {
+        var client = new FakeRacClient(throwOnAction: true);
+        var dialogs = new RecordingDialogs();
+        var vm = new ServerMonitorViewModel(client, dialogs);
+        await vm.ConnectAsync();
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        vm.SelectedJob = vm.Jobs.Single(j => j.Id == FakeRacClient.FirstJobId);
+        await vm.PauseSelectedJobAsync();
+
+        Assert.Single(dialogs.Warnings);
+        Assert.NotEmpty(vm.StatusText);
+        Assert.False(vm.IsBusy);
+    }
+
     // ===================== Автообновление =====================
 
     [Fact]
@@ -542,11 +701,14 @@ public sealed class ServerMonitorViewModelTests
             });
         }
 
-        // Базы кластера монитор серверов не использует — пустой список.
+        // Базы кластера: одна база-владелец для маппинга имён заданий и фильтра.
         public Task<IReadOnlyList<RacInfobaseSummary>> GetInfobasesAsync(
             RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<RacInfobaseSummary>>(Array.Empty<RacInfobaseSummary>());
+            return Task.FromResult<IReadOnlyList<RacInfobaseSummary>>(new[]
+            {
+                new RacInfobaseSummary { InfobaseId = FirstInfobaseId, Name = "Бухгалтерия" }
+            });
         }
 
         public Task<IReadOnlyList<RacJobInfo>> GetJobsAsync(

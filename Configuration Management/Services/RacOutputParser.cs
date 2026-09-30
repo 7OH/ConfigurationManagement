@@ -306,53 +306,6 @@ public static class RacOutputParser
     }
 
     /// <summary>
-    /// Разбирает вывод «job list» в список регламентных заданий кластера.
-    /// Колонки: cluster, job, infobase, name, method-name, predefined, schedule, state,
-    /// started-at, next-start, last-start, last-end, last-success, last-error,
-    /// last-error-descr, process, …, result. Минимальный набор — первые 3 колонки
-    /// (cluster, job, infobase); отсутствующие справа — значения по умолчанию, лишние —
-    /// игнорируются. У строковых полей снимаются обрамляющие двойные кавычки (rac может
-    /// заключать значения с пробелами — например cron-расписание — в кавычки).
-    /// </summary>
-    public static IReadOnlyList<RacJobInfo> ToJobs(string output)
-    {
-        const int minColumns = 3;
-        var jobs = new List<RacJobInfo>();
-
-        foreach (var row in ParseTable(output))
-        {
-            if (row.Count < minColumns)
-                continue;
-
-            var id = ParseGuid(row[1]);
-            if (id == Guid.Empty)
-                continue; // строка заголовка или мусор
-
-            jobs.Add(new RacJobInfo
-            {
-                Id = id,
-                InfobaseId = ParseNullableGuid(Col(row, 2)),
-                Name = Unquote(Col(row, 3)),
-                MethodName = Unquote(Col(row, 4)),
-                Predefined = ParseBool(Col(row, 5)),
-                Schedule = Unquote(Col(row, 6)),
-                State = Unquote(Col(row, 7)),
-                StartedAt = ParseDateTime(Col(row, 8)),
-                NextStart = ParseDateTime(Col(row, 9)),
-                LastStart = ParseDateTime(Col(row, 10)),
-                LastEnd = ParseDateTime(Col(row, 11)),
-                LastSuccess = ParseBool(Col(row, 12)),
-                LastError = ParseBool(Col(row, 13)),
-                LastErrorDescr = Unquote(Col(row, 14)),
-                ProcessId = ParseGuid(Col(row, 15)),
-                Result = Unquote(Col(row, 21))
-            });
-        }
-
-        return jobs;
-    }
-
-    /// <summary>
     /// Разбирает вывод «cluster info» (формат «ключ: значение») в <see cref="RacClusterInfo"/>:
     /// сохраняет полный словарь свойств и заполняет типизированные частые поля.
     /// </summary>
@@ -392,19 +345,6 @@ public static class RacOutputParser
     /// <summary>Значение колонки с учётом «лишних колонок справа»: за пределами — пустая строка.</summary>
     private static string Col(IReadOnlyList<string> row, int index) =>
         index < row.Count ? row[index] : string.Empty;
-
-    /// <summary>
-    /// Снимает обрамляющие двойные кавычки со значения (rac может заключать поля
-    /// с пробелами — например cron-расписание — в кавычки). Некавыченные значения
-    /// возвращаются без изменений.
-    /// </summary>
-    private static string Unquote(string value)
-    {
-        var v = value.Trim();
-        if (v.Length >= 2 && v[0] == '"' && v[v.Length - 1] == '"')
-            return v.Substring(1, v.Length - 2).Trim();
-        return v;
-    }
 
     private static Guid ParseGuid(string value) =>
         Guid.TryParse(value.Trim(), out var guid) ? guid : Guid.Empty;
