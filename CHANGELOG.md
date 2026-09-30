@@ -9,6 +9,42 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.209] — 2026-10-01
+
+### Добавлено
+
+- **Автообновление платформы 1С (функция 9, этап 2): сервис каталога версий и
+  сопоставление с установленными** — продолжение цикла 0.3.9.208–0.3.9.216:
+  - Модель результата [`PlatformCatalogResult`](Configuration%20Management/Models/PlatformCatalogResult.cs)
+    (статус обращения к порталу [`PortalFetchStatus`](Configuration%20Management/Models/PlatformCatalogResult.cs):
+    Ok/AuthRequired/NotFound/NetworkError/Cancelled, ключ локализации
+    «PlatformUpdate.Error.*», список версий или файлы релиза) и строка окна
+    [`PlatformUpdateMatch`](Configuration%20Management/Models/PlatformUpdateMatch.cs)
+    (версия, признак установки, «есть обновление», новейшая доступная версия).
+  - Сервис [`IPlatformUpdateService`](Configuration%20Management/Services/IPlatformUpdateService.cs) /
+    [`PlatformUpdateService`](Configuration%20Management/Services/PlatformUpdateService.cs):
+    список доступных версий со страницы `releases.1c.ru/project/Platform83` через
+    `IOneCUpdatesService.GetPageTextAsync` + `OneCPlatformCatalogParser`; ленивая подгрузка
+    файлов релиза из `version_files?nick=Platform83&ver=…` (с приведением ссылки к
+    абсолютному адресу); маппинг ошибок (авторизация login.1c.ru/401/403 → AuthRequired,
+    404 → NotFound, пусто/исключение → NetworkError, отмена → Cancelled) без исключений
+    наружу; чистый `PickDistribution` — выбор дистрибутива под ОС/разрядность
+    (Windows — zip x64/x86, Linux — deb/rpm x64 или tar.gz), обе ветки тестируются.
+  - Чистые хелперы [`PlatformUpdateMatcher`](Configuration%20Management/Services/PlatformUpdateMatcher.cs):
+    `Merge` — единый список строк «установленные ∪ доступные» с признаком `HasUpdate`
+    и новейшей доступной версией (сортировка по убыванию числовыми сегментами);
+    `CountCompatibleBases` — число баз репозитория, чей `PlatformVersion` совместим
+    с выбранной версией (префикс 3 сегментов/точное 4, регистронезависимо).
+  - Регистрация `IPlatformUpdateService` в [`AppServices.cs`](Configuration%20Management/AppServices.cs)
+    рядом с `IOneCUpdatesService`.
+  - Тесты [`PlatformUpdateServiceTests`](ConfigurationManagement.Tests/PlatformUpdateServiceTests.cs)
+    (fake-провайдер текста: успех/пусто/сеть/отмена/авторизация/404;
+    `LoadReleaseFilesAsync`; `PickDistribution` для Windows и Linux) и
+    [`PlatformUpdateMatcherTests`](ConfigurationManagement.Tests/PlatformUpdateMatcherTests.cs)
+    (Merge без обновлений/с обновлением/только доступные/сортировка/числовое сравнение
+    8.3.10 vs 8.3.9; CountCompatibleBases — точное/префиксное/регистр/без версии);
+    `dotnet test` — зелёный, Linux-сборка без ошибок.
+
 ## [0.3.9.208] — 2026-10-01
 
 ### Добавлено
