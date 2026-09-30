@@ -2434,6 +2434,10 @@
     "Restore.FileNotFound": "Export file not found.",
     "Restore.StartFailed": "Failed to start the configurator for restore.",
     "Restore.Timeout": "Restore wait time exceeded.",
+
+    "BackupValidation.Status.Valid": "valid",
+    "BackupValidation.Status.Corrupt": "corrupt",
+    "BackupValidation.Status.NotChecked": "not checked",
     "Updates.CurrentVersion": "Current version",
     "Updates.LatestVersion": "Latest version",
     "Updates.IsNewer": "New release available",

@@ -2433,6 +2433,10 @@
     "Restore.FileNotFound": "Файл выгрузки не найден.",
     "Restore.StartFailed": "Не удалось запустить конфигуратор для восстановления.",
     "Restore.Timeout": "Превышено время ожидания восстановления.",
+
+    "BackupValidation.Status.Valid": "валидна",
+    "BackupValidation.Status.Corrupt": "повреждена",
+    "BackupValidation.Status.NotChecked": "не проверена",
     "Updates.CurrentVersion": "Текущая версия",
     "Updates.LatestVersion": "Последняя версия",
     "Updates.IsNewer": "Доступен новый релиз",

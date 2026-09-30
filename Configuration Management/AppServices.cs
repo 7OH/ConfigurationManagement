@@ -41,6 +41,10 @@ public static class AppServices
         // единый читаемый JSON-файл custom_actions.json рядом с настройками. Чистый сервис —
         // без UI-зависимостей.
         services.AddSingleton<ICustomActionsStore, CustomActionsStore>();
+        // Проверка резервных копий (функция 8, цикл 0.3.9.200–0.3.9.207): кэш результатов
+        // проверки — единый читаемый JSON-файл backup_validation_cache.json рядом с настройками.
+        // Чистый сервис — без UI-зависимостей.
+        services.AddSingleton<IBackupValidationCacheStore, BackupValidationCacheStore>();
         services.AddSingleton<IArchiveService, ArchiveService>();
         services.AddSingleton<IBackupService, BackupService>();
         // Задания по расписанию (issue #286): хранилище заданий, обновление конфигурации ИБ

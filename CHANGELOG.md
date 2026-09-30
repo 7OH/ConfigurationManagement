@@ -9,6 +9,33 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.200] — 2026-10-01
+
+### Добавлено
+
+- **Проверка резервных копий тестовым восстановлением (функция 8, этап 1): модель результата
+  проверки и JSON-кэш** — начало цикла 0.3.9.200–0.3.9.207:
+  - Новые типы [`BackupValidationStatus`](Configuration%20Management/Models/BackupValidationStatus.cs)
+    («не проверена / валидна / повреждена»),
+    [`BackupValidationDepth`](Configuration%20Management/Models/BackupValidationDepth.cs)
+    (быстрая структура / полное тестовое восстановление) и
+    [`BackupValidationResult`](Configuration%20Management/Models/BackupValidationResult.cs)
+    (путь файла, статус, тип ошибки, детали, дата проверки, длительность, размер,
+    отпечаток файла fingerprint).
+  - Хранилище [`IBackupValidationCacheStore`](Configuration%20Management/Services/IBackupValidationCacheStore.cs)
+    + [`BackupValidationCacheStore`](Configuration%20Management/Services/BackupValidationCacheStore.cs):
+    единый читаемый JSON `backup_validation_cache.json` в каталоге данных профиля, ключ —
+    нормализованный путь к файлу копии (регистронезависимо), атомарная запись, читаемая
+    кириллица, битый файл не роняет загрузку.
+  - Актуальность записи: если файл копии изменился или удалён после проверки
+    (не совпадает fingerprint — размер + дата последней записи), колонка «Проверка»
+    показывает «не проверена» до следующей реальной проверки.
+  - Регистрация хранилища в DI ([`AppServices.cs`](Configuration%20Management/AppServices.cs));
+    ключи локализации статусов `BackupValidation.Status.*` (ru/en).
+  - Тесты [`BackupValidationCacheStoreTests`](ConfigurationManagement.Tests/BackupValidationCacheStoreTests.cs):
+    CRUD по пути, нормализация, битый JSON, enum строкой, UTF-8, атомарность, устаревание
+    fingerprint; `dotnet test` — зелёный, Linux-сборка без ошибок.
+
 ## [0.3.9.199] — 2026-09-30
 
 ### Добавлено
