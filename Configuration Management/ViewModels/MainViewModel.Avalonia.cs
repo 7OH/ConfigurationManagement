@@ -390,6 +390,10 @@ public partial class MainViewModel : ViewModelBase
                 OnPropertyChanged(nameof(SwitchUserVisible));
         }
         catch { /* сервис профилей может отсутствовать в изолированном контексте */ }
+
+        // Кэш пользовательских действий контекстного меню (функция 7): загружается при
+        // старте, перечитывается после окна настроек (ReloadCustomActions).
+        ReloadCustomActions();
     }
 
     // ======================= Коллекции =======================

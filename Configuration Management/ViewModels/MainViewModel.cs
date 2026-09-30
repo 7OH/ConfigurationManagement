@@ -641,6 +641,10 @@ public partial class MainViewModel : ViewModelBase
 
         // Периодическое автосохранение состояния раскрытия групп.
         StartListStateAutoSave();
+
+        // Кэш пользовательских действий контекстного меню (функция 7): загружается при
+        // старте, перечитывается после окна настроек (ReloadCustomActions).
+        ReloadCustomActions();
     }
 
     /// <summary>Включено ли автосохранение состояния списка (раскрытые группы).</summary>

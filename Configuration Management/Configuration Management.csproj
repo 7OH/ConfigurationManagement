@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.194</Version>
-    <AssemblyVersion>0.3.9.194</AssemblyVersion>
-    <FileVersion>0.3.9.194</FileVersion>
-    <InformationalVersion>0.3.9.194</InformationalVersion>
+    <Version>0.3.9.195</Version>
+    <AssemblyVersion>0.3.9.195</AssemblyVersion>
+    <FileVersion>0.3.9.195</FileVersion>
+    <InformationalVersion>0.3.9.195</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -427,6 +427,17 @@
          имя не совпадает с глобом *.Avalonia.cs, добавляется явно. Платформенный хук
          (MainViewModel.ConnectionReplace.Avalonia.cs) подхватывается глобом *.Avalonia.cs. -->
     <Compile Include="ViewModels\MainViewModel.ConnectionReplace.cs" />
+    <!-- Мост функции «Пользовательские действия» в MainViewModel (0.3.9.195, функция 7):
+         общий для обеих платформ файл, имя не совпадает с глобом *.Avalonia.cs, добавляется
+         явно. Платформенный хук (MainViewModel.CustomActions.Avalonia.cs) подхватывается
+         глобом *.Avalonia.cs; Windows-хук (MainViewModel.CustomActions.Windows.cs) собирается
+         под #if WINDOWS дефолтным глобом SDK. -->
+    <Compile Include="ViewModels\MainViewModel.CustomActions.cs" />
+    <!-- VM редактора и строки списка пользовательских действий (0.3.9.195, функция 7):
+         чистый .NET без WPF-зависимостей, используются и Windows, и Linux — на Linux
+         подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\CustomActionEditViewModel.cs" />
+    <Compile Include="ViewModels\CustomActionItemViewModel.cs" />
     <!-- ViewModels окна «Хранилище конфигурации» (0.3.9.128, цикл 0.3.9.127–130):
          чистый .NET без платформенных зависимостей, используются обеими платформами —
          на Linux подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->

@@ -9,6 +9,52 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.195] — 2026-09-30
+
+### Добавлено
+
+- **Пользовательские действия контекстного меню (функция 7, третий этап): механика
+  выполнения** — оркестратор [`CustomActionRunner`](Configuration%20Management/Services/CustomActionRunner.cs)
+  (результат `CustomActionRunResult`, сборка команды через `ScriptParameterResolver`,
+  выполнение одной базы через `ExternalCommandRunner.RunAsync` с таймаутом действия,
+  параллельный запуск пакета `Task.WhenAll`, маскирование пароля в логе):
+  - **Выполнение**: пустая команда → ошибка без вызова исполнителя; таймаут определяется
+    трекером времени вокруг вызова (мгновенный код ошибки таймаутом не считается);
+    исключения исполнителя ловятся внутри и не роняют остальные базы.
+  - **Маскирование**: `MaskSecrets(commandLine, password)` заменяет точное значение пароля
+    на `***` (в т.ч. в экранированном виде `"pass"`/`'pass'`); единая точка —
+    `SensitiveDataMasker.MaskValue`.
+  - **Фильтр** [`CustomActionFilter`](Configuration%20Management/Services/CustomActionFilter.cs):
+    отбор действий по контексту (одиночная база → Base/Both; мультивыделение →
+    `SupportsBatch`; группа → Group/Both) с сохранением исходного порядка и фильтрация
+    видимых целей (обёртка `ConnectionReplacementPlanner.FilterVisibleInfobases` — приватные
+    базы заблокированного профиля исключаются).
+  - **VM редактора** [`CustomActionEditViewModel`](Configuration%20Management/ViewModels/CustomActionEditViewModel.cs)
+    (валидация `NameRequired`/`CommandRequired`/`TimeoutInvalid`, перенос полей в `ApplyTo`
+    без изменения Id, таймаут в секундах [1..600], список токенов `AvailableTokens`
+    с русскими `{…}`-токенами, живое превью `BuildExampleCommandLine`) и строка списка
+    [`CustomActionItemViewModel`](Configuration%20Management/ViewModels/CustomActionItemViewModel.cs)
+    (имя, локализованная область, превью команды, хоткей, колбэки Edit/Delete).
+  - **Мост** [`MainViewModel.CustomActions.cs`](Configuration%20Management/ViewModels/MainViewModel.CustomActions.cs):
+    кэш действий из хранилища (`CustomActions`/`ReloadCustomActions`), выполнение
+    `ExecuteCustomActionAsync` для целей области (выбранная база / мультивыделение /
+    базы текущей группы) с подтверждением (`AppSettings.ConfirmCustomActions`, по умолчанию
+    включено; индивидуальный флаг «Выполнять без подтверждения»), записью истории запусков
+    баз («Действие:<имя>» с маскированной командой), журналом, системным уведомлением со
+    сводкой и индикацией `IsCustomActionRunning`/`RunningCustomActionText`; чистая логика
+    выбора целей/подтверждения/истории — в `CustomActionExecutionPlan`.
+  - **Настройка** `AppSettings.ConfirmCustomActions` (по умолчанию `true`; флажок окна
+    настроек — этап 0.3.9.197) и ключи локализации ru/en для VM (токены, подтверждение,
+    статусы, ошибки валидации, уведомление).
+  - **Тесты** [`CustomActionRunnerTests`](ConfigurationManagement.Tests/CustomActionRunnerTests.cs),
+    [`CustomActionFilterTests`](ConfigurationManagement.Tests/CustomActionFilterTests.cs),
+    [`CustomActionEditViewModelTests`](ConfigurationManagement.Tests/CustomActionEditViewModelTests.cs)
+    и [`CustomActionExecutionPlanTests`](ConfigurationManagement.Tests/CustomActionExecutionPlanTests.cs):
+    успех/ошибка/таймаут/исключение/пустая команда, пакетный запуск (число вызовов,
+    подстановка `{ИмяБазы}`, независимость ошибок, порядок результатов), маскирование,
+    фильтрация по контекстам и приватности, валидация/перенос полей, цели областей,
+    подтверждение и запись истории.
+
 ## [0.3.9.194] — 2026-09-30
 
 ### Добавлено

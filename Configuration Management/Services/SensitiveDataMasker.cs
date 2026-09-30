@@ -58,6 +58,21 @@ internal static class SensitiveDataMasker
     }
 
     /// <summary>
+    /// Заменяет точное значение секрета на «***» во всём тексте (для логов): используется
+    /// при журналировании команд пользовательских действий (функция 7) — подставленное
+    /// значение пароля базы не должно попадать в историю запусков/журнал/уведомления.
+    /// Пустой секрет или текст → строка без изменений. Простая подстановка подстроки:
+    /// работает и в экранированном виде («pass»/'pass') — замена не зависит от кавычек.
+    /// </summary>
+    internal static string MaskValue(string? text, string? secret)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(secret))
+            return text ?? "";
+
+        return text.Replace(secret, "***", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Маскирует пароль хранилища конфигурации в командной строке 1cv8: значение ключа
     /// /ConfigurationRepositoryP "..." заменяется на «***» (и аналогичный -Pwd"…").
     /// Имя ключа и путь в других /ConfigurationRepository*-ключах не искажаются.
