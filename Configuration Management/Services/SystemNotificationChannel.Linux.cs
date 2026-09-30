@@ -1,35 +1,44 @@
 #if LINUX
 using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
+using Configuration_Management.Models;
 
 namespace Configuration_Management.Services;
 
 /// <summary>
-/// Системные уведомления (Linux/Avalonia): команда <c>notify-send</c> из libnotify —
-/// стандартный способ показать уведомление в десктоп-окружениях (GNOME, KDE и др.).
-/// Запускается отдельным процессом без окна (fire-and-forget), имя приложения задаётся
-/// через <c>--app-name</c>. Если notify-send не установлен или уведомления запрещены —
-/// тихий no-op: исключения процесса гасятся, приложение не падает.
+/// Системный канал уведомлений (Linux/Avalonia, функция №5): команда <c>notify-send</c>
+/// из libnotify — стандартный способ показать уведомление в десктоп-окружениях
+/// (GNOME, KDE и др.). Запускается отдельным процессом без окна (fire-and-forget),
+/// имя приложения задаётся через <c>--app-name</c>. Если notify-send не установлен
+/// или уведомления запрещены — тихий no-op (не ошибка).
 /// </summary>
-public sealed class NotificationService : INotificationService
+public sealed class SystemNotificationChannel : INotificationChannel
 {
     private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(3);
 
     private readonly IInfobaseRepository _repository;
 
-    public NotificationService(IInfobaseRepository repository)
+    public SystemNotificationChannel(IInfobaseRepository repository)
     {
         _repository = repository;
     }
 
-    public void Show(string title, string message)
+    /// <inheritdoc/>
+    public string Name => "system";
+
+    /// <inheritdoc/>
+    public bool IsEnabled(AppSettings settings) => settings.ShowSystemNotifications;
+
+    /// <inheritdoc/>
+    public Task<bool> SendAsync(NotificationMessage message, CancellationToken cancellationToken = default)
     {
         try
         {
             // Настройка «Системные уведомления» (AppSettings.ShowSystemNotifications):
-            // при false все уведомления подавляются.
+            // при false все уведомления подавляются (страховка для прямых вызовов).
             if (!_repository.LoadSettings().ShowSystemNotifications)
-                return;
+                return Task.FromResult(true);
 
             using var process = new Process
             {
@@ -43,14 +52,14 @@ public sealed class NotificationService : INotificationService
                     ArgumentList =
                     {
                         "--app-name=ConfigurationManagement",
-                        title ?? string.Empty,
-                        message ?? string.Empty
+                        message.Title ?? string.Empty,
+                        message.Message ?? string.Empty
                     }
                 }
             };
 
             if (!process.Start())
-                return;
+                return Task.FromResult(true);
 
             // Дожидаемся завершения с ограничением по времени: убивать не нужно,
             // но и держать поток планировщика дольше пары секунд тоже не стоит.
@@ -58,10 +67,13 @@ public sealed class NotificationService : INotificationService
             {
                 try { process.Kill(); } catch { /* процесс мог завершиться сам */ }
             }
+
+            return Task.FromResult(true);
         }
         catch
         {
             // notify-send отсутствует / окружение без уведомлений — тихий no-op.
+            return Task.FromResult(true);
         }
     }
 }

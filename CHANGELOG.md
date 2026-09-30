@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.180] — 2026-09-30
+
+### Добавлено
+
+- **Уведомления в Telegram и по email (функция 5, этап 1): мультиканальный диспетчер** —
+  инфраструктура расширения системы уведомлений. Новые типы
+  [`NotificationKind`](Configuration%20Management/Services/NotificationModels.cs)
+  (Info/Success/Warning/Error), `NotificationEvent` (резервная копия / задание по расписанию /
+  новая версия приложения / тест) и сообщение `NotificationMessage`; абстракция канала
+  [`INotificationChannel`](Configuration%20Management/Services/INotificationChannel.cs)
+  (`IsEnabled` + асинхронный `SendAsync` с тихой деградацией);
+  [`NotificationDispatcher`](Configuration%20Management/Services/NotificationDispatcher.cs) —
+  единая реализация `INotificationService`, рассылающая сообщение всем включённым каналам
+  параллельно, изолирующая ошибки каналов (не всплывают наружу) и читающая настройки один
+  раз на сообщение. Существующие системные уведомления ОС переведены в
+  `SystemNotificationChannel` (balloon-tip трея на Windows/WPF,
+  notify-send на Linux/Avalonia) с полным сохранением поведения (настройка
+  «Системные уведомления», fire-and-forget, тихий no-op). DI: в
+  [`AppServices.cs`](Configuration%20Management/AppServices.cs) каналы регистрируются
+  множественно, диспетчер — как `INotificationService`; все существующие точки вызова
+  (резервная копия, задания по расписанию, автообновление) продолжают работать без изменений.
+  Каналы Telegram и email добавляются следующими этапами.
+- **Тесты:** новых юнит-тестов **7** (диспетчер: фильтрация выключенных каналов, передача
+  вида/события, параллельная рассылка, изоляция исключений и `false`-результата канала,
+  актуальность настроек в `IsEnabled`). `FakeNotifications` в `ScheduleCatchUpTests` дополнен
+  новой перегрузкой интерфейса. Всего **836 тестов зелёные**, сборки Windows (WPF) и Linux
+  (Avalonia) без ошибок.
+
 ## [0.3.9.179] — 2026-09-30
 
 ### Добавлено

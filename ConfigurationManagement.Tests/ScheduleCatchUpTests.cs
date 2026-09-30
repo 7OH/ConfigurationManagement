@@ -268,5 +268,9 @@ public sealed class ScheduleCatchUpTests
     private sealed class FakeNotifications : INotificationService
     {
         public void Show(string title, string message) { }
+
+        public void Show(string title, string message, NotificationKind kind, NotificationEvent evt = NotificationEvent.ManualTest)
+        {
+        }
     }
 }
