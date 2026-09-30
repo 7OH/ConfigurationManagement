@@ -106,6 +106,46 @@ Configuration Management/
 - пароль администратора кластера передаётся в VM из PasswordBox вручную и живёт только в памяти
   окна: в настройках хранятся лишь адрес/порт/логин, в журнал пароль не попадает.
 
+### Регламентные задания кластера (rac)
+
+Функция «Серверы 1С → вкладка Регламентные задания» (цикл 0.3.9.176–0.3.9.179) расширяет
+встроенный монитор серверов: список регламентных заданий кластера с состояниями, расписанием,
+временами и результатом последнего запуска, фильтром по базе-владельцу, действиями
+«Приостановить/Возобновить» (с подтверждением) и окном «Детали задания». Связка чистых
+сервисов та же, что у импорта: [`IRacClient`](Configuration Management/Services/IRacClient.cs) →
+[`RacOutputParser`](Configuration Management/Services/RacOutputParser.cs) →
+[`ServerMonitorViewModel`](Configuration Management/ViewModels/ServerMonitorViewModel.cs) → окна.
+
+- [`IRacClient`](Configuration Management/Services/IRacClient.cs) — добавлены
+  `GetJobsAsync` (`job list --cluster=<uuid>`) и `SetJobStateAsync`
+  (`job pause/resume/disable/enable --cluster= --job=`, `bool` + `LastActionError`
+  по образцу `session terminate`). Модель `RacJobInfo` (идентификатор, ИБ-владелец, имя, метод,
+  признак предопределённого, cron-расписание, состояние, времена запусков, успех/ошибка и
+  результат последнего запуска) и перечисление `RacJobAction` — в `Models/RacModels.cs`.
+- [`RacOutputParser`](Configuration Management/Services/RacOutputParser.cs) — `ToJobs`:
+  позиционный парсер с минимальным набором 3 колонок (заголовок и невалидный GUID пропускаются),
+  у строковых полей снимаются обрамляющие кавычки (`schedule`/`result` могут содержать пробелы).
+- [`RacJobRow`](Configuration Management/ViewModels/RacJobRow.cs) — форматирование строки вкладки:
+  локализованное состояние с цветом, времена, обрезанный результат, доступность действий
+  (`CanPause`/`CanResume`) и полный текст деталей `DetailsText`.
+- [`ServerMonitorViewModel`](Configuration Management/ViewModels/ServerMonitorViewModel.cs) —
+  коллекции `Jobs`/`FilteredJobs`, фильтр по базе через кэшированный `GetInfobasesAsync`
+  (задания отдают GUID ИБ, имена подставляются из `infobase summary list`; сбой списка баз не
+  роняет вкладку), команды `PauseJobCommand`/`ResumeJobCommand` с подтверждением и обработкой
+  `LastActionError`; выбор и фильтр сохраняются при автообновлении (5 с).
+- Окна — тонкие обёртки: вкладка в WPF `Views/ServerMonitorWindow.xaml` и Avalonia
+  `Views/ServerMonitorWindow.Avalonia.cs` (фильтр-ComboBox, кнопки действий с энаблингом от
+  состояния выбранной строки), детали — `Views/JobDetailsWindow.xaml` / `.Avalonia.cs`.
+
+Ограничения (см. план цикла 0.3.9.176–0.3.9.179, п. 6/9):
+- состав колонок `job list` может отличаться между версиями платформы — парсер позиционный
+  (минимум 3 колонки), отсутствующие справа поля показываются «—»; на старых rac без поддержки
+  `job`-команд пользователь видит понятную ошибку (stderr как есть);
+- задания видны только администратору кластера: при пустом списке вкладка показывает подсказку
+  про права;
+- изменение расписания (`schedule set`), ручной запуск и история запусков глубже последнего —
+  вне цикла.
+
 ## 4. Выполненный рефакторинг
 
 ### Разбиение монолита `MainViewModel`
