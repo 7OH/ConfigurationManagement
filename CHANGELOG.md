@@ -9,6 +9,83 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.216] — 2026-10-01
+
+### Добавлено
+
+- **0.3.9.216: автообновление платформы — документация и сборки** — завершение цикла
+0.3.9.208–0.3.9.216 (функция 9 «Автообновление платформы 1С»):
+- Обновлён [`ARCHITECTURE.md`](ARCHITECTURE.md) — новый подраздел «Автообновление платформы 1С»:
+  связка `IPlatformUpdateService`/`PlatformUpdateService` → `OneCUpdatesService`
+  (авторизация портала, `GetPageTextAsync`, `DownloadDistributionAsync`) → `ParallelDownloader`
+  → `PlatformInstaller.*` (Windows: распаковка/тихая установка/подпись/UAC; Linux: sudo-команды)
+  → `PlatformUpdateViewModel` → окна WPF/Avalonia → предупреждения (`PlatformInstallPreflight`,
+  `IRunningInfobasesService`, `DiskFreeSpaceHelper`) → уведомления (`INotificationService`,
+  `NotificationEvent.Update`); ограничения: Linux — только команда sudo (без автоматического
+  повышения прав), подпись — только наличие Authenticode без цепочки WinTrust, записи реестра
+  Uninstall при удалении старых версий не очищаются.
+- [`README.md`](README.md) — бейдж версии **0.3.9.216** и пункт «Автообновление платформы 1С»
+  в разделе возможностей.
+- Полные сборки Windows (WPF) и Linux (`-p:BuildLinux=true`) **без ошибок**;
+  `dotnet test` — зелёный (полный прогон). Сквозная ручная проверка по п. 4.9 плана:
+  локально проверены чистые логические пути тестами (парсер каталога, статусы
+  авторизации/сети, сопоставление и совместимость, стратегии загрузки, аргументы установщика,
+  sudo-команды, VM-команды, предупреждения, уведомления) и обе платформенные сборки;
+  интерактивные сценарии (реальный список с портала, загрузка дистрибутива, тихая установка
+  с UAC, sudo в терминале, удаление версии) требуют машины с установленной платформой 1С и
+  учётной записью портала — детали в отчёте этапа.
+- **Сводка функции (цикл 0.3.9.208–0.3.9.216):** автообновление технологической платформы
+1С:Предприятие из окна приложения (`Ctrl+F9`):
+- **Модели каталога и парсер** (этап 0.3.9.208): [`PlatformDistributionKind`](Configuration%20Management/Models/PlatformDistributionKind.cs),
+  [`PlatformReleaseFile`](Configuration%20Management/Models/PlatformReleaseFile.cs),
+  [`PlatformRelease`](Configuration%20Management/Models/PlatformRelease.cs);
+  [`OneCPlatformCatalogParser`](Configuration%20Management/Services/OneCPlatformCatalogParser.cs) —
+  все версии со страницы `releases.1c.ru/project/Platform83` (строки `#versionsTable` + fallback
+  по HTML), файлы релиза из `version_files?nick=Platform83&ver=…` (zip/deb/rpm с размерами и
+  разрядностью); расширение `IOneCUpdatesService.GetPageTextAsync`.
+- **Сервис обновлений** (этап 0.3.9.209): [`IPlatformUpdateService`](Configuration%20Management/Services/IPlatformUpdateService.cs) /
+  [`PlatformUpdateService`](Configuration%20Management/Services/PlatformUpdateService.cs) —
+  список доступных версий с портала (статусы `PlatformCatalogResult`, ни один не бросает
+  исключение), ленивая подгрузка файлов релиза, выбор дистрибутива под ОС/разрядность
+  (`PickDistribution`); чистый [`PlatformUpdateMatcher`](Configuration%20Management/Services/PlatformUpdateMatcher.cs) —
+  сопоставление установленных ↔ доступных (числовые сегменты, признак `HasUpdate`) и
+  `CountCompatibleBases` — совместимость с базами репозитория.
+- **Загрузка дистрибутива** (этап 0.3.9.210): `IOneCUpdatesService.DownloadDistributionAsync` —
+  многопоточная загрузка [`ParallelDownloader.TryDownloadAsync`](Configuration%20Management/Services/ParallelDownloader.cs)
+  (HTTP Range, докачка, работа всех соединений до конца файла) с fallback на однопоточный
+  авторизованный путь `SendWithAuthAsync` + `ReadAsStream`; проверка свободного места
+  [`DiskFreeSpaceHelper`](Configuration%20Management/Services/DiskFreeSpaceHelper.cs).
+- **Установка Windows** (этап 0.3.9.211): [`PlatformInstaller.Windows.cs`](Configuration%20Management/Services/PlatformInstaller.Windows.cs) —
+  распаковка zip через `IArchiveService.ExtractArchive`, поиск `setup.exe` (корень и
+  подкаталоги), тихая установка `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` (+`/DIR=`), проверка
+  Authenticode-подписи, запуск с UAC (`Verb="runas"`), пересканирование установленных версий
+  до появления новой (критерий успеха — фактическая установка, не код возврата).
+- **Установка Linux** (этап 0.3.9.212): [`PlatformInstaller.Linux.cs`](Configuration%20Management/Services/PlatformInstaller.Linux.cs) —
+  определение типа пакета (`.deb` → `sudo dpkg -i`, `.rpm` → `sudo dnf install -y`, `.tar.gz` →
+  инструкция), генерация команды sudo для пользователя и копирование в буфер обмена; список
+  актуализируется пересканированием после ручной установки.
+- **UI-ядро и окно WPF** (этап 0.3.9.213): [`PlatformUpdateViewModel`](Configuration%20Management/ViewModels/PlatformUpdateViewModel.cs)
+  + [`PlatformUpdateRowViewModel`](Configuration%20Management/ViewModels/PlatformUpdateRowViewModel.cs) —
+  единый список «установленные ∪ доступные» (колонки Версия/Размер/Статус/Совместимые базы),
+  команды «Проверить обновления», «Скачать и установить», «Только скачать», «Выбрать файл
+  установщика…», прогресс и журнал; окно [`PlatformUpdateWindow`](Configuration%20Management/Views/PlatformUpdateWindow.xaml) (WPF).
+- **Интеграция и безопасность** (этап 0.3.9.214): окно [`PlatformUpdateWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformUpdateWindow.Avalonia.cs);
+  команда и хоткей `Ctrl+F9` ([`MainViewModel.PlatformUpdate.cs`](Configuration%20Management/ViewModels/MainViewModel.PlatformUpdate.cs)
+  / [`MainViewModel.Avalonia.PlatformUpdate.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.PlatformUpdate.cs)),
+  пункт меню и настройка хоткея; предупреждения перед установкой — чистый
+  [`PlatformInstallPreflight`](Configuration%20Management/Services/PlatformInstallPreflight.cs)
+  (занятые процессы 1С через `IRunningInfobasesService`, права администратора, свободное место,
+  подпись файла) с подтверждением «Продолжить?»; журналирование `IAppLogger`; уведомление о
+  результате `INotificationService` (`NotificationEvent.Update`).
+- **Удаление старых версий** (этап 0.3.9.215): [`OldVersionCleaner`](Configuration%20Management/Services/OldVersionCleaner.cs) —
+  чистый отбор кандидатов (исключаются новейшая, используемые базами и запущенная версия);
+  Windows — удаление каталога с правами (`Remove-Item` + `runas`), Linux — команда sudo;
+  отображение совместимости с базами (`CompatibleBaseNames`).
+- **Тесты:** `OneCPlatformCatalogParserTests`, `PlatformUpdateServiceTests`,
+  `PlatformUpdateMatcherTests`, `PlatformDownloadTests`, `PlatformInstallerWindowsTests`,
+  `PlatformInstallerLinuxTests`, `PlatformUpdateViewModelTests`, `PlatformInstallPreflightTests`,
+  `OldVersionCleanerTests`; полный прогон зелёный, сборки Windows и Linux без ошибок.
+
 ## [0.3.9.215] — 2026-10-01
 
 ### Добавлено

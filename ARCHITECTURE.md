@@ -291,6 +291,93 @@ Configuration Management/
 - **режим «Пользователь»**: подменю доступно (пункт с `Tag="User"`) — действия являются
   пользовательской настройкой, но приватные цели всё равно исключаются фильтром.
 
+### Автообновление платформы 1С
+
+Функция «Утилиты → Обновление платформы 1С» (цикл 0.3.9.208–0.3.9.216, горячая клавиша
+`Ctrl+F9`) — окно обновления технологической платформы 1С: список установленных и доступных
+версий с портала, загрузка дистрибутива, установка (Windows — тихая с UAC, Linux — sudo-команда)
+и удаление старых версий. Связка чистых слоёв (без платформенных зависимостей) и тонких
+платформенных обёрток:
+
+- [`Services/PlatformUpdateService.cs`](Configuration Management/Services/PlatformUpdateService.cs)
+  (`IPlatformUpdateService`) — получение доступных версий с портала через
+  [`OneCUpdatesService.GetPageTextAsync`](Configuration Management/Services/OneCUpdatesService.cs)
+  (готовая авторизация портала 1С: Basic Auth + гибридный вход на `login.1c.ru` CAS,
+  `CookieContainer`, ручное следование редиректам с перевыставлением `Authorization`),
+  ленивая подгрузка файлов релиза (`LoadReleaseFilesAsync`), выбор дистрибутива под ОС/разрядность
+  (`PickDistribution`); результат `PlatformCatalogResult` со статусами
+  Ok/AuthRequired/NotFound/NetworkError/Cancelled — ни один не бросает исключение. Чистый
+  [`PlatformUpdateMatcher`](Configuration Management/Services/PlatformUpdateMatcher.cs) — численное
+  сопоставление установленных ↔ доступных (признак `HasUpdate`) и `CountCompatibleBases`/
+  `GetCompatibleBaseNames` (совместимость с базами репозитория по `Infobase.PlatformVersion`).
+- [`Services/OneCPlatformCatalogParser.cs`](Configuration Management/Services/OneCPlatformCatalogParser.cs) —
+  чистый парсер каталога: все версии со страницы `releases.1c.ru/project/Platform83` (строки
+  `#versionsTable` + fallback-поиск по всему HTML, дедупликация, сортировка числовыми сегментами),
+  файлы релиза из `version_files?nick=…&ver=…` (JSON/HTML: классификация по расширению —
+  zip/deb/rpm/tar.gz — и токенам разрядности, размеры); константа `PlatformNick`.
+- Загрузка дистрибутива: `OneCUpdatesService.DownloadDistributionAsync` — parallel-first через
+  [`ParallelDownloader.TryDownloadAsync`](Configuration Management/Services/ParallelDownloader.cs)
+  (HTTP Range, до 8 соединений, докачка `.part`, работа всех соединений до конца файла; null —
+  если распараллелить нельзя) с fallback на существующий однопоточный авторизованный путь
+  `SendWithAuthAsync` + `ReadAsStream`; перед загрузкой проверка свободного места
+  [`DiskFreeSpaceHelper`](Configuration Management/Services/DiskFreeSpaceHelper.cs)
+  (`IsWarning(free, size+1ГБ)`); временные `.part`/`.etag` очищаются в обоих путях.
+- [`Services/PlatformInstaller.Windows.cs`](Configuration Management/Services/PlatformInstaller.Windows.cs)
+  (`#if WINDOWS`) — распаковка zip через `IArchiveService.ExtractArchive`, поиск `setup.exe`
+  (корень и подкаталоги архива), сборка аргументов тихой установки
+  `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` (+`/DIR=`), проверка Authenticode-подписи
+  (`X509Certificate2.CreateFromSignedFile` — не бросает, false = подпись не читается), запуск
+  с UAC (`Verb="runas"`), ожидание до таймаута (15 мин) и пересканирование
+  `PlatformVersionService.FindInstalledVersionInfos()` до появления новой версии (poll до 120 с —
+  главный критерий успеха, надёжнее кода возврата на UAC-границе); удаление каталога старой
+  версии `Remove-Item -Recurse -Force` с `Verb="runas"`.
+- [`Services/PlatformInstaller.Linux.cs`](Configuration Management/Services/PlatformInstaller.Linux.cs)
+  (`#if LINUX`) — определение типа пакета (`DetectPackageType`: `.deb` → Dpkg, `.rpm` → Rpm,
+  `.tar.gz` → TarGz), генерация команд sudo для пользователя
+  ([`PlatformInstallerCommands.BuildSudoInstallCommand`](Configuration Management/Services/PlatformInstallerCommands.cs):
+  `sudo dpkg -i '<путь>'` / `sudo dnf install -y '<путь>'`; `BuildSudoUninstallCommand`:
+  `sudo dpkg -r 1c-enterprise83-<версия>` / `sudo rm -rf /opt/1cv8/<версия>`); команда показывается
+  в журнале окна и копируется в буфер обмена (Avalonia); после ручной установки список
+  обновляется пересканированием ФС — отдельного кэша не вводится.
+- [`ViewModels/PlatformUpdateViewModel.cs`](Configuration Management/ViewModels/PlatformUpdateViewModel.cs)
+  + [`PlatformUpdateRowViewModel.cs`](Configuration Management/ViewModels/PlatformUpdateRowViewModel.cs) —
+  чистый VM обеих платформ: единый список строк «установленные ∪ доступные» (колонки
+  Версия/Размер/Статус/Совместимые базы), команды «Проверить обновления», «Скачать и установить»,
+  «Только скачать», «Выбрать файл установщика…», «Удалить старые версии…», прогресс 0..1 и
+  журнал операций; сетевые/установочные операции и диалоги — инжектируемые делегаты, поэтому
+  модель тестируется на fake-сервисах.
+- Окна — тонкие обёртки: WPF `Views/PlatformUpdateWindow.xaml` + `.xaml.cs` и Avalonia
+  `Views/PlatformUpdateWindow.Avalonia.cs` (по образцу `ActualReleasesWindow`); открытие, пункт
+  меню и хоткей `Ctrl+F9` (`HotkeyPlatformUpdate`, настраивается) — [`MainViewModel.PlatformUpdate.cs`](Configuration Management/ViewModels/MainViewModel.PlatformUpdate.cs)
+  (`#if WINDOWS`) и [`MainViewModel.Avalonia.PlatformUpdate.cs`](Configuration Management/ViewModels/MainViewModel.Avalonia.PlatformUpdate.cs)
+  (`#if LINUX`).
+- Предупреждения перед установкой — чистый [`PlatformInstallPreflight`](Configuration Management/Services/PlatformInstallPreflight.cs):
+  занятые процессы 1С ([`IRunningInfobasesService`](Configuration Management/Services/IRunningInfobasesService.cs)),
+  права администратора (`PlatformInstaller.IsAdministrator`), свободное место на целевом диске
+  (размер + 1 ГБ, `DiskFreeSpaceHelper`), подпись файла; замечания выводятся в журнал и требуют
+  подтверждения «Продолжить?» (инжектируемый диалог, отмена останавливает операцию).
+- Уведомление о результате — `INotificationService.Show(title, summary, kind, evt: Update)`
+  ([`NotificationEvent.Update`](Configuration Management/Services/NotificationModels.cs)): Success/
+  Warning (частичный успех — например подпись не проверена)/Error; тексты `Notify.PlatformUpdate*`;
+  журналирование этапов операции — `IAppLogger`.
+- Удаление старых версий — чистый [`OldVersionCleaner`](Configuration Management/Services/OldVersionCleaner.cs):
+  `SelectCandidates` исключает новейшую установленную, версии, на которые ссылаются базы
+  репозитория (точное совпадение или сегментный префикс), и версию запущенного процесса;
+  удаление с подтверждением (Windows — каталог с `runas`, Linux — команда sudo).
+
+Ограничения (см. план цикла 0.3.9.208–0.3.9.216, п. 3/9):
+- на Linux установка из GUI безопасно невозможна: окно показывает готовую команду sudo и
+  короткую инструкцию, автоматическое повышение прав (`sudo`/`pkexec`) из приложения не
+  выполняется; для `.tar.gz` — только инструкция (распаковка + `./install`);
+- проверка подписи — только наличие Authenticode-подписи (`X509Certificate2.CreateFromSignedFile`),
+  полная цепочка доверия WinTrust/CRL не проверяется;
+- при удалении старых версий на Windows удаляется только каталог версии: записи реестра
+  Uninstall и ярлыки не трогаются (чистота системы — за штатным деинсталлятором 1С);
+- совместимость с базами отображается информативно (колонка «Совместимые базы»), массовая
+  миграция баз под новую версию платформы не выполняется;
+- файлы всех версий каталога не предзагружаются (лениво для выбранной версии); автопроверка
+  обновлений платформы по расписанию не выполняется — только ручной запуск из окна.
+
 ## 4. Выполненный рефакторинг
 
 ### Разбиение монолита `MainViewModel`
