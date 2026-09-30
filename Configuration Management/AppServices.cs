@@ -37,6 +37,10 @@ public static class AppServices
         // Сценарии запуска скриптов (issue #308): JSON-хранилище и чистая подстановка
         // параметров. Чистые сервисы — без UI-зависимостей.
         services.AddSingleton<IScriptScenarioStore, ScriptScenarioStore>();
+        // Пользовательские действия контекстного меню (функция 7, цикл 0.3.9.193–0.3.9.199):
+        // единый читаемый JSON-файл custom_actions.json рядом с настройками. Чистый сервис —
+        // без UI-зависимостей.
+        services.AddSingleton<ICustomActionsStore, CustomActionsStore>();
         services.AddSingleton<IArchiveService, ArchiveService>();
         services.AddSingleton<IBackupService, BackupService>();
         // Задания по расписанию (issue #286): хранилище заданий, обновление конфигурации ИБ
