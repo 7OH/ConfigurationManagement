@@ -6,30 +6,41 @@ using Configuration_Management.Models;
 namespace Configuration_Management.Services;
 
 /// <summary>
-/// Чистая подстановка параметров сценариев запуска скриптов (issue #308).
+/// Чистая подстановка параметров сценариев запуска скриптов и пользовательских
+/// действий (issue #308, функция 7).
 /// <para>
-/// Поддерживаются токены вида <c>%ключ%</c>: имя базы (<c>%name%</c>), свойства
-/// подключения через точку (<c>%connection.server%</c>, <c>%connection.database%</c>,
-/// <c>%connection.filePath%</c>, <c>%connection.password%</c> и т.д.), пароль —
-/// также плоский ключ <c>%password%</c>, и текущая дата — <c>%date%</c> (по умолчанию
-/// <c>yyyy-MM-dd</c>) либо <c>%date:Формат%</c> (формат .NET, например
-/// <c>%date:yyyyMMdd_HHmm%</c>). Неизвестный ключ по умолчанию остаётся в строке
-/// как есть; при <c>leaveUnknown=false</c> заменяется пустой строкой.
+/// Поддерживаются токены двух синтаксисов — <c>%ключ%</c> и <c>{ключ}</c> (например
+/// <c>{ИмяБазы}</c>, <c>{СтрокаПодключения}</c>): имя базы (<c>%name%</c>/<c>{ИмяБазы}</c>),
+/// свойства подключения через точку (<c>%connection.server%</c>, <c>%connection.database%</c>,
+/// <c>%connection.filePath%</c>, <c>%connection.password%</c> и т.д.), пароль — также
+/// плоский ключ <c>%password%</c>/<c>{Пароль}</c>, и текущая дата — <c>%date%</c>/<c>{Дата}</c>
+/// (по умолчанию <c>yyyy-MM-dd</c>) либо <c>%date:Формат%</c>/<c>{Дата:Формат}</c>
+/// (формат .NET, например <c>%date:yyyyMMdd_HHmm%</c>). Неизвестный ключ по умолчанию
+/// остаётся в строке как есть; при <c>leaveUnknown=false</c> заменяется пустой строкой.
 /// </para>
 /// <para>
 /// Карта значений собирается из явных ключей плюс динамического прохода рефлексией
 /// по публичным свойствам <see cref="Infobase"/> и <see cref="ConnectionSettings"/>
 /// (ключи <c>connection.<имя></c> и плоские <c><имя></c> в нижнем регистре):
-/// будущие свойства моделей подхватываются автоматически. Явные ключи перезаписывают
-/// динамические, поведение неизвестного ключа (leaveUnknown=true) не меняется.
+/// будущие свойства моделей подхватываются автоматически. Явные ключи (включая
+/// русские алиасы <c>{ИмяБазы}</c>, <c>{СтрокаПодключения}</c>, <c>{Каталог}</c>,
+/// <c>{ПутьИБ}</c>, <c>{Тип}</c>, <c>{Сервер}</c>, <c>{ИмяНаСервере}</c>,
+/// <c>{ИмяГруппы}</c>, <c>{Пользователь}</c>, <c>{Пароль}</c>, <c>{ВебURL}</c>,
+/// <c>{Порт}</c>) перезаписывают динамические; все ключи регистронезависимы.
 /// </para>
 /// <para>
-/// Класс не зависит от UI-платформы и покрыт юнит-тестами (ScriptParameterResolverTests).
+/// Для пользовательских действий значения могут экранироваться под выбранный shell
+/// (<see cref="EscapeForShell"/>, флаг <c>escapeValues</c> в <see cref="Resolve"/>);
+/// сборка команды действия — <see cref="BuildActionCommandLine"/> /
+/// <see cref="BuildActionShellCommandLine"/>. Класс не зависит от UI-платформы и
+/// покрыт юнит-тестами (ScriptParameterResolverTests).
 /// </para>
 /// </summary>
 public static class ScriptParameterResolver
 {
-    private static readonly Regex TokenPattern = new("%([^%]+)%", RegexOptions.Compiled);
+    // Составной паттерн: прежние токены %ключ% (группа 2) и новые {ключ} (группа 3).
+    // Группа 1 — весь совпавший токен (для leaveUnknown возвращается как есть).
+    private static readonly Regex TokenPattern = new("(%([^%]+)%|\\{([^{}]+)\\})", RegexOptions.Compiled);
 
     /// <summary>Формат даты по умолчанию для токена <c>%date%</c>.</summary>
     public const string DefaultDateFormat = "yyyy-MM-dd";
@@ -108,6 +119,23 @@ public static class ScriptParameterResolver
         map["connection.forbidSpeechRecognition"] = conn.ForbidSpeechRecognition.ToString();
         map["connection.authenticationMode"] = conn.AuthenticationMode.ToString();
         map["connection.useOsAuthentication"] = conn.UseOsAuthentication.ToString();
+
+        // Русские и канонические алиасы (цикл 0.3.9.194, функция 7): ключи
+        // регистронезависимы (словарь OrdinalIgnoreCase), перезаписывают динамические
+        // и прежние явные ключи; {ПутьИБ} — синоним {Каталог} (путь файловой базы).
+        map["имябазы"] = infobase.Name ?? "";
+        map["строкаподключения"] = conn.ToConnectionString();
+        map["каталог"] = conn.FilePath ?? "";
+        map["путьиб"] = conn.FilePath ?? "";
+        map["id"] = infobase.Id ?? "";
+        map["тип"] = conn.Type.ToString();
+        map["сервер"] = conn.Server ?? "";
+        map["имянасервере"] = conn.DatabaseName ?? "";
+        map["имягруппы"] = infobase.Group ?? "";
+        map["пользователь"] = conn.User ?? "";
+        map["пароль"] = conn.Password ?? "";
+        map["вебurl"] = conn.WebUrl ?? "";
+        map["порт"] = conn.Port.ToString();
         return map;
     }
 
@@ -134,17 +162,26 @@ public static class ScriptParameterResolver
     /// <summary>
     /// Выполняет подстановку токенов в шаблоне. Момент времени <paramref name="now"/>
     /// передаётся явно для тестируемости; <c>null</c> — текущее время.
+    /// Оба синтаксиса токенов (<c>%…%</c> и <c>{…}</c>) обрабатываются одинаково.
     /// </summary>
-    /// <param name="template">Шаблон с токенами <c>%…%</c>.</param>
+    /// <param name="template">Шаблон с токенами <c>%…%</c> или <c>{…}</c>.</param>
     /// <param name="values">Значения подстановок (см. <see cref="BuildValueMap"/>).</param>
     /// <param name="now">Момент времени для <c>%date%</c>/<c>%date:…%</c>.</param>
     /// <param name="leaveUnknown">Оставлять неизвестный токен как есть (<c>true</c>)
     /// или заменять пустой строкой (<c>false</c>).</param>
+    /// <param name="escapeValues">Экранировать подставленные значения из словаря
+    /// через <see cref="EscapeForShell"/> (<c>true</c>); токены даты не экранируются.
+    /// По умолчанию <c>false</c> — прежнее поведение сценариев.</param>
+    /// <param name="shell">Интерпретатор для экранирования; <c>null</c> —
+    /// <see cref="ScriptShell.Auto"/> (по платформе). Используется только при
+    /// <paramref name="escapeValues"/> = <c>true</c>.</param>
     public static string Resolve(
         string? template,
         IReadOnlyDictionary<string, string>? values,
         DateTime? now = null,
-        bool leaveUnknown = true)
+        bool leaveUnknown = true,
+        bool escapeValues = false,
+        ScriptShell? shell = null)
     {
         if (string.IsNullOrEmpty(template))
             return template ?? "";
@@ -152,14 +189,21 @@ public static class ScriptParameterResolver
         var current = now ?? DateTime.Now;
         return TokenPattern.Replace(template, match =>
         {
-            var token = match.Groups[1].Value.Trim();
-            if (token.Equals("date", StringComparison.OrdinalIgnoreCase))
+            var token = (match.Groups[2].Success ? match.Groups[2].Value : match.Groups[3].Value).Trim();
+            // Дата распознаётся и по-английски (%date%), и по-русски ({Дата}) —
+            // префикс формата отделяется двоеточием (%date:…%/{Дата:…}).
+            if (token.Equals("date", StringComparison.OrdinalIgnoreCase)
+                || token.Equals("дата", StringComparison.OrdinalIgnoreCase))
                 return SafeFormat(current, DefaultDateFormat);
-            if (token.StartsWith("date:", StringComparison.OrdinalIgnoreCase))
-                return SafeFormat(current, token.Substring(5));
+            if (token.StartsWith("date:", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("дата:", StringComparison.OrdinalIgnoreCase))
+                return SafeFormat(current, token.Substring(token.IndexOf(':') + 1));
 
             if (values is not null && values.TryGetValue(token, out var value))
-                return value ?? "";
+            {
+                var resolved = value ?? "";
+                return escapeValues ? EscapeForShell(resolved, shell ?? ScriptShell.Auto) : resolved;
+            }
 
             return leaveUnknown ? match.Value : "";
         });
@@ -256,6 +300,75 @@ public static class ScriptParameterResolver
             shell,
             body,
             isWindows ?? OperatingSystem.IsWindows());
+        return fileName + " " + arguments;
+    }
+
+    /// <summary>
+    /// Экранирует значение для безопасной вставки в команду выбранного shell:
+    /// <c>Cmd</c> — двойные кавычки и удвоение внутренних <c>"</c> (<c>""</c>);
+    /// <c>Sh</c> — одинарные кавычки, <c>'</c> внутри → <c>'\''</c>;
+    /// <c>PowerShell</c> — одинарные кавычки, <c>'</c> внутри → <c>''</c>;
+    /// <c>Auto</c> — по платформе (<paramref name="isWindows"/> или текущая ОС).
+    /// Пустое значение → пустая строка (без кавычек).
+    /// </summary>
+    /// <param name="value">Значение для экранирования.</param>
+    /// <param name="shell">Интерпретатор; <c>Auto</c> — по платформе.</param>
+    /// <param name="isWindows"><c>true</c> — платформа Windows; <c>null</c> — текущая ОС
+    /// (используется только при <see cref="ScriptShell.Auto"/>).</param>
+    public static string EscapeForShell(string? value, ScriptShell shell, bool? isWindows = null)
+    {
+        if (string.IsNullOrEmpty(value))
+            return "";
+
+        var resolved = shell == ScriptShell.Auto
+            ? ((isWindows ?? OperatingSystem.IsWindows()) ? ScriptShell.Cmd : ScriptShell.Sh)
+            : shell;
+
+        return resolved switch
+        {
+            ScriptShell.Cmd => "\"" + value.Replace("\"", "\"\"") + "\"",
+            ScriptShell.Sh => "'" + value.Replace("'", "'\\''") + "'",
+            ScriptShell.PowerShell => "'" + value.Replace("'", "''") + "'",
+            _ => value
+        };
+    }
+
+    /// <summary>
+    /// Тело команды действия: подстановка токенов команды <see cref="CustomAction.Command"/>
+    /// по карте значений базы (<see cref="BuildValueMap"/>) с учётом флага
+    /// <see cref="CustomAction.EscapeValues"/> и выбранного интерпретатора
+    /// <see cref="CustomAction.Shell"/>. Неизвестный токен остаётся как есть
+    /// (leaveUnknown: true). Реальный запуск выполняет тело через
+    /// <see cref="ExternalCommandRunner.RunAsync"/> без повторной обёртки.
+    /// </summary>
+    public static string BuildActionCommandLine(CustomAction action, Infobase? infobase, DateTime? now = null)
+    {
+        if (action is null)
+            return "";
+        return Resolve(
+            action.Command,
+            BuildValueMap(infobase),
+            now,
+            leaveUnknown: true,
+            escapeValues: action.EscapeValues,
+            shell: action.Shell);
+    }
+
+    /// <summary>
+    /// Полная командная строка действия с обёрткой выбранного интерпретатора
+    /// (для превью и лога): тело <see cref="BuildActionCommandLine"/> оборачивается
+    /// как <c>cmd.exe /c …</c>, <c>powershell -NoProfile -Command …</c> или
+    /// <c>/bin/sh -c …</c> через <see cref="ExternalCommandRunner.ResolveShellWrapper"/>;
+    /// при <see cref="ScriptShell.Auto"/> — по платформе (<paramref name="isWindows"/>).
+    /// </summary>
+    public static string BuildActionShellCommandLine(
+        CustomAction action, Infobase? infobase, DateTime? now = null, bool? isWindows = null)
+    {
+        if (action is null)
+            return "";
+        var body = BuildActionCommandLine(action, infobase, now);
+        var (fileName, arguments) = ExternalCommandRunner.ResolveShellWrapper(
+            action.Shell, body, isWindows ?? OperatingSystem.IsWindows());
         return fileName + " " + arguments;
     }
 

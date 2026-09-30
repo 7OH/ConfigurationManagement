@@ -479,4 +479,301 @@ public sealed class ScriptParameterResolverTests
 
         Assert.Equal("cmd.exe /c cd C:\\Tools\\scripts && report.bat", result);
     }
+
+    // ------------------- Токены {…} (цикл 0.3.9.194, функция 7) -------------------
+
+    [Fact]
+    public void Resolve_BraceTokens_ClientServer_SubstitutesAliases()
+    {
+        var ib = MakeInfobase();
+        var map = Map(ib);
+
+        var result = ScriptParameterResolver.Resolve(
+            "{ИмяБазы}|{СтрокаПодключения}|{Тип}|{Сервер}|{ИмяНаСервере}|{Пользователь}|{Пароль}|{ВебURL}|{Порт}",
+            map, FixedNow);
+
+        Assert.Equal(
+            "Бухгалтерия|Srvr=\"srv-1c\";Ref=\"acc_main\"|ClientServer|srv-1c|acc_main||secret-pass||1541",
+            result);
+    }
+
+    [Fact]
+    public void Resolve_BraceTokens_FileBase_SubstitutesCatalogPathAndConnection()
+    {
+        var ib = new Infobase { Name = "Файловая" };
+        ib.Connection.Type = ConnectionType.File;
+        ib.Connection.FilePath = @"D:\bases\file_base";
+
+        var result = ScriptParameterResolver.Resolve(
+            "{Каталог}|{ПутьИБ}|{СтрокаПодключения}|{Тип}", Map(ib), FixedNow);
+
+        Assert.Equal(@"D:\bases\file_base|D:\bases\file_base|File=""D:\bases\file_base""|File", result);
+    }
+
+    [Fact]
+    public void Resolve_BraceTokens_WebServer_SubstitutesUrl()
+    {
+        var ib = new Infobase { Name = "Вебовая" };
+        ib.Connection.Type = ConnectionType.WebServer;
+        ib.Connection.WebUrl = "http://srv-1c/base";
+
+        var result = ScriptParameterResolver.Resolve(
+            "{Тип}|{ВебURL}|{СтрокаПодключения}", Map(ib), FixedNow);
+
+        Assert.Equal(@"WebServer|http://srv-1c/base|WS=""http://srv-1c/base""", result);
+    }
+
+    [Fact]
+    public void Resolve_BraceTokens_IdAndGroup_SubstituteValues()
+    {
+        var ib = MakeInfobase();
+        ib.Id = "abc-123";
+        ib.Group = "Бухгалтерия";
+
+        var result = ScriptParameterResolver.Resolve("{Id}|{ИмяГруппы}", Map(ib), FixedNow);
+
+        Assert.Equal("abc-123|Бухгалтерия", result);
+    }
+
+    [Fact]
+    public void Resolve_MixedSyntax_PercentAndBraceAliases_ProduceSameValue()
+    {
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.Resolve(
+            "%name%|{ИмяБазы}|%connection.password%|{Пароль}", map, FixedNow);
+
+        Assert.Equal("Бухгалтерия|Бухгалтерия|secret-pass|secret-pass", result);
+    }
+
+    [Fact]
+    public void Resolve_BraceDate_SameAsPercentDate()
+    {
+        var map = Map(MakeInfobase());
+
+        var defaultResult = ScriptParameterResolver.Resolve("{Дата}", map, FixedNow);
+        var customResult = ScriptParameterResolver.Resolve("{Дата:yyyyMMdd}", map, FixedNow);
+
+        Assert.Equal("2026-09-28", defaultResult);
+        Assert.Equal("20260928", customResult);
+    }
+
+    [Fact]
+    public void Resolve_UnknownBraceToken_LeaveUnknownKeepsToken()
+    {
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.Resolve("{неизвестный.ключ}|%unknown%", map, FixedNow);
+
+        Assert.Equal("{неизвестный.ключ}|%unknown%", result);
+    }
+
+    [Fact]
+    public void Resolve_UnknownBraceToken_WhenNotLeaveReplacesWithEmpty()
+    {
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.Resolve(
+            "a-{неизвестный.ключ}-b", map, FixedNow, leaveUnknown: false);
+
+        Assert.Equal("a--b", result);
+    }
+
+    // ------------------- Экранирование для shell (EscapeForShell) -------------------
+
+    [Fact]
+    public void EscapeForShell_Cmd_QuotesAndDoublesInnerQuotes()
+    {
+        Assert.Equal(
+            "\"значение с пробелами\"",
+            ScriptParameterResolver.EscapeForShell("значение с пробелами", ScriptShell.Cmd));
+        Assert.Equal(
+            "\"сказал \"\"привет\"\"\"",
+            ScriptParameterResolver.EscapeForShell("сказал \"привет\"", ScriptShell.Cmd));
+    }
+
+    [Fact]
+    public void EscapeForShell_Sh_QuotesAndEscapesSingleQuote()
+    {
+        Assert.Equal(
+            "'значение с пробелами'",
+            ScriptParameterResolver.EscapeForShell("значение с пробелами", ScriptShell.Sh));
+        Assert.Equal(
+            "'it'\\''s'",
+            ScriptParameterResolver.EscapeForShell("it's", ScriptShell.Sh));
+    }
+
+    [Fact]
+    public void EscapeForShell_PowerShell_QuotesAndDoublesSingleQuote()
+    {
+        Assert.Equal(
+            "'значение с пробелами'",
+            ScriptParameterResolver.EscapeForShell("значение с пробелами", ScriptShell.PowerShell));
+        Assert.Equal(
+            "'it''s'",
+            ScriptParameterResolver.EscapeForShell("it's", ScriptShell.PowerShell));
+    }
+
+    [Fact]
+    public void EscapeForShell_EmptyValue_ReturnsEmptyString()
+    {
+        Assert.Equal("", ScriptParameterResolver.EscapeForShell("", ScriptShell.Cmd));
+        Assert.Equal("", ScriptParameterResolver.EscapeForShell(null, ScriptShell.Sh));
+        Assert.Equal("", ScriptParameterResolver.EscapeForShell("", ScriptShell.PowerShell));
+    }
+
+    [Theory]
+    [InlineData(true, "\"значение с пробелами\"")]
+    [InlineData(false, "'значение с пробелами'")]
+    public void EscapeForShell_Auto_UsesExplicitPlatform(bool isWindows, string expected)
+    {
+        var result = ScriptParameterResolver.EscapeForShell(
+            "значение с пробелами", ScriptShell.Auto, isWindows);
+
+        Assert.Equal(expected, result);
+    }
+
+    // ------------------- Экранирование в Resolve (escapeValues) -------------------
+
+    [Fact]
+    public void Resolve_EscapeValuesTrue_Sh_QuotesBaseNameButNotDate()
+    {
+        var ib = MakeInfobase();
+        ib.Name = "Бухгалтерия (тест)";
+
+        var result = ScriptParameterResolver.Resolve(
+            "{ИмяБазы} {Дата}", Map(ib), FixedNow, escapeValues: true, shell: ScriptShell.Sh);
+
+        Assert.Equal("'Бухгалтерия (тест)' 2026-09-28", result);
+    }
+
+    [Fact]
+    public void Resolve_EscapeValuesFalse_NoQuotesAroundValue()
+    {
+        var ib = MakeInfobase();
+        ib.Name = "Бухгалтерия (тест)";
+
+        var result = ScriptParameterResolver.Resolve("{ИмяБазы}", Map(ib), FixedNow);
+
+        Assert.Equal("Бухгалтерия (тест)", result);
+    }
+
+    // ------------------- Командная строка действия (BuildAction*) -------------------
+
+    [Fact]
+    public void BuildActionCommandLine_ResolvesTokensWithEscapeValues()
+    {
+        var ib = MakeInfobase();
+        ib.Name = "Бухгалтерия (тест)";
+        var action = new CustomAction
+        {
+            Command = "echo {ИмяБазы} {Тип} {Дата}",
+            Shell = ScriptShell.Sh,
+            EscapeValues = true
+        };
+
+        var body = ScriptParameterResolver.BuildActionCommandLine(action, ib, FixedNow);
+
+        // При escapeValues=true экранируются ВСЕ значения словаря (включая {Тип}),
+        // токен даты — нет.
+        Assert.Equal("echo 'Бухгалтерия (тест)' 'ClientServer' 2026-09-28", body);
+    }
+
+    [Fact]
+    public void BuildActionCommandLine_WhenEscapeValuesFalse_NoQuotes()
+    {
+        var ib = MakeInfobase();
+        ib.Name = "Бухгалтерия (тест)";
+        var action = new CustomAction
+        {
+            Command = "echo {ИмяБазы}",
+            Shell = ScriptShell.Cmd,
+            EscapeValues = false
+        };
+
+        var body = ScriptParameterResolver.BuildActionCommandLine(action, ib, FixedNow);
+
+        Assert.Equal("echo Бухгалтерия (тест)", body);
+    }
+
+    [Fact]
+    public void BuildActionShellCommandLine_Sh_WrapsBodyWithSh()
+    {
+        var ib = MakeInfobase();
+        ib.Name = "Бухгалтерия (тест)";
+        var action = new CustomAction { Command = "echo {ИмяБазы}", Shell = ScriptShell.Sh, EscapeValues = true };
+
+        var result = ScriptParameterResolver.BuildActionShellCommandLine(action, ib, FixedNow, isWindows: false);
+
+        Assert.Equal("/bin/sh -c echo 'Бухгалтерия (тест)'", result);
+    }
+
+    [Fact]
+    public void BuildActionShellCommandLine_Cmd_WrapsBodyWithCmd()
+    {
+        var ib = MakeInfobase();
+        ib.Name = "Бухгалтерия (тест)";
+        var action = new CustomAction { Command = "echo {ИмяБазы}", Shell = ScriptShell.Cmd, EscapeValues = true };
+
+        var result = ScriptParameterResolver.BuildActionShellCommandLine(action, ib, FixedNow, isWindows: true);
+
+        Assert.Equal("cmd.exe /c echo \"Бухгалтерия (тест)\"", result);
+    }
+
+    [Fact]
+    public void BuildActionShellCommandLine_PowerShell_WrapsBodyWithPowerShell()
+    {
+        var ib = MakeInfobase();
+        var action = new CustomAction
+        {
+            Command = "Write-Host {ИмяБазы}",
+            Shell = ScriptShell.PowerShell,
+            EscapeValues = true
+        };
+
+        var result = ScriptParameterResolver.BuildActionShellCommandLine(action, ib, FixedNow, isWindows: true);
+
+        Assert.Equal("powershell -NoProfile -Command Write-Host 'Бухгалтерия'", result);
+    }
+
+    [Fact]
+    public void BuildActionShellCommandLine_Auto_WrapsByPlatform()
+    {
+        // Обёртка «Авто» — по платформе (isWindows). Экранирование значений при Auto
+        // использует текущую ОС выполнения, поэтому команда без подстановок: проверяется
+        // только выбор интерпретатора.
+        var ib = MakeInfobase();
+        var action = new CustomAction { Command = "echo ok", Shell = ScriptShell.Auto, EscapeValues = true };
+
+        var onWindows = ScriptParameterResolver.BuildActionShellCommandLine(action, ib, FixedNow, isWindows: true);
+        var onLinux = ScriptParameterResolver.BuildActionShellCommandLine(action, ib, FixedNow, isWindows: false);
+
+        Assert.Equal("cmd.exe /c echo ok", onWindows);
+        Assert.Equal("/bin/sh -c echo ok", onLinux);
+    }
+
+    [Fact]
+    public void BuildActionShellCommandLine_PreviewMatchesRealBodyUnderWrapper()
+    {
+        var ib = MakeInfobase();
+        ib.Name = "Бухгалтерия (тест)";
+        var action = new CustomAction
+        {
+            Command = "echo {ИмяБазы} {Дата}",
+            Shell = ScriptShell.Sh,
+            EscapeValues = true
+        };
+
+        var body = ScriptParameterResolver.BuildActionCommandLine(action, ib, FixedNow);
+        var preview = ScriptParameterResolver.BuildActionShellCommandLine(action, ib, FixedNow, isWindows: false);
+
+        Assert.Equal("/bin/sh -c " + body, preview);
+    }
+
+    [Fact]
+    public void BuildActionCommandLine_NullAction_ReturnsEmpty()
+    {
+        Assert.Equal("", ScriptParameterResolver.BuildActionCommandLine(null!, MakeInfobase(), FixedNow));
+        Assert.Equal("", ScriptParameterResolver.BuildActionShellCommandLine(null!, MakeInfobase(), FixedNow, true));
+    }
 }
