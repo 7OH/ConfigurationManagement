@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.212</Version>
-    <AssemblyVersion>0.3.9.212</AssemblyVersion>
-    <FileVersion>0.3.9.212</FileVersion>
-    <InformationalVersion>0.3.9.212</InformationalVersion>
+    <Version>0.3.9.213</Version>
+    <AssemblyVersion>0.3.9.213</AssemblyVersion>
+    <FileVersion>0.3.9.213</FileVersion>
+    <InformationalVersion>0.3.9.213</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -226,6 +226,9 @@
 <Compile Remove="Views\ConfigTypeEditWindow.xaml.cs" />
     <Compile Remove="Views\UpdateCheckWindow.xaml.cs" />
     <Compile Remove="Views\ActualReleasesWindow.xaml.cs" />
+    <!-- Окно «Обновление платформы 1С» (0.3.9.213, функция 9): WPF code-behind исключается,
+         Avalonia-версия (PlatformUpdateWindow.Avalonia.cs) появится на этапе 0.3.9.214. -->
+    <Compile Remove="Views\PlatformUpdateWindow.xaml.cs" />
     <Compile Remove="Views\ConfigUpdateLinkWindow.xaml.cs" />
     <!-- Окна Этапа 2 (сценарии резервирования и список выгрузок): WPF code-behind
          исключается, Avalonia-версии (*Window.Avalonia.cs) подключаются глобом ниже. -->
@@ -342,6 +345,11 @@
     <Compile Include="ViewModels\ConfigTypeItemViewModel.cs" />
     <Compile Include="ViewModels\UpdateCheckRowViewModel.cs" />
     <Compile Include="ViewModels\ActualReleasesViewModel.cs" />
+    <!-- ViewModel и строка окна «Обновление платформы 1С» (0.3.9.213, функция 9): чистый
+         .NET без WPF-зависимостей, используются обеими платформами — на Linux подключаются
+         явно (имена не совпадают с глобом *.Avalonia.cs); WPF-окно собирается #if WINDOWS. -->
+    <Compile Include="ViewModels\PlatformUpdateRowViewModel.cs" />
+    <Compile Include="ViewModels\PlatformUpdateViewModel.cs" />
     <!-- Команды проверки обновлений MainViewModel (Avalonia/Linux): файл не совпадает
          с глобом *.Avalonia.cs (имя «MainViewModel.Avalonia.*.cs»), добавляется явно. -->
     <Compile Include="ViewModels\MainViewModel.Avalonia.Updates.cs" />

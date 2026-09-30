@@ -1,0 +1,544 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Configuration_Management.Localization;
+using Configuration_Management.Models;
+using Configuration_Management.Services;
+using Configuration_Management.ViewModels;
+using Xunit;
+
+namespace ConfigurationManagement.Tests;
+
+/// <summary>
+/// Тесты ViewModel окна «Обновление платформы 1С» (этап 0.3.9.213, функция 9):
+/// проверка каталога версий (fake <see cref="IPlatformUpdateService"/>), заполнение
+/// строк со статусами/размерами/совместимыми базами, журнал и обработка ошибок
+/// (авторизация, исключение сервиса) без падения VM; «Скачать и установить» с
+/// fake загрузчиком/установщиком (download→install→refresh, прогресс 0..1, блокировка
+/// повторного запуска); «Только скачать» с fake-диалогом сохранения и отменой;
+/// «Выбрать файл установщика…»; CanExecute команд от IsBusy/выделения.
+/// </summary>
+public sealed class PlatformUpdateViewModelTests
+{
+    private const long MiB = 1024 * 1024;
+
+    // ---------- Хелперы ----------
+
+    private static PlatformRelease Release(string version, params PlatformReleaseFile[] files)
+    {
+        var release = new PlatformRelease { Version = version };
+        release.Files.AddRange(files);
+        return release;
+    }
+
+    private static PlatformReleaseFile DistroFile(long sizeBytes, string fileName = "8.3.27.2214_x64.zip")
+        => new()
+        {
+            FileName = fileName,
+            Url = $"https://releases.1c.ru/dist/{fileName}",
+            SizeBytes = sizeBytes,
+            Architecture = "x64",
+            Kind = PlatformDistributionKind.WindowsSetupZip,
+        };
+
+    private static Infobase Base(string id, string platformVersion)
+        => new() { Id = id, Name = $"База {id}", PlatformVersion = platformVersion };
+
+    private static FakePlatformUpdateService OkService(params PlatformRelease[] releases)
+        => new()
+        {
+            AvailableResult = new PlatformCatalogResult { Status = PortalFetchStatus.Ok, Releases = releases },
+        };
+
+    private static PlatformUpdateViewModel CreateVm(
+        IPlatformUpdateService? service = null,
+        List<Infobase>? bases = null,
+        Func<IReadOnlyList<string>>? installed = null,
+        Func<string, string, IProgress<double>?, CancellationToken, Task<string?>>? download = null,
+        Func<string, string, string?, IProgress<string>?, CancellationToken,
+            Task<(bool Success, string? ErrorKey, int ExitCode)>>? install = null,
+        Func<string?, string?>? saveDialog = null,
+        Func<string?, string?>? openDialog = null)
+    {
+        return new PlatformUpdateViewModel(
+            service ?? OkService(),
+            new FakeRepository(bases ?? new List<Infobase>()),
+            installed ?? (() => new List<string>()),
+            download ?? ((url, target, progress, ct) => Task.FromResult<string?>(target)),
+            install ?? ((zip, version, dir, log, ct) =>
+                Task.FromResult((Success: true, ErrorKey: (string?)null, ExitCode: 0))),
+            saveDialog,
+            openDialog);
+    }
+
+    // ---------- CheckUpdatesAsync ----------
+
+    [Fact]
+    public async Task CheckUpdatesAsync_FillsRows_WithStatusesSizesAndCompatibleBases()
+    {
+        var file = DistroFile(200 * MiB);
+        var service = OkService(Release("8.3.27.2214", file), Release("8.3.27.1688"));
+        service.PickedFile = file;
+
+        var bases = new List<Infobase>
+        {
+            Base("1", "8.3.27.1644"),
+            Base("2", "8.3.26.1182"),
+            Base("3", ""),
+        };
+        var vm = CreateVm(service, bases, installed: () => new List<string> { "8.3.27.1688" });
+
+        await vm.CheckUpdatesAsync();
+
+        Assert.Equal(2, vm.Rows.Count);
+
+        // Установленная версия со свежим обновлением в каталоге.
+        var installedRow = vm.Rows.Single(r => r.Version == "8.3.27.1688");
+        Assert.True(installedRow.IsInstalled);
+        Assert.True(installedRow.HasUpdate);
+        Assert.Equal("8.3.27.2214", installedRow.AvailableVersion);
+        Assert.Equal(LocalizationManager.T("PlatformUpdate.Status.UpdateAvailable"), installedRow.StatusText);
+        Assert.Equal(1, installedRow.CompatibleBases); // только база «8.3.27.1644» с префиксом 8.3.27
+        Assert.Equal(PlatformUpdateRowViewModel.EmptySizeText, installedRow.SizeText); // файлы не подгружены
+
+        // Доступная версия из каталога с выбранным файлом дистрибутива.
+        var availableRow = vm.Rows.Single(r => r.Version == "8.3.27.2214");
+        Assert.False(availableRow.IsInstalled);
+        Assert.False(availableRow.HasUpdate);
+        Assert.Equal(LocalizationManager.T("PlatformUpdate.Status.Available"), availableRow.StatusText);
+        Assert.Equal(Infobase.FormatSize(file.SizeBytes), availableRow.SizeText);
+        Assert.Equal(1, availableRow.CompatibleBases);
+
+        Assert.False(vm.IsBusy);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Status.Checking"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task CheckUpdatesAsync_SortsRowsDescending()
+    {
+        var service = OkService(Release("8.3.10"), Release("8.3.9.2577"), Release("8.3.27.2214"));
+        var vm = CreateVm(service);
+
+        await vm.CheckUpdatesAsync();
+
+        Assert.Equal(new[] { "8.3.27.2214", "8.3.10", "8.3.9.2577" }, vm.Rows.Select(r => r.Version).ToArray());
+    }
+
+    [Fact]
+    public async Task CheckUpdatesAsync_AuthRequired_WritesLocalizedKeyAndKeepsVmAlive()
+    {
+        var service = new FakePlatformUpdateService
+        {
+            AvailableResult = new PlatformCatalogResult
+            {
+                Status = PortalFetchStatus.AuthRequired,
+                ErrorKey = "PlatformUpdate.Error.AuthRequired",
+            },
+        };
+        var vm = CreateVm(service);
+
+        await vm.CheckUpdatesAsync();
+
+        Assert.Empty(vm.Rows);
+        Assert.False(vm.IsBusy);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.AuthRequired"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task CheckUpdatesAsync_ServiceThrows_WritesErrorAndDoesNotCrash()
+    {
+        var vm = CreateVm(new ThrowingPlatformUpdateService());
+
+        await vm.CheckUpdatesAsync();
+
+        Assert.Empty(vm.Rows);
+        Assert.False(vm.IsBusy);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.Network"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task CheckUpdatesAsync_SetsIsBusy_WhileOperationInProgress()
+    {
+        var gate = new TaskCompletionSource<PlatformCatalogResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var vm = CreateVm(new GatedPlatformUpdateService(gate.Task));
+
+        var checkTask = vm.CheckUpdatesAsync();
+
+        Assert.True(vm.IsBusy);
+        Assert.False(vm.CheckCommand.CanExecute(null));
+        Assert.False(vm.DownloadAndInstallCommand.CanExecute(null));
+
+        gate.SetResult(new PlatformCatalogResult { Status = PortalFetchStatus.Ok, Releases = new List<PlatformRelease>() });
+        await checkTask;
+
+        Assert.False(vm.IsBusy);
+        Assert.True(vm.CheckCommand.CanExecute(null));
+    }
+
+    // ---------- DownloadAndInstallAsync ----------
+
+    [Fact]
+    public async Task DownloadAndInstallAsync_RunsDownloadInstallRefresh_WithProgressAndLock()
+    {
+        var file = DistroFile(50 * MiB);
+        var service = OkService(Release("8.3.27.2214", file), Release("8.3.27.1688"));
+        service.PickedFile = file;
+
+        var installedVersions = new List<string> { "8.3.27.1688" };
+        var downloadCalls = new List<(string Url, string Target)>();
+        var reportedProgress = new List<double>();
+        var installCalls = new List<(string Zip, string Version)>();
+        var downloadGate = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var vm = CreateVm(
+            service,
+            installed: () => installedVersions.ToList(),
+            download: (url, target, progress, ct) =>
+            {
+                downloadCalls.Add((url, target));
+                progress?.Report(0.25);
+                progress?.Report(0.75);
+                return downloadGate.Task;
+            },
+            install: (zip, version, dir, log, ct) =>
+            {
+                installCalls.Add((zip, version));
+                return Task.FromResult((Success: true, ErrorKey: (string?)null, ExitCode: 0));
+            });
+
+        await vm.CheckUpdatesAsync();
+        var row = vm.Rows.Single(r => r.Version == "8.3.27.2214");
+        vm.SelectedRow = row;
+
+        var operation = vm.DownloadAndInstallAsync();
+
+        // Пока идёт загрузка — строка помечена, команды заблокированы, прогресс в 0..1.
+        Assert.True(vm.IsBusy);
+        Assert.True(row.IsDownloading);
+        Assert.False(vm.DownloadAndInstallCommand.CanExecute(null)); // повторный запуск заблокирован
+        Assert.False(vm.DownloadOnlyCommand.CanExecute(null));
+        Assert.False(vm.CheckCommand.CanExecute(null));
+        Assert.All(reportedProgress, p => Assert.InRange(p, 0, 1));
+
+        // После установки пересканирование находит новую версию.
+        installedVersions.Add("8.3.27.2214");
+        downloadGate.SetResult(downloadCalls[0].Target);
+        await operation;
+
+        // Последовательность: download → install → refresh.
+        Assert.Single(downloadCalls);
+        Assert.Equal(file.Url, downloadCalls[0].Url);
+        Assert.StartsWith(Path.Combine(Path.GetTempPath(), "cm_platformdl_"), downloadCalls[0].Target);
+        Assert.EndsWith(file.FileName, Path.GetFileName(downloadCalls[0].Target));
+        Assert.Single(installCalls);
+        Assert.Equal(downloadCalls[0].Target, installCalls[0].Zip);
+        Assert.Equal("8.3.27.2214", installCalls[0].Version);
+
+        Assert.Equal(1, row.Progress);
+        Assert.Equal(1, vm.Progress);
+        Assert.False(row.IsDownloading);
+        Assert.False(vm.IsBusy);
+
+        // refresh: версия 8.3.27.2214 теперь помечена как установленная.
+        var refreshed = vm.Rows.Single(r => r.Version == "8.3.27.2214");
+        Assert.True(refreshed.IsInstalled);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Status.Installed"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task DownloadAndInstallAsync_InstallFailed_WritesErrorKeyToLog()
+    {
+        var file = DistroFile(10 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var vm = CreateVm(
+            service,
+            install: (zip, version, dir, log, ct) =>
+                Task.FromResult((Success: false, ErrorKey: (string?)"PlatformUpdate.Error.SetupNotFound", ExitCode: -1)));
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+
+        await vm.DownloadAndInstallAsync();
+
+        Assert.False(vm.IsBusy);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.SetupNotFound"), vm.LogText);
+        // При неудаче установки список не перестраивается.
+        Assert.False(vm.Rows.Single().IsInstalled);
+    }
+
+    // ---------- DownloadOnlyAsync ----------
+
+    [Fact]
+    public async Task DownloadOnlyAsync_SavesToDialogPath()
+    {
+        var file = DistroFile(10 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var savedPaths = new List<string>();
+        const string targetPath = "/tmp/cm_saved/platform_8.3.27.2214_x64.zip";
+        var vm = CreateVm(
+            service,
+            download: (url, target, progress, ct) =>
+            {
+                savedPaths.Add(target);
+                return Task.FromResult<string?>(target);
+            },
+            saveDialog: _ => targetPath);
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+
+        await vm.DownloadOnlyAsync();
+
+        // Файл сохранён именно в путь, выбранный диалогом (журнал не проверяем текстом:
+        // без инициализации локализации LocalizationManager.T возвращает ключ без плейсхолдера).
+        Assert.Equal(targetPath, Assert.Single(savedPaths));
+        Assert.False(vm.IsBusy);
+        Assert.Equal(1, vm.Progress);
+        Assert.NotEmpty(vm.LogText);
+    }
+
+    [Fact]
+    public async Task DownloadOnlyAsync_CancelledDialog_IsNoOp()
+    {
+        var file = DistroFile(10 * MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+
+        var downloadCalls = new List<string>();
+        var vm = CreateVm(
+            service,
+            download: (url, target, progress, ct) =>
+            {
+                downloadCalls.Add(target);
+                return Task.FromResult<string?>(target);
+            },
+            saveDialog: _ => null);
+
+        await vm.CheckUpdatesAsync();
+        vm.SelectedRow = vm.Rows.Single();
+
+        await vm.DownloadOnlyAsync();
+
+        Assert.Empty(downloadCalls);
+        Assert.False(vm.IsBusy);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.Cancelled"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task DownloadOnlyAsync_LoadsReleaseFilesLazily()
+    {
+        var file = DistroFile(10 * MiB);
+        var release = new PlatformRelease { Version = "8.3.27.2214" }; // Files ещё не подгружены
+        var service = OkService(release);
+        service.PickedFile = file;
+        service.FilesResult = new PlatformCatalogResult
+        {
+            Status = PortalFetchStatus.Ok,
+            Release = new PlatformRelease { Version = "8.3.27.2214", Files = { file } },
+        };
+
+        var saved = new List<string>();
+        var vm = CreateVm(
+            service,
+            download: (url, target, progress, ct) =>
+            {
+                saved.Add(target);
+                return Task.FromResult<string?>(target);
+            },
+            saveDialog: _ => "C:\\temp\\platform.zip");
+
+        await vm.CheckUpdatesAsync();
+        var row = vm.Rows.Single();
+        Assert.Equal(PlatformUpdateRowViewModel.EmptySizeText, row.SizeText); // файлы не загружены
+
+        vm.SelectedRow = row;
+        await vm.DownloadOnlyAsync();
+
+        Assert.Equal(1, service.LoadFilesCalls);
+        Assert.NotEqual(PlatformUpdateRowViewModel.EmptySizeText, row.SizeText); // размер появился
+        Assert.Single(saved);
+    }
+
+    // ---------- ChooseInstallerAsync ----------
+
+    [Fact]
+    public async Task ChooseInstallerAsync_ValidPath_StoresSelectedInstallerPath()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "cm_plinst_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var path = Path.Combine(tempDir, "setup.exe");
+        File.WriteAllText(path, "test");
+
+        try
+        {
+            var vm = CreateVm(openDialog: _ => path);
+
+            await vm.ChooseInstallerAsync();
+
+            Assert.Equal(path, vm.SelectedInstallerPath);
+            Assert.Contains(path, vm.LogText);
+            Assert.False(vm.IsBusy);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+            catch
+            {
+                // временный каталог мог быть занят — очистится сам
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ChooseInstallerAsync_MissingPath_WritesErrorToLog()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), "cm_nonexistent_" + Guid.NewGuid().ToString("N") + ".exe");
+        var vm = CreateVm(openDialog: _ => missing);
+
+        await vm.ChooseInstallerAsync();
+
+        Assert.Null(vm.SelectedInstallerPath);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.NotFound"), vm.LogText);
+        Assert.False(vm.IsBusy);
+    }
+
+    // ---------- CanExecute ----------
+
+    [Fact]
+    public async Task Commands_CanExecute_DependOnSelectionAndBusyState()
+    {
+        var file = DistroFile(MiB);
+        var service = OkService(Release("8.3.27.2214", file));
+        service.PickedFile = file;
+        var vm = CreateVm(service);
+
+        // До проверки: без строк команды скачивания недоступны.
+        Assert.False(vm.DownloadAndInstallCommand.CanExecute(null));
+        Assert.False(vm.DownloadOnlyCommand.CanExecute(null));
+
+        await vm.CheckUpdatesAsync();
+
+        Assert.True(vm.CheckCommand.CanExecute(null));
+        Assert.False(vm.DownloadAndInstallCommand.CanExecute(null)); // нет выделения
+        Assert.False(vm.DownloadOnlyCommand.CanExecute(null));
+        Assert.True(vm.ChooseInstallerCommand.CanExecute(null));
+        Assert.False(vm.RemoveOldVersionsCommand.CanExecute(null)); // заглушка до этапа 0.3.9.215
+
+        vm.SelectedRow = vm.Rows.Single();
+        Assert.True(vm.DownloadAndInstallCommand.CanExecute(null));
+        Assert.True(vm.DownloadOnlyCommand.CanExecute(null));
+
+        // IsBusy блокирует все команды.
+        vm.IsBusy = true;
+        Assert.False(vm.CheckCommand.CanExecute(null));
+        Assert.False(vm.DownloadAndInstallCommand.CanExecute(null));
+        Assert.False(vm.DownloadOnlyCommand.CanExecute(null));
+        Assert.False(vm.ChooseInstallerCommand.CanExecute(null));
+        vm.IsBusy = false;
+
+        Assert.True(vm.DownloadAndInstallCommand.CanExecute(null));
+    }
+
+    // ---------- Fake-сервисы ----------
+
+    /// <summary>Fake каталога версий: заранее заданные результаты и запоминание вызовов.</summary>
+    private sealed class FakePlatformUpdateService : IPlatformUpdateService
+    {
+        public PlatformCatalogResult AvailableResult { get; set; } = new() { Status = PortalFetchStatus.Ok };
+        public PlatformCatalogResult FilesResult { get; set; } = new() { Status = PortalFetchStatus.Ok };
+        public PlatformReleaseFile? PickedFile { get; set; }
+        public int LoadFilesCalls { get; private set; }
+
+        public Task<PlatformCatalogResult> GetAvailableReleasesAsync(CancellationToken ct = default)
+            => Task.FromResult(AvailableResult);
+
+        public Task<PlatformCatalogResult> LoadReleaseFilesAsync(PlatformRelease release, CancellationToken ct = default)
+        {
+            LoadFilesCalls++;
+            if (FilesResult.Release?.Files is { Count: > 0 } files)
+            {
+                release.Files.Clear();
+                release.Files.AddRange(files);
+            }
+
+            return Task.FromResult(FilesResult);
+        }
+
+        public PlatformReleaseFile? PickDistribution(IReadOnlyList<PlatformReleaseFile> files)
+            => PickedFile;
+    }
+
+    /// <summary>Fake с приостановленным ответом каталога (для проверки IsBusy в процессе).</summary>
+    private sealed class GatedPlatformUpdateService : IPlatformUpdateService
+    {
+        private readonly Task<PlatformCatalogResult> _result;
+
+        public GatedPlatformUpdateService(Task<PlatformCatalogResult> result) => _result = result;
+
+        public Task<PlatformCatalogResult> GetAvailableReleasesAsync(CancellationToken ct = default) => _result;
+
+        public Task<PlatformCatalogResult> LoadReleaseFilesAsync(PlatformRelease release, CancellationToken ct = default)
+            => Task.FromResult(new PlatformCatalogResult { Status = PortalFetchStatus.Ok, Release = release });
+
+        public PlatformReleaseFile? PickDistribution(IReadOnlyList<PlatformReleaseFile> files)
+            => files.FirstOrDefault();
+    }
+
+    /// <summary>Fake, который бросает исключение при получении каталога.</summary>
+    private sealed class ThrowingPlatformUpdateService : IPlatformUpdateService
+    {
+        public Task<PlatformCatalogResult> GetAvailableReleasesAsync(CancellationToken ct = default)
+            => throw new InvalidOperationException("Сбой сети (тест)");
+
+        public Task<PlatformCatalogResult> LoadReleaseFilesAsync(PlatformRelease release, CancellationToken ct = default)
+            => Task.FromResult(new PlatformCatalogResult { Status = PortalFetchStatus.Ok, Release = release });
+
+        public PlatformReleaseFile? PickDistribution(IReadOnlyList<PlatformReleaseFile> files)
+            => files.FirstOrDefault();
+    }
+
+    /// <summary>Fake репозитория: базы в памяти, остальное — no-op (образец PlatformDownloadTests).</summary>
+    private sealed class FakeRepository : IInfobaseRepository
+    {
+        private readonly List<Infobase> _bases;
+
+        public FakeRepository(List<Infobase> bases) => _bases = bases;
+
+        public List<Infobase> Load() => _bases;
+
+        public void Save(List<Infobase> infobases)
+        {
+        }
+
+        public Task SaveAsync(List<Infobase> infobases, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public List<Group> LoadGroups() => new();
+
+        public void SaveGroups(List<Group> groups)
+        {
+        }
+
+        public Task SaveGroupsAsync(List<Group> groups, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public AppSettings LoadSettings() => new();
+
+        public void SaveSettings(AppSettings settings)
+        {
+        }
+
+        public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+}
