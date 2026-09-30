@@ -9,6 +9,54 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.189] — 2026-09-30
+
+### Добавлено
+
+- **Массовая замена в строке подключения баз (функция 6, этап 3): ViewModel окна и мост
+  в MainViewModel** — верхний слой функции «Заменить в строках подключения…» поверх
+  планировщика [`ConnectionReplacementPlanner`](Configuration%20Management/Services/ConnectionReplacementPlanner.cs).
+  Новый чистый [`ConnectionReplaceViewModel`](Configuration%20Management/ViewModels/ConnectionReplaceViewModel.cs)
+  (обе платформы, без платформенных зависимостей — окна только привязываются): поля
+  «Найти»/«Заменить на», выбор поля (`ConnectionField`), области (`ConnectionReplaceScope`),
+  режима (`ConnectionMatchMode`) и регистра (по умолчанию регистронезависимо); команда
+  «Найти» строит план без мутаций (строки «база | поле | было → станет», сводка
+  «Совпадений: N · будет изменено баз: M · без совпадений: K · без подключения: L»,
+  «Заменить» активна при M > 0 и свежем предпросмотре); «Заменить» применяет правило через
+  `Planner.Apply` и отдаёт записи отката колбэком в MainViewModel (подтверждение выполняет
+  окно на этапе 0.3.9.190; повторное применение без нового «Найти» запрещено); «Отменить
+  последнюю замену» восстанавливает прежние настройки через `Planner.Undo`. Невалидный
+  regex → `ConnectionReplace.Error.InvalidRegex` и пустой предпросмотр; пустой искомый текст
+  — правило не строится. Мост
+  [`MainViewModel.ConnectionReplace.cs`](Configuration%20Management/ViewModels/MainViewModel.ConnectionReplace.cs)
+  (общий файл обеих платформ): `GetConnectionReplaceCandidates` — кандидаты областей из
+  видимых баз (приватные скрытые исключаются через чистый хелпер
+  `ConnectionReplacementPlanner.FilterVisibleInfobases` + `IProfileService.CanShowPrivateBases`;
+  выделенные — по Id мультивыделения; текущая группа — по полному пути выбранного узла
+  дерева); `ApplyConnectionReplace` — одноуровневая undo-история (повторное применение
+  замещает предыдущую), JSON-бэкап списка `connection_replace_backup_<yyyyMMdd_HHmmss>.json`
+  в каталоге данных приложения (`PlatformPaths.AppDataDirectory`) ПЕРЕД применением (ошибка
+  записи не блокирует операцию — логируется), платформенная персистентность и пересборка
+  дерева (Windows: `ScheduleSave`+`RebuildGroupTree`+`ExportToIbasesAfterLocalChange`;
+  Linux: `SaveSilently`+`RebuildTree`+`ExportToIbasesAfterLocalChange` через partial-хук),
+  запись в лог и системное уведомление (kind Success); `UndoLastConnectionReplace` — откат
+  с той же персистентностью; `CanUndoConnectionReplace` — для пункта меню «Отменить
+  последнюю замену строк подключения» (этап 0.3.9.191). Ключи локализации ru/en:
+  `ConnectionReplace.Summary.Format`, `Result.AppliedFormat`, `UndoDoneFormat`,
+  `Error.InvalidRegex`.
+- **Тесты:** новых юнит-тестов **20**
+  ([`ConnectionReplaceViewModelTests`](ConfigurationManagement.Tests/ConnectionReplaceViewModelTests.cs):
+  предпросмотр заполняет строки и сводку (совпадения / без совпадений / без подключения);
+  смена FindText/ReplaceText/поля/области/режима/регистра помечает `IsPreviewDirty` и
+  очищает предпросмотр; `CanApply` только при совпадениях и свежем предпросмотре;
+  невалидный regex — `ErrorMessage` и `CanApply=false`; `Apply` вызывает `onApplied` с
+  записями отката и мутирует базы, результат «изменено баз: N», повторное применение без
+  нового предпросмотра запрещено, без предпросмотра — no-op; `UndoLast` восстанавливает
+  соединения и блокирует повторный откат; пустой Find — пустой предпросмотр; фильтрация
+  видимых баз по приватности (`FilterVisibleInfobases`: скрытие приватных при
+  заблокированном профиле, без мутаций исходного списка, null-элементы пропускаются)).
+  Всего **926 тестов зелёные**, сборки Windows (WPF) и Linux (Avalonia) без ошибок.
+
 ## [0.3.9.188] — 2026-09-30
 
 ### Добавлено

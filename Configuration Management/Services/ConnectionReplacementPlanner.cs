@@ -132,6 +132,34 @@ public static class ConnectionReplacementPlanner
     }
 
     /// <summary>
+    /// Фильтрует «видимый» список баз по приватности (0.3.9.189, функция 6): приватные
+    /// базы скрываются, когда профиль не разблокирован (<paramref name="canShowPrivateBases"/>
+    /// == false), — единая точка фильтрации для моста в MainViewModel (см.
+    /// <see cref="ConnectionReplaceScope"/>). Null-элементы отбрасываются. Не мутирует
+    /// входной список.
+    /// </summary>
+    /// <param name="infobases">Исходный список (включая приватные базы).</param>
+    /// <param name="canShowPrivateBases">true — приватные базы показываются (профиль разблокирован или без пароля).</param>
+    /// <returns>Новый список видимых баз.</returns>
+    public static IReadOnlyList<Infobase> FilterVisibleInfobases(
+        IEnumerable<Infobase> infobases,
+        bool canShowPrivateBases)
+    {
+        ArgumentNullException.ThrowIfNull(infobases);
+
+        var result = new List<Infobase>();
+        foreach (var infobase in infobases)
+        {
+            if (infobase is null)
+                continue;
+            if (!infobase.IsPrivate || canShowPrivateBases)
+                result.Add(infobase);
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Строит план замены БЕЗ мутации баз: для каждого кандидата применяет правило к
     /// копии настроек через <see cref="ConnectionStringEditor.TryApply"/>. Базы без
     /// строки подключения (ни одно из полей Server/Ref/FilePath/WebUrl не заполнено —

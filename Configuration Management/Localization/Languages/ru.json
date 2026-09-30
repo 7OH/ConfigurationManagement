@@ -1914,6 +1914,11 @@
     "ClusterImport.Status.Cancelled": "Операция отменена.",
     "ClusterImport.Status.LoadedFormat": "Загружено баз: {0}",
     "ClusterImport.Status.LoadFailed": "Не удалось загрузить список баз.",
+
+    "ConnectionReplace.Summary.Format": "Совпадений: {0} · будет изменено баз: {1} · без совпадений: {2} · без подключения: {3}",
+    "ConnectionReplace.Result.AppliedFormat": "Замена выполнена: изменено баз: {0}.",
+    "ConnectionReplace.UndoDoneFormat": "Замена отменена: восстановлено баз: {0}.",
+    "ConnectionReplace.Error.InvalidRegex": "Некорректное регулярное выражение: {0}",
     "Admin.ServerConsoleExternal": "Консоль администрирования серверов (внешняя)",
 
     "Stats.Title": "Статистика использования",

@@ -1914,6 +1914,11 @@
     "ClusterImport.Status.Cancelled": "Operation cancelled.",
     "ClusterImport.Status.LoadedFormat": "Infobases loaded: {0}",
     "ClusterImport.Status.LoadFailed": "Could not load the list of infobases.",
+
+    "ConnectionReplace.Summary.Format": "Matches: {0} · bases to change: {1} · no matches: {2} · no connection: {3}",
+    "ConnectionReplace.Result.AppliedFormat": "Replacement applied: bases changed: {0}.",
+    "ConnectionReplace.UndoDoneFormat": "Replacement undone: bases restored: {0}.",
+    "ConnectionReplace.Error.InvalidRegex": "Invalid regular expression: {0}",
     "Admin.ServerConsoleExternal": "Server administration console (external)",
 
     "Stats.Title": "Usage statistics",
