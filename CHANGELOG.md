@@ -9,6 +9,47 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.190] — 2026-09-30
+
+### Добавлено
+
+- **Массовая замена в строке подключения баз (функция 6, этап 4): окна «Заменить в строках
+  подключения…» для WPF и Avalonia** — тонкие обёртки над готовым
+  [`ConnectionReplaceViewModel`](Configuration%20Management/ViewModels/ConnectionReplaceViewModel.cs)
+  (окна только привязываются, вся бизнес-логика — в VM, как у `ClusterImportWindow`):
+  - **Windows/WPF** [`Views/ConnectionReplaceWindow.xaml`](Configuration%20Management/Views/ConnectionReplaceWindow.xaml)
+    + `.xaml.cs`: панель параметров (TextBox «Найти»/«Заменить на», ComboBox «Поле»/«Область»/
+    «Режим» с локализованными списками из VM, CheckBox «Учитывать регистр»), кнопка «Найти»
+    (команда `RefreshPreviewCommand`), `DataGrid` предпросмотра «База | Поле | Было | Станет»
+    с подсветкой изменённых строк (колонка «Станет» — зелёный фон через DataTrigger по
+    `Changed`; имя поля локализуется конвертером `ConnectionFieldToTextConverter`);
+    подтверждение перед применением через `IDialogService.Confirm`
+    (`ConnectionReplace.Confirm.ApplyFormat`, число баз = `AffectedCount`) — при отказе базы
+    не мутируются; после применения окно НЕ закрывается: показывает `ResultText` и активную
+    кнопку «Отменить последнюю замену» (`CanUndo`); «Закрыть»/Esc ничего не меняет.
+  - **Linux/Avalonia** [`Views/ConnectionReplaceWindow.Avalonia.cs`](Configuration%20Management/Views/ConnectionReplaceWindow.Avalonia.cs):
+    то же окно code-behind поверх `ModalWindowBase` — Grid/StackPanel, TextBox, ComboBox'ы
+    (ItemsSource — `DisplayItem<T>` из VM), ListBox + Grid строк предпросмотра (колонки
+    База/Поле/Было/Станет, Foreground «Станет» зелёный при `Changed`), кнопки, подтверждение
+    через `AvaloniaDialogService`.
+  - **Дополнение VM** [`ConnectionReplaceViewModel`](Configuration%20Management/ViewModels/ConnectionReplaceViewModel.cs)
+    (чистое, без изменения сигнатуры): коллекции `Fields`/`Scopes`/`Modes` типа
+    `DisplayItem<T>` { Value, DisplayText } с ключами `ConnectionReplace.Fields.*` /
+    `.Scopes.*` / `.Modes.*` (для «Выделенных (N)» подставляется число кандидатов области) и
+    статические методы локализации `FieldDisplayText`/`ScopeDisplayText`/`ModeDisplayText` —
+    единая точка для обеих платформ.
+  - Подключение в csproj: WPF — автоматически (Page/Compile по умолчанию, как у соседних
+    окон); Linux — `ConnectionReplaceWindow.xaml.cs` исключается, `*.Avalonia.cs`
+    подхватывается глобом `Views\*Window.Avalonia.cs`. Ключи локализации ru/en:
+    `ConnectionReplace.Title`, `.FindLabel`, `.ReplaceLabel`, `.FieldLabel`, `.ScopeLabel`,
+    `.ModeLabel`, `.IgnoreCase`, `.Fields.*` (6), `.Scopes.*` (3), `.Modes.*` (4),
+    `.FindButton`, `.ApplyButton`, `.UndoButton`, `.CloseButton`, `.Columns.*` (4),
+    `.Confirm.ApplyFormat`.
+- **Тесты:** регрессия — `dotnet test` целиком зелёный (существующие тесты
+  `ConnectionReplaceViewModelTests` и др.), сборки Windows (WPF) и Linux (`-p:BuildLinux=true`)
+  без ошибок. Ручной чек (частично; полный сквозной — этап 0.3.9.192): окно открывается,
+  предпросмотр и подсветка, подтверждение, отмена не меняет базы, кнопка Undo.
+
 ## [0.3.9.189] — 2026-09-30
 
 ### Добавлено
