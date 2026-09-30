@@ -1807,6 +1807,24 @@ namespace Configuration_Management
             operationsMenu.Items.Add(removeMissingItem);
             menu.Items.Add(operationsMenu);
 
+            // Массовая замена строк подключения (0.3.9.191, функция 6): отдельный раздел
+            // «Утилит» верхнего уровня — операция общая (в окне область можно сменить
+            // на «Выделенные»/«Текущую группу»); «Отменить последнюю замену» активна,
+            // пока есть запись о последней операции (одноуровневая история).
+            menu.Items.Add(MenuSeparator());
+            var replaceConnectionsItem = new MenuItem { Header = LocalizationManager.T("Main.UtilitiesConnectionReplace") };
+            replaceConnectionsItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            replaceConnectionsItem.Icon = MenuIcon("IconFindReplace", "#F59E0B");
+            replaceConnectionsItem.Click += (_, _) => OnUtilitiesConnectionReplaceClick();
+            menu.Items.Add(replaceConnectionsItem);
+
+            _undoConnectionReplaceItem = new MenuItem { Header = LocalizationManager.T("Main.UtilitiesUndoConnectionReplace") };
+            _undoConnectionReplaceItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            _undoConnectionReplaceItem.Icon = MenuIcon("IconUndo", "#F59E0B");
+            _undoConnectionReplaceItem.IsEnabled = _vm.CanUndoConnectionReplace;
+            _undoConnectionReplaceItem.Click += (_, _) => OnUtilitiesUndoConnectionReplaceClick();
+            menu.Items.Add(_undoConnectionReplaceItem);
+
             menu.Items.Add(MenuSeparator());
 
             var checkUpdatesItem = new MenuItem { Header = LocalizationManager.T("Settings.About.CheckForUpdates") };
@@ -1865,6 +1883,9 @@ namespace Configuration_Management
             batchMenu.Items.Add(BatchMenuAction("Main.BatchAddFavorites", OnBatchAddFavoritesClick, "IconStar", "#FBBF24"));
             batchMenu.Items.Add(BatchMenuAction("Main.BatchRunBackup", OnBatchRunBackupClick, "IconDatabaseExport", "#22C55E"));
             batchMenu.Items.Add(BatchMenuAction("Main.BatchCheckAvailability", OnBatchCheckAvailabilityClick, "IconCloudDownload", "#3B82F6"));
+            // Массовая замена строк подключения (0.3.9.191, функция 6): окно с правилом
+            // «найти → заменить на» по полям строк подключения выделенных баз.
+            batchMenu.Items.Add(BatchMenuAction("Main.BatchConnectionReplace", OnBatchConnectionReplaceClick, "IconFindReplace", "#F59E0B"));
             batchMenu.Items.Add(BatchMenuAction("Main.BatchDelete", OnBatchDeleteClick, "IconDelete", "#EF4444"));
             menu.Items.Add(batchMenu);
 
@@ -2054,6 +2075,58 @@ namespace Configuration_Management
                 return;
             _vm.DeleteBatch();
             _vm.ClearBatchSelection();
+        }
+
+        /// <summary>
+        /// Массовая замена в строках подключения выделенных баз (0.3.9.191, функция 6):
+        /// окно получает кандидатов области BatchSelected и колбэки моста MainViewModel;
+        /// после закрытия окна выделение снимается (как у остальных пакетных операций).
+        /// </summary>
+        private void OnBatchConnectionReplaceClick()
+        {
+            if (_vm is null || _vm.BatchSelectedCount == 0)
+                return;
+            var candidates = _vm.GetConnectionReplaceCandidates(ConnectionReplaceScope.BatchSelected);
+            if (candidates.Count == 0)
+                return;
+            var vm = new ConnectionReplaceViewModel(
+                candidates,
+                ConnectionReplaceScope.BatchSelected,
+                onApplied: _vm.ApplyConnectionReplace,
+                onUndone: _vm.UndoLastConnectionReplace);
+            var win = new ConnectionReplaceWindow(vm);
+            win.ShowDialogSync(this);
+            _vm.ClearBatchSelection();
+        }
+
+        /// <summary>
+        /// Массовая замена в строках подключения всех видимых баз («Утилиты»): кандидаты
+        /// области AllBases строит MainViewModel (скрытые приватные исключены), в окне
+        /// пользователь может сменить область на «Выделенные»/«Текущую группу».
+        /// </summary>
+        private void OnUtilitiesConnectionReplaceClick()
+        {
+            if (_vm is null)
+                return;
+            var candidates = _vm.GetConnectionReplaceCandidates(ConnectionReplaceScope.AllBases);
+            if (candidates.Count == 0)
+                return;
+            var vm = new ConnectionReplaceViewModel(
+                candidates,
+                ConnectionReplaceScope.AllBases,
+                onApplied: _vm.ApplyConnectionReplace,
+                onUndone: _vm.UndoLastConnectionReplace);
+            var win = new ConnectionReplaceWindow(vm);
+            win.ShowDialogSync(this);
+        }
+
+        /// <summary>
+        /// Отменить последнюю замену строк подключения («Утилиты»): восстанавливает прежние
+        /// настройки через мост MainViewModel (IsEnabled пункта обновляется по PropertyChanged).
+        /// </summary>
+        private void OnUtilitiesUndoConnectionReplaceClick()
+        {
+            _vm?.UndoLastConnectionReplace();
         }
 
         /// <summary>Пункт меню с подписью из словаря, командой и подсказкой сочетания клавиш.</summary>

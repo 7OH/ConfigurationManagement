@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.191] — 2026-09-30
+
+### Добавлено
+
+- **Массовая замена в строке подключения баз (функция 6, этап 5): интеграция в меню обеих
+  платформ** — функция «Заменить в строках подключения…» (этапы 0.3.9.187–0.3.9.190) становится
+  доступной из интерфейса:
+  - **Windows/WPF** [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml):
+    пункт **«Заменить в строках подключения…»** (`Main.BatchConnectionReplace`, иконка
+    `FindReplace`) в блоке **«Для выделенных (N)…»** контекстного меню базы — после «Проверить
+    доступность», перед «Удалить»; в подменю **«Утилиты»** — отдельный раздел верхнего уровня:
+    **«Заменить в строках подключения…»** (`Main.UtilitiesConnectionReplace`) и **«Отменить
+    последнюю замену строк подключения»** (`Main.UtilitiesUndoConnectionReplace`, Enabled по
+    `CanUndoConnectionReplace`). Обработчики в
+    [`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs):
+    `OnBatchConnectionReplace_Click` открывает окно с областью «Выделенные» и после закрытия
+    снимает мультивыделение; `OnUtilitiesConnectionReplace_Click` — с областью «Все базы»
+    (в окне область можно сменить); `OnUtilitiesUndoConnectionReplace_Click` вызывает мост
+    `UndoLastConnectionReplace`.
+  - **Linux/Avalonia** [`MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs):
+    аналогичные пункты — в блоке «Для выделенных (N)…» контекстного меню строки и в меню
+    «Утилиты» (новая иконка `IconFindReplace` в
+    [`Themes/Icons.axaml`](Configuration%20Management/Themes/Icons.axaml)); состояние пункта
+    «Отменить последнюю замену…» синхронизируется с `CanUndoConnectionReplace` через
+    `PropertyChanged` ([`MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs)).
+  - Ключи локализации ru/en: `Main.BatchConnectionReplace`, `Main.UtilitiesConnectionReplace`,
+    `Main.UtilitiesUndoConnectionReplace`.
+- **Тесты:** регрессия — `dotnet test` целиком зелёный; сборки Windows (WPF) и Linux
+  (`-p:BuildLinux=true`) без ошибок. Ручной чек (частично; полный сквозной — этап 0.3.9.192):
+  пункт «Для выделенных» виден при N ≥ 1 (существующий механизм `OnBaseContextMenu_Opened`),
+  пункты «Утилит» кликабельны, окно открывается с правильной областью.
+
 ## [0.3.9.190] — 2026-09-30
 
 ### Добавлено

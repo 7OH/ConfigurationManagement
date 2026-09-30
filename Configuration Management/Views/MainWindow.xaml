@@ -819,6 +819,16 @@
                                             </MenuItem>
                                         </MenuItem>
                                         <Separator/>
+                                        <!-- Массовая замена строк подключения (0.3.9.191, функция 6): отдельный раздел
+                                             «Утилит» верхнего уровня — операция общая (в окне область можно сменить
+                                             на «Выделенные»/«Текущую группу»); «Отменить последнюю замену» активна,
+                                             пока есть запись о последней операции (одноуровневая история). -->
+                                        <MenuItem Header="{loc:Loc Main.UtilitiesConnectionReplace}" Click="OnUtilitiesConnectionReplace_Click" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="FindReplace" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:Loc Main.UtilitiesUndoConnectionReplace}" Click="OnUtilitiesUndoConnectionReplace_Click" IsEnabled="{Binding CanUndoConnectionReplace}" Style="{DynamicResource ModernMenuItem}">
+                                            <MenuItem.Icon><materialDesign:PackIcon Kind="UndoVariant" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <MenuItem Header="{loc:Loc Settings.About.CheckForUpdates}" Click="OnCheckForUpdatesMenuClick" Style="{DynamicResource ModernMenuItem}">
                                             <MenuItem.Icon><materialDesign:PackIcon Kind="Update" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
                                         </MenuItem>
@@ -2465,6 +2475,12 @@
                                     </MenuItem>
                                     <MenuItem Header="{loc:Loc Main.BatchCheckAvailability}" Click="OnBatchCheckAvailability_Click" Style="{DynamicResource ModernMenuItem}">
                                         <MenuItem.Icon><materialDesign:PackIcon Kind="CloudCheck" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
+                                    </MenuItem>
+                                    <!-- Массовая замена строк подключения (0.3.9.191, функция 6): окно
+                                         с правилом «найти → заменить на» по полям строк подключения
+                                         выделенных баз, предпросмотром и откатом последней замены. -->
+                                    <MenuItem Header="{loc:Loc Main.BatchConnectionReplace}" Click="OnBatchConnectionReplace_Click" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="FindReplace" Width="16" Height="16" Foreground="#F59E0B"/></MenuItem.Icon>
                                     </MenuItem>
                                     <MenuItem Header="{loc:Loc Main.BatchDelete}" Click="OnBatchDelete_Click" Style="{DynamicResource ModernMenuItem}">
                                         <MenuItem.Icon><materialDesign:PackIcon Kind="Delete" Width="16" Height="16" Foreground="#EF4444"/></MenuItem.Icon>

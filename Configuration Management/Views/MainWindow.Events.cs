@@ -803,6 +803,58 @@ namespace Configuration_Management
             _viewModel.ClearBatchSelection();
         }
 
+        /// <summary>
+        /// Массовая замена в строках подключения выделенных баз (0.3.9.191, функция 6):
+        /// окно получает кандидатов области BatchSelected и колбэки моста MainViewModel;
+        /// после закрытия окна выделение снимается (как у остальных пакетных операций).
+        /// </summary>
+        private void OnBatchConnectionReplace_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null || _viewModel.BatchSelectedCount == 0)
+                return;
+            var candidates = _viewModel.GetConnectionReplaceCandidates(ConnectionReplaceScope.BatchSelected);
+            if (candidates.Count == 0)
+                return;
+            var vm = new ConnectionReplaceViewModel(
+                candidates,
+                ConnectionReplaceScope.BatchSelected,
+                onApplied: _viewModel.ApplyConnectionReplace,
+                onUndone: _viewModel.UndoLastConnectionReplace);
+            var win = new ConnectionReplaceWindow(vm) { Owner = this };
+            win.ShowDialog();
+            _viewModel.ClearBatchSelection();
+        }
+
+        /// <summary>
+        /// Массовая замена в строках подключения всех видимых баз («Утилиты»): кандидаты
+        /// области AllBases строит MainViewModel (скрытые приватные исключены), в окне
+        /// пользователь может сменить область на «Выделенные»/«Текущую группу».
+        /// </summary>
+        private void OnUtilitiesConnectionReplace_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null)
+                return;
+            var candidates = _viewModel.GetConnectionReplaceCandidates(ConnectionReplaceScope.AllBases);
+            if (candidates.Count == 0)
+                return;
+            var vm = new ConnectionReplaceViewModel(
+                candidates,
+                ConnectionReplaceScope.AllBases,
+                onApplied: _viewModel.ApplyConnectionReplace,
+                onUndone: _viewModel.UndoLastConnectionReplace);
+            var win = new ConnectionReplaceWindow(vm) { Owner = this };
+            win.ShowDialog();
+        }
+
+        /// <summary>
+        /// Отменить последнюю замену строк подключения («Утилиты»): восстанавливает прежние
+        /// настройки через мост MainViewModel (CanUndoConnectionReplace обновляется VM-событием).
+        /// </summary>
+        private void OnUtilitiesUndoConnectionReplace_Click(object sender, RoutedEventArgs e)
+        {
+            _viewModel?.UndoLastConnectionReplace();
+        }
+
 
     }
 }

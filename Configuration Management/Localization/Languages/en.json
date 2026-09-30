@@ -45,6 +45,8 @@
     "Settings.General.FunctionalModeHint": "The functionality mode defines the available capabilities:\n• \"User\" — launch only, the system menu is hidden;\n• \"Specialist\" — the full set of operations with the infobase list;\n• \"Developer\" — currently matches \"Specialist\".\n\nCurrently \"Specialist\" and \"Developer\" provide the same full access and the menus do not differ. Real configuration developer tools will be added in upcoming roadmap stages.",
     "Main.Utilities": "Utilities",
     "Main.UtilitiesTooltip": "Common commands and utilities not tied to a specific infobase",
+    "Main.UtilitiesConnectionReplace": "Replace in connection strings…",
+    "Main.UtilitiesUndoConnectionReplace": "Undo last connection string replacement",
     "Main.ActualReleasesTooltip": "Current releases of standard configurations",
 
     "RepoUpdate.Title": "Repository update",
@@ -200,6 +202,7 @@
     "Main.BatchRunBackup": "Run backup scenario…",
     "Main.BatchCheckAvailability": "Check availability",
     "Main.BatchDelete": "Delete",
+    "Main.BatchConnectionReplace": "Replace in connection strings…",
     "Main.Sync": "Synchronize",
     "Main.SyncTooltip": "Synchronize with ibases.v8i",
     "Main.SyncWithIbases": "Synchronize with ibases.v8i",

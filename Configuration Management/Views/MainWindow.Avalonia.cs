@@ -327,6 +327,10 @@ namespace Configuration_Management
         private EventHandler? _tagFiltersRebuilt;
         private PropertyChangedEventHandler? _vmPropertyChanged;
 
+        /// <summary>Пункт «Отменить последнюю замену строк подключения» в меню «Утилиты»
+        /// (0.3.9.191): IsEnabled синхронизируется с <see cref="MainViewModel.CanUndoConnectionReplace"/>.</summary>
+        private MenuItem? _undoConnectionReplaceItem;
+
         // ======================= Построение UI =======================
 
         private Control BuildRoot()
@@ -1568,6 +1572,13 @@ namespace Configuration_Management
                         if (_tagsToggle is not null)
                             _tagsToggle.IsChecked = _vm.ShowTagFilterPanel;
                         RefreshTagFilterPanel();
+                    }
+                    // «Отменить последнюю замену строк подключения» в «Утилитах» активна,
+                    // пока есть запись о последней операции (0.3.9.191, функция 6).
+                    if (e.PropertyName == nameof(MainViewModel.CanUndoConnectionReplace)
+                        && _undoConnectionReplaceItem is not null)
+                    {
+                        _undoConnectionReplaceItem.IsEnabled = _vm.CanUndoConnectionReplace;
                     }
                 };
 
