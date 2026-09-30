@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -48,6 +49,26 @@ public partial class MainViewModel
             return Array.Empty<CustomAction>();
         }
     }
+
+    private ICommand? _showCustomActionsSettingsCommand;
+
+    /// <summary>
+    /// Команда открытия окна «Пользовательские действия» (0.3.9.196): настраивает список
+    /// действий (окно списка + редактор). Вызывается из «Утилит» и пункта «Настроить
+    /// действия…» контекстного меню (интеграция меню — этапы 0.3.9.197/0.3.9.198).
+    /// Открытие окна — платформенный partial-метод <see cref="ExecuteShowCustomActionsSettings"/>;
+    /// после закрытия окна кэш <see cref="CustomActions"/> перечитывается, чтобы подменю
+    /// актуализировалось при следующем открытии.
+    /// </summary>
+    public ICommand ShowCustomActionsSettingsCommand =>
+        _showCustomActionsSettingsCommand ??= new RelayCommand(ExecuteShowCustomActionsSettings);
+
+    /// <summary>
+    /// Открывает окно списка пользовательских действий и перечитывает кэш после его
+    /// закрытия (платформенная реализация: Windows/WPF — ShowDialog, Avalonia/Linux —
+    /// ShowSync; см. MainViewModel.CustomActions.Windows.cs / *.Avalonia.cs).
+    /// </summary>
+    partial void ExecuteShowCustomActionsSettings();
 
     private bool _isCustomActionRunning;
 

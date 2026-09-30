@@ -9,6 +9,31 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.196] — 2026-09-30
+
+### Добавлено
+
+- **Пользовательские действия контекстного меню (функция 7, четвёртый этап): окна обеих
+  платформ** — список действий и форма редактирования:
+  - **Windows/WPF**: [`CustomActionsWindow.xaml`](Configuration%20Management/Views/CustomActionsWindow.xaml) —
+    список действий (имя, область применения, горячая клавиша, превью команды) с кнопками
+    «Добавить»/«Изменить»/«Удалить» (подтверждение `CustomAction.DeleteConfirm`); выделение
+    строки сохраняется после редактирования.
+  - **Windows/WPF**: [`CustomActionEditWindow.xaml`](Configuration%20Management/Views/CustomActionEditWindow.xaml) —
+    форма действия: наименование, многострочная команда с подстановками, область применения,
+    интерпретатор (Авто/cmd/PowerShell/sh), флажки «Показывать для выделенных (N) баз»,
+    «Выполнять без подтверждения», «Экранировать подставляемые значения для shell», таймаут,
+    горячая клавиша и рабочая папка; список токенов (двойной клик вставляет токен в позицию
+    курсора команды) и живое превью командной строки на примере выбранной базы.
+  - **Linux/Avalonia**: `CustomActionsWindow.Avalonia.cs` и `CustomActionEditWindow.Avalonia.cs` —
+    те же окна, построенные кодом (`ModalWindowBase` + `ShowDialogSync`).
+  - **Мост** [`MainViewModel.CustomActions.cs`](Configuration%20Management/ViewModels/MainViewModel.CustomActions.cs):
+    команда `ShowCustomActionsSettingsCommand` (платформенные хуки открытия Windows/Avalonia);
+    после закрытия окна кэш действий перечитывается `ReloadCustomActions()`.
+  - Ключи локализации окон `CustomAction.*` (заголовки, поля, подписи областей, токены)
+    и `Main.CustomActionsSettings` в
+    [`ru.json`](Configuration%20Management/Localization/Languages/ru.json)/[`en.json`](Configuration%20Management/Localization/Languages/en.json).
+
 ## [0.3.9.195] — 2026-09-30
 
 ### Добавлено

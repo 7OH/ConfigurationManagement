@@ -1,0 +1,53 @@
+<Window x:Class="Configuration_Management.CustomActionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Title="{loc:Loc CustomAction.WindowTitle}"
+        Icon="{StaticResource AppIcon}"
+        Width="760" Height="540" MinWidth="620" MinHeight="430"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" FontSize="13"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <!-- Темизация окна «Пользовательские действия» (функция 7): стили из
+             LightTheme/DarkTheme, как у остальных окон (ScriptScenariosWindow и др.). -->
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
+        <Style TargetType="ListView">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+        </Style>
+        <Style TargetType="GridViewColumnHeader">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="AddButton" Content="Добавить" Width="96" Margin="0,0,8,0" Padding="6,4" Click="OnAdd_Click"/>
+            <Button x:Name="EditButton" Content="Изменить" Width="96" Margin="0,0,8,0" Padding="6,4" IsEnabled="False" Click="OnEdit_Click"/>
+            <Button x:Name="DeleteButton" Content="Удалить" Width="92" Margin="0,0,8,0" Padding="6,4" IsEnabled="False" Click="OnDelete_Click"/>
+            <Button Content="{loc:Loc Common.Close}" Width="90" Padding="6,4" IsCancel="True" Click="Close_Click"/>
+        </StackPanel>
+
+        <!-- Список действий: имя, область применения, горячая клавиша и превью команды.
+             Двойной клик по строке открывает редактор, как в окне сценариев. -->
+        <ListView x:Name="ActionsList"
+                  SelectionChanged="ActionsList_SelectionChanged"
+                  MouseDoubleClick="ActionsList_MouseDoubleClick"
+                  Margin="0,0,0,8">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="{loc:Loc CustomAction.Name}" Width="180" DisplayMemberBinding="{Binding Name}"/>
+                    <GridViewColumn Header="{loc:Loc CustomAction.Scope}" Width="110" DisplayMemberBinding="{Binding ScopeDisplay}"/>
+                    <GridViewColumn Header="{loc:Loc CustomAction.Hotkey}" Width="120" DisplayMemberBinding="{Binding Hotkey}"/>
+                    <GridViewColumn Header="{loc:Loc CustomAction.Command}" Width="280" DisplayMemberBinding="{Binding CommandPreview}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </DockPanel>
+</Window>
