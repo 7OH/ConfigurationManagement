@@ -335,65 +335,56 @@ namespace Configuration_Management
             settings.Children.Add(checkUpdatesCheck);
             settings.Children.Add(autoUpdateCheck);
 
-            // Авторизация на сайте 1С при проверке обновлений конфигураций (HTTP Basic Auth).
-            var updatesAuthContent = new StackPanel();
-            var updatesAuthHint = new TextBlock
+            // Учётные данные ИТС (issue #333): выбор записи справочника its_accounts.json
+            // (первый пункт — «Основная») + кнопка открытия окна справочника.
+            var itsAccountsContent = new StackPanel();
+            var itsAccountsHint = new TextBlock
             {
-                Text = LocalizationManager.T("Updates.AuthHint"),
+                Text = LocalizationManager.T("ItsAccounts.SettingsHint"),
                 FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 8)
             };
-            ThemeBrushes.Bind(updatesAuthHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
-            updatesAuthContent.Children.Add(updatesAuthHint);
+            ThemeBrushes.Bind(itsAccountsHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            itsAccountsContent.Children.Add(itsAccountsHint);
 
-            var loginRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            loginRow.Children.Add(new TextBlock
+            var itsAccountsRow = new StackPanel { Orientation = Orientation.Horizontal };
+            itsAccountsRow.Children.Add(new TextBlock
             {
-                Text = LocalizationManager.T("Updates.Login"),
+                Text = LocalizationManager.T("ItsAccounts.AccountLabel"),
                 VerticalAlignment = VerticalAlignment.Center,
-                Width = 80
+                Width = 140
             });
-            var updatesLoginBox = new TextBox
-            {
-                Text = _viewModel.UpdatesLogin,
-                Height = 30,
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            }.Styled(ControlThemes.ModernTextBox);
-            ToolTip.SetTip(updatesLoginBox, new TextBlock
-            {
-                Text = LocalizationManager.T("Updates.AuthHint"),
-                MaxWidth = 320,
-                TextWrapping = TextWrapping.Wrap
-            });
-            loginRow.Children.Add(updatesLoginBox);
 
-            var passwordRow = new StackPanel { Orientation = Orientation.Horizontal };
-            passwordRow.Children.Add(new TextBlock
+            _itsAccountsCombo = new ComboBox
             {
-                Text = LocalizationManager.T("Updates.Password"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Width = 80
-            });
-            var updatesPasswordBox = new PasswordBox
-            {
-                Password = _viewModel.UpdatesPassword,
                 Height = 30,
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                DisplayMemberBinding = new Avalonia.Data.Binding(nameof(ViewModels.ItsAccountSelectionItem.Name))
             };
-            ToolTip.SetTip(updatesPasswordBox, new TextBlock
+            ReloadItsAccountsCombo();
+            ToolTip.SetTip(_itsAccountsCombo, new TextBlock
             {
-                Text = LocalizationManager.T("Updates.AuthHint"),
+                Text = LocalizationManager.T("ItsAccounts.SettingsHint"),
                 MaxWidth = 320,
                 TextWrapping = TextWrapping.Wrap
             });
-            passwordRow.Children.Add(updatesPasswordBox);
+            itsAccountsRow.Children.Add(_itsAccountsCombo);
 
-            updatesAuthContent.Children.Add(loginRow);
-            updatesAuthContent.Children.Add(passwordRow);
+            var manageButton = new Button
+            {
+                Content = LocalizationManager.T("ItsAccounts.OpenStore"),
+                Height = 30,
+                Margin = new Thickness(8, 0, 0, 0)
+            };
+            manageButton.Styled(ControlThemes.SelectAllButton);
+            manageButton.Click += (_, _) => OnItsAccountsManageClick();
+            itsAccountsRow.Children.Add(manageButton);
+
+            itsAccountsContent.Children.Add(itsAccountsRow);
 
             settings.Children.Add(Controls.GroupBoxPanel.Build(
-                "Updates.AuthGroupTitle", updatesAuthContent,
+                "ItsAccounts.Title", itsAccountsContent,
                 margin: new Thickness(0, 14, 0, 0),
                 padding: new Thickness(8)));
 
@@ -3130,9 +3121,8 @@ namespace Configuration_Management
                 // Быстрая TCP-проверка порта кластера перед COM (функция 12, 0.3.9.233).
                 _viewModel.AvailabilityTcpPrecheckEnabled = precheckBox.IsChecked == true;
 
-                // Авторизация на сайте 1С при проверке обновлений конфигураций (HTTP Basic Auth).
-                _viewModel.UpdatesLogin = updatesLoginBox.Text?.Trim() ?? "";
-                _viewModel.UpdatesPassword = updatesPasswordBox.Password ?? "";
+                // Учётные данные ИТС (issue #333): выбранная запись справочника или «Основная».
+                ApplyItsAccountSelection();
 
                 // Глубина истории запусков одной базы (issue #246).
                 if (int.TryParse(historyDepthBox.Text, out var historyDepth))

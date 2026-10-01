@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.246</Version>
-    <AssemblyVersion>0.3.9.246</AssemblyVersion>
-    <FileVersion>0.3.9.246</FileVersion>
-    <InformationalVersion>0.3.9.246</InformationalVersion>
+    <Version>0.3.9.247</Version>
+    <AssemblyVersion>0.3.9.247</AssemblyVersion>
+    <FileVersion>0.3.9.247</FileVersion>
+    <InformationalVersion>0.3.9.247</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -349,6 +349,13 @@
     <Compile Include="ViewModels\ConfigTypeItemViewModel.cs" />
     <Compile Include="ViewModels\UpdateCheckRowViewModel.cs" />
     <Compile Include="ViewModels\ActualReleasesViewModel.cs" />
+    <!-- Учётные данные ИТС (issue #333): чистые ViewModel справочника и строки списка,
+         обе платформы; подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\ItsAccountsViewModel.cs" />
+    <Compile Include="ViewModels\ItsAccountItemViewModel.cs" />
+    <!-- Список учётных записей ИТС в MainViewModel (issue #333): общий partial-файл
+         обеих платформ; подключается явно по той же причине. -->
+    <Compile Include="ViewModels\MainViewModel.ItsAccounts.cs" />
     <!-- ViewModel и строка окна «Обновление платформы 1С» (0.3.9.213, функция 9): чистый
          .NET без WPF-зависимостей, используются обеими платформами — на Linux подключаются
          явно (имена не совпадают с глобом *.Avalonia.cs); WPF-окно собирается #if WINDOWS. -->

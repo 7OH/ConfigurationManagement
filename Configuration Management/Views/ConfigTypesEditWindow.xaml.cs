@@ -26,6 +26,7 @@ namespace Configuration_Management;
 public partial class ConfigTypesEditWindow : Window
 {
     private readonly ICustomConfigTypesStore _store = AppServices.GetRequiredService<ICustomConfigTypesStore>();
+    private readonly IItsAccountsStore _itsAccounts = AppServices.GetRequiredService<IItsAccountsStore>();
     private readonly IAppLogger _logger = AppServices.GetRequiredService<IAppLogger>();
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -92,7 +93,7 @@ public partial class ConfigTypesEditWindow : Window
 
     private void AddRow(OneCConfigType config)
     {
-        _rows.Add(new ConfigTypeItemViewModel(config, OnEditRow, OnDeleteRow));
+        _rows.Add(new ConfigTypeItemViewModel(config, OnEditRow, OnDeleteRow, _itsAccounts));
     }
 
     /// <summary>
@@ -220,6 +221,7 @@ public partial class ConfigTypesEditWindow : Window
         target.Name = source.Name;
         target.UrlCode = source.UrlCode;
         target.Nick = source.Nick;
+        target.AccountId = source.AccountId ?? string.Empty;
         target.Editions.Clear();
         target.Editions.AddRange(source.Editions);
     }
@@ -231,6 +233,7 @@ public partial class ConfigTypesEditWindow : Window
         Name = source.Name,
         UrlCode = source.UrlCode,
         Nick = source.Nick,
+        AccountId = source.AccountId ?? string.Empty,
         IsBuiltIn = source.IsBuiltIn,
         IsTracked = source.IsTracked,
         OverridesBuiltIn = source.OverridesBuiltIn,

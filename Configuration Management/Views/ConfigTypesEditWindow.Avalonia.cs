@@ -29,6 +29,7 @@ namespace Configuration_Management
     public sealed class ConfigTypesEditWindow : ModalWindowBase
     {
         private readonly Services.ICustomConfigTypesStore _store = AppServices.GetRequiredService<Services.ICustomConfigTypesStore>();
+        private readonly Services.IItsAccountsStore _itsAccounts = AppServices.GetRequiredService<Services.IItsAccountsStore>();
         private readonly Services.IAppLogger _logger = AppServices.GetRequiredService<Services.IAppLogger>();
         private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -86,9 +87,9 @@ namespace Configuration_Management
             _rows.Clear();
             _rowsPanel.Children.Clear();
             foreach (var ct in BuiltInConfigTypes.All)
-                AddRow(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow));
+                AddRow(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow, _itsAccounts));
             foreach (var ct in _customTypes)
-                AddRow(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow));
+                AddRow(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow, _itsAccounts));
         }
 
         private void AddRow(ConfigTypeItemViewModel row)
@@ -127,6 +128,7 @@ namespace Configuration_Management
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(3, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
@@ -172,6 +174,18 @@ namespace Configuration_Management
             Grid.SetColumn(editions, 3);
             grid.Children.Add(editions);
 
+            // Учётная запись ИТС для конфигурации (issue #333): имя выбранной записи
+            // справочника либо «Основная», если запись не указана.
+            var account = new TextBlock
+            {
+                Text = row.AccountDisplay,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 8, 0)
+            };
+            Grid.SetColumn(account, 4);
+            grid.Children.Add(account);
+
             // Кнопка «Изменить» доступна для всех строк (issue #321): правка предопределённой
             // создаёт пользовательскую копию-переопределение. «Удалить» — только у пользовательских.
             var edit = new Button
@@ -183,7 +197,7 @@ namespace Configuration_Management
             };
             edit.Styled(ControlThemes.SelectAllButton);
             edit.Click += (_, _) => OnEditRow(row);
-            Grid.SetColumn(edit, 4);
+            Grid.SetColumn(edit, 5);
             grid.Children.Add(edit);
 
             if (!row.IsBuiltIn)
@@ -197,7 +211,7 @@ namespace Configuration_Management
                 };
                 delete.Styled(ControlThemes.SelectAllButton);
                 delete.Click += (_, _) => OnDeleteRow(row);
-                Grid.SetColumn(delete, 5);
+                Grid.SetColumn(delete, 6);
                 grid.Children.Add(delete);
             }
 
@@ -325,6 +339,7 @@ namespace Configuration_Management
             target.Name = source.Name;
             target.UrlCode = source.UrlCode;
             target.Nick = source.Nick;
+            target.AccountId = source.AccountId ?? string.Empty;
             target.Editions.Clear();
             target.Editions.AddRange(source.Editions);
         }
@@ -336,6 +351,7 @@ namespace Configuration_Management
             Name = source.Name,
             UrlCode = source.UrlCode,
             Nick = source.Nick,
+            AccountId = source.AccountId ?? string.Empty,
             IsBuiltIn = source.IsBuiltIn,
             IsTracked = source.IsTracked,
             OverridesBuiltIn = source.OverridesBuiltIn,
@@ -518,13 +534,13 @@ namespace Configuration_Management
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(3, GridUnitType.Star)));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
 
             grid.Children.Add(MakeHeaderText(T("Updates.Name"), 0));
             grid.Children.Add(MakeHeaderText(T("Updates.UrlCode"), 1));
             grid.Children.Add(MakeHeaderText(T("Updates.Nick"), 2));
             grid.Children.Add(MakeHeaderText(T("Updates.Editions"), 3));
+            grid.Children.Add(MakeHeaderText(T("ItsAccounts.AccountLabel"), 4));
             return grid;
         }
 

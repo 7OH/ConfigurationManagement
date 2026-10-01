@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
+using Configuration_Management.Localization;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 
 namespace Configuration_Management.ViewModels;
 
@@ -12,6 +14,8 @@ namespace Configuration_Management.ViewModels;
 /// </summary>
 public class ConfigTypeItemViewModel : ViewModelBase
 {
+    private readonly IItsAccountsStore? _itsAccounts;
+
     /// <summary>Оборачиваемая типовая конфигурация.</summary>
     public OneCConfigType Model { get; }
 
@@ -36,6 +40,19 @@ public class ConfigTypeItemViewModel : ViewModelBase
             ? string.Empty
             : string.Join(", ", Model.Editions.Select(e => e.ToString()));
 
+    /// <summary>Отображаемое имя учётной записи ИТС (issue #333): имя выбранной записи
+    /// справочника либо «Основная», если запись не указана или не найдена.</summary>
+    public string AccountDisplay
+    {
+        get
+        {
+            var name = string.IsNullOrWhiteSpace(Model.AccountId)
+                ? null
+                : _itsAccounts?.GetById(Model.AccountId)?.Name;
+            return name ?? LocalizationManager.T("ItsAccounts.Primary");
+        }
+    }
+
     /// <summary>Флаг «отслеживать» в окне «Актуальные релизы».</summary>
     public bool IsTracked
     {
@@ -58,14 +75,21 @@ public class ConfigTypeItemViewModel : ViewModelBase
     /// <param name="model">Типовая конфигурация. Не может быть null.</param>
     /// <param name="edit">Действие «открыть редактор».</param>
     /// <param name="delete">Действие «удалить».</param>
-    public ConfigTypeItemViewModel(OneCConfigType model, Action<ConfigTypeItemViewModel> edit, Action<ConfigTypeItemViewModel> delete)
+    /// <param name="itsAccounts">Хранилище учётных записей ИТС для колонки «Учётная запись»
+    /// (необязательно: окно списка типовых передаёт, остальные окна могут не передавать).</param>
+    public ConfigTypeItemViewModel(
+        OneCConfigType model,
+        Action<ConfigTypeItemViewModel> edit,
+        Action<ConfigTypeItemViewModel> delete,
+        IItsAccountsStore? itsAccounts = null)
     {
         Model = model ?? throw new ArgumentNullException(nameof(model));
+        _itsAccounts = itsAccounts;
         EditCommand = new RelayCommand(() => edit(this));
         DeleteCommand = new RelayCommand(() => delete(this), () => !model.IsBuiltIn);
     }
 
-    /// <summary>Обновляет привязки после редактирования модели (код, имя, сегмент, ник, редакции).</summary>
+    /// <summary>Обновляет привязки после редактирования модели (код, имя, сегмент, ник, редакции, учётная запись).</summary>
     public void Refresh()
     {
         OnPropertyChanged(nameof(Code));
@@ -73,6 +97,7 @@ public class ConfigTypeItemViewModel : ViewModelBase
         OnPropertyChanged(nameof(UrlCode));
         OnPropertyChanged(nameof(Nick));
         OnPropertyChanged(nameof(EditionsSummary));
+        OnPropertyChanged(nameof(AccountDisplay));
         OnPropertyChanged(nameof(IsTracked));
     }
 }

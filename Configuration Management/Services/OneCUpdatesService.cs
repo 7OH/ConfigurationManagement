@@ -64,6 +64,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     private readonly HttpClient _httpClient;
 
     private readonly IInfobaseRepository _repository;
+    private readonly IItsAccountsStore? _itsAccounts;
     private readonly IAppLogger _logger;
 
     /// <summary>True — попытка программного входа на portal.1c.ru уже выполнялась (не более одного
@@ -72,11 +73,13 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// Создаёт экземпляр службы. <paramref name="repository"/> (singleton) используется для
-    /// чтения настроек логина/пароля авторизации на сайте 1С на каждый сетевой запрос;
+    /// чтения настроек (выбор учётной записи ИТС) на каждый сетевой запрос;
     /// <paramref name="logger"/> — для диагностики сетевых ошибок проверки обновлений.
+    /// Учётные данные берутся из справочника <see cref="IItsAccountsStore"/> (issue #333):
+    /// выбранная в настройках запись или «Основная».
     /// </summary>
     public OneCUpdatesService(IInfobaseRepository repository, IAppLogger logger)
-        : this(repository, logger, handler: null)
+        : this(repository, logger, handler: null, itsAccounts: null)
     {
     }
 
@@ -85,9 +88,14 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// службы — основной клиент и клиент многопоточной загрузки — работает через
     /// fake-обработчик, реальная сеть не используется.
     /// </summary>
-    internal OneCUpdatesService(IInfobaseRepository repository, IAppLogger logger, HttpMessageHandler? handler)
+    internal OneCUpdatesService(
+        IInfobaseRepository repository,
+        IAppLogger logger,
+        HttpMessageHandler? handler,
+        IItsAccountsStore? itsAccounts = null)
     {
         _repository = repository;
+        _itsAccounts = itsAccounts;
         _logger = logger;
         _handlerOverride = handler;
         _httpClient = CreateHttpClient(handler);
@@ -648,11 +656,9 @@ public class OneCUpdatesService : IOneCUpdatesService
         client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,*/*;q=0.8");
 
-        var settings = _repository.LoadSettings();
-        var login = settings.UpdatesLogin ?? string.Empty;
+        var (login, password) = GetCredentials();
         if (!string.IsNullOrEmpty(login))
         {
-            var password = settings.UpdatesPassword ?? string.Empty;
             var token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{login}:{password}"));
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", token);
         }
@@ -909,21 +915,37 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// Добавляет HTTP Basic Auth заголовок (<c>Authorization: Basic base64(логин:пароль)</c>)
-    /// на основе настроек <see cref="AppSettings.UpdatesLogin"/>/<see cref="AppSettings.UpdatesPassword"/>.
-    /// Если логин не задан — запрос выполняется без авторизации (обратная совместимость).
-    /// Настройки читаются на каждый запрос, поэтому смена учётных данных не требует перезапуска.
+    /// на основе учётной записи ИТС (issue #333): выбранной в настройках (<see cref="AppSettings.ItsAccountId"/>)
+    /// или «Основной» из справочника <see cref="IItsAccountsStore"/>. Если логин не задан — запрос
+    /// выполняется без авторизации (обратная совместимость). Учётные данные читаются на каждый
+    /// запрос, поэтому смена записи в справочнике не требует перезапуска.
     /// Заголовок Authorization и пароль не логируются.
     /// </summary>
     private void AddBasicAuth(HttpRequestMessage request)
     {
-        var settings = _repository.LoadSettings();
-        var login = settings.UpdatesLogin ?? string.Empty;
+        var (login, password) = GetCredentials();
         if (string.IsNullOrEmpty(login))
             return;
 
-        var password = settings.UpdatesPassword ?? string.Empty;
         var token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{login}:{password}"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", token);
+    }
+
+    /// <summary>
+    /// Возвращает логин/пароль для авторизации на сайте 1С: учётная запись из справочника
+    /// <see cref="IItsAccountsStore"/> (выбранная в настройках <see cref="AppSettings.ItsAccountId"/>
+    /// или «Основная»), при её отсутствии — устаревшие поля
+    /// <see cref="AppSettings.UpdatesLogin"/>/<see cref="AppSettings.UpdatesPassword"/> (миграция
+    /// ещё не выполнена либо справочник пуст). Пароль никогда не логируется.
+    /// </summary>
+    private (string Login, string Password) GetCredentials()
+    {
+        var settings = _repository.LoadSettings();
+        var account = _itsAccounts?.Resolve(settings.ItsAccountId);
+        if (account is not null && !string.IsNullOrWhiteSpace(account.Login))
+            return (account.Login ?? string.Empty, account.Password ?? string.Empty);
+
+        return (settings.UpdatesLogin ?? string.Empty, settings.UpdatesPassword ?? string.Empty);
     }
 
     /// <summary>
@@ -935,9 +957,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// </summary>
     private async Task<bool> TryLoginPortalAsync(CancellationToken ct)
     {
-        var settings = _repository.LoadSettings();
-        var login = settings.UpdatesLogin ?? string.Empty;
-        var password = settings.UpdatesPassword ?? string.Empty;
+        var (login, password) = GetCredentials();
         if (string.IsNullOrEmpty(login))
         {
             _logger.Warn("[Updates] Для входа на portal.1c.ru не задан логин.");

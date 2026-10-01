@@ -111,11 +111,8 @@ namespace Configuration_Management
                         TemplatePathsList.Items.Add(p);
                 }
             }
-            // Авторизация на сайте 1С при проверке обновлений конфигураций.
-            if (UpdatesLoginBox != null)
-                UpdatesLoginBox.Text = viewModel.UpdatesLogin;
-            if (UpdatesPasswordBox != null)
-                UpdatesPasswordBox.Password = viewModel.UpdatesPassword;
+            // Учётные данные ИТС (issue #333): выбранная запись справочника или «Основная».
+            ReloadItsAccountsCombo();
             // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
             InitGlobalDoubleClickCombo();
             // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
@@ -589,11 +586,9 @@ namespace Configuration_Management
             // Копия экрана (функция №30, Этап 8): сочетание и каталог сохранения.
             _viewModel.ScreenshotHotkey = hkScreenshot;
             _viewModel.ScreenshotSaveDirectory = ScreenshotDirectoryBox?.Text?.Trim() ?? "";
-            // Авторизация на сайте 1С при проверке обновлений конфигураций.
-            if (UpdatesLoginBox != null)
-                _viewModel.UpdatesLogin = UpdatesLoginBox.Text?.Trim() ?? "";
-            if (UpdatesPasswordBox != null)
-                _viewModel.UpdatesPassword = UpdatesPasswordBox.Password;
+            // Учётные данные ИТС (issue #333): выбранная запись справочника или «Основная».
+            if (ItsAccountsCombo != null && ItsAccountsCombo.SelectedItem is ViewModels.ItsAccountSelectionItem selection)
+                _viewModel.ItsAccountId = selection.Id ?? "";
             // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
             _viewModel.ConfirmCustomActions = ConfirmCustomActionsCheck?.IsChecked ?? true;
             _viewModel.SaveSettings();
@@ -819,6 +814,30 @@ namespace Configuration_Management
             {
                 e.Handled = true;
             }
+        }
+
+        // ---- Учётные данные ИТС (issue #333): выбор записи справочника its_accounts.json ----
+
+        /// <summary>Перестраивает ComboBox выбора учётной записи ИТС (первый пункт — «Основная»).</summary>
+        private void ReloadItsAccountsCombo()
+        {
+            if (ItsAccountsCombo is null)
+                return;
+
+            var items = ItsAccountSelectionBuilder.Build(
+                AppServices.GetRequiredService<IItsAccountsStore>());
+            ItsAccountsCombo.ItemsSource = items;
+            var index = ItsAccountSelectionBuilder.IndexOf(items, _viewModel.ItsAccountId);
+            ItsAccountsCombo.SelectedIndex = Math.Max(0, Math.Min(index, items.Count - 1));
+        }
+
+        /// <summary>Открывает окно справочника учётных записей ИТС; после закрытия обновляет список.</summary>
+        private void OnItsAccountsManageClick(object sender, RoutedEventArgs e)
+        {
+            var win = new ItsAccountsWindow { Owner = this };
+            win.ShowDialog();
+            _viewModel.RefreshItsAccounts();
+            ReloadItsAccountsCombo();
         }
 
 

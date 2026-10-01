@@ -41,6 +41,14 @@ public class OneCConfigType
     /// </summary>
     public bool OverridesBuiltIn { get; set; }
 
+    /// <summary>
+    /// Идентификатор учётной записи ИТС из справочника <c>its_accounts.json</c> (issue #333),
+    /// используемой для этой конфигурации при запросах к сайту 1С. Пусто — используется
+    /// «Основная» запись справочника (либо выбранная в настройках). Обратная совместимость:
+    /// отсутствие поля в старых JSON-файлах десериализуется в пустую строку.
+    /// </summary>
+    public string AccountId { get; set; } = string.Empty;
+
     /// <summary>Признак «отслеживать» в окне «Актуальные релизы» (по умолчанию true).</summary>
     public bool IsTracked { get; set; } = true;
 

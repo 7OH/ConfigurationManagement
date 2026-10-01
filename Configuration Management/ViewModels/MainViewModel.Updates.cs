@@ -38,24 +38,13 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>Логин учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
-    public string UpdatesLogin
+    /// <summary>Идентификатор выбранной учётной записи ИТС (issue #333); пусто — «Основная».</summary>
+    public string ItsAccountId
     {
-        get => _updatesLogin;
+        get => _itsAccountId;
         set
         {
-            if (SetProperty(ref _updatesLogin, value ?? ""))
-                ScheduleSaveSettings();
-        }
-    }
-
-    /// <summary>Пароль учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
-    public string UpdatesPassword
-    {
-        get => _updatesPassword;
-        set
-        {
-            if (SetProperty(ref _updatesPassword, value ?? ""))
+            if (SetProperty(ref _itsAccountId, value ?? ""))
                 ScheduleSaveSettings();
         }
     }
@@ -124,6 +113,21 @@ public partial class MainViewModel
         Application.Current.Dispatcher.BeginInvoke(
             new Action(() => win.ShowDialog()),
             System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    /// <summary>
+    /// Открывает окно справочника «Учетные данные ИТС» (issue #333) из подменю
+    /// «Утилиты → Информация» или настроек. После закрытия список учётных записей
+    /// в настройках перечитывается, чтобы изменения сразу отразились.
+    /// </summary>
+    public void OpenItsAccounts()
+    {
+        var win = new Configuration_Management.ItsAccountsWindow();
+        win.Owner = Application.Current.MainWindow;
+        Application.Current.Dispatcher.BeginInvoke(
+            new Action(() => win.ShowDialog()),
+            System.Windows.Threading.DispatcherPriority.Input);
+        RefreshItsAccounts();
     }
 
     /// <summary>Открывает окно редактирования списка типовых конфигураций 1С.</summary>

@@ -63,5 +63,17 @@ public partial class MainViewModel
         var win = new Configuration_Management.ConfigTypesEditWindow();
         win.ShowSync(OwnerWindow());
     }
+
+    /// <summary>
+    /// Открывает окно справочника «Учетные данные ИТС» (issue #333) из подменю
+    /// «Утилиты → Информация» или настроек. После закрытия список учётных записей
+    /// в настройках перечитывается, чтобы изменения сразу отразились.
+    /// </summary>
+    public void OpenItsAccounts()
+    {
+        var win = new Configuration_Management.ItsAccountsWindow();
+        win.ShowSync(OwnerWindow());
+        RefreshItsAccounts();
+    }
 }
 #endif

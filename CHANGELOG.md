@@ -9,6 +9,52 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.247] — 2026-10-01
+
+### Добавлено
+
+- **Справочник «Учетные данные ИТС» (issue #333)** — вместо двух полей логин/пароль в
+  настройках появился отдельный справочник записей сайта 1С (downloads.1c.ru, portal.1c.ru),
+  одна версия для обеих платформ:
+  - окно «Учетные данные ИТС» открывается из подменю **«Утилиты → Информация»** и из
+    настроек; список записей (наименование, логин, флажок «Основная») с кнопками
+    **«Добавить»**, **«Изменить»**, **«Удалить»**, **«Задать основным»**
+    ([`ItsAccountsWindow.xaml`](Configuration%20Management/Views/ItsAccountsWindow.xaml),
+    [`ItsAccountsWindow.Avalonia.cs`](Configuration%20Management/Views/ItsAccountsWindow.Avalonia.cs));
+    редактор — модальное окно со скинингом по теме приложения и фокусом по умолчанию
+    на первом поле («Наименование»)
+    ([`ItsAccountEditWindow.xaml`](Configuration%20Management/Views/ItsAccountEditWindow.xaml),
+    [`ItsAccountEditWindow.Avalonia.cs`](Configuration%20Management/Views/ItsAccountEditWindow.Avalonia.cs));
+  - правила «Основная»: флажок в списке только для чтения, смена основной **только**
+    кнопкой «Задать основным»; при загрузке файла 2+ основных → основной первый найденный,
+    0 → первая запись; при удалении основной основной становится первая запись списка;
+  - хранилище — отдельный читаемый JSON-файл **`its_accounts.json`** рядом с настройками
+    (атомарная запись, UTF-8 без `\uXXXX`), по образцу `custom_config_types.json`
+    ([`ItsAccountsStore.cs`](Configuration%20Management/Services/ItsAccountsStore.cs),
+    [`IItsAccountsStore.cs`](Configuration%20Management/Services/IItsAccountsStore.cs));
+  - **миграция**: при первом запуске после обновления текущие логин/пароль ИТС из старых
+    настроек (`UpdatesLogin`/`UpdatesPassword`) переносятся в запись «Основная» идемпотентно
+    (повторный запуск дублей не создаёт); старые поля сохраняются для обратной совместимости;
+  - в настройках вместо двух полей — **ComboBox выбора записи справочника** (первый пункт —
+    «Основная») + кнопка «Открыть справочник»
+    ([`SettingsWindow.xaml`](Configuration%20Management/Views/SettingsWindow.xaml),
+    [`SettingsWindow.Avalonia.ItsAccounts.cs`](Configuration%20Management/Views/SettingsWindow.Avalonia.ItsAccounts.cs));
+  - авторизация при запросах к сайту 1С (`OneCUpdatesService`, вход login.1c.ru) использует
+    выбранную в настройках запись или «Основную»
+    ([`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs));
+  - в окне «Типовые конфигурации» (#321) у каждой записи добавлена колонка/поле
+    **«Учётная запись»** (опционально; пусто — «Основная»): модель `OneCConfigType.AccountId`
+    (обратная совместимость: отсутствие поля = пусто), редактор и список
+    ([`OneCConfigType.cs`](Configuration%20Management/Models/OneCConfigType.cs),
+    [`ConfigTypeEditWindow.xaml`](Configuration%20Management/Views/ConfigTypeEditWindow.xaml));
+  - пароль маскируется при журналировании (`SensitiveDataMasker`), в лог и журнал не попадает.
+- Тесты: [`ItsAccountsStoreTests`](ConfigurationManagement.Tests/ItsAccountsStoreTests.cs) —
+  миграция (первый запуск, повторный без дублей, сохранение старых настроек), правила
+  «Основная» (2+, 0, удаление основной → первая), CRUD (добавление/правка/удаление/смена
+  основной), резолв учётной записи типовой конфигурацией (пусто → основная, явный выбор,
+  отсутствующая запись → основная), маскирование пароля в логе, читаемость UTF-8, битый файл.
+  Регрессия `CustomConfigTypesStoreTests`.
+
 ## [0.3.9.246] — 2026-10-01
 
 ### Исправлено

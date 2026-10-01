@@ -180,6 +180,11 @@
                                         ElementStyle="{StaticResource CenteredCellText}"/>
                     <DataGridTextColumn Width="*" Header="{loc:Loc Updates.Editions}" Binding="{Binding EditionsSummary}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>
+                    <!-- Учётная запись ИТС для конфигурации (issue #333): имя выбранной записи
+                         справочника либо «Основная», если запись не указана. -->
+                    <DataGridTextColumn Width="1.5*" Header="{loc:Loc ItsAccounts.AccountLabel}"
+                                        Binding="{Binding AccountDisplay}"
+                                        ElementStyle="{StaticResource CenteredCellText}"/>
 
                     <!-- Признак предопределённой -->
                     <DataGridTemplateColumn Width="40">

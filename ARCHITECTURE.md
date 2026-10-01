@@ -337,6 +337,48 @@ TCP-проверку портов 1540/1541/1545 с измерением RTT и 
 - **режим «Пользователь»**: подменю доступно (пункт с `Tag="User"`) — действия являются
   пользовательской настройкой, но приватные цели всё равно исключаются фильтром.
 
+### Учётные данные ИТС (справочник)
+
+Справочник «Учетные данные ИТС» (issue #333) — хранилище логинов/паролей сайта 1С
+(downloads.1c.ru, portal.1c.ru) для проверки обновлений конфигураций и скачивания
+дистрибутивов. Чистый слой без платформенных зависимостей + тонкие окна обеих платформ:
+
+- [`Models/ItsAccount.cs`](Configuration Management/Models/ItsAccount.cs) — модель записи:
+  `Id` (GUID, по образцу `ScriptScenario`), `Name`, `Login`, `Password`, `IsPrimary`.
+- [`Services/ItsAccountsStore.cs`](Configuration Management/Services/ItsAccountsStore.cs)
+  (`IItsAccountsStore`) — JSON-хранилище **`its_accounts.json`** в каталоге данных профиля,
+  по образцу `CustomConfigTypesStore` (атомарная запись `.tmp` + `File.Move(overwrite: true)`,
+  кириллица через `UnsafeRelaxedJsonEscaping`). Правила «Основная» нормализуются при каждой
+  загрузке (`Normalize`): ровно одна основная запись — 2+ основных → первый найденный,
+  0 → первая запись; удаление основной → первой становится первая запись списка;
+  смена основной — только через `SetPrimary` (UI-флажок read-only). При первом обращении,
+  когда файла нет, старые поля настроек `AppSettings.UpdatesLogin`/`UpdatesPassword`
+  мигрируют в запись «Основная» (идемпотентно; старые настройки не изменяются —
+  обратная совместимость). `Resolve(accountId)` выбирает запись по идентификатору либо
+  основную (используется сервисами и для типовых конфигураций).
+- [`Services/OneCUpdatesService.cs`](Configuration Management/Services/OneCUpdatesService.cs) —
+  авторизация (Basic Auth, вход portal.1c.ru, клиент многопоточной загрузки) берёт учётные
+  данные через `GetCredentials()`: выбранная в настройках запись
+  (`AppSettings.ItsAccountId`) или «Основная», fallback — старые поля настроек до миграции.
+  Пароль никогда не логируется (`SensitiveDataMasker.MaskValue`).
+- Окна: WPF [`Views/ItsAccountsWindow.xaml`](Configuration Management/Views/ItsAccountsWindow.xaml)
+  (+ `.xaml.cs`), Avalonia [`Views/ItsAccountsWindow.Avalonia.cs`](Configuration Management/Views/ItsAccountsWindow.Avalonia.cs) —
+  список с кнопками «Добавить»/«Изменить»/«Удалить»/«Задать основным»; модальный редактор
+  [`Views/ItsAccountEditWindow.xaml`](Configuration Management/Views/ItsAccountEditWindow.xaml)
+  (+ `.xaml.cs`)/[`Views/ItsAccountEditWindow.Avalonia.cs`](Configuration Management/Views/ItsAccountEditWindow.Avalonia.cs) —
+  фокус по умолчанию на первом поле. Открывается из «Утилиты → Информация»
+  (`MainViewModel.OpenItsAccounts`) и из настроек.
+- Настройки: вместо двух полей логин/пароль — ComboBox выбора записи (первый пункт —
+  «Основная») + кнопка «Открыть справочник» (WPF — разметка `SettingsWindow.xaml`,
+  Avalonia — [`Views/SettingsWindow.Avalonia.ItsAccounts.cs`](Configuration Management/Views/SettingsWindow.Avalonia.ItsAccounts.cs)).
+- Типовые конфигурации (#321/#333): `OneCConfigType.AccountId` — ссылка на учётную запись
+  для конкретной конфигурации (пусто = «Основная»); колонка/поле «Учётная запись» в списке
+  и редакторе типовых; обратная совместимость — отсутствие поля в старых JSON = пусто.
+- Вспомогательные VM: [`ViewModels/ItsAccountsViewModel.cs`](Configuration Management/ViewModels/ItsAccountsViewModel.cs)
+  (список окна + `ItsAccountSelectionItem`/`ItsAccountSelectionBuilder` для ComboBox),
+  [`ViewModels/ItsAccountItemViewModel.cs`](Configuration Management/ViewModels/ItsAccountItemViewModel.cs)
+  (строка списка с командами).
+
 ### Автообновление платформы 1С
 
 Функция «Утилиты → Обновление платформы 1С» (цикл 0.3.9.208–0.3.9.216, горячая клавиша

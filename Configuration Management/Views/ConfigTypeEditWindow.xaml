@@ -100,6 +100,13 @@
                 <TextBlock Text="{loc:Loc Updates.Nick}" FontWeight="SemiBold" Margin="0,12,0,4"/>
                 <TextBox x:Name="NickBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
 
+                <!-- Учётная запись ИТС для этой конфигурации (issue #333): опционально,
+                     пусто — используется «Основная» (либо выбранная в настройках). -->
+                <TextBlock Text="{loc:Loc ItsAccounts.AccountLabel}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <ComboBox x:Name="AccountCombo" Height="32" Padding="10,0"
+                          DisplayMemberPath="Name" VerticalContentAlignment="Center"
+                          ToolTip="{loc:Loc ItsAccounts.EditorHint}"/>
+
                 <TextBlock Text="{loc:Loc Updates.Editions}" FontWeight="SemiBold" Margin="0,12,0,4"/>
                 <Grid>
                     <Grid.RowDefinitions>

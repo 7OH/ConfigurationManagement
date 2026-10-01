@@ -683,9 +683,10 @@ public partial class MainViewModel : ViewModelBase
             HotkeyCheckUpdate = _hotkeyCheckUpdate,
             HotkeyActualReleases = _hotkeyActualReleases,
             HotkeyPlatformUpdate = _hotkeyPlatformUpdate,
-            // Авторизация на сайте 1С (HTTP Basic Auth) при проверке обновлений конфигураций.
-            UpdatesLogin = _updatesLogin,
-            UpdatesPassword = _updatesPassword,
+            // Учётная запись ИТС (issue #333): выбранная запись справочника its_accounts.json
+            // (пусто — «Основная»). Старые поля UpdatesLogin/UpdatesPassword не записываются —
+            // они нужны только для однократной миграции в справочник.
+            ItsAccountId = _itsAccountId,
             // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
             HotkeySessionLock = _hotkeySessionLock,
             HotkeyLockApp = _hotkeyLockApp,

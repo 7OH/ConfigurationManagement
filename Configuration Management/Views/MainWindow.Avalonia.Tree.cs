@@ -1728,6 +1728,16 @@ namespace Configuration_Management
             manageItem.Click += (_, _) => _vm.OpenConfigTypesEdit();
             informationMenu.Items.Add(manageItem);
 
+            // Учётные данные ИТС (issue #333): справочник логинов/паролей сайта 1С.
+            var itsAccountsItem = new MenuItem
+            {
+                Header = LocalizationManager.T("ItsAccounts.MenuItem"),
+                Icon = MenuIcon("IconAccountKey", "#14B8A6")
+            };
+            itsAccountsItem.Styled(Themes.ControlThemes.ModernMenuItem);
+            itsAccountsItem.Click += (_, _) => _vm.OpenItsAccounts();
+            informationMenu.Items.Add(itsAccountsItem);
+
             informationMenu.Items.Add(MenuSeparator());
 
             // Задания по расписанию (issue #286): резервная копия, обновление конфигурации

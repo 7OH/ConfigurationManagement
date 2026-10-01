@@ -24,6 +24,7 @@ public partial class ConfigTypeEditWindow : Window
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
     private readonly List<OneCConfigEdition> _editions = new();
     private readonly string _originalCode;
+    private readonly List<ViewModels.ItsAccountSelectionItem> _accountItems = new();
 
     /// <summary>Готовая конфигурация при подтверждении, иначе <c>null</c>.</summary>
     public OneCConfigType? Result { get; private set; }
@@ -45,6 +46,14 @@ public partial class ConfigTypeEditWindow : Window
         NameBox.Text = model?.Name ?? string.Empty;
         UrlCodeBox.Text = model?.UrlCode ?? string.Empty;
         NickBox.Text = model?.Nick ?? string.Empty;
+
+        // Учётная запись ИТС (issue #333): «Основная» + записи справочника.
+        _accountItems.AddRange(ViewModels.ItsAccountSelectionBuilder.Build(
+            AppServices.GetRequiredService<IItsAccountsStore>()));
+        AccountCombo.ItemsSource = _accountItems;
+        AccountCombo.SelectedIndex = Math.Max(0, Math.Min(
+            ViewModels.ItsAccountSelectionBuilder.IndexOf(_accountItems, model?.AccountId),
+            _accountItems.Count - 1));
 
         if (model is not null)
             _editions.AddRange(model.Editions);
@@ -85,12 +94,16 @@ public partial class ConfigTypeEditWindow : Window
             code = _originalCode.Length > 0 ? _originalCode : GenerateCode(name);
         }
 
+        var selectedAccount = AccountCombo.SelectedItem as ViewModels.ItsAccountSelectionItem;
+
         Result = new OneCConfigType
         {
             Code = code,
             Name = name,
             UrlCode = UrlCodeBox.Text?.Trim() ?? string.Empty,
             Nick = NickBox.Text?.Trim() ?? string.Empty,
+            // Учётная запись ИТС: пусто — «Основная» (либо выбранная в настройках).
+            AccountId = selectedAccount?.Id ?? string.Empty,
             IsBuiltIn = false,
             Editions = new List<OneCConfigEdition>(_editions),
         };

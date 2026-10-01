@@ -174,30 +174,16 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Автоматически устанавливать новые версии без подтверждения.</summary>
     public bool AutoUpdateEnabled => _settings.AutoUpdateEnabled;
 
-    /// <summary>Логин учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
-    public string UpdatesLogin
+    /// <summary>Идентификатор выбранной учётной записи ИТС (issue #333); пусто — «Основная».</summary>
+    public string ItsAccountId
     {
-        get => _settings.UpdatesLogin ?? "";
+        get => _settings.ItsAccountId ?? "";
         set
         {
             var v = value ?? string.Empty;
-            if (string.Equals(_settings.UpdatesLogin, v, StringComparison.Ordinal))
+            if (string.Equals(_settings.ItsAccountId, v, StringComparison.Ordinal))
                 return;
-            _settings.UpdatesLogin = v;
-            SaveSettingsSilently();
-        }
-    }
-
-    /// <summary>Пароль учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
-    public string UpdatesPassword
-    {
-        get => _settings.UpdatesPassword ?? "";
-        set
-        {
-            var v = value ?? string.Empty;
-            if (string.Equals(_settings.UpdatesPassword, v, StringComparison.Ordinal))
-                return;
-            _settings.UpdatesPassword = v;
+            _settings.ItsAccountId = v;
             SaveSettingsSilently();
         }
     }

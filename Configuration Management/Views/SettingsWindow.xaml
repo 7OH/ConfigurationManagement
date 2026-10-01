@@ -1423,32 +1423,35 @@
                             </StackPanel>
                         </ToggleButton>
 
-                        <!-- Авторизация на сайте 1С при проверке обновлений конфигураций (HTTP Basic Auth) -->
-                        <GroupBox Header="{loc:Loc Updates.AuthGroupTitle}" Padding="8" Margin="0,14,0,0">
+                        <!-- Учётные данные ИТС (issue #333): выбор записи справочника its_accounts.json
+                             вместо двух полей логин/пароль; «Основная» — первым пунктом списка. -->
+                        <GroupBox Header="{loc:Loc ItsAccounts.Title}" Padding="8" Margin="0,14,0,0">
                             <StackPanel>
-                                <TextBlock Text="{loc:Loc Updates.AuthHint}"
+                                <TextBlock Text="{loc:Loc ItsAccounts.SettingsHint}"
                                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
                                            TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Updates.Login}"
-                                               VerticalAlignment="Center" Margin="0,0,10,8"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBox x:Name="UpdatesLoginBox" Grid.Row="0" Grid.Column="1" Height="30"
-                                             Margin="0,0,0,8" Style="{StaticResource ModernTextBox}"
-                                             ToolTip="{loc:Loc Updates.AuthHint}"/>
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Updates.Password}"
+                                    <TextBlock Grid.Column="0" Text="{loc:Loc ItsAccounts.AccountLabel}"
                                                VerticalAlignment="Center" Margin="0,0,10,0"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <PasswordBox x:Name="UpdatesPasswordBox" Grid.Row="1" Grid.Column="1" Height="30"
-                                                 ToolTip="{loc:Loc Updates.AuthHint}"/>
+                                    <ComboBox x:Name="ItsAccountsCombo" Grid.Column="1" Height="30"
+                                              Margin="0,0,8,0" Style="{StaticResource ModernComboBox}"
+                                              DisplayMemberPath="Name"
+                                              ToolTip="{loc:Loc ItsAccounts.SettingsHint}"/>
+                                    <Button x:Name="ItsAccountsManageButton" Grid.Column="2" Height="30"
+                                            Style="{StaticResource OutlineButtonStyle}" Click="OnItsAccountsManageClick">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Kind="AccountKey" Width="16" Height="16"
+                                                                     Foreground="{DynamicResource AccentBrush}"/>
+                                            <TextBlock Text="{loc:Loc ItsAccounts.OpenStore}" Margin="6,0,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                 </Grid>
                             </StackPanel>
                         </GroupBox>

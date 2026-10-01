@@ -30,6 +30,8 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
     private readonly TextBox _nameBox = MakeTextBox(string.Empty);
     private readonly TextBox _urlCodeBox = MakeTextBox(string.Empty);
     private readonly TextBox _nickBox = MakeTextBox(string.Empty);
+    private readonly ComboBox _accountBox = new() { Height = 32, DisplayMemberBinding = new Avalonia.Data.Binding(nameof(ViewModels.ItsAccountSelectionItem.Name)) };
+    private readonly List<ViewModels.ItsAccountSelectionItem> _accountItems = new();
     private readonly ComboBox _editionsList = new();
     private readonly TextBox _editionNameBox = MakeTextBox(string.Empty);
     private readonly TextBox _editionRedBox = MakeTextBox(string.Empty);
@@ -59,6 +61,14 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         _nameBox.Text = model?.Name ?? string.Empty;
         _urlCodeBox.Text = model?.UrlCode ?? string.Empty;
         _nickBox.Text = model?.Nick ?? string.Empty;
+
+        // Учётная запись ИТС (issue #333): «Основная» + записи справочника.
+        _accountItems.AddRange(ViewModels.ItsAccountSelectionBuilder.Build(
+            AppServices.GetRequiredService<Services.IItsAccountsStore>()));
+        _accountBox.ItemsSource = _accountItems;
+        var accountIndex = ViewModels.ItsAccountSelectionBuilder.IndexOf(_accountItems, model?.AccountId);
+        _accountBox.SelectedIndex = accountIndex >= 0 ? accountIndex : 0;
+
         if (model is not null)
             _editions.AddRange(model.Editions);
         if (_editions.Count > 0)
@@ -101,6 +111,7 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         panel.Children.Add(MakeFieldRow(T("Updates.Name"), _nameBox));
         panel.Children.Add(MakeFieldRow(T("Updates.UrlCode"), _urlCodeBox));
         panel.Children.Add(MakeFieldRow(T("Updates.Nick"), _nickBox));
+        panel.Children.Add(MakeFieldRow(T("ItsAccounts.AccountLabel"), _accountBox));
 
         // Список редакций и поля выбранной редакции.
         _editionsList.ItemsSource = _editions;
@@ -175,12 +186,16 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
             code = _originalCode.Length > 0 ? _originalCode : GenerateCode(name);
         }
 
+        var selectedAccount = _accountBox.SelectedItem as ViewModels.ItsAccountSelectionItem;
+
         Result = new OneCConfigType
         {
             Code = code,
             Name = name,
             UrlCode = _urlCodeBox.Text?.Trim() ?? string.Empty,
             Nick = _nickBox.Text?.Trim() ?? string.Empty,
+            // Учётная запись ИТС: пусто — «Основная» (либо выбранная в настройках).
+            AccountId = selectedAccount?.Id ?? string.Empty,
             IsBuiltIn = false,
             Editions = new List<OneCConfigEdition>(_editions),
         };

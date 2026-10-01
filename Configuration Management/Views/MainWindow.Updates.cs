@@ -20,6 +20,9 @@ public partial class MainWindow
     private void OnConfigTypesEditMenuClick(object sender, RoutedEventArgs e)
         => _viewModel.OpenConfigTypesEdit();
 
+    private void OnItsAccountsMenuClick(object sender, RoutedEventArgs e)
+        => _viewModel.OpenItsAccounts();
+
     /// <summary>
     /// Ручная проверка обновлений приложения из подменю «Утилиты» верхней панели (issue #279).
     /// Та же проверка, что во вкладке «О программе»: сообщает явный результат (актуальная

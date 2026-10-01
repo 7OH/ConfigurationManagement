@@ -626,11 +626,28 @@ public class AppSettings
     /// <summary>Горячая клавиша окна «Обновление платформы 1С» (по умолчанию Ctrl+F9, функция 9).</summary>
     public string HotkeyPlatformUpdate { get; set; } = "Ctrl+F9";
 
-    /// <summary>Логин учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
+    /// <summary>
+    /// Устаревшее поле для обратной совместимости: логин учётной записи сайта 1С (HTTP Basic Auth)
+    /// при проверке обновлений конфигураций. С версии 0.3.9.247 (issue #333) учётные данные живут
+    /// в справочнике <c>its_accounts.json</c> (<see cref="Configuration_Management.Services.ItsAccountsStore"/>);
+    /// это поле читается только для однократной миграции в запись «Основная» (в новые файлы не
+    /// записывается).
+    /// </summary>
     public string UpdatesLogin { get; set; } = "";
 
-    /// <summary>Пароль учётной записи сайта 1С для авторизации (HTTP Basic Auth) при проверке обновлений конфигураций.</summary>
+    /// <summary>
+    /// Устаревшее поле для обратной совместимости: пароль учётной записи сайта 1С (HTTP Basic Auth)
+    /// при проверке обновлений конфигураций. С версии 0.3.9.247 (issue #333) учётные данные живут
+    /// в справочнике <c>its_accounts.json</c>; поле читается только для однократной миграции.
+    /// </summary>
     public string UpdatesPassword { get; set; } = "";
+
+    /// <summary>
+    /// Идентификатор выбранной учётной записи ИТС из справочника <c>its_accounts.json</c>
+    /// (issue #333). Пусто — для запросов к сайту 1С используется «Основная» запись справочника.
+    /// Старые поля <see cref="UpdatesLogin"/>/<see cref="UpdatesPassword"/> в новом коде не читаются.
+    /// </summary>
+    public string ItsAccountId { get; set; } = "";
 
     /// <summary>Горячая клавиша «Выполнить сценарий резервирования» для выбранной ИБ (по умолчанию Ctrl+Shift+F5).</summary>
     public string HotkeyRunBackup { get; set; } = "Ctrl+Shift+F5";
@@ -785,6 +802,9 @@ public class AppSettings
         // Нормализуем строковые поля, чтобы избежать null-значений у потребителей.
         NoGroupIcon ??= string.Empty;
         PinnedIcon ??= string.Empty;
+        UpdatesLogin ??= string.Empty;
+        UpdatesPassword ??= string.Empty;
+        ItsAccountId ??= string.Empty;
         AfterLaunchAction = string.IsNullOrWhiteSpace(AfterLaunchAction) ? "None" : AfterLaunchAction;
         FunctionalMode = string.IsNullOrWhiteSpace(FunctionalMode)
             ? Models.FunctionalModes.Default

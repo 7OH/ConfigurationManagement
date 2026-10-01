@@ -728,6 +728,10 @@
                                             </MenuItem>
                                             <Separator/>
                                             <MenuItem Header="{loc:Loc Updates.ManageList}" Click="OnConfigTypesEditMenuClick" Style="{DynamicResource ModernMenuItem}"/>
+                                            <!-- Учётные данные ИТС (issue #333): справочник логинов/паролей сайта 1С. -->
+                                            <MenuItem Header="{loc:Loc ItsAccounts.MenuItem}" Click="OnItsAccountsMenuClick" Style="{DynamicResource ModernMenuItem}">
+                                                <MenuItem.Icon><materialDesign:PackIcon Kind="AccountKey" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
+                                            </MenuItem>
                                             <Separator/>
                                             <!-- Задания по расписанию (issue #286): резервная копия, обновление
                                                  конфигурации ИБ, «копия → обновление», обновление приложения. -->

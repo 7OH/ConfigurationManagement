@@ -39,6 +39,10 @@ public static class AppServices
         // Пользовательские типовые конфигурации 1С (issue #321): отдельный читаемый JSON-файл
         // custom_config_types.json рядом с настройками; миграция из AppSettings.CustomConfigTypes.
         services.AddSingleton<ICustomConfigTypesStore, CustomConfigTypesStore>();
+        // Учётные записи ИТС 1С (issue #333): отдельный читаемый JSON-файл its_accounts.json
+        // рядом с настройками; миграция логина/пароля из AppSettings.UpdatesLogin/UpdatesPassword
+        // в запись «Основная» при первом обращении. Чистый сервис — без UI-зависимостей.
+        services.AddSingleton<IItsAccountsStore, ItsAccountsStore>();
         // Сценарии резервирования и восстановление (функции №16/№18): хранилище сценариев,
         // архивация ZIP/RAR и оркестратор выполнения. Чистые сервисы — без UI-зависимостей.
         services.AddSingleton<IBackupScenarioStore, BackupScenarioStore>();

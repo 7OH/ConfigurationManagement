@@ -190,6 +190,7 @@ public sealed class CustomConfigTypesStore : ICustomConfigTypesStore
             type.Name ??= string.Empty;
             type.UrlCode ??= string.Empty;
             type.Nick ??= string.Empty;
+            type.AccountId ??= string.Empty;
             type.Editions ??= new List<OneCConfigEdition>();
             foreach (var edition in type.Editions)
             {
