@@ -9,6 +9,27 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.230] — 2026-10-01
+
+### Добавлено
+
+- **0.3.9.230: диагностика сети — подсказки и экстракция цели** (функция 12):
+- Построение выводов по результату диагностики [`NetworkDiagnosticsHints`](Configuration%20Management/Services/NetworkDiagnosticsHints.cs):
+  матрица правил «состояния → набор ключей локализации» с аргументами (порт, имя сервиса);
+  порядок от критичного к справке: невалидный адрес / DNS-ошибка (терминальные), проблемные
+  порты (закрыт/таймаут), агрегатные выводы (агент работает — кластер нет; открыт только RAS;
+  всё недоступно; всё доступно), примечания по ICMP (нет прав / ICMP заблокирован, но TCP
+  отвечает). Сервис чистый — текст формируется на этапе VM через `LocalizationManager.T`.
+- Экстракция цели [`NetworkDiagnosticsTargets`](Configuration%20Management/Services/NetworkDiagnosticsTarget.cs):
+  из клиент-серверной базы — `Server`+`Port` из настроек подключения (в т.ч. `host:port`
+  единым парсером), из веб-базы — хост/порт из URL публикации (`Uri.DnsSafeHost`, IPv6 без
+  скобок, порт 80/443 по схеме), файловая/битый URL → null; из монитора серверов —
+  текущий адрес:порт rac.
+- Тесты: [`NetworkDiagnosticsHintsTests`](ConfigurationManagement.Tests/NetworkDiagnosticsHintsTests.cs)
+  (матрица подсказок, порядок, аргументы) и
+  [`NetworkDiagnosticsTargetTests`](ConfigurationManagement.Tests/NetworkDiagnosticsTargetTests.cs)
+  (ClientServer/WebServer/File, порты по умолчанию, IPv6-URL, fallback localhost/1540).
+
 ## [0.3.9.229] — 2026-10-01
 
 ### Добавлено
