@@ -541,9 +541,16 @@ namespace Configuration_Management
         /// чтобы команды контекстного меню применялись именно к этому элементу.
         /// Мультивыделение (0.3.9.90) правый клик НЕ меняет: набор «для выделенных»
         /// должен дожить до открытия меню нетронутым, иначе пакетный блок «Для
-        /// выделенных (N)…» теряет базы (issue #313). В отличие от левого клика
-        /// здесь нет ни ToggleBatchSelection, ни ClearBatchSelection — только
-        /// основное выделение под курсором (IsSelected/SelectedInfobase).
+        /// выделенных (N)…» теряет базы (issue #313).
+        /// <para>
+        /// Явно различаются два состояния (issue #313): «текущая строка» (курсор
+        /// без Ctrl) и «строка из мультивыделения». Строка входит в набор ТОЛЬКО
+        /// после Ctrl/Shift-клика по ней; правый клик строит набор по фактически
+        /// выделенным строкам и не добавляет «бывшую текущую», которая в набор
+        /// не входила. Поэтому здесь нет ни ToggleBatchSelection, ни
+        /// SelectRange, ни ClearBatchSelection — только основное выделение
+        /// под курсором (IsSelected/SelectedInfobase).
+        /// </para>
         /// </summary>
         private void OnInfobaseTree_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {

@@ -159,4 +159,62 @@ public sealed class BatchSelectionHelperTests
         var result = BatchSelectionHelper.BuildRightClickSet(Array.Empty<string>(), rightClickedId: "a");
         Assert.Empty(result);
     }
+
+    // ======================= Регрессия полного сценария #313 =======================
+
+    [Fact]
+    public void Regression313_PlainClickThenCtrlClicksThenRightClick_KeepsCtrlMarkedSet()
+    {
+        // Сценарий из комментария пользователя к issue #313:
+        // строка "a" была просто текущей (обычный клик, набор пуст),
+        // затем Ctrl-кликами добавлены "b" и "c"; правый клик по "c"
+        // не должен терять "a" — потому что "a" в набор и не входила,
+        // а "b"/"c" (отмеченные Ctrl) обязаны остаться.
+        var set = new HashSet<string>(StringComparer.Ordinal);
+
+        // Обычный клик по "a" в UI вызывает ClearBatchSelection — набор остаётся пустым.
+        Assert.Empty(set);
+
+        set = BatchSelectionHelper.ApplyModifiedClick(set, currentSectionIsPinned: false, "b", false, "Ctrl");
+        set = BatchSelectionHelper.ApplyModifiedClick(set, currentSectionIsPinned: false, "c", false, "Ctrl");
+
+        var rightClick = BatchSelectionHelper.BuildRightClickSet(set, rightClickedId: "c");
+
+        Assert.Equal(new[] { "b", "c" }, rightClick.OrderBy(x => x));
+        Assert.DoesNotContain("a", rightClick);
+    }
+
+    [Fact]
+    public void Regression313_FirstRowMarkedWithCtrl_SurvivesRightClick()
+    {
+        // Когда первую строку сразу пометили Ctrl (как описывает пользователь),
+        // после правого клика она не должна пропадать.
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        set = BatchSelectionHelper.ApplyModifiedClick(set, currentSectionIsPinned: false, "a", false, "Ctrl");
+        set = BatchSelectionHelper.ApplyModifiedClick(set, currentSectionIsPinned: false, "b", false, "Ctrl");
+
+        var rightClick = BatchSelectionHelper.BuildRightClickSet(set, rightClickedId: "b");
+
+        Assert.Equal(new[] { "a", "b" }, rightClick.OrderBy(x => x));
+    }
+
+    [Fact]
+    public void Regression313_ShiftRangeThenRightClick_KeepsRange()
+    {
+        // Shift-диапазон от "a" до "c" (якорь — последняя обычная строка);
+        // правый клик по границе диапазона не снимает строки.
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        set = BatchSelectionHelper.ApplyModifiedClick(
+            set,
+            currentSectionIsPinned: false,
+            targetId: "c",
+            targetSectionIsPinned: false,
+            modifier: "Shift",
+            visibleOrder: new[] { "a", "b", "c" },
+            anchorId: "a");
+
+        var rightClick = BatchSelectionHelper.BuildRightClickSet(set, rightClickedId: "c");
+
+        Assert.Equal(new[] { "a", "b", "c" }, rightClick.OrderBy(x => x));
+    }
 }
