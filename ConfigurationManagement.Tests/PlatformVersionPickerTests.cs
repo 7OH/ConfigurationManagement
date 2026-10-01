@@ -405,6 +405,84 @@ public sealed class PlatformVersionPickerTests
         Assert.Equal("8.5.1.1000 (64)", PlatformVersionService.BuildResultVariant(leaf!, "all"));
     }
 
+    // ============ Окончательный фикс #304: сохранение/восстановление по ключу ============
+
+    [Fact]
+    public void RestoreKey_ExactLeafAvailable_ReturnsSameLeafAfterRebuild()
+    {
+        // Выбран лист «8.5.1.1000 (32)» — ключ восстановления «версия+разрядность».
+        // После перестроения дерева с тем же фильтром FindBestNode возвращает ТОТ ЖЕ
+        // лист (не папку и не линию) — выделение не уходит наверх (#304).
+        var all = Infos("8.5.1.1000 (64)", "8.5.1.1000 (32)");
+
+        var treeAll = PlatformVersionService.BuildGroupedTree(all, "all");
+        var selected = PlatformVersionService.FindBestNode(treeAll, "8.5.1.1000 (32)");
+        Assert.NotNull(selected);
+        Assert.True(selected!.IsLeaf);
+        Assert.Equal("8.5.1.1000 (32)", selected.Variant);
+
+        // Пользователь переключил фильтр на x32 — RefreshTree строит дерево заново.
+        var treeX32 = PlatformVersionService.BuildGroupedTree(all, "x32");
+        var restored = PlatformVersionService.FindBestNode(treeX32, selected.Variant!);
+
+        Assert.NotNull(restored);
+        Assert.True(restored!.IsLeaf);
+        Assert.Equal("8.5.1.1000 (32)", restored.Variant);
+    }
+
+    [Fact]
+    public void RestoreKey_SwitchArch_FindsSameVersionLeafNotTopLevel()
+    {
+        // Выбран лист «8.5.1.1000 (64)», пользователь переключил фильтр на x32 —
+        // у версии есть x32-лист: восстановление должно найти лист 8.5.1.1000 (32)
+        // (та же полная версия), а НЕ уйти на папку/линию (#304).
+        var all = Infos("8.5.1.1000 (64)", "8.5.1.1000 (32)", "8.3.20.1000 (64)");
+
+        var treeX32 = PlatformVersionService.BuildGroupedTree(all, "x32");
+        var restored = PlatformVersionService.FindBestNode(treeX32, "8.5.1.1000 (64)");
+
+        Assert.NotNull(restored);
+        Assert.True(restored!.IsLeaf);
+        Assert.Equal("8.5.1.1000 (32)", restored.Variant);
+    }
+
+    [Fact]
+    public void RestoreKey_NoSameVersionUnderFilter_FallsBackToFolderOfSameFamily()
+    {
+        // У 8.5.1 только x32-сборки; фильтр x64 скрывает её листья, но папка 8.5.1
+        // сохраняется (линия 8.5 видима): восстановление по ключу «8.5.1 (32)»
+        // возвращает папку 8.5.1, а не первую линию дерева (#304).
+        var all = Infos("8.3.20.1000 (64)", "8.5.4 (64)", "8.5.1 (32)");
+
+        var treeX64 = PlatformVersionService.BuildGroupedTree(all, "x64");
+        var restored = PlatformVersionService.FindBestNode(treeX64, "8.5.1 (32)");
+
+        Assert.NotNull(restored);
+        Assert.False(restored!.IsLeaf);
+        Assert.Equal("8.5.1", restored.Name);
+        Assert.Equal(PlatformNodeKind.BuildGroup, restored.Kind);
+        Assert.Equal("8.5.1", PlatformVersionService.BuildResultVariant(restored, "x64"));
+    }
+
+    [Fact]
+    public void RestoreKey_LineSelected_StaysOnSameLineUnderAnyFilter()
+    {
+        // Ключ восстановления для линии «8.5» во всех фильтрах возвращает саму линию
+        // (не первый узел дерева) — «самый верх» не теряется (#304).
+        var all = Infos("8.5.4 (64)", "8.5.4 (32)", "8.5.1 (32)", "8.3.20.1000 (64)");
+
+        foreach (var filter in new[] { "all", "x64", "x32" })
+        {
+            var tree = PlatformVersionService.BuildGroupedTree(all, filter);
+            var restored = PlatformVersionService.FindBestNode(tree, "8.5");
+
+            Assert.NotNull(restored);
+            Assert.False(restored!.IsLeaf);
+            Assert.Equal("8.5", restored.Name);
+            Assert.Equal(PlatformNodeKind.Line, restored.Kind);
+        }
+    }
+
     // ======================= Хелперы =======================
 
     private static List<PlatformVersionInfo> Infos(params string[] displays)

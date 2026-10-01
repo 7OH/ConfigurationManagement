@@ -313,6 +313,13 @@ namespace Configuration_Management
 
         private void RefreshTree()
         {
+            // Ключ восстановления — идентификатор выбранного узла (версия+разрядность):
+            // сохраняем ДО перестроения дерева, восстановление идёт по нему, а не по
+            // «текущей версии базы» (окончательный фикс issue #304).
+            var restoreKey = !string.IsNullOrWhiteSpace(_selectedVersion)
+                ? _selectedVersion
+                : _currentVersion;
+
             // Дерево строится из полного списка версий, а фильтр разрядности скрывает
             // только листья: папки (линии/группы сборок) сохраняются, пока в линии есть
             // хоть один видимый вариант, — выбор «8.5.1» не перескакивает на линию 8.5
@@ -326,10 +333,15 @@ namespace Configuration_Management
             _isRestoringSelection = true;
             try
             {
+                // Сброс целей прошлого восстановления: узел уже мог быть выбран или фильтр
+                // изменился, и «зависшие» предки не должны мешать новому выбору (issue #304).
+                _initialLeaf = null;
+                _initialAncestors = null;
+
                 _tree.ItemsSource = tree;
 
-                if (!string.IsNullOrWhiteSpace(_currentVersion))
-                    SelectCurrent(tree);
+                if (!string.IsNullOrWhiteSpace(restoreKey))
+                    SelectCurrent(tree, restoreKey);
             }
             finally
             {
@@ -353,9 +365,12 @@ namespace Configuration_Management
                 ReverseChildren(c);
         }
 
-        private void SelectCurrent(IEnumerable<PlatformVersionGroup> roots)
+        private void SelectCurrent(IEnumerable<PlatformVersionGroup> roots, string restoreKey)
         {
-            var node = PlatformVersionService.FindBestNode(roots, _currentVersion);
+            // Восстановление по ключу выбранного узла (версия+разрядность): FindBestNode
+            // учитывает активный фильтр и находит либо тот же лист, либо осмысленный узел
+            // того же семейства (папку/линию), — выбор не «уходит на самый верх» (issue #304).
+            var node = PlatformVersionService.FindBestNode(roots, restoreKey);
             if (node is null)
             {
                 // Узел не найден (например, вся линия отфильтрована) — сбрасываем «зависшую»
@@ -368,7 +383,8 @@ namespace Configuration_Management
 
             // Avalonia выделяет только через TreeView.SelectedItem, а контейнеры вложенных
             // узлов создаются лениво — пока не раскрыты предки. Поэтому запоминаем узел и
-            // путь к нему, а раскрываем и выбираем по мере подготовки контейнеров.
+            // путь к нему, а раскрываем и выбираем по мере подготовки контейнеров; после
+            // выделения узел прокручивается в видимую область (OnTreeContainerPrepared).
             _initialLeaf = node;
             _initialAncestors = new HashSet<PlatformVersionGroup>();
             CollectAncestors(roots, node, _initialAncestors);
@@ -427,6 +443,10 @@ namespace Configuration_Management
                 _initialAncestors = null;
                 if (!ReferenceEquals(_tree.SelectedItem, node))
                     _tree.SelectedItem = node;
+                // Скролл к восстановленному узлу (issue #304): после смены разрядности
+                // выделение остаётся на той же версии и не уходит за видимую область.
+                if (e.Container is Control control)
+                    control.BringIntoView();
             }
         }
 

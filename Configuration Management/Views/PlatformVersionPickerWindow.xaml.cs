@@ -51,6 +51,14 @@ namespace Configuration_Management
 
         private void RefreshTree()
         {
+            // Ключ восстановления — идентификатор выбранного узла (версия+разрядность):
+            // сохраняем ДО перестроения дерева, восстановление идёт по нему, а не по
+            // «текущей версии базы», которая могла не совпадать с выбором пользователя
+            // (окончательный фикс issue #304). После сброса выбора пользователем ключ пуст.
+            var restoreKey = !string.IsNullOrWhiteSpace(_selectedVersion)
+                ? _selectedVersion
+                : _currentVersion;
+
             // Дерево строится из полного списка версий, а фильтр разрядности скрывает
             // только листья: папки (линии/группы сборок) сохраняются, пока в линии есть
             // хоть один видимый вариант, — выбор «8.5.1» не перескакивает на линию 8.5
@@ -61,18 +69,27 @@ namespace Configuration_Management
 
             // Во время перестроения SelectedItemChanged приходит с null (старый узел удалён
             // из Items): гасим его, чтобы не сбрасывать _selectedVersion до восстановления
-            // выбора (issue #304).
+            // выбора (issue #304). Команды не триггерятся и в отложенной части — до конца
+            // восстановления.
             _isRestoringSelection = true;
-            PlatformsTree.ItemsSource = tree;
+            try
+            {
+                PlatformsTree.ItemsSource = tree;
+            }
+            finally
+            {
+                _isRestoringSelection = false;
+            }
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 try
                 {
+                    _isRestoringSelection = true;
                     // Полностью разворачиваем дерево (линии → группы сборок → сборки), как в стартере
                     ExpandAll(PlatformsTree);
-                    if (!string.IsNullOrWhiteSpace(_currentVersion))
-                        SelectCurrent(_currentVersion);
+                    if (!string.IsNullOrWhiteSpace(restoreKey))
+                        SelectCurrent(restoreKey);
                 }
                 finally
                 {
@@ -184,11 +201,14 @@ namespace Configuration_Management
             DialogResult = true;
         }
 
-        private void SelectCurrent(string currentVersion)
+        private void SelectCurrent(string restoreKey)
         {
             if (PlatformsTree.ItemsSource is not IEnumerable<PlatformVersionGroup> roots)
                 return;
-            var node = PlatformVersionService.FindBestNode(roots, currentVersion);
+            // Восстановление по ключу выбранного узла (версия+разрядность): FindBestNode
+            // учитывает активный фильтр и находит либо тот же лист, либо осмысленный узел
+            // того же семейства (папку/линию), — выбор не «уходит на самый верх» (issue #304).
+            var node = PlatformVersionService.FindBestNode(roots, restoreKey);
             if (node is null) return;
             node.IsCurrent = true; // подсветка жирным
             SelectNodeInTree(PlatformsTree, node);
@@ -200,12 +220,21 @@ namespace Configuration_Management
             {
                 if (item is not PlatformVersionGroup node) continue;
                 var container = parent.ItemContainerGenerator.ContainerFromItem(item) as TreeViewItem;
+                if (container is null)
+                {
+                    // Контейнер ещё не создан (вложенный узел): раскрываем предка и
+                    // принудительно обновляем компоновку, чтобы контейнер появился, —
+                    // иначе восстановление выделения молча теряется (issue #304).
+                    parent.UpdateLayout();
+                    container = parent.ItemContainerGenerator.ContainerFromItem(item) as TreeViewItem;
+                }
                 if (ReferenceEquals(node, target))
                 {
                     if (container is not null)
                     {
                         node.IsSelected = true;
                         container.IsSelected = true;
+                        // Скролл к восстановленному узлу (issue #304).
                         container.BringIntoView();
                     }
                     return true;
