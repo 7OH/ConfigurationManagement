@@ -150,7 +150,7 @@ namespace Configuration_Management
             if (UiMetrics.Compact)
                 count.FontSize = UiMetrics.GroupNameFont;
             count.Bind(TextBlock.TextProperty,
-                new Binding("TotalInfobaseCount") { Source = group, StringFormat = "({0})" });
+                new Binding("GroupCountSuffix") { Source = group });
             count.Bind(TextBlock.ForegroundProperty, new Binding("HeaderTextBrush") { Source = group });
             caption.Children.Add(count);
 

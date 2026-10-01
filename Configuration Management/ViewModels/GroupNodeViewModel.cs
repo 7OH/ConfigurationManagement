@@ -278,6 +278,29 @@ public class GroupNodeViewModel : ViewModelBase
     public int TotalInfobaseCount => Infobases.Count + Children.Sum(c => c.TotalInfobaseCount);
 
     /// <summary>
+    /// Общее количество подгрупп в группе и всех её вложенных подгруппах (рекурсивно).
+    /// Уведомление UI — через <see cref="NotifyCountChanged"/>.
+    /// </summary>
+    public int TotalSubgroupCount => Children.Count + Children.Sum(c => c.TotalSubgroupCount);
+
+    /// <summary>
+    /// Суффикс счётчика заголовка группы: «(N / M)», где N — подгруппы, M — базы (оба
+    /// рекурсивно); при отсутствии подгрупп — прежний вид «(M)». Скобки входят в суффикс,
+    /// чтобы разметка привязывалась напрямую без StringFormat. Числа подставляются через
+    /// локализуемый шаблон <c>Main.GroupCountWithSubgroups</c>.
+    /// </summary>
+    public string GroupCountSuffix
+    {
+        get
+        {
+            var totalBases = TotalInfobaseCount;
+            if (TotalSubgroupCount > 0)
+                return "(" + string.Format(LocalizationManager.T("Main.GroupCountWithSubgroups"), TotalSubgroupCount, totalBases) + ")";
+            return "(" + totalBases + ")";
+        }
+    }
+
+    /// <summary>
     /// Сообщает привязкам об изменении счётчика (и поднимает уведомление по родителям).
     /// </summary>
     public void NotifyCountChanged()
@@ -285,6 +308,8 @@ public class GroupNodeViewModel : ViewModelBase
         if (_suppressNotifications)
             return;
         OnPropertyChanged(nameof(TotalInfobaseCount));
+        OnPropertyChanged(nameof(TotalSubgroupCount));
+        OnPropertyChanged(nameof(GroupCountSuffix));
         OnPropertyChanged(nameof(HasInfobases));
         OnPropertyChanged(nameof(ContainsInfobases));
         Parent?.NotifyCountChanged();
@@ -353,6 +378,8 @@ public class GroupNodeViewModel : ViewModelBase
         }
         // Одно уведомление после заполнения узла (родители обновятся при своём PopulateItems / с корня).
         OnPropertyChanged(nameof(TotalInfobaseCount));
+        OnPropertyChanged(nameof(TotalSubgroupCount));
+        OnPropertyChanged(nameof(GroupCountSuffix));
         OnPropertyChanged(nameof(HasInfobases));
         OnPropertyChanged(nameof(ContainsInfobases));
     }

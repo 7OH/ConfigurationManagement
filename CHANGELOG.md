@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.255] — 2026-10-01
+
+### Исправлено
+
+- **Количество подгрупп в заголовке группы (issue #336)** (обе платформы) — рядом с базой
+  в заголовке группы показывалось только рекурсивное количество баз: «Группа с базами (28)».
+  Теперь для групп с вложенными подгруппами выводится и их рекурсивное количество:
+  «Группа с базами (4 / 28)»; у групп без подгрупп вид счётчика не изменился — «(M)»;
+  - **WPF** ([`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml)):
+    счётчик привязан к вычисляемому суффиксу `GroupCountSuffix` вместо форматируемой
+    привязки к `TotalInfobaseCount`;
+  - **Avalonia** ([`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs)):
+    аналогичная привязка к `GroupCountSuffix`;
+  - **VM** ([`ViewModels/GroupNodeViewModel.cs`](Configuration%20Management/ViewModels/GroupNodeViewModel.cs)
+    и [`GroupNodeViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/GroupNodeViewModel.Avalonia.cs)):
+    добавлены рекурсивное свойство `TotalSubgroupCount` и строковый суффикс `GroupCountSuffix`
+    («(N / M)» при N > 0, иначе «(M)»); уведомления о новых свойствах поднимаются в
+    `NotifyCountChanged()` (с цепочкой по родителям) и после `PopulateItems()`;
+  - **локализация**: новый ключ `Main.GroupCountWithSubgroups` («{0} / {1}») в
+    [`ru.json`](Configuration%20Management/Localization/Languages/ru.json)/[`en.json`](Configuration%20Management/Localization/Languages/en.json);
+  - служебные узлы «Закреплённые» и «Без группы» (без подгрупп) сохраняют прежний вид «(M)».
+  - Тесты: рекурсивный подсчёт подгрупп и баз, формат суффикса с подгруппами/без, пустой
+    служебный узел, уведомления по цепочке родителей
+    ([`GroupNodeViewModelTests`](ConfigurationManagement.Tests/GroupNodeViewModelTests.cs));
+    полный набор `dotnet test` зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.254] — 2026-10-01
 
 ### Исправлено

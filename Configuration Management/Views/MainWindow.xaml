@@ -1635,7 +1635,7 @@
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <TextBlock Text="{Binding TotalInfobaseCount, StringFormat=' ({0})'}"
+                                            <TextBlock Text="{Binding GroupCountSuffix}"
                                                        VerticalAlignment="Center" Margin="6,0,0,0"
                                                        Foreground="{Binding HeaderTextBrush}">
                                                 <TextBlock.Style>

@@ -1632,6 +1632,7 @@
     "Main.ConfirmDeleteFromList": "Remove the base only from the program list (files on disk untouched or partially deleted)?",
     "Main.DeleteFromListTitle": "Remove from list",
     "Main.SubgroupsCount": "subgroups: {0}",
+    "Main.GroupCountWithSubgroups": "{0} / {1}",
     "Main.InfobasesCount": "infobases: {0}",
     "Main.DeleteGroupImpossible": "Cannot delete group \"{0}\"",
     "Main.DeleteGroupContains": "Inside the group (including nested subgroups) there is:",

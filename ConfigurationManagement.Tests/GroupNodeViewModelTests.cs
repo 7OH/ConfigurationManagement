@@ -1,3 +1,4 @@
+using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.ViewModels;
 using Xunit;
@@ -61,5 +62,119 @@ public sealed class GroupNodeViewModelTests
 
         var item = Assert.Single(noGroup.Items);
         Assert.Same(infobase, Assert.IsType<Infobase>(item));
+    }
+
+    /// <summary>Строит дерево глубины 3: root → child → grandchild, плюс второй ребёнок у root.</summary>
+    private static (GroupNodeViewModel Root, GroupNodeViewModel Child, GroupNodeViewModel Grandchild, GroupNodeViewModel Sibling)
+        BuildDepthThreeTree()
+    {
+        var root = new GroupNodeViewModel(new Group { Id = "g1", Name = "Корень" });
+        var child = new GroupNodeViewModel(new Group { Id = "g2", Name = "Дочка" }, parent: root);
+        var grandchild = new GroupNodeViewModel(new Group { Id = "g3", Name = "Внучка" }, parent: child);
+        var sibling = new GroupNodeViewModel(new Group { Id = "g4", Name = "Соседка" }, parent: root);
+        root.Children.Add(child);
+        root.Children.Add(sibling);
+        child.Children.Add(grandchild);
+        return (root, child, grandchild, sibling);
+    }
+
+    [Fact]
+    public void TotalSubgroupCount_CountsAllNestedGroupsRecursively()
+    {
+        var (root, child, grandchild, sibling) = BuildDepthThreeTree();
+
+        Assert.Equal(3, root.TotalSubgroupCount); // child + sibling + grandchild
+        Assert.Equal(1, child.TotalSubgroupCount); // только grandchild
+        Assert.Equal(0, grandchild.TotalSubgroupCount);
+        Assert.Equal(0, sibling.TotalSubgroupCount);
+    }
+
+    [Fact]
+    public void TotalInfobaseCount_AndTotalSubgroupCount_AreBothRecursive()
+    {
+        var (root, child, grandchild, _) = BuildDepthThreeTree();
+        root.Infobases.Add(CreateBase());
+        root.Infobases.Add(CreateBase());
+        child.Infobases.Add(CreateBase());
+        grandchild.Infobases.Add(CreateBase());
+
+        Assert.Equal(3, root.TotalSubgroupCount);
+        Assert.Equal(4, root.TotalInfobaseCount); // 2 (root) + 1 (child) + 1 (grandchild)
+        Assert.Equal(1, child.TotalSubgroupCount);
+        Assert.Equal(2, child.TotalInfobaseCount); // 1 (child) + 1 (grandchild)
+        Assert.Equal(1, grandchild.TotalInfobaseCount);
+    }
+
+    [Fact]
+    public void GroupCountSuffix_WithoutSubgroups_ShowsOnlyBaseCount()
+    {
+        var group = new GroupNodeViewModel(new Group { Id = "g1", Name = "Группа" });
+        group.Infobases.Add(CreateBase());
+        group.Infobases.Add(CreateBase());
+        group.Infobases.Add(CreateBase());
+
+        Assert.Equal("(3)", group.GroupCountSuffix);
+    }
+
+    [Fact]
+    public void GroupCountSuffix_WithSubgroups_UsesLocalizedFormat()
+    {
+        var (root, _, _, _) = BuildDepthThreeTree();
+        root.Infobases.Add(CreateBase());
+        root.Infobases.Add(CreateBase());
+
+        // В тестовой среде LocalizationManager не инициализирован и T возвращает ключ,
+        // поэтому сравниваем суффикс со строкой, построенной через тот же механизм
+        // (стиль ConnectionReplaceViewModelTests): ключ, порядок аргументов и скобки.
+        var expected = "(" + string.Format(
+            LocalizationManager.T("Main.GroupCountWithSubgroups"),
+            root.TotalSubgroupCount, root.TotalInfobaseCount) + ")";
+        Assert.Equal(expected, root.GroupCountSuffix);
+        // При наличии подгрупп формат обязан отличаться от простого «(M)».
+        Assert.NotEqual("(" + root.TotalInfobaseCount + ")", root.GroupCountSuffix);
+    }
+
+    [Fact]
+    public void GroupCountSuffix_EmptyServiceNode_ShowsZeroInParens()
+    {
+        var pinned = new GroupNodeViewModel(null, marker: GroupNodeViewModel.PinnedMarker);
+
+        Assert.Equal(0, pinned.TotalSubgroupCount);
+        Assert.Equal(0, pinned.TotalInfobaseCount);
+        Assert.Equal("(0)", pinned.GroupCountSuffix);
+    }
+
+    [Fact]
+    public void NotifyCountChanged_RaisesCountNotificationsUpToParents()
+    {
+        var (root, child, _, _) = BuildDepthThreeTree();
+        var rootEvents = new List<string?>();
+        var childEvents = new List<string?>();
+        root.PropertyChanged += (_, e) => rootEvents.Add(e.PropertyName);
+        child.PropertyChanged += (_, e) => childEvents.Add(e.PropertyName);
+
+        child.NotifyCountChanged();
+
+        Assert.Contains(nameof(GroupNodeViewModel.TotalInfobaseCount), childEvents);
+        Assert.Contains(nameof(GroupNodeViewModel.TotalSubgroupCount), childEvents);
+        Assert.Contains(nameof(GroupNodeViewModel.GroupCountSuffix), childEvents);
+        // Цепочка Parent?.NotifyCountChanged(): родитель получает те же уведомления.
+        Assert.Contains(nameof(GroupNodeViewModel.TotalInfobaseCount), rootEvents);
+        Assert.Contains(nameof(GroupNodeViewModel.TotalSubgroupCount), rootEvents);
+        Assert.Contains(nameof(GroupNodeViewModel.GroupCountSuffix), rootEvents);
+    }
+
+    [Fact]
+    public void PopulateItems_RaisesCountAndSuffixNotifications()
+    {
+        var group = new GroupNodeViewModel(new Group { Id = "g1", Name = "Группа" });
+        var events = new List<string?>();
+        group.PropertyChanged += (_, e) => events.Add(e.PropertyName);
+
+        group.PopulateItems();
+
+        Assert.Contains(nameof(GroupNodeViewModel.TotalInfobaseCount), events);
+        Assert.Contains(nameof(GroupNodeViewModel.TotalSubgroupCount), events);
+        Assert.Contains(nameof(GroupNodeViewModel.GroupCountSuffix), events);
     }
 }

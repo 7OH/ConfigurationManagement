@@ -1632,6 +1632,7 @@
     "Main.ConfirmDeleteFromList": "Удалить базу только из списка программы (файлы на диске не тронуты или удалены частично)?",
     "Main.DeleteFromListTitle": "Удаление из списка",
     "Main.SubgroupsCount": "подгрупп: {0}",
+    "Main.GroupCountWithSubgroups": "{0} / {1}",
     "Main.InfobasesCount": "информационных баз: {0}",
     "Main.DeleteGroupImpossible": "Невозможно удалить группу «{0}»",
     "Main.DeleteGroupContains": "Внутри группы (включая вложенные подгруппы) находится:",
