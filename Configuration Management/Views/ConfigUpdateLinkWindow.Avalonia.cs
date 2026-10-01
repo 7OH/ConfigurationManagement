@@ -95,6 +95,12 @@ namespace Configuration_Management
             RebuildUrl();
 
             ShowCurrentConfigSummary();
+
+            // Автоопределение при открытии (issue #322): если у базы уже определены свойства
+            // конфигурации (вкладка «Платформа» / «Определить версию»), подставляем совпавшую
+            // типовую конфигурацию сразу — связь строится из свойств, ручной выбор — явный override.
+            if (!string.IsNullOrWhiteSpace(_infobase.ConfigurationName))
+                TryAutoMatchConfig(_infobase.ConfigurationName, _infobase.ConfigurationVersion);
         }
 
         /// <summary>
@@ -296,30 +302,8 @@ namespace Configuration_Management
             _resultText.Text = string.Format(T("Updates.ConfigMatched"), match.Name);
         }
 
-        private OneCConfigType? FindConfigByInfobaseName(string configName)
-        {
-            var trimmed = configName?.Trim() ?? string.Empty;
-            if (trimmed.Length == 0)
-                return null;
-
-            // 1) Точное совпадение по имени (без учёта регистра).
-            var exact = _configs.FirstOrDefault(c =>
-                string.Equals(c.Name.Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
-            if (exact is not null)
-                return exact;
-
-            // 2) Имя типовой конфигурации содержится в имени базы («Бухгалтерия предприятия, ред. 3.0»).
-            var contained = _configs.FirstOrDefault(c =>
-                c.Name.Trim().Length > 0 &&
-                trimmed.Contains(c.Name.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (contained is not null)
-                return contained;
-
-            // 3) Имя базы содержится в имени типовой конфигурации.
-            return _configs.FirstOrDefault(c =>
-                trimmed.Length > 0 &&
-                c.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
-        }
+        private OneCConfigType? FindConfigByInfobaseName(string configName) =>
+            ConfigTypeMatcher.FindByInfobaseName(_configs, configName);
 
         /// <summary>Выбирает редакцию по префиксу версии базы («3.0.142.32» → редакция «3.0»).</summary>
         private void TrySelectEditionByVersion(OneCConfigType config, string version)
@@ -488,39 +472,50 @@ namespace Configuration_Management
             Themes.ThemeBrushes.Bind(segmentHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
             form.Children.Add(segmentHint);
 
-            // Типовые конфигурации: там хранится ник, по умолчанию подставляемый в адрес.
+            // «Список типовых конфигураций» + «Определить версию» в одну строку (issue #322);
+            // текущие свойства конфигурации базы — справа от кнопки определения версии.
+            var actionRow = new Grid { Margin = new Thickness(0, 12, 0, 0) };
+            actionRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            actionRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            actionRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+
             var configTypesButton = new Button
             {
                 Content = T("Updates.ManageList"),
                 Height = 36,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 12, 0, 0)
+                HorizontalAlignment = HorizontalAlignment.Left
             };
             configTypesButton.Styled(ControlThemes.SecondaryButton);
             configTypesButton.Click += (_, _) => OnOpenConfigTypesClick();
-            form.Children.Add(configTypesButton);
+            Grid.SetColumn(configTypesButton, 0);
+            actionRow.Children.Add(configTypesButton);
 
-            // Определить версию.
             _defineVersionButton = new Button
             {
                 Content = T("Updates.DefineVersion"),
                 Height = 36,
                 HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 14, 0, 0)
+                Margin = new Thickness(10, 0, 0, 0)
             };
             _defineVersionButton.Styled(ControlThemes.SecondaryButton);
             _defineVersionButton.Click += (_, _) => OnDefineVersionClick();
-            form.Children.Add(_defineVersionButton);
+            Grid.SetColumn(_defineVersionButton, 1);
+            actionRow.Children.Add(_defineVersionButton);
 
             _currentConfigText.FontSize = 12;
             _currentConfigText.TextWrapping = TextWrapping.Wrap;
-            _currentConfigText.Margin = new Thickness(0, 10, 0, 0);
+            _currentConfigText.Margin = new Thickness(12, 0, 0, 0);
+            _currentConfigText.VerticalAlignment = VerticalAlignment.Center;
+            _currentConfigText.HorizontalAlignment = HorizontalAlignment.Right;
             Themes.ThemeBrushes.Bind(_currentConfigText, TextBlock.ForegroundProperty, "TextSecondaryBrush");
-            form.Children.Add(_currentConfigText);
+            Grid.SetColumn(_currentConfigText, 2);
+            actionRow.Children.Add(_currentConfigText);
+
+            form.Children.Add(actionRow);
 
             _resultText.FontSize = 12;
             _resultText.TextWrapping = TextWrapping.Wrap;
-            _resultText.Margin = new Thickness(0, 4, 0, 0);
+            _resultText.Margin = new Thickness(0, 8, 0, 0);
             _resultText.Foreground = new SolidColorBrush(Color.Parse("#16A34A"));
             form.Children.Add(_resultText);
 

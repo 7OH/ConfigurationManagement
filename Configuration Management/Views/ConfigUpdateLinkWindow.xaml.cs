@@ -64,6 +64,12 @@ public partial class ConfigUpdateLinkWindow : Window
         RebuildUrl();
 
         ShowCurrentConfigSummary();
+
+        // Автоопределение при открытии (issue #322): если у базы уже определены свойства
+        // конфигурации (вкладка «Платформа» / «Определить версию»), подставляем совпавшую
+        // типовую конфигурацию сразу — связь строится из свойств, ручной выбор — явный override.
+        if (!string.IsNullOrWhiteSpace(_infobase.ConfigurationName))
+            TryAutoMatchConfig(_infobase.ConfigurationName, _infobase.ConfigurationVersion);
     }
 
     private void LoadConfigs()
@@ -258,30 +264,8 @@ public partial class ConfigUpdateLinkWindow : Window
         ResultText.Text = string.Format(LocalizationManager.T("Updates.ConfigMatched"), match.Name);
     }
 
-    private OneCConfigType? FindConfigByInfobaseName(string configName)
-    {
-        var trimmed = configName?.Trim() ?? string.Empty;
-        if (trimmed.Length == 0)
-            return null;
-
-        // 1) Точное совпадение по имени (без учёта регистра).
-        var exact = _configs.FirstOrDefault(c =>
-            string.Equals(c.Name.Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
-        if (exact is not null)
-            return exact;
-
-        // 2) Имя типовой конфигурации содержится в имени базы («Бухгалтерия предприятия, ред. 3.0»).
-        var contained = _configs.FirstOrDefault(c =>
-            c.Name.Trim().Length > 0 &&
-            trimmed.Contains(c.Name.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (contained is not null)
-            return contained;
-
-        // 3) Имя базы содержится в имени типовой конфигурации.
-        return _configs.FirstOrDefault(c =>
-            trimmed.Length > 0 &&
-            c.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
-    }
+    private OneCConfigType? FindConfigByInfobaseName(string configName) =>
+        ConfigTypeMatcher.FindByInfobaseName(_configs, configName);
 
     /// <summary>Выбирает редакцию по префиксу версии базы («3.0.142.32» → редакция «3.0»).</summary>
     private void TrySelectEditionByVersion(OneCConfigType config, string version)
