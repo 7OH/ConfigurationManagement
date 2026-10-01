@@ -301,3 +301,87 @@ public sealed class RacInfobaseSummary
     /// <summary>Признак лицензированной информационной базы (колонка «licensed», «0»/«1»).</summary>
     public bool Licensed { get; set; }
 }
+
+/// <summary>
+/// Операция управления состоянием регламентного задания кластера (команды rac
+/// «job pause / resume / disable / enable»).
+/// </summary>
+public enum RacJobAction
+{
+    /// <summary>Приостановить выполнение задания («job pause»).</summary>
+    Pause,
+
+    /// <summary>Возобновить выполнение задания («job resume»).</summary>
+    Resume,
+
+    /// <summary>Снять задание с расписания («job disable»).</summary>
+    Disable,
+
+    /// <summary>Вернуть задание на расписание («job enable»).</summary>
+    Enable
+}
+
+/// <summary>
+/// Регламентное задание кластера серверов 1С:Предприятие — строка вывода команды rac
+/// «job list». Поля соответствуют колонкам вывода (формат документирован на ИТС;
+/// состав колонок может отличаться между версиями платформы): <c>cluster</c>, <c>job</c>,
+/// <c>infobase</c>, <c>name</c>, <c>method-name</c>, <c>predefined</c>, <c>schedule</c>,
+/// <c>state</c>, <c>started-at</c>, <c>next-start</c>, <c>last-start</c>, <c>last-end</c>,
+/// <c>last-success</c>, <c>last-error</c>, <c>last-error-descr</c>, <c>process</c>, …,
+/// <c>result</c>. Лишние колонки справа игнорируются парсером, отсутствующие —
+/// принимают значения по умолчанию.
+/// </summary>
+public sealed class RacJobInfo
+{
+    /// <summary>Идентификатор задания (колонка «job»).</summary>
+    public Guid Id { get; set; }
+
+    /// <summary>Идентификатор информационной базы-владельца (колонка «infobase»); null — задание без ИБ.</summary>
+    public Guid? InfobaseId { get; set; }
+
+    /// <summary>Имя задания (колонка «name», может содержать пробелы и кириллицу).</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Имя метода, выполняемого заданием (колонка «method-name»).</summary>
+    public string MethodName { get; set; } = string.Empty;
+
+    /// <summary>Признак предопределённого задания (колонка «predefined», «0»/«1»).</summary>
+    public bool Predefined { get; set; }
+
+    /// <summary>Расписание задания в виде cron-подобной строки (колонка «schedule»).</summary>
+    public string Schedule { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Состояние задания (колонка «state»): «running» (выполняется), «scheduled»
+    /// (запланировано), «paused» (приостановлено), «disabled» (снято с расписания),
+    /// «interrupted» (прервано).
+    /// </summary>
+    public string State { get; set; } = string.Empty;
+
+    /// <summary>Время фактического старта текущего выполнения (колонка «started-at»).</summary>
+    public DateTime StartedAt { get; set; }
+
+    /// <summary>Ближайшее время запуска по расписанию (колонка «next-start»).</summary>
+    public DateTime NextStart { get; set; }
+
+    /// <summary>Время последнего запуска (колонка «last-start»).</summary>
+    public DateTime LastStart { get; set; }
+
+    /// <summary>Время окончания последнего запуска (колонка «last-end»).</summary>
+    public DateTime LastEnd { get; set; }
+
+    /// <summary>Признак успешности последнего запуска (колонка «last-success», «0»/«1»).</summary>
+    public bool LastSuccess { get; set; }
+
+    /// <summary>Признак ошибки последнего запуска (колонка «last-error», «0»/«1»).</summary>
+    public bool LastError { get; set; }
+
+    /// <summary>Описание ошибки последнего запуска (колонка «last-error-descr»).</summary>
+    public string LastErrorDescr { get; set; } = string.Empty;
+
+    /// <summary>Идентификатор рабочего процесса, обслуживающего задание (колонка «process»).</summary>
+    public Guid ProcessId { get; set; }
+
+    /// <summary>Результат последнего запуска (колонка «result», текст).</summary>
+    public string Result { get; set; } = string.Empty;
+}

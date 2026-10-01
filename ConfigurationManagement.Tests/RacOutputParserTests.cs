@@ -433,6 +433,99 @@ public sealed class RacOutputParserTests
         Assert.Empty(RacOutputParser.ToInfobaseSummaries("infobase\tname\tdescr\n"));
     }
 
+    // ---------- ToJobs ----------
+
+    [Fact]
+    public void ToJobs_ParsesSample()
+    {
+        const string output =
+            "cluster\tjob\tinfobase\tname\tmethod-name\tpredefined\tschedule\tstate\tstarted-at\tnext-start\tlast-start\tlast-end\tlast-success\tlast-error\tlast-error-descr\tprocess\treplication\tuse-lifetime\tlifetime-period\tlifetime-interval\tlifetime-percentage\tresult\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b\taaaaaaaa-1111-2222-3333-444455556666\tcccccccc-1111-2222-3333-444455556666\tОбмен данными\tВыполнитьОбмен\t1\t\"0 0 3 * * ? *\"\tscheduled\t2026-09-30T03:00:00\t2026-10-01T03:00:00\t2026-09-30T03:00:00\t2026-09-30T03:10:00\t1\t0\t\t3f2b5d5e-aaaa-bbbb-cccc-ddddeeeeffff\t0\t0\t0\t0\t0\tЗавершено успешно\n";
+
+        var job = Assert.Single(RacOutputParser.ToJobs(output));
+
+        Assert.Equal(Guid.Parse("aaaaaaaa-1111-2222-3333-444455556666"), job.Id);
+        Assert.Equal(Guid.Parse("cccccccc-1111-2222-3333-444455556666"), job.InfobaseId);
+        Assert.Equal("Обмен данными", job.Name);
+        Assert.Equal("ВыполнитьОбмен", job.MethodName);
+        Assert.True(job.Predefined);
+        Assert.Equal("0 0 3 * * ? *", job.Schedule); // обрамляющие кавычки сняты
+        Assert.Equal("scheduled", job.State);
+        Assert.Equal(new DateTime(2026, 9, 30, 3, 0, 0), job.StartedAt);
+        Assert.Equal(new DateTime(2026, 10, 1, 3, 0, 0), job.NextStart);
+        Assert.Equal(new DateTime(2026, 9, 30, 3, 0, 0), job.LastStart);
+        Assert.Equal(new DateTime(2026, 9, 30, 3, 10, 0), job.LastEnd);
+        Assert.True(job.LastSuccess);
+        Assert.False(job.LastError);
+        Assert.Equal(string.Empty, job.LastErrorDescr);
+        Assert.Equal(Guid.Parse("3f2b5d5e-aaaa-bbbb-cccc-ddddeeeeffff"), job.ProcessId);
+        Assert.Equal("Завершено успешно", job.Result);
+    }
+
+    [Fact]
+    public void ToJobs_UnquotesScheduleAndErrorDescr()
+    {
+        const string output =
+            "cluster\tjob\tinfobase\tname\tmethod-name\tpredefined\tschedule\tstate\tstarted-at\tnext-start\tlast-start\tlast-end\tlast-success\tlast-error\tlast-error-descr\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b\taaaaaaaa-1111-2222-3333-444455556666\t\ttest\tМетод\t0\t\"0 0 1 * * ? *\"\tpaused\t\t\t\t\t0\t1\t\"Недостаточно прав\"\n";
+
+        var job = Assert.Single(RacOutputParser.ToJobs(output));
+
+        Assert.Equal("0 0 1 * * ? *", job.Schedule);
+        Assert.Equal("Недостаточно прав", job.LastErrorDescr);
+        Assert.True(job.LastError);
+        Assert.False(job.LastSuccess);
+    }
+
+    [Fact]
+    public void ToJobs_ParsesMinimalColumns_WithDefaults()
+    {
+        const string output =
+            "cluster\tjob\tinfobase\tname\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b\taaaaaaaa-1111-2222-3333-444455556666\tcccccccc-1111-2222-3333-444455556666\tЗадание\n";
+
+        var job = Assert.Single(RacOutputParser.ToJobs(output));
+
+        Assert.Equal("Задание", job.Name);
+        Assert.Equal(string.Empty, job.MethodName); // отсутствующие справа колонки — default
+        Assert.False(job.Predefined);
+        Assert.Equal(string.Empty, job.Schedule);
+        Assert.Equal(string.Empty, job.State);
+        Assert.Equal(default, job.NextStart);
+        Assert.Equal(default, job.ProcessId);
+    }
+
+    [Fact]
+    public void ToJobs_EmptyInfobase_IsNull()
+    {
+        const string output =
+            "cluster\tjob\tinfobase\tname\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b\taaaaaaaa-1111-2222-3333-444455556666\t\tСлужебное задание\n";
+
+        var job = Assert.Single(RacOutputParser.ToJobs(output));
+
+        Assert.Null(job.InfobaseId);
+        Assert.Equal("Служебное задание", job.Name);
+    }
+
+    [Fact]
+    public void ToJobs_SkipsHeader_InvalidUuid_AndShortRow()
+    {
+        const string output =
+            "cluster\tjob\tinfobase\tname\n" +                 // строка заголовка — пропускается
+            "не-uuid\tКривой идентификатор\t\tЗадание\n" +      // невалидный GUID — пропускается
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b\n";          // меньше 3 колонок — пропускается
+
+        Assert.Empty(RacOutputParser.ToJobs(output));
+    }
+
+    [Fact]
+    public void ToJobs_EmptyOutput_ReturnsEmpty()
+    {
+        Assert.Empty(RacOutputParser.ToJobs(string.Empty));
+        Assert.Empty(RacOutputParser.ToJobs("cluster\tjob\tinfobase\tname\n"));
+    }
+
     // ---------- Устойчивость к «кривым» данным ----------
 
     [Fact]
@@ -445,6 +538,7 @@ public sealed class RacOutputParserTests
         Assert.Empty(RacOutputParser.ToConnections("111-222\n"));
         Assert.Empty(RacOutputParser.ToLocks(null!));
         Assert.Empty(RacOutputParser.ToInfobaseSummaries("мусор без табуляций\n"));
+        Assert.Empty(RacOutputParser.ToJobs(null!));
 
         Assert.NotNull(RacOutputParser.ToClusterInfo("только текст без двоеточия\n"));
     }
