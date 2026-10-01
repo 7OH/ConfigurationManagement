@@ -1,6 +1,7 @@
 #if LINUX
 using System;
 using Avalonia;
+using Configuration_Management.Services;
 
 namespace Configuration_Management
 {
@@ -10,8 +11,17 @@ namespace Configuration_Management
     internal static class Program
     {
         [STAThread]
-        public static void Main(string[] args) =>
+        public static int Main(string[] args)
+        {
+            // Headless CLI (функция 10): --run/--list и команды последующих этапов выполняются
+            // ДО инициализации Avalonia — в окружении cron нет DISPLAY/DBus, поднимать
+            // UI-цикл для команд нельзя (аналог перехвата --run-task из цикла 0.3.9.167–171).
+            if (CliEntryPoint.TryHandle(args, out var cliExitCode))
+                return cliExitCode;
+
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            return 0;
+        }
 
         public static AppBuilder BuildAvaloniaApp() =>
             AppBuilder.Configure<App>()
@@ -52,6 +62,12 @@ namespace Configuration_Management
             // Режим агента: обслуживаем запросы по stdin и выходим, не поднимая WPF.
             if (ComReadHost.TryHandleCommandLine(args))
                 return 0;
+
+            // Headless CLI (функция 10): команды выполняются ДО создания App — окна и словари
+            // WPF для них не нужны (в т.ч. при запуске планировщиком ОС без сессии GUI).
+            // При обработке аргументов процесс завершается кодом возврата, не открывая окно.
+            if (Services.CliEntryPoint.TryHandle(args, out var cliExitCode))
+                return cliExitCode;
 
             var app = new App();
             app.InitializeComponent();

@@ -9,6 +9,42 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.217] — 2026-10-01
+
+### Добавлено
+
+- **0.3.9.217: расширенный CLI — единый контракт и headless-вход** (функция 10
+  «Расширенный интерфейс командной строки», цикл 0.3.9.217–0.3.9.223):
+- Единый контракт вывода команд: [`CliResult`](Configuration%20Management/Models/CliResult.cs)
+  (`ok`/`command`/`data`/`error.code`) и [`CliOutput`](Configuration%20Management/Services/CliOutput.cs)
+  — результат в stdout, человеческая диагностика в stderr; при `--json` — валидный JSON
+  с читаемой кириллицей (без `\uXXXX`), структура **не зависит от локализации**.
+- Headless-вход [`CliEntryPoint`](Configuration%20Management/Services/CliEntryPoint.cs):
+  команды выполняются из [`Program.Main`](Configuration%20Management/Program.cs) обеих
+  платформ **до создания App/WPF/Avalonia** — работают без GUI, в т.ч. из планировщика ОС
+  (cron/schtasks) в окружении без DISPLAY; минимальная инициализация: DI → портативный
+  режим → профили → активация `--profile`.
+- Парсер [`CliArgs`](Configuration%20Management/Services/CliArgs.cs): формы `--key value` и
+  `--key=value`, кавычки, модификатор `--designer`, глобальные флаги `--json`/`--profile`;
+  существующие `--run "База" [--designer]` и `--list` перенесены в
+  [`CliCommands`](Configuration%20Management/Services/CliCommands.cs) без изменения
+  текстовых форматов.
+- Единые коды возврата ([`CliExitCodes`](Configuration%20Management/Services/CliExitCodes.cs)):
+  **0** — успех, **1** — ошибка (в т.ч. приватная база — `error.code=private_base`),
+  **2** — не найдено, **3** — частичный успех. Для `--run` коды мигрированы:
+  «не найдено» 1→2, «ошибка запуска» 2→1, «внутренняя» 3→1, «приватная» 4→1 —
+  изменение документировано в README.
+- `--run` и `--list` принимают `--json`: результат в едином контракте (`run` — имя/режим;
+  `list` — детали баз: имя, тип, id, группа, строка подключения без пароля, теги,
+  избранное, закрепление, даты последнего запуска и копии).
+- Тесты: [`CliArgsTests`](ConfigurationManagement.Tests/CliArgsTests.cs)
+  (валидные/невалидные комбинации, `--json`/`--profile`, приоритет `--list`) и
+  [`CliOutputTests`](ConfigurationManagement.Tests/CliOutputTests.cs)
+  (структура JSON-контракта, машиночитаемые коды, независимость от локализации);
+  `CommandLineHandlerTests` заменены соответствующими.
+
+---
+
 ## [0.3.9.216] — 2026-10-01
 
 ### Добавлено

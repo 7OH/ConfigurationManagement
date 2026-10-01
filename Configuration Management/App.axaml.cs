@@ -244,18 +244,6 @@ namespace Configuration_Management
                 }
                 LogStartupStage(startupLogger, "Локализация инициализирована");
 
-                // CLI-команды ярлыков и скриптов (--run "База" [--designer], --list):
-                // выполняются вторым процессом напрямую (запуск базы не требует UI),
-                // после чего приложение завершается, не показывая окно. Аргументы
-                // берутся из lifetime — Avalonia получает их из Main(args).
-                var cliArgs = (ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Args
-                              ?? Array.Empty<string>();
-                if (Services.CommandLineHandler.TryHandle(cliArgs, out var cliExitCode))
-                {
-                    Shutdown(cliExitCode);
-                    return;
-                }
-
                 if (!settings.AllowMultipleInstances)
                 {
                     if (!TryAcquireSingleInstanceLock())
