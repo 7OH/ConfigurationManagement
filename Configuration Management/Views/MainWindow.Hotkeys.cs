@@ -741,8 +741,14 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Обрабатывает нажатие стрелки для навигации по дереву баз.
-        /// ↑/↓ — перемещение по видимым строкам, ←/→ — раскрытие/сворачивание групп.
+        /// Обрабатывает нажатие стрелки для навигации по дереву баз (issue #331).
+        /// Навигация идёт по фактической иерархии произвольной глубины, а не по
+        /// двухуровневой схеме:
+        /// ↑/↓ — предыдущий/следующий ВИДИМЫЙ узел в порядке обхода (без перескоков
+        /// между секциями «Закреплённые» и обычным списком вопреки порядку);
+        /// → — раскрыть свёрнутую папку или перейти к первому потомку;
+        /// ← — свернуть развёрнутую папку (ТОЛЬКО её — корневые секции не
+        /// затрагиваются) или перейти к родительской строке.
         /// Возвращает true, если событие обработано.
         /// </summary>
         private bool HandleArrowNavigation(Key key)
@@ -750,75 +756,106 @@ namespace Configuration_Management
             if (MainTree is null || _viewModel.GroupNodes.Count == 0)
                 return false;
 
-            // ↑/↓ — перемещение выделения по видимым строкам дерева. Навигация идёт
-            // по контейнерам строк, а не по объектам данных: закреплённая база
-            // присутствует в дереве дважды (узел «Закреплённые» и собственная
-            // группа), и работа с данными всякий раз находила бы первое (верхнее)
-            // вхождение, «перепрыгивая» выделение в начало списка.
+            var rows = GetVisibleTreeViewItems();
+            if (rows.Count == 0)
+                return false;
+
+            var currentIndex = FindCurrentRowIndex(rows);
+
+            // ↑/↓ — следующий/предыдущий видимый узел. Навигация идёт по контейнерам
+            // строк, а не по объектам данных: закреплённая база присутствует в дереве
+            // дважды (узел «Закреплённые» и собственная группа), и работа с данными
+            // всякий раз находила бы первое (верхнее) вхождение, «перепрыгивая»
+            // выделение в начало списка.
             if (key is Key.Up or Key.Down)
             {
-                var rows = GetVisibleTreeViewItems();
-                if (rows.Count == 0)
+                var targetIndex = key == Key.Down
+                    ? Services.TreeNavigationHelper.NextVisible(rows.Count, currentIndex)
+                    : Services.TreeNavigationHelper.PreviousVisible(currentIndex);
+                if (targetIndex < 0 || targetIndex == currentIndex)
                     return false;
-
-                var currentIndex = FindCurrentRowIndex(rows);
-                int targetIndex;
-
-                if (currentIndex < 0)
-                {
-                    targetIndex = key == Key.Down ? 0 : rows.Count - 1;
-                }
-                else
-                {
-                    var last = rows.Count - 1;
-                    targetIndex = key == Key.Down
-                        ? (currentIndex >= last ? last : currentIndex + 1)
-                        : (currentIndex <= 0 ? 0 : currentIndex - 1);
-                }
-
-                if (targetIndex == currentIndex && currentIndex >= 0)
-                    return false;
-
                 SelectRowItem(rows[targetIndex]);
                 return true;
             }
 
-            // → — раскрытие выбранной группы (или группы, где лежит база).
-            var selectedGroup = _viewModel.SelectedGroupNode ?? (_viewModel.SelectedInfobase is null
-                ? null
-                : FindGroupNodeByInfobase(_viewModel.SelectedInfobase));
-
-            if (key == Key.Right)
+            // ←/→ — по фактической вложенности (произвольная глубина, issue #331).
+            // Решение принимает чистый хелпер на основе описания строки; Expand и
+            // Collapse оставляют выделение на строке, GoToParent/GoToFirstChild
+            // переносят его на строку-цель по контейнерам.
+            if (key is Key.Left or Key.Right)
             {
-                if (selectedGroup is not null && !selectedGroup.IsExpanded && selectedGroup.Items.Count > 0)
-                {
-                    _viewModel.ToggleGroupExpandedCommand.Execute(selectedGroup);
-                    return true;
-                }
-                return false;
-            }
+                if (currentIndex < 0)
+                    return false;
 
-            // ← — сворачивание выбранной группы; если курсор стоит на базе —
-            // переводим выделение на группу, в которой она находится, не сворачивая группу.
-            if (key == Key.Left)
-            {
-                if (_viewModel.SelectedGroupNode is { IsExpanded: true } grp)
-                {
-                    _viewModel.ToggleGroupExpandedCommand.Execute(grp);
-                    return true;
-                }
+                var row = rows[currentIndex];
+                var info = BuildRowInfoForNavigation(rows, currentIndex);
+                var action = key == Key.Right
+                    ? Services.TreeNavigationHelper.DecideRight(info)
+                    : Services.TreeNavigationHelper.DecideLeft(info);
 
-                if (_viewModel.SelectedInfobase is { } infobase &&
-                    FindGroupNodeByInfobase(infobase) is { } container)
+                switch (action)
                 {
-                    SelectTreeNode(container);
-                    return true;
-                }
+                    case Services.TreeNavigationHelper.LateralAction.Expand:
+                    case Services.TreeNavigationHelper.LateralAction.Collapse:
+                        ToggleGroupExpanded(row);
+                        return true;
 
-                return false;
+                    case Services.TreeNavigationHelper.LateralAction.GoToFirstChild:
+                    case Services.TreeNavigationHelper.LateralAction.GoToParent:
+                    {
+                        var target = Services.TreeNavigationHelper.TargetIndex(action, info, currentIndex);
+                        if (target >= 0 && target < rows.Count && target != currentIndex)
+                            SelectRowItem(rows[target]);
+                        return true;
+                    }
+
+                    default:
+                        // База без детей (или корень без родителя): стрелка ничего не
+                        // делает. Помечаем событие обработанным, чтобы штатная логика
+                        // TreeView не «сворачивала» соседние секции (кейс 1 issue #331).
+                        return true;
+                }
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Описание строки для навигации влево/вправо: принадлежность группе,
+        /// развёрнутость, наличие потомков и индексы родителя/первого потомка в
+        /// видимом порядке. Индексы считаются по контейнерам, чтобы закреплённая
+        /// копия базы не «перепрыгивала» выделение в начало списка.
+        /// </summary>
+        private Services.TreeNavigationHelper.RowInfo BuildRowInfoForNavigation(List<TreeViewItem> rows, int index)
+        {
+            var row = rows[index];
+            var isGroup = row.DataContext is GroupNodeViewModel;
+            var hasChildren = row.DataContext is GroupNodeViewModel groupNode && groupNode.Items.Count > 0;
+            var isExpanded = row.IsExpanded;
+
+            // Родительская строка — ItemsControl, которому принадлежит контейнер;
+            // для вложенной строки это TreeViewItem-предок из того же обхода.
+            int? parentIndex = null;
+            if (ItemsControl.ItemsControlFromItemContainer(row) is TreeViewItem parentTvi)
+            {
+                var pi = rows.IndexOf(parentTvi);
+                if (pi >= 0)
+                    parentIndex = pi;
+            }
+
+            int? firstChildIndex = null;
+            if (isGroup && isExpanded && hasChildren)
+                firstChildIndex = index + 1; // первый потомок идёт сразу после группы
+
+            return new Services.TreeNavigationHelper.RowInfo(
+                isGroup, isExpanded, hasChildren, parentIndex, firstChildIndex);
+        }
+
+        /// <summary>Раскрывает/сворачивает группу через модель (сохраняя состояние).</summary>
+        private void ToggleGroupExpanded(TreeViewItem row)
+        {
+            if (row.DataContext is GroupNodeViewModel groupNode)
+                _viewModel.ToggleGroupExpandedCommand.Execute(groupNode);
         }
 
     }

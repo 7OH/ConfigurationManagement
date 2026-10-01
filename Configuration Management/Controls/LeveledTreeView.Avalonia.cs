@@ -229,19 +229,20 @@ namespace Configuration_Management.Controls
         /// </summary>
         private void OnNavigationKeyDown(object? sender, KeyEventArgs e)
         {
-            if (e.Handled || e.Key is not (Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Up or Key.Down))
+            if (e.Handled || e.Key is not (Key.Home or Key.End or Key.PageUp or Key.PageDown
+                or Key.Up or Key.Down or Key.Left or Key.Right))
                 return;
 
-            // Стрелки вверх/вниз не перехватываем, если фокус в поле ввода
+            // Стрелки не перехватываем, если фокус в поле ввода
             // (поиск, инлайн-теги): там они двигают курсор, а не выделение.
-            if (e.Key is Key.Up or Key.Down && FocusedElementIsTextBox)
+            if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right && FocusedElementIsTextBox)
                 return;
 
             if (e.KeyModifiers == KeyModifiers.Control)
             {
                 // Прокрутка с Ctrl работает только для перечисленных клавиш;
-                // Ctrl+↑/↓ не назначена, оставляем их остальному маршруту.
-                if (e.Key is Key.Up or Key.Down)
+                // Ctrl+стрелки не назначена, оставляем их остальному маршруту.
+                if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right)
                     return;
                 ScrollBy(e.Key);
                 e.Handled = true;
@@ -265,21 +266,55 @@ namespace Configuration_Management.Controls
                 return;
 
             var current = CurrentRowIndex(rows);
+
+            // ←/→ — по фактической вложенности (произвольная глубина, issue #331):
+            // вправо раскрывает свёрнутую папку или переходит к первому потомку;
+            // влево сворачивает ТОЛЬКО текущую развёрнутую папку (корневые секции
+            // «Закреплённые» не затрагиваются — кейс 2) или переходит к родителю.
+            // Раньше эти клавиши уходили штатной логике TreeView, которая считала
+            // вложенность «двухуровневой» и сворачивала ближайшего развёрнутого
+            // предка вплоть до «Закреплённых».
+            if (e.Key is Key.Left or Key.Right)
+            {
+                if (current < 0)
+                    return;
+                var info = BuildRowInfoForNavigation(rows, current);
+                var action = e.Key == Key.Right
+                    ? TreeNavigationHelper.DecideRight(info)
+                    : TreeNavigationHelper.DecideLeft(info);
+
+                switch (action)
+                {
+                    case TreeNavigationHelper.LateralAction.Expand:
+                    case TreeNavigationHelper.LateralAction.Collapse:
+                        // Сворачиваем/раскрываем ТОЛЬКО эту группу; выделение и
+                        // фокус остаются на ней (кейс 2 issue #331).
+                        ToggleGroupExpanded(rows[current]);
+                        SelectRow(rows[current]);
+                        rows[current].Focus();
+                        break;
+
+                    case TreeNavigationHelper.LateralAction.GoToFirstChild:
+                    case TreeNavigationHelper.LateralAction.GoToParent:
+                    {
+                        var lateralTarget = TreeNavigationHelper.TargetIndex(action, info, current);
+                        if (lateralTarget >= 0 && lateralTarget < rows.Count && lateralTarget != current)
+                            SelectRow(rows[lateralTarget]);
+                        break;
+                    }
+                }
+
+                e.Handled = true;
+                return;
+            }
+
             int target;
             if (e.Key is Key.Up or Key.Down)
             {
-                if (current < 0)
-                {
-                    target = e.Key == Key.Down ? 0 : rows.Count - 1;
-                }
-                else
-                {
-                    var last = rows.Count - 1;
-                    target = e.Key == Key.Down
-                        ? (current >= last ? last : current + 1)
-                        : (current <= 0 ? 0 : current - 1);
-                }
-                if (target == current)
+                target = e.Key == Key.Down
+                    ? TreeNavigationHelper.NextVisible(rows.Count, current)
+                    : TreeNavigationHelper.PreviousVisible(current);
+                if (target < 0 || target == current)
                     return;
             }
             else
@@ -310,6 +345,44 @@ namespace Configuration_Management.Controls
             SelectRow(rows[target]);
             BringRowIntoView(rows[target]);
             rows[target].Focus();
+        }
+
+        /// <summary>
+        /// Описание строки для навигации влево/вправо: принадлежность группе,
+        /// развёрнутость, наличие потомков и индексы родителя/первого потомка в
+        /// видимом порядке. Индексы считаются по контейнерам, чтобы закреплённая
+        /// копия базы не «перепрыгивала» выделение в начало списка.
+        /// </summary>
+        private TreeNavigationHelper.RowInfo BuildRowInfoForNavigation(List<TreeViewItem> rows, int index)
+        {
+            var row = rows[index];
+            var isGroup = row.DataContext is GroupNodeViewModel;
+            var hasChildren = row.DataContext is GroupNodeViewModel groupNode && groupNode.Items.Count > 0;
+            var isExpanded = row.IsExpanded;
+
+            // Родительская строка — ItemsControl, которому принадлежит контейнер;
+            // для вложенной строки это TreeViewItem-предок из того же обхода.
+            int? parentIndex = null;
+            if (ItemsControl.ItemsControlFromItemContainer(row) is TreeViewItem parentTvi)
+            {
+                var pi = rows.IndexOf(parentTvi);
+                if (pi >= 0)
+                    parentIndex = pi;
+            }
+
+            int? firstChildIndex = null;
+            if (isGroup && isExpanded && hasChildren)
+                firstChildIndex = index + 1; // первый потомок идёт сразу после группы
+
+            return new TreeNavigationHelper.RowInfo(
+                isGroup, isExpanded, hasChildren, parentIndex, firstChildIndex);
+        }
+
+        /// <summary>Раскрывает/сворачивает группу через модель (TwoWay-привязка контейнера).</summary>
+        private void ToggleGroupExpanded(TreeViewItem row)
+        {
+            if (row.DataContext is GroupNodeViewModel groupNode)
+                groupNode.IsExpanded = !groupNode.IsExpanded;
         }
 
         /// <summary>
