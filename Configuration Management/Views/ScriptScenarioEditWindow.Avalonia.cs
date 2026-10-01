@@ -46,6 +46,12 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
     private readonly ComboBox _exampleBaseCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
     private readonly TextBox _previewBox = new TextBox { IsReadOnly = true }.Styled(ControlThemes.ModernTextBox);
     private readonly CheckBox _hideWindowCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
+    // Issue #308: «Уведомлять о запуске» (окно «скрипт запущен» + системные уведомления)
+    // и «Не закрывать» (хвост pause/Read-Host/read) — новые галки редактора сценария.
+    private readonly CheckBox _notifyOnStartCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
+    private readonly CheckBox _keepOpenCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
+    /// <summary>Корневой контейнер окна — для измерения при подгонке высоты (issue #308).</summary>
+    private StackPanel? _rootPanel;
 
     /// <summary>Готовый сценарий при подтверждении, иначе <c>null</c>.</summary>
     public ScriptScenario? Result { get; private set; }
@@ -56,14 +62,17 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _sourceScenario = scenario;
         _vm = new ScriptScenarioEditViewModel(scenario);
         Title = T(scenario is null ? "Script.AddTitle" : "Script.EditTitle");
-        Width = 640;
-        Height = 680;
+        Width = 660;
+        Height = 720;
         MinWidth = 560;
-        MinHeight = 580;
+        MinHeight = 620;
         // Явная высота вместо SizeToContent.Height: авторазмер мог схлопывать окно в пустой
         // прямоугольник при модальном показе (регресс «пустого незакрываемого окна», issue #308).
-        // Контент при необходимости прокручивается внутренним ScrollViewer; MaxHeight ограничивает
-        // рост при ручном изменении размера, MinHeight — слишком сильное сжатие.
+        // Окно чуть выше (issue #308): не всё влезало без скролла; после показа высота
+        // подгоняется под содержимое и ограничивается рамками экрана через WindowSizeMath
+        // (FitHeightToContent). Контент при необходимости прокручивается внутренним
+        // ScrollViewer; MaxHeight ограничивает рост при ручном изменении размера,
+        // MinHeight — слишком сильное сжатие.
         MaxHeight = 800;
         CanResize = true;
         FontSize = 13;
@@ -85,7 +94,47 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
                 if (scenario is null)
                     _nameBox.SelectAll();
             }, Avalonia.Threading.DispatcherPriority.Background);
+
+            // Подгонка высоты окна под содержимое с ограничением рамками экрана
+            // (WindowSizeMath, issue #308): отложенно после отрисовки, чтобы
+            // измерения контента были актуальны.
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                FitHeightToContent, Avalonia.Threading.DispatcherPriority.Background);
         };
+    }
+
+    /// <summary>
+    /// Подгоняет высоту окна под содержимое (issue #308): измеряет корневой контейнер
+    /// при бесконечной высоте, клампит в [MinHeight, MaxHeight] через
+    /// <see cref="WindowSizeMath.ClampHeight"/> и поднимает окно, если низ уходит
+    /// за нижний край рабочей области (<see cref="WindowSizeMath.FitTop"/>).
+    /// Логика расчёта — чистый WindowSizeMath (общий с WPF).
+    /// </summary>
+    private void FitHeightToContent()
+    {
+        if (_rootPanel is null || !IsVisible)
+            return;
+
+        var availableWidth = _rootPanel.Bounds.Width > 0 ? _rootPanel.Bounds.Width : Math.Max(400, Width);
+        _rootPanel.Measure(new Avalonia.Size(availableWidth, double.PositiveInfinity));
+        var desired = _rootPanel.DesiredSize.Height;
+        if (desired <= 0)
+            return;
+
+        // Хром (заголовок + рамки/декор) — разница между полной высотой и клиентской областью.
+        var chrome = Math.Max(0, ClientSize.Height - (_rootPanel.Bounds.Height > 0 ? _rootPanel.Bounds.Height : desired));
+        Height = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
+
+        // Окно стояло у нижнего края экрана и выросло — поднимаем его, чтобы нижняя
+        // часть не уходила за экран (issue #308). Координаты в физических пикселях.
+        if (Screens.ScreenFromWindow(this) is { } screen)
+        {
+            var wa = screen.WorkingArea;
+            var heightPx = (int)(Height * screen.Scaling);
+            var newTopPx = (int)WindowSizeMath.FitTop(Position.Y, heightPx, wa.Y, wa.Bottom);
+            if (newTopPx != Position.Y)
+                Position = new PixelPoint(Position.X, newTopPx);
+        }
     }
 
     /// <summary>Показывает окно модально (синхронно).</summary>
@@ -125,6 +174,9 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
     private Control BuildRoot()
     {
         var panel = new StackPanel { Margin = new Avalonia.Thickness(14), Spacing = 8 };
+        // Ссылка на корневой контейнер для подгонки высоты окна под содержимое
+        // (WindowSizeMath, issue #308).
+        _rootPanel = panel;
 
         panel.Children.Add(Label(T("Script.Name")));
         _nameBox.Text = _vm.Name;
@@ -187,24 +239,33 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _shellCombo.MinWidth = 260;
         _shellCombo.VerticalAlignment = VerticalAlignment.Center;
         _shellCombo.SelectionChanged += (_, _) => UpdatePreview();
-        // Issue #308, п.14:39: галка «Скрывать окно скрипта» — в одной строке
-        // с «Интерпретатор», чтобы не терялась внизу окна.
+        // Issue #308, п.14:39: галки «Скрывать окно скрипта» и «Уведомлять о запуске» —
+        // в одной строке с «Интерпретатор», чтобы не терялись внизу окна. При выключенной
+        // «Уведомлять о запуске» не показывается окно «скрипт запущен» и не шлются
+        // системные уведомления (issue #308).
         _hideWindowCheck.Content = T("Script.HideWindow");
         _hideWindowCheck.IsChecked = _vm.HideWindow;
         _hideWindowCheck.VerticalAlignment = VerticalAlignment.Center;
+        _notifyOnStartCheck.Content = T("Script.NotifyOnStart");
+        _notifyOnStartCheck.IsChecked = _vm.NotifyOnStart;
+        _notifyOnStartCheck.VerticalAlignment = VerticalAlignment.Center;
         var shellRow = new Grid
         {
             ColumnDefinitions =
             {
                 new ColumnDefinition { Width = GridLength.Auto },
                 new ColumnDefinition { Width = new GridLength(12) },
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = new GridLength(16) },
                 new ColumnDefinition { Width = GridLength.Auto }
             }
         };
         Grid.SetColumn(_shellCombo, 0);
         Grid.SetColumn(_hideWindowCheck, 2);
+        Grid.SetColumn(_notifyOnStartCheck, 4);
         shellRow.Children.Add(_shellCombo);
         shellRow.Children.Add(_hideWindowCheck);
+        shellRow.Children.Add(_notifyOnStartCheck);
         panel.Children.Add(shellRow);
 
         panel.Children.Add(Label(T("Script.Parameters")));
@@ -264,7 +325,27 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _exampleBaseCombo.HorizontalAlignment = HorizontalAlignment.Left;
         _exampleBaseCombo.MinWidth = 260;
         _exampleBaseCombo.SelectionChanged += (_, _) => UpdatePreview();
-        panel.Children.Add(_exampleBaseCombo);
+        // Issue #308: галка «Не закрывать» — рядом с «База для примера подстановок»:
+        // добавляет к команде хвост удержания окна (pause/Read-Host/read).
+        _keepOpenCheck.Content = T("Script.KeepOpen");
+        _keepOpenCheck.IsChecked = _vm.KeepOpen;
+        _keepOpenCheck.VerticalAlignment = VerticalAlignment.Center;
+        // Хвост удержания виден в превью командной строки — пересчёт по клику (issue #308).
+        _keepOpenCheck.IsCheckedChanged += (_, _) => UpdatePreview();
+        var exampleRow = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = new GridLength(16) },
+                new ColumnDefinition { Width = GridLength.Auto }
+            }
+        };
+        Grid.SetColumn(_exampleBaseCombo, 0);
+        Grid.SetColumn(_keepOpenCheck, 2);
+        exampleRow.Children.Add(_exampleBaseCombo);
+        exampleRow.Children.Add(_keepOpenCheck);
+        panel.Children.Add(exampleRow);
 
         panel.Children.Add(HintLabel(T("Script.CommandLinePreview")));
         _previewBox.TextWrapping = TextWrapping.Wrap;
@@ -342,13 +423,17 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _vm.ParametersText = _parametersBox.Text ?? "";
         // Выбранный интерпретатор (issue #308, п.9) попадает и в VM, и в превью.
         _vm.Shell = _shellCombo.SelectedItem is KeyValuePair<ScriptShell, string> pair ? pair.Key : _vm.Shell;
+        // «Не закрывать» (issue #308) попадает и в VM, и в превью: хвост
+        // pause/Read-Host/read виден в командной строке окна редактора.
+        _vm.KeepOpen = _keepOpenCheck.IsChecked ?? false;
         var draft = new ScriptScenario
         {
             Name = _vm.Name,
             FilePath = _vm.FilePath,
             WorkingDirectory = _vm.WorkingDirectory,
             Parameters = _vm.NonEmptyParameters,
-            Shell = _vm.Shell
+            Shell = _vm.Shell,
+            KeepOpen = _vm.KeepOpen
         };
         var preview = ScriptScenarioEditViewModel.BuildExampleCommandLine(draft, SelectedExampleBase);
         _previewBox.Text = string.IsNullOrWhiteSpace(preview) ? "—" : preview;
@@ -361,6 +446,8 @@ public sealed class ScriptScenarioEditWindow : ModalWindowBase
         _vm.WorkingDirectory = _workingDirectoryBox.Text ?? "";
         _vm.ParametersText = _parametersBox.Text ?? "";
         _vm.HideWindow = _hideWindowCheck.IsChecked ?? true;
+        _vm.NotifyOnStart = _notifyOnStartCheck.IsChecked ?? false;
+        _vm.KeepOpen = _keepOpenCheck.IsChecked ?? false;
         _vm.Shell = _shellCombo.SelectedItem is KeyValuePair<ScriptShell, string> pair ? pair.Key : ScriptShell.Auto;
 
         var errorKey = _vm.Validate();

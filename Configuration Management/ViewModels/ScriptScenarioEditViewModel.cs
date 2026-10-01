@@ -58,6 +58,8 @@ public class ScriptScenarioEditViewModel : ViewModelBase
             FilePath = scenario.FilePath ?? "";
             WorkingDirectory = scenario.WorkingDirectory ?? "";
             HideWindow = scenario.HideWindow;
+            NotifyOnStart = scenario.NotifyOnStart;
+            KeepOpen = scenario.KeepOpen;
             Shell = scenario.Shell;
             foreach (var parameter in scenario.Parameters ?? new List<string>())
             {
@@ -87,6 +89,19 @@ public class ScriptScenarioEditViewModel : ViewModelBase
     /// (по умолчанию), <c>false</c> — консольное окно видимо.
     /// </summary>
     public bool HideWindow { get; set; } = true;
+
+    /// <summary>
+    /// Уведомлять о запуске сценария (issue #308): <c>true</c> — после запуска
+    /// показывается диалог «скрипт запущен» и системное уведомление; <c>false</c>
+    /// (по умолчанию) — запуск без диалога и уведомлений.
+    /// </summary>
+    public bool NotifyOnStart { get; set; }
+
+    /// <summary>
+    /// Не закрывать окно после завершения сценария (issue #308): <c>true</c> —
+    /// к команде добавляется хвост удержания окна (pause / Read-Host / read).
+    /// </summary>
+    public bool KeepOpen { get; set; }
 
     /// <summary>
     /// Интерпретатор (shell) для запуска сценария (issue #308, п.9):
@@ -142,6 +157,8 @@ public class ScriptScenarioEditViewModel : ViewModelBase
         scenario.WorkingDirectory = WorkingDirectory.Trim();
         scenario.Parameters = NonEmptyParameters;
         scenario.HideWindow = HideWindow;
+        scenario.NotifyOnStart = NotifyOnStart;
+        scenario.KeepOpen = KeepOpen;
         scenario.Shell = Shell;
     }
 

@@ -2363,6 +2363,8 @@
     "Script.Started": "Сценарий запущен:\n{0}",
     "Script.Failed": "Не удалось запустить сценарий «{0}»: {1}",
     "Script.HideWindow": "Скрывать окно скрипта",
+    "Script.NotifyOnStart": "Уведомлять о запуске",
+    "Script.KeepOpen": "Не закрывать окно после завершения",
     "Script.TokenName": "имя базы",
     "Script.TokenConnectionServer": "сервер",
     "Script.TokenConnectionServerPort": "сервер:порт",

@@ -239,7 +239,8 @@ public static class ScriptParameterResolver
         IReadOnlyDictionary<string, string>? values,
         DateTime? now = null,
         ScriptShell? shell = null,
-        bool? isWindows = null)
+        bool? isWindows = null,
+        bool keepOpen = false)
     {
         if (scenario is null)
             return "";
@@ -266,7 +267,51 @@ public static class ScriptParameterResolver
                 parts.Add(resolved);
         }
 
+        // «Не закрывать окно» (issue #308): хвостовая команда удержания окна —
+        // pause (cmd), Read-Host (PowerShell), read (sh). Разделитель для cmd — «&»
+        // (безусловное выполнение), чтобы окно удерживалось и при ошибке скрипта;
+        // для PowerShell/sh — «;» (так же безусловно).
+        var shouldKeepOpen = keepOpen || scenario.KeepOpen;
+        if (shouldKeepOpen)
+        {
+            var tail = KeepOpenTail(shell ?? ScriptShell.Auto, isWindows ?? OperatingSystem.IsWindows());
+            if (tail.Length > 0)
+            {
+                parts.Add(parts.Count > 0
+                    ? KeepOpenSeparator(shell ?? ScriptShell.Auto, isWindows ?? OperatingSystem.IsWindows()) + " " + tail
+                    : tail);
+            }
+        }
+
         return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    /// Хвостовая команда удержания консольного окна (issue #308, флаг «Не закрывать»):
+    /// <c>cmd</c> — <c>pause</c>, <c>PowerShell</c> — <c>Read-Host</c>, <c>sh</c> — <c>read</c>.
+    /// <see cref="ScriptShell.Auto"/> разрешается по платформе (<paramref name="isWindows"/>:
+    /// Windows — cmd, Linux — sh). Пустая команда невозможна — все ветки возвращают текст.
+    /// </summary>
+    public static string KeepOpenTail(ScriptShell shell, bool isWindows)
+    {
+        var resolved = shell == ScriptShell.Auto ? (isWindows ? ScriptShell.Cmd : ScriptShell.Sh) : shell;
+        return resolved switch
+        {
+            ScriptShell.PowerShell => "Read-Host",
+            ScriptShell.Sh => "read",
+            _ => "pause"
+        };
+    }
+
+    /// <summary>
+    /// Разделитель перед хвостовой командой удержания: для <c>cmd</c> — <c>&</c>
+    /// (выполняется независимо от кода возврата — окно удерживается и при ошибке),
+    /// для <c>PowerShell</c>/<c>sh</c> — <c>;</c> (то же безусловное выполнение).
+    /// </summary>
+    private static string KeepOpenSeparator(ScriptShell shell, bool isWindows)
+    {
+        var resolved = shell == ScriptShell.Auto ? (isWindows ? ScriptShell.Cmd : ScriptShell.Sh) : shell;
+        return resolved == ScriptShell.PowerShell || resolved == ScriptShell.Sh ? ";" : "&";
     }
 
     /// <summary>

@@ -112,9 +112,14 @@ public partial class MainViewModel
             infobase.AddLaunchHistory("Script:" + scenario.Name, commandLine);
             SaveSilently();
             _logger.Info($"Запущен сценарий «{scenario.Name}» для базы «{infobase.Name}»: {commandLine}");
-            _dialog.ShowInfo(
-                string.Format(LocalizationManager.T("Script.Started"), commandLine),
-                LocalizationManager.T("Script.RunTitle"));
+            // Окно «скрипт запущен» — только при включённой галочке «Уведомлять о запуске»
+            // (issue #308): без опций — просто не надо.
+            if (scenario.NotifyOnStart)
+            {
+                _dialog.ShowInfo(
+                    string.Format(LocalizationManager.T("Script.Started"), commandLine),
+                    LocalizationManager.T("Script.RunTitle"));
+            }
         }
         catch (Exception ex)
         {
@@ -124,17 +129,21 @@ public partial class MainViewModel
                 LocalizationManager.T("Script.RunTitle"));
         }
 
-        // Системное уведомление (функция №4): приложение может быть свёрнуто,
-        // а диалог результата увиден не будет.
-        try
+        // Системное уведомление (функция №4): только вместе с галочкой «Уведомлять
+        // о запуске» (issue #308); приложение может быть свёрнуто, а диалог результата
+        // увиден не будет.
+        if (scenario.NotifyOnStart)
         {
-            AppServices.GetRequiredService<INotificationService>().Show(
-                LocalizationManager.T("App.Title"),
-                string.Format(LocalizationManager.T("Notify.ScriptStarted"), infobase.Name, scenario.Name));
-        }
-        catch (Exception ex)
-        {
-            _logger.Warn($"Системное уведомление не показано: {ex.Message}");
+            try
+            {
+                AppServices.GetRequiredService<INotificationService>().Show(
+                    LocalizationManager.T("App.Title"),
+                    string.Format(LocalizationManager.T("Notify.ScriptStarted"), infobase.Name, scenario.Name));
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Системное уведомление не показано: {ex.Message}");
+            }
         }
 
         await Task.CompletedTask;

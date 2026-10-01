@@ -59,6 +59,12 @@ public partial class ScriptScenarioEditWindow : Window
         ExampleBaseLabel.Text = T("Script.ExampleBase");
         PreviewLabel.Text = T("Script.CommandLinePreview");
         OkButton.Content = T("Common.Save");
+        // Галки «Уведомлять о запуске» и «Не закрывать» (issue #308) влияют на превью
+        // командной строки (хвост pause/Read-Host/read) — пересчёт по клику.
+        NotifyOnStartCheckBox.Checked += (_, _) => UpdatePreview();
+        NotifyOnStartCheckBox.Unchecked += (_, _) => UpdatePreview();
+        KeepOpenCheckBox.Checked += (_, _) => UpdatePreview();
+        KeepOpenCheckBox.Unchecked += (_, _) => UpdatePreview();
 
         // Токены подстановок: объекты ScriptTokenHint (issue #308) — в шаблоне списка
         // отображается «%token% — описание», а двойной клик вставляет ТОЛЬКО токен.
@@ -100,7 +106,42 @@ public partial class ScriptScenarioEditWindow : Window
                 ExampleBaseCombo.SelectedIndex = 0;
 
             UpdatePreview();
+            // Высота окна редактора (issue #308): чуть выше, чтобы всё влезало без
+            // скролла, но не за рамки экрана — WindowSizeMath (FitTop/clamping), как
+            // в остальных окнах (ConfigDiffSetupWindow, CreateInfobaseWindow).
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, FitHeightToContent);
         };
+    }
+
+    /// <summary>
+    /// Подгоняет высоту окна под содержимое (issue #308): измеряет корневой контейнер
+    /// при бесконечной высоте, клампит в [MinHeight, MaxHeight] через
+    /// <see cref="WindowSizeMath.ClampHeight"/> и поднимает окно, если низ уходит
+    /// за нижний край рабочей области (<see cref="WindowSizeMath.FitTop"/>).
+    /// </summary>
+    private void FitHeightToContent()
+    {
+        if (RootPanel is null || !IsLoaded || !IsVisible)
+            return;
+
+        var availableWidth = RootPanel.ActualWidth > 0 ? RootPanel.ActualWidth : Math.Max(400, Width);
+        RootPanel.Measure(new System.Windows.Size(availableWidth, double.PositiveInfinity));
+        var desired = RootPanel.DesiredSize.Height;
+        if (desired <= 0)
+            return;
+
+        // Хром (заголовок окна + рамки) — разница между полной высотой и клиентской областью.
+        var chrome = Math.Max(0, ActualHeight - (RootPanel.ActualHeight > 0 ? RootPanel.ActualHeight : desired));
+        var target = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
+        if (Math.Abs(target - Height) > 1)
+            Height = target;
+
+        // Окно стояло у нижнего края экрана и выросло — поднимаем его, чтобы нижняя
+        // часть не уходила за экран (issue #308).
+        var wa = SystemParameters.WorkArea;
+        var newTop = WindowSizeMath.FitTop(Top, Height, wa.Top, wa.Bottom);
+        if (Math.Abs(newTop - Top) > 1)
+            Top = newTop;
     }
 
     private static string T(string key) => LocalizationManager.T(key);
@@ -177,7 +218,10 @@ public partial class ScriptScenarioEditWindow : Window
             FilePath = FilePathBox.Text ?? "",
             WorkingDirectory = WorkingDirectoryBox.Text ?? "",
             Parameters = _vm.NonEmptyParameters,
-            Shell = _vm.Shell
+            Shell = _vm.Shell,
+            // «Не закрывать» (issue #308) попадает в превью: хвост pause/Read-Host/read
+            // виден в командной строке окна редактора.
+            KeepOpen = KeepOpenCheckBox.IsChecked ?? false
         };
         var preview = ScriptScenarioEditViewModel.BuildExampleCommandLine(draft, SelectedExampleBase);
         PreviewBox.Text = string.IsNullOrWhiteSpace(preview) ? "—" : preview;
@@ -190,6 +234,8 @@ public partial class ScriptScenarioEditWindow : Window
         _vm.WorkingDirectory = WorkingDirectoryBox.Text ?? "";
         _vm.ParametersText = ParametersBox.Text ?? "";
         _vm.HideWindow = HideWindowCheckBox.IsChecked ?? true;
+        _vm.NotifyOnStart = NotifyOnStartCheckBox.IsChecked ?? false;
+        _vm.KeepOpen = KeepOpenCheckBox.IsChecked ?? false;
         _vm.Shell = ShellCombo.SelectedValue is ScriptShell shell ? shell : ScriptShell.Auto;
 
         var errorKey = _vm.Validate();

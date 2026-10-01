@@ -208,4 +208,49 @@ public sealed class ScriptScenarioEditViewModelTests
             new[] { ScriptShell.Auto, ScriptShell.Cmd, ScriptShell.PowerShell, ScriptShell.Sh },
             ScriptScenarioEditViewModel.ShellOptions);
     }
+
+    [Fact]
+    public void ApplyTo_TransfersNotifyOnStartAndKeepOpen()
+    {
+        // Issue #308: галочки «Уведомлять о запуске» и «Не закрывать» переносятся
+        // из формы в сценарий; флаг уведомления управляет показом окна «скрипт
+        // запущен» и системных уведомлений при выполнении (MainViewModel.RunScriptAsync).
+        var scenario = new ScriptScenario { Id = "flags-id", Name = "Имя", FilePath = "x.bat" };
+        var vm = new ScriptScenarioEditViewModel(scenario);
+        vm.NotifyOnStart = true;
+        vm.KeepOpen = true;
+
+        vm.ApplyTo(scenario);
+
+        Assert.True(scenario.NotifyOnStart);
+        Assert.True(scenario.KeepOpen);
+    }
+
+    [Fact]
+    public void Constructor_FromScenario_FillsNotifyOnStartAndKeepOpen()
+    {
+        var scenario = new ScriptScenario
+        {
+            Name = "С флагами",
+            FilePath = "x.bat",
+            NotifyOnStart = true,
+            KeepOpen = true
+        };
+
+        var vm = new ScriptScenarioEditViewModel(scenario);
+
+        Assert.True(vm.NotifyOnStart);
+        Assert.True(vm.KeepOpen);
+    }
+
+    [Fact]
+    public void Constructor_NullScenario_FlagsDefaultToOff()
+    {
+        // «Без опций — просто не надо» (issue #308): новый сценарий не уведомляет
+        // о запуске и не удерживает окно, пока пользователь не включит галочки.
+        var vm = new ScriptScenarioEditViewModel(null);
+
+        Assert.False(vm.NotifyOnStart);
+        Assert.False(vm.KeepOpen);
+    }
 }

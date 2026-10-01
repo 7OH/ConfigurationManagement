@@ -480,6 +480,144 @@ public sealed class ScriptParameterResolverTests
         Assert.Equal("cmd.exe /c cd C:\\Tools\\scripts && report.bat", result);
     }
 
+    // ------------------- «Не закрывать окно» (issue #308) -------------------
+
+    [Theory]
+    [InlineData(ScriptShell.Cmd, true, "pause")]
+    [InlineData(ScriptShell.Cmd, false, "pause")]
+    [InlineData(ScriptShell.PowerShell, true, "Read-Host")]
+    [InlineData(ScriptShell.PowerShell, false, "Read-Host")]
+    [InlineData(ScriptShell.Sh, true, "read")]
+    [InlineData(ScriptShell.Sh, false, "read")]
+    [InlineData(ScriptShell.Auto, true, "pause")]   // Auto на Windows — cmd → pause
+    [InlineData(ScriptShell.Auto, false, "read")]   // Auto на Linux — sh → read
+    public void KeepOpenTail_ReturnsExpectedForShell(ScriptShell shell, bool isWindows, string expected)
+    {
+        // Issue #308: cmd — «pause», PowerShell — «Read-Host», sh — «read».
+        var result = ScriptParameterResolver.KeepOpenTail(shell, isWindows);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void BuildCommandLine_KeepOpen_Cmd_AppendsUnconditionalPause()
+    {
+        // «& pause» (безусловный разделитель): окно удерживается и при ошибке скрипта.
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.bat",
+            Shell = ScriptShell.Cmd,
+            KeepOpen = true
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: ScriptShell.Cmd, isWindows: true);
+
+        Assert.Equal("report.bat & pause", result);
+    }
+
+    [Fact]
+    public void BuildCommandLine_KeepOpen_PowerShell_AppendsReadHost()
+    {
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.ps1",
+            Shell = ScriptShell.PowerShell,
+            KeepOpen = true
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: ScriptShell.PowerShell, isWindows: true);
+
+        Assert.Equal("report.ps1 ; Read-Host", result);
+    }
+
+    [Fact]
+    public void BuildCommandLine_KeepOpen_Sh_AppendsRead()
+    {
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.sh",
+            Shell = ScriptShell.Sh,
+            KeepOpen = true
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: ScriptShell.Sh, isWindows: false);
+
+        Assert.Equal("report.sh ; read", result);
+    }
+
+    [Fact]
+    public void BuildCommandLine_KeepOpen_Auto_ResolvesByPlatform()
+    {
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.bat",
+            Shell = ScriptShell.Auto,
+            KeepOpen = true
+        };
+        var map = Map(MakeInfobase());
+
+        var onWindows = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: ScriptShell.Auto, isWindows: true);
+        var onLinux = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: ScriptShell.Auto, isWindows: false);
+
+        Assert.Equal("report.bat & pause", onWindows);
+        Assert.Equal("report.bat ; read", onLinux);
+    }
+
+    [Fact]
+    public void BuildCommandLine_NoKeepOpen_DoesNotAppendTail()
+    {
+        // Флаг по умолчанию выключен — команда не меняется (прежнее поведение).
+        var scenario = new ScriptScenario { FilePath = "report.bat", Shell = ScriptShell.Cmd };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildCommandLine(
+            scenario, map, FixedNow, shell: ScriptShell.Cmd, isWindows: true);
+
+        Assert.Equal("report.bat", result);
+    }
+
+    [Fact]
+    public void BuildShellCommandLine_KeepOpen_IncludesTailUnderWrapper()
+    {
+        // Превью командной строки учитывает «Не закрывать»: хвост виден в обёртке.
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.bat",
+            Shell = ScriptShell.Cmd,
+            KeepOpen = true
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildShellCommandLine(scenario, map, FixedNow, isWindows: true);
+
+        Assert.Equal("cmd.exe /c report.bat & pause", result);
+    }
+
+    [Fact]
+    public void BuildShellCommandLine_KeepOpen_PowerShell_UsesSemicolonTail()
+    {
+        var scenario = new ScriptScenario
+        {
+            FilePath = "report.ps1",
+            Shell = ScriptShell.PowerShell,
+            KeepOpen = true
+        };
+        var map = Map(MakeInfobase());
+
+        var result = ScriptParameterResolver.BuildShellCommandLine(scenario, map, FixedNow, isWindows: true);
+
+        Assert.Equal("powershell -NoProfile -Command report.ps1 ; Read-Host", result);
+        Assert.DoesNotContain("&&", result);
+    }
+
     // ------------------- Токены {…} (цикл 0.3.9.194, функция 7) -------------------
 
     [Fact]

@@ -2363,6 +2363,8 @@
     "Script.Started": "Script launched:\n{0}",
     "Script.Failed": "Failed to run script \"{0}\": {1}",
     "Script.HideWindow": "Hide script window",
+    "Script.NotifyOnStart": "Notify about launch",
+    "Script.KeepOpen": "Keep window open after finish",
     "Script.TokenName": "base name",
     "Script.TokenConnectionServer": "server",
     "Script.TokenConnectionServerPort": "server:port",
