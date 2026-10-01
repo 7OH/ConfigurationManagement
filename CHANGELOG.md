@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.229] — 2026-10-01
+
+### Добавлено
+
+- **0.3.9.229: диагностика сети — ядро сервиса `NetworkDiagnosticsService`** (функция 12
+  «Диагностика сети до сервера 1С», цикл 0.3.9.229–0.3.9.233):
+- Чистый сервис [`NetworkDiagnosticsService`](Configuration%20Management/Services/NetworkDiagnosticsService.cs)
+  (+ `INetworkDiagnosticsService`): полный прогон «парсинг адреса → резолв DNS → ICMP-пинг →
+  TCP-проверка портов параллельно с измерением RTT»; низкоуровневые операции инжектируются
+  делегатами (`resolveHost`/`ping`/`tcpProbe`, образец `PlatformUpdateViewModel`) — юнит-тесты
+  не зависят от реальной сети.
+- Модель [`NetworkDiagnosticsResult`](Configuration%20Management/Models/NetworkDiagnosticsResult.cs):
+  хост, статус разбора, разрешённые IP-адреса, результат DNS, пинг (выполнен/не проверено, RTT),
+  результаты портов (`NetworkPortProbe`: порт, ключ имени сервиса, состояние
+  доступен/закрыт/таймаут, RTT, код причины); константы портов 1С [`OneCPorts`](Configuration%20Management/Models/NetworkDiagnosticsResult.cs)
+  (1540 — ragent, 1541 — кластер по умолчанию, 1545 — RAS).
+- Парсер адреса `NetworkDiagnosticsService.ParseAddress`: `host`, `host:port`,
+  `[IPv6]:port`, голый IPv4/IPv6; строгий отказ на невалидный порт (`host:abc`, вне
+  1–65535) и пустую строку.
+- Переносимость ICMP: на Linux без прав raw-socket пинг помечается «не проверено»
+  (`PingProbeResult.Performed=false`, код `ping_permission`) и **не роняет** проверку —
+  TCP остаётся основным критерием; таймаут отличает «порт закрыт» (`refused`) от
+  «файрвол/потеря сети» (`timeout`).
+- Тесты: [`NetworkDiagnosticsServiceTests`](ConfigurationManagement.Tests/NetworkDiagnosticsServiceTests.cs) —
+  парсер адреса (host/IPv4/IPv6/невалидные), резолв через fake-делегат (успех, ошибка,
+  IP без резолва), ICMP (успех/нет прав/исключение), TCP (успех/refused/timeout, проброс
+  таймаута), агрегация результата и порядок портов.
+
 ## [0.3.9.217] — 2026-10-01
 
 ### Добавлено
