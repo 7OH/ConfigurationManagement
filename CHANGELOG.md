@@ -9,6 +9,28 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.254] — 2026-10-01
+
+### Исправлено
+
+- **Падение при открытии окна «Настройки» (issue #337)** (Windows/WPF) — окно падало с
+  `XamlParseException` («Не удалось найти ресурс с именем "OutlineButtonStyle"») в
+  `InitializeComponent()` при каждом открытии, начиная с 0.3.9.247:
+  - **причина**: версия 0.3.9.247 (#333, учётные данные ИТС) добавила кнопку «Управлять»
+    справочника учётных записей ИТС в [`Views/SettingsWindow.xaml`](Configuration%20Management/Views/SettingsWindow.xaml)
+    со ссылкой на `{StaticResource OutlineButtonStyle}`, но сам стиль не был объявлен ни
+    в ресурсах окна, ни в словарях приложения (`App.xaml`, `Themes/*.xaml`) — WPF
+    разрешает статические ресурсы в момент загрузки XAML и сразу бросал исключение;
+    Linux/Avalonia не затронута (интерфейс окна строится кодом, стиль не используется);
+  - **исправление**: стиль `OutlineButtonStyle` («серая кнопка-контур») объявлен в
+    ресурсах [`Views/SettingsWindow.xaml`](Configuration%20Management/Views/SettingsWindow.xaml)
+    (идентично остальным окнам WPF);
+  - **защита от регрессии**: новые тесты
+    [`SettingsWindowXamlResourcesTests`](ConfigurationManagement.Tests/SettingsWindowXamlResourcesTests.cs)
+    проверяют, что каждый `{StaticResource …}` в окне настроек объявлен локально или
+    в словарях приложения, а ключ `OutlineButtonStyle` присутствует.
+  - Тесты: полный набор `dotnet test` зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.253] — 2026-10-01
 
 ### Исправлено
