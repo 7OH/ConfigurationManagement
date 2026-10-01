@@ -392,6 +392,7 @@ namespace Configuration_Management.Services
             bool createSqlDatabase = false,
             bool blockScheduledJobs = false,
             bool forbidSpeechRecognition = false,
+            int serverPort = 0,
             int timeoutMs = 5 * 60 * 1000)
         {
             PlatformVersionService.ParseVariant(platformVersion, out var version, out var arch);
@@ -435,6 +436,7 @@ namespace Configuration_Management.Services
                 connectionString = BuildClientServerCreateConnectionString(
                     srv,
                     db,
+                    serverPort: serverPort,
                     dbms: dbms,
                     dbServer: dbServer,
                     dbName: dbName,

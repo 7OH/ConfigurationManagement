@@ -14,6 +14,10 @@ public static partial class OneCLauncher
     /// </summary>
     /// <param name="server">Имя сервера 1С (уже обрезано от пробелов).</param>
     /// <param name="databaseName">Имя базы на сервере 1С (уже обрезано от пробелов).</param>
+    /// <param name="serverPort">Порт сервера 1С (issue #305): при > 0 добавляется к Srvr
+    /// как «server:port» — строка подключения 1С принимает порт кластера/агента, иначе
+    /// платформа обращается к порту по умолчанию (1540) и создание базы на сервере
+    /// с нестандартным портом (например, 1541) падает.</param>
     /// <param name="dbms">Тип СУБД (MSSQLServer, PostgreSQL, …).</param>
     /// <param name="dbServer">Сервер СУБД.</param>
     /// <param name="dbName">Имя базы данных в СУБД.</param>
@@ -29,6 +33,7 @@ public static partial class OneCLauncher
     public static string BuildClientServerCreateConnectionString(
         string server,
         string databaseName,
+        int serverPort = 0,
         string? dbms = null,
         string? dbServer = null,
         string? dbName = null,
@@ -38,8 +43,12 @@ public static partial class OneCLauncher
         bool blockScheduledJobs = false,
         bool forbidSpeechRecognition = false)
     {
+        // Порт сервера 1С (1540/1541 и т.п.) передаётся внутри Srvr («server:port»):
+        // отдельного ключа CREATEINFOBASE для него нет, а без него платформа подключается
+        // к порту по умолчанию и не находит кластер (issue #305).
+        var srvrValue = serverPort > 0 ? $"{server}:{serverPort}" : server;
         var csb = new StringBuilder(
-            $"Srvr=\"{EscapeCreateValue(server)}\";Ref=\"{EscapeCreateValue(databaseName)}\"");
+            $"Srvr=\"{EscapeCreateValue(srvrValue)}\";Ref=\"{EscapeCreateValue(databaseName)}\"");
         if (!string.IsNullOrWhiteSpace(dbms))
             csb.Append($";DBMS=\"{EscapeCreateValue(dbms)}\"");
         if (!string.IsNullOrWhiteSpace(dbServer))

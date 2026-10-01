@@ -120,7 +120,8 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
                 dbPassword: dbPwd,
                 createSqlDatabase: createSqlDatabase,
                 blockScheduledJobs: blockScheduledJobs,
-                forbidSpeechRecognition: forbidSpeechRecognition);
+                forbidSpeechRecognition: forbidSpeechRecognition,
+                serverPort: serverPort);
             if (!ok)
                 return new CreateInfobaseResult
                 {

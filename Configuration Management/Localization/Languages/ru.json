@@ -1324,6 +1324,7 @@
     "CreateInfobase.EnterTemplateFile": "Укажите существующий файл шаблона (.cf или .dt).",
     "CreateInfobase.NoPlatform": "Не найдена установленная платформа 1С.\nУкажите версию через «Список…» или пути в настройках.",
     "CreateInfobase.CreateFailed": "Не удалось создать информационную базу.\n{0}",
+    "CreateInfobase.CreateFailedPortHint": "\n\nЕсли сервер недоступен — проверьте порт кластера 1С (по умолчанию 1541; порт агента — 1540) и укажите его как «сервер:порт», например srv1c:1541.",
     "CreateInfobase.VersionMismatchTitle": "Несоответствие версии платформы",
     "CreateInfobase.VersionMismatchMsg": "Выбранная версия платформы {0} отличается от версии {1}, с которой работают базы на сервере {2}. Продолжить?",
     "CreateInfobase.TypeLabel": "Тип базы:",

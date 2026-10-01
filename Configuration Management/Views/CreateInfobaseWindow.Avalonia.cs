@@ -922,8 +922,15 @@ namespace Configuration_Management
                 return;
 
             _serverBox.Text = item;
-            // Сбрасываем выделение, чтобы повторный выбор того же пункта снова сработал.
-            _serverBox.SelectedItem = null;
+            // Сброс выделения откладываем: немедленный SelectedItem=null в редактируемом
+            // ComboBox синхронизирует Text обратно и затирает только что подставленную
+            // строку («поле оставалось пустым», регресс после 0.3.9.150, issue #305).
+            var box = _serverBox;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (box.SelectedItem is not null)
+                    box.SelectedItem = null;
+            });
         }
 
         /// <summary>Клик по подсказке: подставляет пример «localhost» в поле «Сервер СУБД» (issue #305).</summary>
@@ -956,6 +963,20 @@ namespace Configuration_Management
                     LocalizationManager.T("CreateInfobase.DbServerPreview"), assembled);
 
             _dbServerHint.Text = hint;
+        }
+
+        /// <summary>
+        /// Сообщение об ошибке создания (issue #305): к тексту платформы добавляется понятная
+        /// подсказка про порт кластера/агента 1С, если сервер указан с портом — это самая
+        /// частая причина «база не создаётся» на сервере с нестандартным портом.
+        /// </summary>
+        private static string BuildCreateFailedMessage(CreateInfobaseResult result, string serverPort)
+        {
+            var message = string.Format(
+                LocalizationManager.T("CreateInfobase.CreateFailed"), result.ErrorMessage ?? "");
+            return string.IsNullOrWhiteSpace(serverPort)
+                ? message
+                : message + LocalizationManager.T("CreateInfobase.CreateFailedPortHint");
         }
 
         private void OnCreate_Click()
@@ -1024,13 +1045,13 @@ namespace Configuration_Management
                     result = _createService.TryCreate(request, confirmVersionMismatch: true);
                     if (result.Kind == CreateInfobaseResultKind.CreateFailed)
                     {
-                        _dialogs.ShowError(string.Format(LocalizationManager.T("CreateInfobase.CreateFailed"), result.ErrorMessage ?? ""), LocalizationManager.T("CreateInfobase.CreateTitle"));
+                        _dialogs.ShowError(BuildCreateFailedMessage(result, serverPort), LocalizationManager.T("CreateInfobase.CreateTitle"));
                         return;
                     }
                     break;
                 }
                 case CreateInfobaseResultKind.CreateFailed:
-                    _dialogs.ShowError(string.Format(LocalizationManager.T("CreateInfobase.CreateFailed"), result.ErrorMessage ?? ""), LocalizationManager.T("CreateInfobase.CreateTitle"));
+                    _dialogs.ShowError(BuildCreateFailedMessage(result, serverPort), LocalizationManager.T("CreateInfobase.CreateTitle"));
                     return;
                 case CreateInfobaseResultKind.Success:
                     break;

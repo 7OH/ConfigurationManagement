@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.242] — 2026-10-01
+
+### Исправлено
+
+- **Создание серверной базы: порт 1С не попадал в команду CREATEINFOBASE, выбор сервера
+  из списка оставлял поле пустым (issue #305)** — после 0.3.9.150 остались три проблемы:
+  1) при выборе сервера из выпадающего списка поле «Сервер 1С» оставалось пустым —
+     немедленный `SelectedItem = null` в обработчике редактируемого ComboBox синхронизировал
+     `Text` обратно и затирал только что подставленную строку `server:port`
+     ([`CreateInfobaseWindow.xaml.cs`](Configuration%20Management/Views/CreateInfobaseWindow.xaml.cs),
+     [`CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs));
+     сброс выделения теперь откладывается на следующий проход диспетчера;
+  2) база не создавалась даже с ручным указанием `server:port` — порт 1С разбирался
+     ([`ParseServerPort`](Configuration%20Management/Services/CreateInfobaseService.cs))
+     и сохранялся в параметрах подключения, но НЕ передавался в саму команду создания:
+     `BuildClientServerCreateConnectionString` собирала `Srvr="server";Ref="…"` без порта,
+     и платформа стучалась в порт по умолчанию (1540). Добавлен параметр `serverPort`,
+     порт теперь попадает в `Srvr="server:port"` строки подключения CREATEINFOBASE
+     ([`OneCLauncher.Create.cs`](Configuration%20Management/Services/OneCLauncher.Create.cs),
+     обе платформы — [`OneCLauncher.Arguments.cs`](Configuration%20Management/Services/OneCLauncher.Arguments.cs)
+     и [`OneCLauncher.Linux.Process.cs`](Configuration%20Management/Services/OneCLauncher.Linux.Process.cs))
+     и в параметры подключения созданной базы (как было и раньше);
+  3) при неудаче создания к сообщению платформы добавляется понятная подсказка про порт
+     кластера/агента 1С (`CreateInfobase.CreateFailedPortHint`, ru/en).
+- Тесты: [`CreateInfobaseDbServerStringTests`](ConfigurationManagement.Tests/CreateInfobaseDbServerStringTests.cs) —
+  `BuildClientServerCreateConnectionString` с портом/без порта/с СУБД и маппинг
+  «ввод `server:port` → параметры создания → строка подключения CREATEINFOBASE».
+
 ## [0.3.9.241] — 2026-10-01
 
 ### Исправлено

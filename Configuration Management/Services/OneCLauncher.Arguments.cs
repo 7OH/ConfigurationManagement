@@ -246,6 +246,7 @@ public static partial class OneCLauncher
         bool createSqlDatabase = false,
         bool blockScheduledJobs = false,
         bool forbidSpeechRecognition = false,
+        int serverPort = 0,
         int timeoutMs = 5 * 60 * 1000)
     {
         var exePath = FindExecutable(platformVersion, OneCArchitecture.x64, OneCClientType.Thick, OneCLaunchMode.Configurator);
@@ -295,6 +296,7 @@ public static partial class OneCLauncher
             connectionString = BuildClientServerCreateConnectionString(
                 srv,
                 db,
+                serverPort: serverPort,
                 dbms: dbms,
                 dbServer: dbServer,
                 dbName: dbName,

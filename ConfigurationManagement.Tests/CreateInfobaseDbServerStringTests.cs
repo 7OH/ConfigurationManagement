@@ -192,6 +192,64 @@ public sealed class CreateInfobaseDbServerStringTests
         Assert.Equal(0, port);
     }
 
+    // ====== Порт сервера 1С в команде CREATEINFOBASE (issue #305, 0.3.9.242) ======
+
+    [Fact]
+    public void BuildConnectionString_WithServerPort_AddsPortToSrvr()
+    {
+        var cs = OneCLauncher.BuildClientServerCreateConnectionString(
+            "srv1c", "base", serverPort: 1541);
+
+        Assert.Equal("Srvr=\"srv1c:1541\";Ref=\"base\"", cs);
+    }
+
+    [Fact]
+    public void BuildConnectionString_WithoutServerPort_SrvrWithoutPort()
+    {
+        var cs = OneCLauncher.BuildClientServerCreateConnectionString(
+            "srv1c", "base");
+
+        Assert.Equal("Srvr=\"srv1c\";Ref=\"base\"", cs);
+    }
+
+    [Fact]
+    public void BuildConnectionString_WithServerPortAndDbms_CombinesAll()
+    {
+        var cs = OneCLauncher.BuildClientServerCreateConnectionString(
+            "srv1c", "base", serverPort: 1541,
+            dbms: "PostgreSQL", dbServer: "localhost port=5433", dbName: "base_db",
+            createSqlDatabase: true, blockScheduledJobs: true);
+
+        Assert.Contains("Srvr=\"srv1c:1541\";Ref=\"base\"", cs);
+        Assert.Contains("DBMS=\"PostgreSQL\"", cs);
+        Assert.Contains("DBSrvr=\"localhost port=5433\"", cs);
+        Assert.Contains("DB=\"base_db\"", cs);
+        Assert.Contains("CrSQLDB=\"Y\"", cs);
+        Assert.Contains("SchJobDn=\"Y\"", cs);
+    }
+
+    /// <summary>
+    /// Маппинг «ввод server:port → параметры создания → строка подключения CREATEINFOBASE»
+    /// (issue #305): поле окна разносится <see cref="CreateInfobaseService.ParseServerPort"/>,
+    /// а порт обязан попасть в Srvr строки подключения — без этого создание базы на сервере
+    /// с нестандартным портом (1541) падает (платформа стучится в порт по умолчанию 1540).
+    /// </summary>
+    [Theory]
+    [InlineData("srv1c:1541", "srv1c", 1541)]
+    [InlineData("srv1c:1540", "srv1c", 1540)]
+    [InlineData("srv1c", "srv1c", 0)]
+    public void ParseServerPort_MapsIntoCreateConnectionString(string field, string expectedServer, int expectedPort)
+    {
+        CreateInfobaseService.ParseServerPort(field, out var server, out var port);
+
+        Assert.Equal(expectedServer, server);
+        Assert.Equal(expectedPort, port);
+
+        var cs = OneCLauncher.BuildClientServerCreateConnectionString(server, "base", serverPort: port);
+        var expectedSrvr = expectedPort > 0 ? $"Srvr=\"{expectedServer}:{expectedPort}\"" : $"Srvr=\"{expectedServer}\"";
+        Assert.StartsWith(expectedSrvr, cs);
+    }
+
     // ======================= Модель запроса =======================
 
     [Fact]
