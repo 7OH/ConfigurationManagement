@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Configuration_Management.Localization;
 using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
@@ -107,11 +108,41 @@ public partial class PlatformUpdateWindow : Window
         _viewModel.SelectedRow = RowsGrid.SelectedItem as PlatformUpdateRowViewModel;
     }
 
-    /// <summary>Автопрокрутка журнала в конец (паттерн прогресс-окон).</summary>
+    /// <summary>Таймер отложенного скрытия панели статуса (анти-мигание, issue #334).</summary>
+    private DispatcherTimer? _hideStatusTimer;
+
+    /// <summary>Задержка скрытия панели статуса после завершения операции: панель не
+    /// «мелькает» при мгновенном сбое проверки обновлений (issue #334).</summary>
+    private static readonly TimeSpan StatusHideDelay = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Автопрокрутка журнала в конец и анти-мигание панели статуса:
+    /// показ при старте операции, скрытие с задержкой <see cref="StatusHideDelay"/>
+    /// после её завершения.</summary>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(PlatformUpdateViewModel.LogText))
+        {
             LogBox?.ScrollToEnd();
+            return;
+        }
+
+        if (e.PropertyName != nameof(PlatformUpdateViewModel.IsBusy))
+            return;
+
+        _hideStatusTimer?.Stop();
+        if (_viewModel.IsBusy)
+        {
+            StatusPanel.Visibility = Visibility.Visible;
+            return;
+        }
+
+        _hideStatusTimer = new DispatcherTimer { Interval = StatusHideDelay };
+        _hideStatusTimer.Tick += (_, _) =>
+        {
+            _hideStatusTimer!.Stop();
+            StatusPanel.Visibility = Visibility.Collapsed;
+        };
+        _hideStatusTimer.Start();
     }
 
     /// <summary>Читает установленные версии платформы через Windows-сканер

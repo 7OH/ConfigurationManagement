@@ -253,8 +253,15 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
             var result = await _service.GetAvailableReleasesAsync().ConfigureAwait(false);
             if (result.Status != PortalFetchStatus.Ok)
             {
-                AppendLog(LocalizationManager.T(result.ErrorKey));
-                _appLogger?.Warn($"Обновление платформы: каталог не получен — {result.ErrorKey}");
+                // Пустой/некорректный ключ ошибки не должен показывать пользователю
+                // пустое сообщение: подставляем общий ключ сетевой ошибки.
+                var errorKey = string.IsNullOrWhiteSpace(result.ErrorKey)
+                    ? PlatformUpdateService.ErrorNetwork
+                    : result.ErrorKey;
+                var errorText = LocalizationManager.T(errorKey);
+                AppendLog(errorText);
+                _appLogger?.Warn($"Обновление платформы: каталог не получен — {errorKey}");
+                NotifyError(errorText);
                 return;
             }
 
@@ -267,12 +274,18 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}");
+            // Исключение провайдера гасится: понятное сообщение в журнал + уведомление,
+            // приложение не падает (issue #334). Тип исключения логируется без секретов.
+            var errorText = $"{LocalizationManager.T(PlatformUpdateService.ErrorNetwork)}: {ex.Message}";
+            AppendLog(errorText);
+            _appLogger?.Error(
+                $"Обновление платформы: исключение при проверке каталога: {ex.GetType().Name}: {ex.Message}", ex);
+            NotifyError(errorText);
         }
         finally
         {
+            // Анти-мигание: прогресс при ошибке остаётся 0, а не «прыгает» в 1.
             IsBusy = false;
-            Progress = 1;
         }
     }
 

@@ -49,6 +49,13 @@ namespace Configuration_Management
 
         private TextBox? _logBox;
 
+        /// <summary>Таймер отложенного скрытия панели прогресса (анти-мигание, issue #334).</summary>
+        private DispatcherTimer? _hideProgressTimer;
+
+        /// <summary>Задержка скрытия панели прогресса после завершения операции: панель не
+        /// «мелькает» при мгновенном сбое проверки обновлений (issue #334).</summary>
+        private static readonly TimeSpan ProgressHideDelay = TimeSpan.FromMilliseconds(500);
+
         /// <summary>Открывает окно «Обновление платформы 1С».</summary>
         public PlatformUpdateWindow()
         {
@@ -166,17 +173,39 @@ namespace Configuration_Management
                 AddRow(row);
         }
 
-        /// <summary>Автопрокрутка журнала в конец и переключение панели прогресса.</summary>
+        /// <summary>Автопрокрутка журнала в конец и анти-мигание панели прогресса
+        /// (issue #334): показ при старте операции, скрытие с задержкой
+        /// <see cref="ProgressHideDelay"/> после завершения — панель не «мелькает»
+        /// при мгновенном сбое проверки.</summary>
         private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(PlatformUpdateViewModel.LogText))
+            {
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (_logBox is not null)
                         _logBox.CaretIndex = _logBox.Text?.Length ?? 0;
                 });
-            else if (e.PropertyName == nameof(PlatformUpdateViewModel.IsBusy))
-                Dispatcher.UIThread.Post(() => _progressPanel.IsVisible = _viewModel.IsBusy);
+                return;
+            }
+
+            if (e.PropertyName != nameof(PlatformUpdateViewModel.IsBusy))
+                return;
+
+            _hideProgressTimer?.Stop();
+            if (_viewModel.IsBusy)
+            {
+                _progressPanel.IsVisible = true;
+                return;
+            }
+
+            _hideProgressTimer = new DispatcherTimer { Interval = ProgressHideDelay };
+            _hideProgressTimer.Tick += (_, _) =>
+            {
+                _hideProgressTimer!.Stop();
+                _progressPanel.IsVisible = false;
+            };
+            _hideProgressTimer.Start();
         }
 
         private StackPanel _progressPanel = new();

@@ -185,6 +185,50 @@ public sealed class PlatformUpdateViewModelTests
     }
 
     [Fact]
+    public async Task CheckUpdatesAsync_ServiceThrows_NotifiesErrorAndKeepsProgressZero()
+    {
+        // Issue #334: fake-делегат бросает исключение → статус «ошибка» (журнал +
+        // уведомление), приложение не падает, прогресс не «вспыхивает» в 1 (анти-мигание).
+        var notified = new List<(string Title, string Message, NotificationKind Kind, NotificationEvent Evt)>();
+        var vm = CreateVm(
+            new ThrowingPlatformUpdateService(),
+            notify: (title, message, kind, evt) => notified.Add((title, message, kind, evt)));
+
+        await vm.CheckUpdatesAsync();
+
+        Assert.Empty(vm.Rows);
+        Assert.False(vm.IsBusy);
+        Assert.Equal(0, vm.Progress);
+        var notification = Assert.Single(notified);
+        Assert.Equal(NotificationKind.Error, notification.Kind);
+        Assert.Equal(NotificationEvent.Update, notification.Evt);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.NetworkError"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task CheckUpdatesAsync_EmptyErrorKey_UsesDefaultNetworkErrorKey()
+    {
+        // Битая/устаревшая реализация провайдера вернула статус ошибки без ключа —
+        // пользователь должен увидеть понятное сообщение, а не пустую строку.
+        var service = new FakePlatformUpdateService
+        {
+            AvailableResult = new PlatformCatalogResult
+            {
+                Status = PortalFetchStatus.NetworkError,
+                ErrorKey = string.Empty,
+            },
+        };
+        var vm = CreateVm(service);
+
+        await vm.CheckUpdatesAsync();
+
+        Assert.Empty(vm.Rows);
+        Assert.False(vm.IsBusy);
+        Assert.Equal(0, vm.Progress);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.NetworkError"), vm.LogText);
+    }
+
+    [Fact]
     public async Task CheckUpdatesAsync_SetsIsBusy_WhileOperationInProgress()
     {
         var gate = new TaskCompletionSource<PlatformCatalogResult>(TaskCreationOptions.RunContinuationsAsynchronously);

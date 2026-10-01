@@ -185,20 +185,13 @@
             </DataGrid>
         </Border>
 
-        <!-- Панель прогресса и журнала (видна при активной операции) -->
-        <Border Grid.Row="2" Margin="0,12,0,0"
+        <!-- Панель прогресса и журнала. Видимостью управляет code-behind с
+             анти-миганием (issue #334): показ при старте операции, скрытие —
+             с задержкой, чтобы панель не «мелькала» при мгновенном сбое. -->
+        <Border x:Name="StatusPanel" Grid.Row="2" Margin="0,12,0,0"
+                Visibility="Collapsed"
                 BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"
                 CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
             <Grid Margin="12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>

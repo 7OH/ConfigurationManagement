@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.248] — 2026-10-01
+
+### Исправлено
+
+- **Сбой проверки обновлений платформы 1С (issue #334)** — попытка проверить обновления
+  (F9 / окно «Обновление платформы 1С», Ctrl+F9) в релизах 0.3.9.233+ заканчивалась
+  «мельканием» статусной панели внизу окна и ошибкой без понятного объяснения:
+  - **перехват ошибок провайдера** ([`PlatformUpdateService.cs`](Configuration%20Management/Services/PlatformUpdateService.cs),
+    [`PlatformUpdateViewModel.cs`](Configuration%20Management/ViewModels/PlatformUpdateViewModel.cs)) —
+    любое исключение цепочки `OneCUpdatesService` (сеть, вход на login.1c.ru, изменившаяся
+    структура страницы каталога) превращается в понятное сообщение: ключ локализации
+    «Ошибка сети/Требуется вход/Каталог не найден» + системное уведомление об ошибке;
+    приложение не падает, пустой ключ ошибки провайдера подменяется общим ключом сетевой
+    ошибки (не показывается пустая строка);
+  - **анти-мигание** — панель прогресса/статуса внизу окна больше не «мелькает» при
+    мгновенном сбое: показ при старте операции, скрытие с задержкой 500 мс после
+    завершения; прогресс при ошибке остаётся 0 и не «вспыхивает» значением 1
+    ([`PlatformUpdateWindow.xaml`](Configuration%20Management/Views/PlatformUpdateWindow.xaml),
+    [`PlatformUpdateWindow.xaml.cs`](Configuration%20Management/Views/PlatformUpdateWindow.xaml.cs),
+    [`PlatformUpdateWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformUpdateWindow.Avalonia.cs));
+  - исключение логируется с типом (`IAppLogger.Error`) — диагностика без паролей/токенов.
+- Тесты: [`PlatformUpdateViewModelTests`](ConfigurationManagement.Tests/PlatformUpdateViewModelTests.cs) —
+  fake-делегат бросает исключение → статус «ошибка» (журнал + уведомление), приложение
+  живо, прогресс остаётся 0; пустой ключ ошибки → общий ключ сетевой ошибки. Регрессия
+  `PlatformUpdateServiceTests`, `PlatformUpdateMatcherTests`.
+
 ## [0.3.9.247] — 2026-10-01
 
 ### Добавлено
