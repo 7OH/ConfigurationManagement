@@ -219,7 +219,11 @@ public sealed class RacClient : IRacClient
         }
 
         // Пароль маскируется: в журнал rac-команда попадает без --password=<значение>.
-        _logger.Info($"RAC: {SensitiveDataMasker.MaskRacPassword(string.Join(" ", args))}");
+        // Путь к найденному исполняемому файлу и полная командная строка (без секретов)
+        // позволяют сравнить команду приложения с рабочей командой из терминала, когда
+        // «в терминале rac работает, а монитор данные кластера не видит» (issue #324).
+        _logger.Info(
+            $"RAC: rac={rac}, команда: {SensitiveDataMasker.MaskRacPassword(string.Join(" ", args))}");
 
         try
         {
@@ -283,6 +287,10 @@ public sealed class RacClient : IRacClient
                 throw new RacClientException(message);
             }
 
+            // Итог выполнения в журнале: код выхода и объём вывода — по ним видно,
+            // что rac вернул данные (или пустой список) при «монитор не видит кластер» (issue #324).
+            _logger.Info(
+                $"RAC: выполнено, exit={process.ExitCode}, stdout={stdout.Length} симв., stderr={stderr.Length} симв.");
             return stdout;
         }
         catch (RacClientException)

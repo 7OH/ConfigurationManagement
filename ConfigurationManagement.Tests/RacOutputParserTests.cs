@@ -50,6 +50,39 @@ public sealed class RacOutputParserTests
         Assert.Empty(RacOutputParser.ParseTable("\n\n  \n"));
     }
 
+    [Fact]
+    public void ParseTable_FallsBackToSpaceSeparation_WhenNoTabs()
+    {
+        // Fallback issue #324: некоторые версии/окружения выводят таблицу с выравниванием
+        // пробелами вместо табуляции. Разделитель — 2+ пробелов подряд, одиночный пробел
+        // внутри значения (имя кластера) остаётся частью поля.
+        const string output =
+            "cluster                                name             port\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b     Локальный кластер  1541\n";
+
+        var table = RacOutputParser.ParseTable(output);
+
+        Assert.Equal(2, table.Count);
+        Assert.Equal("8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b", table[1][0]);
+        Assert.Equal("Локальный кластер", table[1][1]);
+        Assert.Equal("1541", table[1][2]);
+    }
+
+    [Fact]
+    public void ParseTable_WithTabs_KeepsSingleSpacesInsideValues()
+    {
+        // Если в строке есть табуляция — разделение строго по ней: одиночные пробелы
+        // внутри значения не разрывают поле даже при выравнивании пробелами.
+        const string output =
+            "cluster\tname\tport\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b\tЛокальный  кластер\t1541\n";
+
+        var table = RacOutputParser.ParseTable(output);
+
+        Assert.Equal("Локальный  кластер", table[1][1]); // двойной пробел сохраняется
+        Assert.Equal(3, table[1].Count);
+    }
+
     // ---------- ParseInfo ----------
 
     [Fact]
@@ -146,6 +179,42 @@ public sealed class RacOutputParserTests
     {
         Assert.Empty(RacOutputParser.ToClusters(string.Empty));
         Assert.Empty(RacOutputParser.ToClusters("cluster\tname\tport\n"));
+    }
+
+    [Fact]
+    public void ToClusters_ParsesRealWorldSample()
+    {
+        // Фактический формат rac «cluster list»: таблица с табуляцией, первая строка —
+        // заголовок колонок; у кластера своё имя и ПОРТ КЛАСТЕРА (обычно 1541), отличный
+        // от порта агента (1540), к которому подключается сам rac (issue #324).
+        const string output =
+            "cluster\tname\tport\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b\tЛокальный кластер\t1541\n" +
+            "a3f1d2b4-1111-2222-3333-444455556666\tБухгалтерия предприятия\t1542\n";
+
+        var clusters = RacOutputParser.ToClusters(output);
+
+        Assert.Equal(2, clusters.Count);
+        Assert.Equal("Локальный кластер", clusters[0].Name);
+        Assert.Equal(1541, clusters[0].Port);
+        Assert.Equal("Бухгалтерия предприятия", clusters[1].Name);
+        Assert.Equal(1542, clusters[1].Port);
+    }
+
+    [Fact]
+    public void ToClusters_ParsesSpaceAlignedOutput()
+    {
+        // Пробельный fallback (issue #324) доходит до типизированного парсера: колонка
+        // порта кластера читается как int, GUID кластера распознаётся.
+        const string output =
+            "cluster                                name             port\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b     Локальный кластер  1541\n";
+
+        var cluster = Assert.Single(RacOutputParser.ToClusters(output));
+
+        Assert.Equal(Guid.Parse("8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b"), cluster.Id);
+        Assert.Equal("Локальный кластер", cluster.Name);
+        Assert.Equal(1541, cluster.Port);
     }
 
     // ---------- ToProcesses ----------

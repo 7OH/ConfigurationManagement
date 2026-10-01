@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.252] — 2026-10-01
+
+### Исправлено
+
+- **Монитор серверов 1С: rac host:port одним токеном и порт по умолчанию 1540 (issue #324)**
+  (обе платформы) — по последнему комментарию 7OH от 2026-10-01 («ситуация на месте» + вопрос
+  «почему порт по умолчанию 1540?»):
+  - **точка подключения rac — единый токен `host:port`** (заложено в 0.3.9.157, зафиксировано
+    тестами в этой версии): все команды (`cluster list/info`, `process/session/connection/lock list`,
+    `job list`, действия) собираются как `rac.exe host:port <команда>`, раздельные `--host=`/
+    `--port=` не используются ([`Services/RacClient.cs`](Configuration%20Management/Services/RacClient.cs),
+    [`Services/IRacClient.cs`](Configuration%20Management/Services/IRacClient.cs));
+  - **парсер вывода устойчив к изменённому формату rac** ([`Services/RacOutputParser.cs`](Configuration%20Management/Services/RacOutputParser.cs)):
+    таблицы по-прежнему разбираются по табуляции, но при отсутствии табуляций добавлен fallback —
+    разделение полей по 2+ пробелам (вывод с выравниванием пробелами в отдельных окружениях/
+    версиях); одиночный пробел внутри значения (имя кластера) остаётся частью поля;
+  - **порт по умолчанию 1540 объяснён**: rac подключается к **агенту сервера (ragent)**, а не к
+    порту кластера (1541). Поле порта в окне монитора получило подсказку
+    (`ServerMonitor.PortTooltip`), общий `ServerMonitor.Hint` дополнен: «1540 — агент, к которому
+    подключается rac; 1541 — порт самого кластера (rphost), указывать не нужно; 1545 — RAS».
+    Окно предзаполняет 1540 (дефолт VM = `IRacClient.DefaultPort`); подробный ответ на вопрос
+    issue дан в комментарии;
+  - **журналирование rac**: в журнал пишется путь к найденному исполняемому файлу rac и полная
+    командная строка без секретов (пароль маскируется), после выполнения — код выхода и объём
+    stdout/stderr — по журналу видно, что именно вернул rac при «не вижу данные кластера».
+  - Тесты: построение команд rac с host:port, в т.ч. `cluster info --cluster=<uuid>`; парсер
+    вывода по образцу фактического формата (`cluster list`, пробельный fallback, сохранение
+    пробелов внутри значений)
+    ([`RacClientTests`](ConfigurationManagement.Tests/RacClientTests.cs),
+    [`RacOutputParserTests`](ConfigurationManagement.Tests/RacOutputParserTests.cs));
+    регрессия [`ServerMonitorViewModelTests`](ConfigurationManagement.Tests/ServerMonitorViewModelTests.cs).
+
 ## [0.3.9.251] — 2026-10-01
 
 ### Исправлено

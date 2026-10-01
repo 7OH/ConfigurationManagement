@@ -105,6 +105,29 @@ public sealed class RacClientTests
     }
 
     [Fact]
+    public void BuildArguments_ClusterInfo_IncludesHostPortToken_AndClusterOption()
+    {
+        // Команда «cluster info» (данные кластера на вкладке «Информация о кластере»,
+        // issue #324): точка подключения одним токеном host:port + --cluster=<uuid>.
+        var clusterId = Guid.Parse("8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b");
+        var args = RacClient.BuildArguments(
+            new RacConnectionParams { Address = "srv1", Port = 1540, User = "Admin", Password = "secret" },
+            "cluster", "info", $"--cluster={clusterId}");
+
+        Assert.Equal(new[]
+        {
+            "srv1:1540",
+            "--user=Admin",
+            "--password=secret",
+            "cluster",
+            "info",
+            "--cluster=" + clusterId
+        }, args);
+        Assert.DoesNotContain(args, a => a.StartsWith("--host="));
+        Assert.DoesNotContain(args, a => a.StartsWith("--port="));
+    }
+
+    [Fact]
     public void BuildArguments_KeepsValuesWithSpacesAsSingleToken()
     {
         // Адрес, пароль и логин с пробелами передаются одним токеном (ArgumentList без shell).

@@ -66,6 +66,10 @@ namespace Configuration_Management
             var userBox = Tb("UserName", 120);
             var passwordBox = new PasswordBox().Styled(ControlThemes.ModernPasswordBox);
 
+            // Подсказка про порт (issue #324): rac подключается к АГЕНТУ сервера (1540),
+            // порт кластера (1541) указывать не нужно — он виден в списке кластеров.
+            ToolTip.SetTip(portBox, LocalizationManager.T("ServerMonitor.PortTooltip"));
+
             var connectButton = BuildActionButton(LocalizationManager.T("ServerMonitor.Connect"), "🔌", () =>
             {
                 _vm.Password = passwordBox.Password ?? string.Empty;

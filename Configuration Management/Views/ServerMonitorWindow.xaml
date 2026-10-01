@@ -50,7 +50,10 @@
             <TextBox Width="140" Style="{StaticResource ModernTextBox}" Padding="6,3"
                      Text="{Binding ServerAddress, UpdateSourceTrigger=PropertyChanged}"/>
             <TextBlock Text="{loc:Loc ServerMonitor.Port}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+            <!-- Подсказка про порт (issue #324): rac подключается к АГЕНТУ сервера (1540),
+                 порт кластера (1541) указывать не нужно — он виден в списке кластеров. -->
             <TextBox Width="60" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                     ToolTip="{loc:Loc ServerMonitor.PortTooltip}"
                      Text="{Binding ServerPort, UpdateSourceTrigger=PropertyChanged}"/>
             <TextBlock Text="{loc:Loc ServerMonitor.User}" VerticalAlignment="Center" Margin="10,0,6,0"/>
             <TextBox Width="120" Style="{StaticResource ModernTextBox}" Padding="6,3"

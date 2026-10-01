@@ -20,7 +20,19 @@ namespace Configuration_Management.Services;
 /// </summary>
 public static class RacOutputParser
 {
-    /// <summary>Разбивает табличный вывод rac на строки и поля (разделитель — табуляция).</summary>
+    /// <summary>
+    /// Разделитель для fallback-разбора таблицы без табуляций: 2+ пробела подряд.
+    /// Одиночный пробел внутри значения (имя кластера, строка подключения) остаётся
+    /// частью поля (issue #324).
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex MultiSpaceSeparator =
+        new(@" {2,}", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Разбивает табличный вывод rac на строки и поля (разделитель — табуляция).
+    /// Fallback: если в строке нет ни одной табуляции, поля разделяются 2+ пробелами
+    /// (вывод с выравниванием пробелами в некоторых окружениях/версиях — issue #324).
+    /// </summary>
     public static IReadOnlyList<IReadOnlyList<string>> ParseTable(string output)
     {
         var rows = new List<IReadOnlyList<string>>();
@@ -33,7 +45,15 @@ public static class RacOutputParser
             if (string.IsNullOrWhiteSpace(line))
                 continue;
 
-            var fields = line.Split('\t');
+            IReadOnlyList<string> fields;
+            if (line.IndexOf('\t') >= 0)
+            {
+                fields = line.Split('\t');
+            }
+            else
+            {
+                fields = MultiSpaceSeparator.Split(line.Trim());
+            }
             rows.Add(fields);
         }
 
