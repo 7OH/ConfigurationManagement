@@ -780,7 +780,9 @@
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     <ComboBox Grid.Row="0" Grid.Column="1" x:Name="FontFamilyComboBox" Height="34"
                                               VerticalAlignment="Center" Style="{StaticResource ModernComboBox}"
-                                              SelectionChanged="OnFontCombo_Changed"/>
+                                              IsEditable="True"
+                                              SelectionChanged="OnFontCombo_Changed"
+                                              KeyUp="OnFontFamily_KeyUp"/>
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Settings.Font.Size}" VerticalAlignment="Center" Margin="0,8,0,0"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     <ComboBox Grid.Row="1" Grid.Column="1" x:Name="FontSizeComboBox" Height="34"

@@ -50,13 +50,11 @@ namespace Configuration_Management
             ElementComboBox.SelectedItem = ElementComboBox.Items.Cast<ElementScopeItem>()
                 .FirstOrDefault(s => s.Key == Themes.ThemeManager.FontDefault);
 
-            // Списки шрифтов.
+            // Списки шрифтов: все установленные в системе семейства (issue #329),
+            // а не фиксированные десять имён. Десять прежних констант — часть
+            // Windows, поэтому при переходе на системный список они не теряются.
             FontFamilyComboBox.Items.Clear();
-            foreach (var family in new[]
-            {
-                "Segoe UI", "Arial", "Calibri", "Tahoma", "Verdana",
-                "Trebuchet MS", "Georgia", "Times New Roman", "Courier New", "Consolas"
-            })
+            foreach (var family in EnumerateSystemFontFamilies())
                 FontFamilyComboBox.Items.Add(family);
 
             // Диапазон размеров шрифта как в Microsoft Word: от 8 до 72.
@@ -73,6 +71,28 @@ namespace Configuration_Management
                 FontStyleComboBox.Items.Add(face);
 
             LoadCurrentElementFont();
+        }
+
+        /// <summary>
+        /// Установленные в системе семейства шрифтов (issue #329): имена из
+        /// <c>Fonts.SystemFontFamilies</c>, уникальные, отсортированные по алфавиту.
+        /// При сбое перечисления — прежний консервативный набор.
+        /// </summary>
+        private static IEnumerable<string> EnumerateSystemFontFamilies()
+        {
+            try
+            {
+                return System.Windows.Media.Fonts.SystemFontFamilies
+                    .Select(f => f.Source)
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
+                    .ToArray();
+            }
+            catch
+            {
+                return new[] { "Segoe UI", "Arial", "Calibri", "Tahoma", "Verdana" };
+            }
         }
 
         /// <summary>При смене области загружает её настройки в поля.</summary>
@@ -94,9 +114,13 @@ namespace Configuration_Management
             var fs = _settings.ElementFonts.TryGetValue(_currentElement, out var f) && f is not null
                 ? f : new Models.ElementFontSettings();
 
+            // Поле редактируемое: сохранённое семейство показываем текстом, даже если
+            // его нет в списке установленных (issue #329) — иначе оно потеряется.
             FontFamilyComboBox.SelectedItem = FontFamilyComboBox.Items.Cast<string>()
-                .FirstOrDefault(x => string.Equals(x, fs.FontFamily, StringComparison.OrdinalIgnoreCase))
-                ?? "Segoe UI";
+                .FirstOrDefault(x => string.Equals(x, fs.FontFamily, StringComparison.OrdinalIgnoreCase));
+            FontFamilyComboBox.Text = string.IsNullOrWhiteSpace(fs.FontFamily)
+                ? "Segoe UI"
+                : fs.FontFamily;
             FontSizeComboBox.Text = fs.FontSize.ToString("0.#");
             FontStyleComboBox.SelectedItem = FontFaces.FirstOrDefault(x =>
                 string.Equals(x.Weight, fs.FontWeight, StringComparison.OrdinalIgnoreCase) &&
@@ -113,6 +137,12 @@ namespace Configuration_Management
 
         /// <summary>Обновляет предпросмотр при ручном вводе размера шрифта (по нажатию клавиши).</summary>
         private void OnFontSize_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            UpdateFontPreview();
+        }
+
+        /// <summary>Обновляет предпросмотр при ручном вводе имени шрифта (по нажатию клавиши).</summary>
+        private void OnFontFamily_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
         {
             UpdateFontPreview();
         }
@@ -138,7 +168,9 @@ namespace Configuration_Management
             if (FontPreviewText is null || FontFamilyComboBox is null)
                 return;
 
-            var family = FontFamilyComboBox.SelectedItem as string ?? "Segoe UI";
+            // Предпросмотр следует за введённым текстом, а не за выбором списка:
+            // поле редактируемое (issue #329).
+            var family = FontFamilyResolver.Resolve(FontFamilyComboBox.Text, "Segoe UI");
             double size = ReadFontSize();
             var face = FontStyleComboBox.SelectedItem as FontFaceItem;
 
@@ -154,7 +186,9 @@ namespace Configuration_Management
         private void ReadFontSelection()
         {
             var fs = _settings.EnsureElementFont(_currentElement);
-            fs.FontFamily = FontFamilyComboBox.SelectedItem as string ?? "Segoe UI";
+            // Сохраняем введённый текст, а не SelectedItem: иначе набранное вручную
+            // имя шрифта молча сбрасывалось на Segoe UI (issue #329).
+            fs.FontFamily = FontFamilyResolver.Resolve(FontFamilyComboBox.Text, "Segoe UI");
             fs.FontSize = ReadFontSize();
             var face = FontStyleComboBox.SelectedItem as FontFaceItem;
             fs.FontWeight = face?.Weight ?? "Normal";

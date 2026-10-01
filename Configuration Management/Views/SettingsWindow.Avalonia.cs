@@ -1261,7 +1261,15 @@ namespace Configuration_Management
             for (var i = 0; i < 3; i++)
                 fontGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-            var fontFamilyBox = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch, Height = 34, Margin = new Thickness(0, 0, 0, 8) };
+            // Поле семейства редактируемое (issue #329): системные шрифты можно и ввести
+            // вручную, и выбрать; поведение как у WPF-версии (IsEditable=True).
+            var fontFamilyBox = new ComboBox
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Height = 34,
+                Margin = new Thickness(0, 0, 0, 8),
+                IsEditable = true
+            };
             // Первыми идут те же десять имён, что и у автора
             // (Views/SettingsWindow.Fonts.cs:53-60): настройка, сделанная
             // на Windows, должна открываться на Linux своим же значением.
@@ -1399,7 +1407,9 @@ namespace Configuration_Management
                 var face = fontFaceBox.SelectedItem as FontFaceItem ?? FontFaces[0];
                 editedFonts[scope.Key] = new ElementFontSettings
                 {
-                    FontFamily = fontFamilyBox.SelectedItem as string ?? ThemeManager.DefaultFontFamily,
+                    // Сохраняем введённый текст, а не SelectedItem: набранное вручную имя
+                    // шрифта не должно молча сбрасываться на шрифт по умолчанию (issue #329).
+                    FontFamily = FontFamilyResolver.Resolve(fontFamilyBox.Text, ThemeManager.DefaultFontFamily),
                     FontSize = SelectedFontSize(),
                     FontWeight = face.Weight,
                     FontStyle = face.Style
@@ -1410,7 +1420,8 @@ namespace Configuration_Management
             void UpdateFontPreview()
             {
                 var face = fontFaceBox.SelectedItem as FontFaceItem ?? FontFaces[0];
-                fontPreview.FontFamily = new FontFamily(fontFamilyBox.SelectedItem as string ?? ThemeManager.DefaultFontFamily);
+                fontPreview.FontFamily = new FontFamily(
+                    FontFamilyResolver.Resolve(fontFamilyBox.Text, ThemeManager.DefaultFontFamily));
                 fontPreview.FontSize = SelectedFontSize();
                 fontPreview.FontWeight = string.Equals(face.Weight, "Bold", StringComparison.OrdinalIgnoreCase)
                     ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.Normal;
@@ -1436,9 +1447,13 @@ namespace Configuration_Management
                     // умолчанием: перечислены десять шрифтов Windows, и любой
                     // системный шрифт Linux иначе потерялся бы при первом сохранении.
                     fontFamilyBox.Items.Insert(0, fs.FontFamily);
-                    known = fs.FontFamily;
                 }
-                fontFamilyBox.SelectedItem = known ?? ThemeManager.DefaultFontFamily;
+                // Редактируемое поле: сохранённое семейство показываем текстом,
+                // даже если его нет в списке установленных (issue #329).
+                fontFamilyBox.SelectedItem = known;
+                fontFamilyBox.Text = string.IsNullOrWhiteSpace(fs.FontFamily)
+                    ? ThemeManager.DefaultFontFamily
+                    : fs.FontFamily;
                 var listed = fontSizeBox.Items.OfType<double>()
                     .FirstOrDefault(v => Math.Abs(v - fs.FontSize) < 0.01);
                 if (listed > 0)
@@ -1474,6 +1489,13 @@ namespace Configuration_Management
 
             fontScopeBox.SelectionChanged += (_, _) => LoadFontScope();
             fontFamilyBox.SelectionChanged += (_, _) => StoreFontScope();
+            // Ввод имени шрифта руками меняет Text, а не SelectedItem: следим за текстом,
+            // чтобы правка сразу попадала в рабочий набор и в предпросмотр (issue #329).
+            fontFamilyBox.GetObservable(ComboBox.TextProperty).Subscribe(_ =>
+            {
+                if (!suppressFontLoad)
+                    StoreFontScope();
+            });
             fontSizeBox.SelectionChanged += (_, _) => StoreFontScope();
             fontFaceBox.SelectionChanged += (_, _) => StoreFontScope();
             fontApply.Click += (_, _) =>
