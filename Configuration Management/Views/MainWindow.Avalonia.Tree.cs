@@ -1672,6 +1672,9 @@ namespace Configuration_Management
             menu.Items.Add(MenuAction("Updates.ActualReleasesTitle", _vm.ShowActualReleasesCommand, _vm.HotkeyActualReleases, "IconCloudDownload", "#14B8A6"));
             // Автообновление платформы 1С (функция 9, этап 0.3.9.214): Ctrl+F9.
             menu.Items.Add(MenuAction("PlatformUpdate.WindowTitle", _vm.ShowPlatformUpdateCommand, _vm.HotkeyPlatformUpdate, "IconCloudDownload", "#14B8A6"));
+            // Скачивание нужной версии платформы 1С (issue #330): выбор версии/разрядности
+            // и скачивание дистрибутива без автоматической установки.
+            menu.Items.Add(MenuAction("PlatformDownload.WindowTitle", _vm.ShowPlatformDownloadCommand, "", "IconCloudDownload", "#22C55E"));
 
             // Встроенный монитор серверов 1С (0.3.9.124, цикл 0.3.9.123–126): подключение
             // к серверу через rac, кластеры/процессы/сеансы/соединения/блокировки. Не связан

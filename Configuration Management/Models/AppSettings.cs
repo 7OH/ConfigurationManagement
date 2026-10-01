@@ -746,6 +746,12 @@ public class AppSettings
     /// </summary>
     public string ScreenshotSaveDirectory { get; set; } = "";
 
+    /// <summary>
+    /// Каталог сохранения дистрибутивов платформы 1С для окна «Скачивание версии платформы»
+    /// (issue #330). Пусто — каталог «Загрузки/1CPlatform» по умолчанию.
+    /// </summary>
+    public string PlatformDownloadDirectory { get; set; } = "";
+
     /// <summary>Дополнительные каталоги, сканируемые «Списком выгрузок» наряду с каталогами сценариев.</summary>
     public List<string> BackupTargetDirectories { get; set; } = new();
 
@@ -805,6 +811,7 @@ public class AppSettings
         UpdatesLogin ??= string.Empty;
         UpdatesPassword ??= string.Empty;
         ItsAccountId ??= string.Empty;
+        PlatformDownloadDirectory ??= string.Empty;
         AfterLaunchAction = string.IsNullOrWhiteSpace(AfterLaunchAction) ? "None" : AfterLaunchAction;
         FunctionalMode = string.IsNullOrWhiteSpace(FunctionalMode)
             ? Models.FunctionalModes.Default

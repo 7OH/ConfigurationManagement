@@ -43,5 +43,22 @@ public partial class MainViewModel
             new Action(() => win.ShowDialog()),
             System.Windows.Threading.DispatcherPriority.Input);
     }
+
+    private ICommand? _showPlatformDownloadCommand;
+
+    /// <summary>Команда открытия окна «Скачивание версии платформы 1С» (issue #330):
+    /// выбор версии/разрядности и скачивание дистрибутива без автоматической установки.</summary>
+    public ICommand ShowPlatformDownloadCommand =>
+        _showPlatformDownloadCommand ??= new RelayCommand(ExecuteShowPlatformDownload);
+
+    /// <summary>Открывает окно «Скачивание версии платформы 1С» (issue #330).</summary>
+    private void ExecuteShowPlatformDownload()
+    {
+        var win = new Configuration_Management.PlatformDownloadWindow();
+        win.Owner = Application.Current.MainWindow;
+        Application.Current.Dispatcher.BeginInvoke(
+            new Action(() => win.ShowDialog()),
+            System.Windows.Threading.DispatcherPriority.Input);
+    }
 }
 #endif

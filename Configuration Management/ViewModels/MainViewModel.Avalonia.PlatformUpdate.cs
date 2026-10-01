@@ -24,5 +24,19 @@ public partial class MainViewModel
         var win = new Configuration_Management.PlatformUpdateWindow();
         win.ShowSync(OwnerWindow());
     }
+
+    private ICommand? _showPlatformDownloadCommand;
+
+    /// <summary>Команда открытия окна «Скачивание версии платформы 1С» (issue #330):
+    /// выбор версии/разрядности и скачивание дистрибутива без автоматической установки.</summary>
+    public ICommand ShowPlatformDownloadCommand =>
+        _showPlatformDownloadCommand ??= new RelayCommand(ExecuteShowPlatformDownload);
+
+    /// <summary>Открывает окно «Скачивание версии платформы 1С» (issue #330).</summary>
+    private void ExecuteShowPlatformDownload()
+    {
+        var win = new Configuration_Management.PlatformDownloadWindow();
+        win.ShowSync(OwnerWindow());
+    }
 }
 #endif

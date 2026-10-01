@@ -1,0 +1,281 @@
+<Window x:Class="Configuration_Management.PlatformDownloadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        xmlns:win="clr-namespace:Configuration_Management"
+        Title="{loc:Loc PlatformDownload.WindowTitle}"
+        Icon="{StaticResource AppIcon}"
+        Width="880" Height="640"
+        MinHeight="520" MinWidth="720"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <win:PlatformDownloadTypeToTextConverter x:Key="DownloadTypeConv"/>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#16A34A"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#15803D"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="OutlineButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ItemHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок и описание -->
+        <StackPanel Grid.Row="0">
+            <TextBlock FontSize="15" FontWeight="SemiBold" Text="{loc:Loc PlatformDownload.WindowTitle}"/>
+            <TextBlock FontSize="12" Margin="0,6,0,0"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" Text="{loc:Loc PlatformDownload.Description}"/>
+        </StackPanel>
+
+        <!-- Основная область: список версий + параметры -->
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Список версий -->
+            <Border Grid.Row="0" BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"
+                    CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}">
+                <DataGrid x:Name="VersionsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                          CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
+                          BorderThickness="0" Background="Transparent" GridLinesVisibility="None"
+                          RowHeight="36" SelectionChanged="OnRowsGrid_SelectionChanged">
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Width="*" Header="{loc:Loc PlatformDownload.VersionColumn}"
+                                            Binding="{Binding Version}">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                    <Setter Property="Margin" Value="10,0,8,0"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <!-- Параметры: разрядность, тип, файл -->
+            <Grid Grid.Row="1" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc PlatformDownload.Architecture}"
+                           VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <ComboBox Grid.Row="0" Grid.Column="1" Width="150" Height="30" VerticalContentAlignment="Center"
+                          SelectedValue="{Binding Is64Bit}" SelectedValuePath="Tag">
+                    <ComboBoxItem Content="x64" Tag="True"/>
+                    <ComboBoxItem Content="x86" Tag="False"/>
+                </ComboBox>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc PlatformDownload.DistributionType}"
+                           VerticalAlignment="Center" Margin="0,6,8,0" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <ComboBox Grid.Row="1" Grid.Column="1" Width="150" Height="30" Margin="0,6,0,0"
+                          VerticalContentAlignment="Center" ItemsSource="{Binding AvailableDownloadTypes}"
+                          SelectedItem="{Binding DownloadType}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource DownloadTypeConv}}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </Grid>
+
+            <!-- Учётная запись и файл -->
+            <Grid Grid.Row="2" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc PlatformDownload.Account}"
+                           VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{loc:Loc PlatformDownload.NoAccount}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAccount}" Value="True">
+                                    <Setter Property="Text" Value="{Binding AccountName}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc PlatformDownload.File}"
+                           VerticalAlignment="Center" Margin="0,6,8,0" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FileInfoText}" VerticalAlignment="Center"
+                           Margin="0,6,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+            </Grid>
+
+            <!-- Каталог сохранения -->
+            <Grid Grid.Row="3" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{loc:Loc PlatformDownload.Directory}"
+                           VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <TextBox Grid.Column="1" Text="{Binding TargetDirectory, UpdateSourceTrigger=PropertyChanged}"
+                         Height="30" VerticalContentAlignment="Center" IsReadOnly="False"/>
+                <Button Grid.Column="2" Margin="8,0,0,0" Height="30"
+                        Content="{loc:Loc PlatformDownload.ChooseDirectory}"
+                        Command="{Binding ChooseDirectoryCommand}" Style="{StaticResource OutlineButtonStyle}"/>
+            </Grid>
+
+            <!-- Прогресс -->
+            <Grid Grid.Row="4" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ProgressBar Grid.Column="0" Height="6" Minimum="0" Maximum="1" Value="{Binding Progress}"
+                             Foreground="{DynamicResource AccentBrush}"/>
+                <TextBlock Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0:P0}">
+                            <Binding Path="Progress"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+            </Grid>
+        </Grid>
+
+        <!-- Нижняя панель: результат, журнал, кнопки -->
+        <Border Grid.Row="2" Margin="0,12,0,0"
+                BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"
+                CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}">
+            <StackPanel Margin="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- Итоговое сообщение после скачивания -->
+                    <TextBlock Grid.Column="0" Text="{Binding ResultText}" TextWrapping="Wrap" FontSize="12"
+                               VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="{loc:Loc PlatformDownload.OpenFolder}"
+                                Command="{Binding OpenFolderCommand}" Style="{StaticResource OutlineButtonStyle}"
+                                Margin="8,0,0,0" Padding="12,6"/>
+                        <Button Content="{loc:Loc PlatformDownload.RunInstaller}"
+                                Command="{Binding RunInstallerCommand}" Style="{StaticResource PrimaryButtonStyle}"
+                                Margin="8,0,0,0" Padding="12,6"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBox x:Name="LogBox" Margin="0,10,0,0" IsReadOnly="True" Height="96"
+                         Text="{Binding LogText}" TextWrapping="Wrap" AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"
+                         Background="{DynamicResource ContentBackgroundBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="1" Content="{loc:Loc PlatformDownload.RefreshCatalog}"
+                            Command="{Binding LoadCatalogCommand}" Style="{StaticResource OutlineButtonStyle}"
+                            Margin="0,0,8,0"/>
+                    <Button Grid.Column="2" Content="{loc:Loc PlatformDownload.Download}"
+                            Command="{Binding DownloadCommand}" Style="{StaticResource PrimaryButtonStyle}"
+                            MinWidth="130"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

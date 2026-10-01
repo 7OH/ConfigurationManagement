@@ -453,6 +453,33 @@ TCP-проверку портов 1540/1541/1545 с измерением RTT и 
   репозитория (точное совпадение или сегментный префикс), и версию запущенного процесса;
   удаление с подтверждением (Windows — каталог с `runas`, Linux — команда sudo).
 
+### Скачивание нужной версии платформы 1С (issue #330)
+
+Функция «Утилиты → Скачивание версии платформы 1С» (цикл 0.3.9.249) — окно выбора версии/
+разрядности и скачивания дистрибутива БЕЗ автоматической установки (требование комментария
+7OH: «скачать / распаковать / запустить установщик или открыть папку»). Реализовано на уже
+готовой инфраструктуре автообновления платформы:
+
+- [`Services/PlatformDistributionPicker.cs`](Configuration Management/Services/PlatformDistributionPicker.cs)
+  — чистый выбор файла дистрибутива по «версия + разрядность (x86/x64) + тип» для Windows
+  (полный/тонкий клиент, zip) и Linux (deb/rpm/tar.gz); список доступных типов; без сети и UI.
+- [`ViewModels/PlatformDownloadViewModel.cs`](Configuration Management/ViewModels/PlatformDownloadViewModel.cs)
+  — чистый VM обеих платформ: каталог версий, ленивая подгрузка файлов, выбор файла,
+  учётная запись ИТС, скачивание с прогрессом в `TargetDirectory`, итоговое сообщение и
+  команды «Открыть папку»/«Запустить установщик» (инжектируемые делегаты — без UI).
+- Окна — тонкие обёртки: WPF `Views/PlatformDownloadWindow.xaml` + `.xaml.cs` и Avalonia
+  `Views/PlatformDownloadWindow.Avalonia.cs`; открытие и пункт меню — команды
+  `ShowPlatformDownloadCommand` в [`MainViewModel.PlatformUpdate.cs`](Configuration Management/ViewModels/MainViewModel.PlatformUpdate.cs)
+  (`#if WINDOWS`) и [`MainViewModel.Avalonia.PlatformUpdate.cs`](Configuration Management/ViewModels/MainViewModel.Avalonia.PlatformUpdate.cs)
+  (`#if LINUX`).
+- Авторизация — через учётную запись ИТС из справочника (#333): выбранная в настройках
+  (`AppSettings.ItsAccountId`) или «Основная»; загрузка — `IOneCUpdatesService.DownloadDistributionAsync`
+  (ParallelDownloader); каталог сохранения запоминается в `AppSettings.PlatformDownloadDirectory`
+  (по умолчанию `Загрузки/1CPlatform`).
+- Установка не выполняется автоматически: Windows — «Запустить установщик» распаковывает zip
+  во временную папку и запускает setup.exe интерактивно (без тихих ключей); Linux — показывает
+  готовую команду sudo (deb/rpm, копируется в буфер) или инструкцию для tar.gz.
+
 Ограничения (см. план цикла 0.3.9.208–0.3.9.216, п. 3/9):
 - на Linux установка из GUI безопасно невозможна: окно показывает готовую команду sudo и
   короткую инструкцию, автоматическое повышение прав (`sudo`/`pkexec`) из приложения не

@@ -1,0 +1,565 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using Configuration_Management.Localization;
+using Configuration_Management.Models;
+using Configuration_Management.Services;
+
+namespace Configuration_Management.ViewModels;
+
+/// <summary>
+/// Строка списка версий окна «Скачивание версии платформы 1С»: версия каталога
+/// <c>releases.1c.ru/project/Platform83</c> (файлы дистрибутива подгружаются лениво).
+/// </summary>
+public sealed class PlatformDownloadRowViewModel
+{
+    /// <summary>Релиз каталога (версия + список файлов).</summary>
+    public PlatformRelease Release { get; }
+
+    /// <summary>Номер версии платформы.</summary>
+    public string Version => Release.Version;
+
+    /// <param name="release">Релиз каталога платформы.</param>
+    public PlatformDownloadRowViewModel(PlatformRelease release)
+    {
+        Release = release ?? throw new ArgumentNullException(nameof(release));
+    }
+}
+
+/// <summary>
+/// ViewModel окна «Скачивание версии платформы 1С» (issue #330): выбор версии из
+/// каталога <c>releases.1c.ru</c>, разрядности (32/64) и типа дистрибутива, скачивание
+/// файла с прогрессом в выбранную папку. Установка НЕ выполняется автоматически:
+/// после скачивания пользователь сам открывает папку или запускает установщик.
+/// Авторизация портала — через учётную запись ИТС из справочника (#333, выбранная/
+/// основная), которую резолвит инжектируемый делегат. Сетевые операции выполняются
+/// через <see cref="IPlatformUpdateService"/> и делегат загрузки — класс остаётся
+/// чистым и покрывается тестами на fake-сервисах без сети и UI.
+/// </summary>
+public sealed class PlatformDownloadViewModel : ViewModelBase
+{
+    private readonly IPlatformUpdateService _service;
+    private readonly Func<ItsAccount?> _resolveAccount;
+    private readonly Func<string, string, IProgress<double>?, CancellationToken, Task<string?>> _downloadDistribution;
+    private readonly Func<string, bool> _openFolder;
+    private readonly Func<string, bool> _runInstaller;
+    private readonly Func<string?>? _chooseDirectory;
+    private readonly Action<string, string, NotificationKind, NotificationEvent>? _notify;
+    private readonly Services.IAppLogger? _appLogger;
+    private readonly bool _isWindows;
+
+    private readonly StringBuilder _log = new();
+    private PlatformDownloadRowViewModel? _selectedRelease;
+    private bool _isBusy;
+    private double _progress;
+    private bool _is64Bit;
+    private PlatformDownloadType _downloadType;
+    private IReadOnlyList<PlatformDownloadType> _availableDownloadTypes = new[] { PlatformDownloadType.Auto };
+    private string _targetDirectory = string.Empty;
+    private string _accountName = string.Empty;
+    private bool _hasAccount;
+    private PlatformReleaseFile? _pickedFile;
+    private string _downloadedPath = string.Empty;
+    private string _resultText = string.Empty;
+
+    /// <summary>Список версий каталога платформы (по убыванию).</summary>
+    public ObservableCollection<PlatformDownloadRowViewModel> Releases { get; } = new();
+
+    /// <summary>Выбранная версия. При выборе лениво подгружаются файлы релиза и
+    /// пересчитывается файл дистрибутива под разрядность/тип.</summary>
+    public PlatformDownloadRowViewModel? SelectedRelease
+    {
+        get => _selectedRelease;
+        set
+        {
+            if (SetProperty(ref _selectedRelease, value))
+            {
+                PickedFile = null;
+                RefreshCommands();
+                _ = LoadReleaseFilesAsync(value);
+            }
+        }
+    }
+
+    /// <summary>Выполняется ли сетевая операция (блокирует команды).</summary>
+    public bool IsBusy
+    {
+        get => _isBusy;
+        set
+        {
+            if (SetProperty(ref _isBusy, value))
+                RefreshCommands();
+        }
+    }
+
+    /// <summary>Прогресс загрузки (0..1).</summary>
+    public double Progress
+    {
+        get => _progress;
+        set => SetProperty(ref _progress, Math.Clamp(value, 0, 1));
+    }
+
+    /// <summary>True — целевая разрядность x64; false — x86.</summary>
+    public bool Is64Bit
+    {
+        get => _is64Bit;
+        set
+        {
+            if (SetProperty(ref _is64Bit, value))
+                RepickFile();
+        }
+    }
+
+    /// <summary>Тип дистрибутива (полный/тонкий клиент, пакет, архив, авто).</summary>
+    public PlatformDownloadType DownloadType
+    {
+        get => _downloadType;
+        set
+        {
+            if (SetProperty(ref _downloadType, value))
+                RepickFile();
+        }
+    }
+
+    /// <summary>Доступные типы дистрибутива для выбранной версии (зависит от ОС и файлов).</summary>
+    public IReadOnlyList<PlatformDownloadType> AvailableDownloadTypes
+    {
+        get => _availableDownloadTypes;
+        private set => SetProperty(ref _availableDownloadTypes, value);
+    }
+
+    /// <summary>Варианты типов дистрибутива («локализованное имя → тип») для комбобокса.</summary>
+    public IReadOnlyList<DownloadTypeOption> DownloadTypeOptions { get; private set; }
+        = new[] { new DownloadTypeOption(
+            LocalizationManager.T(PlatformDistributionPicker.TypeLocalizationKey(PlatformDownloadType.Auto)),
+            PlatformDownloadType.Auto) };
+
+    /// <summary>Каталог сохранения дистрибутива (создаётся при скачивании).</summary>
+    public string TargetDirectory
+    {
+        get => _targetDirectory;
+        set => SetProperty(ref _targetDirectory, value ?? string.Empty);
+    }
+
+    /// <summary>Отображаемое имя учётной записи ИТС, которой будет выполняться авторизация.</summary>
+    public string AccountName
+    {
+        get => _accountName;
+        private set => SetProperty(ref _accountName, value ?? string.Empty);
+    }
+
+    /// <summary>True — задана учётная запись ИТС (иначе запросы уйдут без авторизации).</summary>
+    public bool HasAccount
+    {
+        get => _hasAccount;
+        private set => SetProperty(ref _hasAccount, value);
+    }
+
+    /// <summary>Выбранный файл дистрибутива (после ленивой подгрузки файлов версии).</summary>
+    public PlatformReleaseFile? PickedFile
+    {
+        get => _pickedFile;
+        private set
+        {
+            if (SetProperty(ref _pickedFile, value))
+            {
+                OnPropertyChanged(nameof(FileInfoText));
+                RefreshCommands();
+            }
+        }
+    }
+
+    /// <summary>Описание выбранного файла («имя (размер)») либо ключ «файл не выбран».</summary>
+    public string FileInfoText => PickedFile is null
+        ? LocalizationManager.T("PlatformDownload.NoFile")
+        : $"{PickedFile.FileName} ({FormatSize(PickedFile.SizeBytes)})";
+
+    /// <summary>Полный путь скачанного дистрибутива (пусто — ещё не скачано).</summary>
+    public string DownloadedPath
+    {
+        get => _downloadedPath;
+        private set
+        {
+            if (SetProperty(ref _downloadedPath, value))
+                OnPropertyChanged(nameof(HasDownloaded));
+        }
+    }
+
+    /// <summary>True — скачивание завершено (доступны «Открыть папку»/«Запустить установщик»).</summary>
+    public bool HasDownloaded => !string.IsNullOrWhiteSpace(DownloadedPath);
+
+    /// <summary>Итоговое сообщение после скачивания: что скачано, куда, что делать дальше.</summary>
+    public string ResultText
+    {
+        get => _resultText;
+        private set => SetProperty(ref _resultText, value ?? string.Empty);
+    }
+
+    /// <summary>Текст журнала окна.</summary>
+    public string LogText => _log.ToString();
+
+    /// <summary>Команда «Проверить каталог» (получение списка версий с портала).</summary>
+    public RelayCommand LoadCatalogCommand { get; }
+
+    /// <summary>Команда «Скачать».</summary>
+    public RelayCommand DownloadCommand { get; }
+
+    /// <summary>Команда «Открыть папку».</summary>
+    public RelayCommand OpenFolderCommand { get; }
+
+    /// <summary>Команда «Запустить установщик» (по желанию пользователя, не автоматически).</summary>
+    public RelayCommand RunInstallerCommand { get; }
+
+    /// <summary>Команда «Выбрать папку…».</summary>
+    public RelayCommand ChooseDirectoryCommand { get; }
+
+    /// <param name="service">Сервис каталога версий платформы (портал releases.1c.ru).</param>
+    /// <param name="resolveAccount">Резолвит учётную запись ИТС для авторизации (выбранная/основная,
+    /// issue #333); null — без авторизации.</param>
+    /// <param name="downloadDistribution">Загружает файл дистрибутива по прямой ссылке с прогрессом;
+    /// возвращает путь сохранённого файла или null при ошибке/отмене.</param>
+    /// <param name="openFolder">Открывает папку с файлом (Windows — проводник с выделением, Linux —
+    /// файловый менеджер); true — действие инициировано.</param>
+    /// <param name="runInstaller">Запускает установщик по пути скачанного файла (Windows — распаковка
+    /// zip и запуск setup.exe; Linux — показ команды/инструкции). НЕ выполняется автоматически.</param>
+    /// <param name="chooseDirectory">Диалог выбора папки сохранения (null при отмене); опционально.</param>
+    /// <param name="is64Bit">Целевая разрядность по умолчанию (обычно — разрядность ОС).</param>
+    /// <param name="defaultDirectory">Каталог сохранения по умолчанию.</param>
+    /// <param name="isWindows">True — целевая ОС Windows (выбор типа дистрибутива по умолчанию).</param>
+    /// <param name="notify">Уведомление о результате (опционально).</param>
+    /// <param name="appLogger">Журнал приложения (опционально).</param>
+    public PlatformDownloadViewModel(
+        IPlatformUpdateService service,
+        Func<ItsAccount?> resolveAccount,
+        Func<string, string, IProgress<double>?, CancellationToken, Task<string?>> downloadDistribution,
+        Func<string, bool> openFolder,
+        Func<string, bool> runInstaller,
+        Func<string?>? chooseDirectory = null,
+        bool is64Bit = true,
+        string? defaultDirectory = null,
+        bool isWindows = true,
+        Action<string, string, NotificationKind, NotificationEvent>? notify = null,
+        Services.IAppLogger? appLogger = null)
+    {
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _resolveAccount = resolveAccount ?? (() => null);
+        _downloadDistribution = downloadDistribution ?? throw new ArgumentNullException(nameof(downloadDistribution));
+        _openFolder = openFolder ?? (_ => false);
+        _runInstaller = runInstaller ?? (_ => false);
+        _chooseDirectory = chooseDirectory;
+        _notify = notify;
+        _appLogger = appLogger;
+        _isWindows = isWindows;
+        _is64Bit = is64Bit;
+        _downloadType = PlatformDownloadType.Auto;
+        _targetDirectory = string.IsNullOrWhiteSpace(defaultDirectory)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+            : defaultDirectory.Trim();
+
+        LoadCatalogCommand = new RelayCommand(async () => await LoadCatalogAsync(), () => !IsBusy);
+        DownloadCommand = new RelayCommand(async () => await DownloadAsync(), () => CanDownload());
+        OpenFolderCommand = new RelayCommand(OpenFolder, () => HasDownloaded);
+        RunInstallerCommand = new RelayCommand(RunInstaller, () => HasDownloaded && PickedFile is not null);
+        ChooseDirectoryCommand = new RelayCommand(ChooseDirectory, () => !IsBusy);
+
+        RefreshAccount();
+        AppendLog(string.Format(LocalizationManager.T("PlatformDownload.Status.Directory"), TargetDirectory));
+    }
+
+    /// <summary>Доступна ли загрузка (нет активной операции, выбраны версия и файл).</summary>
+    private bool CanDownload()
+        => !IsBusy && SelectedRelease is not null && PickedFile is not null;
+
+    /// <summary>Обновляет доступность команд после изменения состояния.</summary>
+    private void RefreshCommands()
+    {
+        DownloadCommand.RaiseCanExecuteChanged();
+        OpenFolderCommand.RaiseCanExecuteChanged();
+        RunInstallerCommand.RaiseCanExecuteChanged();
+        LoadCatalogCommand.RaiseCanExecuteChanged();
+        ChooseDirectoryCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>Добавляет строку в журнал и уведомляет UI.</summary>
+    public void AppendLog(string message)
+    {
+        _log.AppendLine(message ?? string.Empty);
+        OnPropertyChanged(nameof(LogText));
+    }
+
+    /// <summary>Показывает учётную запись ИТС, которой будет выполняться авторизация
+    /// (выбранная/основная из справочника #333).</summary>
+    private void RefreshAccount()
+    {
+        var account = _resolveAccount();
+        if (account is not null && !string.IsNullOrWhiteSpace(account.Login))
+        {
+            AccountName = account.ToString()!;
+            HasAccount = true;
+        }
+        else
+        {
+            AccountName = string.Empty;
+            HasAccount = false;
+        }
+    }
+
+    /// <summary>Получает список версий платформы с портала и заполняет список. Ошибки
+    /// каталога (авторизация/сеть/404) пишутся в журнал ключом локализации.</summary>
+    public async Task LoadCatalogAsync()
+    {
+        if (IsBusy)
+            return;
+
+        IsBusy = true;
+        Progress = 0;
+        DownloadedPath = string.Empty;
+        ResultText = string.Empty;
+        AppendLog(LocalizationManager.T("PlatformDownload.Status.Checking"));
+        _appLogger?.Info("Скачивание платформы: получение каталога версий с портала 1С");
+        try
+        {
+            var result = await _service.GetAvailableReleasesAsync().ConfigureAwait(false);
+            if (result.Status != PortalFetchStatus.Ok)
+            {
+                var errorKey = string.IsNullOrWhiteSpace(result.ErrorKey)
+                    ? PlatformUpdateService.ErrorNetwork
+                    : result.ErrorKey;
+                AppendLog(LocalizationManager.T(errorKey));
+                _appLogger?.Warn($"Скачивание платформы: каталог не получен — {errorKey}");
+                return;
+            }
+
+            Releases.Clear();
+            foreach (var release in result.Releases)
+                Releases.Add(new PlatformDownloadRowViewModel(release));
+
+            if (Releases.Count == 0)
+            {
+                AppendLog(LocalizationManager.T("PlatformUpdate.Error.NotFound"));
+                return;
+            }
+
+            AppendLog(string.Format(
+                LocalizationManager.T("PlatformDownload.Status.Releases"), Releases.Count));
+            SelectedRelease = Releases[0];
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.NetworkError")}: {ex.Message}");
+            _appLogger?.Error($"Скачивание платформы: исключение при получении каталога: {ex.GetType().Name}: {ex.Message}", ex);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Лениво подгружает файлы дистрибутива выбранной версии и пересчитывает
+    /// выбранный файл под разрядность/тип.</summary>
+    private async Task LoadReleaseFilesAsync(PlatformDownloadRowViewModel? row)
+    {
+        if (row is null)
+            return;
+
+        try
+        {
+            var result = await _service.LoadReleaseFilesAsync(row.Release).ConfigureAwait(false);
+            if (result.Status != PortalFetchStatus.Ok)
+            {
+                var errorKey = string.IsNullOrWhiteSpace(result.ErrorKey)
+                    ? PlatformUpdateService.ErrorNetwork
+                    : result.ErrorKey;
+                AppendLog(LocalizationManager.T(errorKey));
+                return;
+            }
+
+            RepickFile();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.NetworkError")}: {ex.Message}");
+            _appLogger?.Error($"Скачивание платформы: исключение при подгрузке файлов {row.Version}: {ex.GetType().Name}: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>Пересчитывает список доступных типов и выбранный файл дистрибутива
+    /// (версия + разрядность + тип → файл).</summary>
+    private void RepickFile()
+    {
+        var files = SelectedRelease?.Release.Files ?? (IReadOnlyList<PlatformReleaseFile>)Array.Empty<PlatformReleaseFile>();
+
+        var types = PlatformDistributionPicker.AvailableTypes(files, _isWindows);
+        AvailableDownloadTypes = types.Count > 0 ? types : new[] { PlatformDownloadType.Auto };
+
+        if (!types.Contains(DownloadType))
+            DownloadType = PlatformDownloadType.Auto;
+
+        DownloadTypeOptions = types
+            .Select(t => new DownloadTypeOption(
+                LocalizationManager.T(PlatformDistributionPicker.TypeLocalizationKey(t)), t))
+            .ToList();
+
+        PickedFile = PlatformDistributionPicker.PickFile(files, Is64Bit, DownloadType, _isWindows);
+    }
+
+    /// <summary>Скачивает выбранный дистрибутив в <see cref="TargetDirectory"/> с прогрессом.
+    /// Установка НЕ запускается автоматически — после скачивания пользователь сам открывает
+    /// папку или запускает установщик (требование issue #330, комментарий 7OH).</summary>
+    public async Task DownloadAsync()
+    {
+        if (!CanDownload())
+            return;
+
+        IsBusy = true;
+        Progress = 0;
+        DownloadedPath = string.Empty;
+        ResultText = string.Empty;
+        var picked = PickedFile!;
+        var version = SelectedRelease!.Version;
+
+        if (!HasAccount)
+        {
+            AppendLog(LocalizationManager.T("PlatformDownload.WarnNoAccount"));
+            _appLogger?.Warn("Скачивание платформы: учётная запись ИТС не задана — авторизация портала не будет выполнена");
+        }
+
+        try
+        {
+            var targetDir = string.IsNullOrWhiteSpace(TargetDirectory)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                : TargetDirectory.Trim();
+            Directory.CreateDirectory(targetDir);
+
+            var targetPath = Path.Combine(targetDir,
+                OneCUpdatesService.BuildTargetFileName(version, picked.FileName));
+
+            AppendLog(string.Format(LocalizationManager.T("PlatformDownload.Progress.Download"),
+                picked.FileName, targetDir));
+            _appLogger?.Info($"Скачивание платформы: загрузка версии {version} в «{targetPath}»");
+
+            var progress = new Progress<double>(v =>
+            {
+                Progress = v;
+                OnPropertyChanged(nameof(LogText));
+            });
+            var downloaded = await _downloadDistribution(picked.Url, targetPath, progress, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            if (string.IsNullOrWhiteSpace(downloaded))
+            {
+                AppendLog(LocalizationManager.T("PlatformUpdate.Error.NetworkError"));
+                _notify?.Invoke(
+                    LocalizationManager.T("PlatformDownload.WindowTitle"),
+                    LocalizationManager.T("PlatformUpdate.Error.NetworkError"),
+                    NotificationKind.Error,
+                    NotificationEvent.Update);
+                return;
+            }
+
+            Progress = 1;
+            DownloadedPath = downloaded;
+            ResultText = BuildResultText(downloaded);
+            AppendLog(ResultText);
+            _appLogger?.Info($"Скачивание платформы: дистрибутив сохранён в «{downloaded}»");
+            _notify?.Invoke(
+                LocalizationManager.T("PlatformDownload.WindowTitle"),
+                ResultText,
+                NotificationKind.Success,
+                NotificationEvent.Update);
+        }
+        catch (Exception ex)
+        {
+            var errorText = $"{LocalizationManager.T("PlatformUpdate.Error.NetworkError")}: {ex.Message}";
+            AppendLog(errorText);
+            _appLogger?.Error($"Скачивание платформы: исключение при загрузке {version}: {ex.GetType().Name}: {ex.Message}", ex);
+            _notify?.Invoke(
+                LocalizationManager.T("PlatformDownload.WindowTitle"),
+                errorText,
+                NotificationKind.Error,
+                NotificationEvent.Update);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Открывает папку со скачанным файлом (проводник/файловый менеджер).</summary>
+    public void OpenFolder()
+    {
+        if (!HasDownloaded)
+            return;
+
+        if (_openFolder(DownloadedPath))
+        {
+            AppendLog(string.Format(LocalizationManager.T("PlatformDownload.Status.FolderOpened"), DownloadedPath));
+        }
+        else
+        {
+            AppendLog(string.Format(LocalizationManager.T("PlatformDownload.Error.OpenFolder"), DownloadedPath));
+        }
+    }
+
+    /// <summary>Запускает установщик по желанию пользователя (не автоматически):
+    /// Windows — распаковка zip и запуск setup.exe; Linux — показ команды/инструкции.</summary>
+    public void RunInstaller()
+    {
+        if (!HasDownloaded || PickedFile is null)
+            return;
+
+        if (_runInstaller(DownloadedPath))
+        {
+            AppendLog(LocalizationManager.T("PlatformDownload.Status.InstallerStarted"));
+        }
+        else
+        {
+            AppendLog(LocalizationManager.T("PlatformDownload.Error.RunInstaller"));
+        }
+    }
+
+    /// <summary>Выбирает папку сохранения через инжектируемый диалог (реализация — в окне).</summary>
+    public void ChooseDirectory()
+    {
+        var directory = _chooseDirectory?.Invoke();
+        if (string.IsNullOrWhiteSpace(directory))
+            return;
+
+        TargetDirectory = directory.Trim();
+        AppendLog(string.Format(LocalizationManager.T("PlatformDownload.Status.Directory"), TargetDirectory));
+    }
+
+    /// <summary>Формирует итоговое сообщение после скачивания: что скачано, куда, что делать дальше.</summary>
+    private static string BuildResultText(string downloadedPath)
+    {
+        var fileName = Path.GetFileName(downloadedPath);
+        var directory = Path.GetDirectoryName(downloadedPath) ?? string.Empty;
+        return string.Format(LocalizationManager.T("PlatformDownload.Result.Summary"), fileName, directory);
+    }
+
+    /// <summary>Форматирует размер файла человекочитаемо («123,4 МБ»).</summary>
+    private static string FormatSize(long bytes)
+    {
+        if (bytes <= 0)
+            return "—";
+        const long kb = 1024;
+        const long mb = kb * 1024;
+        const long gb = mb * 1024;
+        if (bytes >= gb)
+            return $"{bytes / (double)gb:0.#} ГБ";
+        if (bytes >= mb)
+            return $"{bytes / (double)mb:0.#} МБ";
+        return $"{bytes / (double)kb:0.#} КБ";
+    }
+}
+
+/// <summary>Вариант типа дистрибутива для комбобокса: локализованное имя + тип.</summary>
+public sealed record DownloadTypeOption(string Name, PlatformDownloadType Type)
+{
+    /// <summary>Отображаемое имя варианта.</summary>
+    public override string ToString() => Name;
+}
