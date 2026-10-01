@@ -429,6 +429,25 @@ namespace Configuration_Management
                 }
             }
 
+            // Enter на строке списка = двойной клик (issue #328): база → запуск
+            // «1С:Предприятие»/«Конфигуратор» (ResolveDoubleClickAction), группа →
+            // свернуть/развернуть. Не срабатывает, когда фокус вне дерева, в
+            // текстовом вводе (инлайн-редактор тега, поиск, палитра команд) или
+            // открыт модальный диалог — там Enter работает как обычно. В HotkeyBox
+            // Enter намеренно не назначается (клавиша ввода/навигации), поэтому
+            // конфликта с пользовательскими горячими нет.
+            if (key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None
+                && IsFocusInsideMainTree()
+                && Keyboard.FocusedElement is not Button and not ToggleButton
+                && Services.EnterActivationHelper.CanHandleEnter(
+                    Keyboard.FocusedElement is TextBox or PasswordBox || IsFocusInsideTagEditor(),
+                    HasOpenModalDialog())
+                && HandleRowEnterActivation())
+            {
+                e.Handled = true;
+                return;
+            }
+
             // Esc → в трей (если включено в настройках)
             if (key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None)
             {
@@ -856,6 +875,47 @@ namespace Configuration_Management
         {
             if (row.DataContext is GroupNodeViewModel groupNode)
                 _viewModel.ToggleGroupExpandedCommand.Execute(groupNode);
+        }
+
+        /// <summary>
+        /// Выполняет «Enter = двойной клик» по текущей строке списка (issue #328):
+        /// группа (включая служебные узлы) сворачивается/разворачивается, база
+        /// запускается действием по настройке (как при двойном клике). Возвращает
+        /// true, если строка под курсором есть и действие выполнено.
+        /// </summary>
+        private bool HandleRowEnterActivation()
+        {
+            if (_viewModel is null)
+                return false;
+
+            if (_viewModel.SelectedGroupNode is { } groupNode)
+            {
+                _viewModel.ToggleGroupExpandedCommand.Execute(groupNode);
+                return true;
+            }
+
+            if (_viewModel.SelectedInfobase is { } infobase)
+            {
+                ActivateInfobaseByDoubleClickAction(infobase);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Открыт ли какой-либо другой видимый модальный диалог (свойства базы,
+        /// настройки и т.п.). При открытом диалоге Enter не перехватывается —
+        /// он работает в самом диалоге как обычно (issue #328).
+        /// </summary>
+        private bool HasOpenModalDialog()
+        {
+            foreach (Window window in Application.Current.Windows)
+            {
+                if (!ReferenceEquals(window, this) && window.IsVisible)
+                    return true;
+            }
+            return false;
         }
 
     }

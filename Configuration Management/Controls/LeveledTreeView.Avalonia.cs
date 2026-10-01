@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -230,7 +231,7 @@ namespace Configuration_Management.Controls
         private void OnNavigationKeyDown(object? sender, KeyEventArgs e)
         {
             if (e.Handled || e.Key is not (Key.Home or Key.End or Key.PageUp or Key.PageDown
-                or Key.Up or Key.Down or Key.Left or Key.Right))
+                or Key.Up or Key.Down or Key.Left or Key.Right or Key.Enter))
                 return;
 
             // Стрелки не перехватываем, если фокус в поле ввода
@@ -241,8 +242,8 @@ namespace Configuration_Management.Controls
             if (e.KeyModifiers == KeyModifiers.Control)
             {
                 // Прокрутка с Ctrl работает только для перечисленных клавиш;
-                // Ctrl+стрелки не назначена, оставляем их остальному маршруту.
-                if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right)
+                // Ctrl+стрелки/Ctrl+Enter не назначены, оставляем их остальному маршруту.
+                if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Enter)
                     return;
                 ScrollBy(e.Key);
                 e.Handled = true;
@@ -266,6 +267,23 @@ namespace Configuration_Management.Controls
                 return;
 
             var current = CurrentRowIndex(rows);
+
+            // Enter = двойной клик (issue #328): база → запуск «1С:Предприятие»/
+            // «Конфигуратор» (ResolveDoubleClickAction), группа → свернуть/развернуть.
+            // Туннельный обработчик дерева срабатывает только когда фокус внутри
+            // дерева; дополнительно Enter не перехватывается в текстовом вводе
+            // (поле поиска, инлайн-редактор тега, палитра команд), на интерактивных
+            // кнопках строки и при открытых модальных окнах — там он работает
+            // как обычно. В HotkeyBox Enter намеренно не назначается (клавиша
+            // ввода/навигации), поэтому конфликта с пользовательскими горячими нет.
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None
+                && !FocusedElementIsInteractiveControl
+                && EnterActivationHelper.CanHandleEnter(FocusedElementIsTextInput, AnyOpenModalWindow())
+                && HandleEnterActivation(rows, current))
+            {
+                e.Handled = true;
+                return;
+            }
 
             // ←/→ — по фактической вложенности (произвольная глубина, issue #331):
             // вправо раскрывает свёрнутую папку или переходит к первому потомку;
@@ -383,6 +401,77 @@ namespace Configuration_Management.Controls
         {
             if (row.DataContext is GroupNodeViewModel groupNode)
                 groupNode.IsExpanded = !groupNode.IsExpanded;
+        }
+
+        /// <summary>
+        /// Выполняет «Enter = двойной клик» по текущей строке (issue #328):
+        /// группа — свернуть/развернуть (через модель), база — запуск действием
+        /// по настройке (та же логика, что у двойного клика карточки).
+        /// Возвращает true, если строка есть и действие выполнено.
+        /// </summary>
+        private bool HandleEnterActivation(List<TreeViewItem> rows, int current)
+        {
+            if (DataContext is not MainViewModel vm)
+                return false;
+            if (current < 0 || current >= rows.Count)
+                return false;
+
+            switch (rows[current].DataContext)
+            {
+                case GroupNodeViewModel groupNode:
+                    groupNode.IsExpanded = !groupNode.IsExpanded;
+                    return true;
+                case Infobase ib:
+                    ActivateInfobaseLikeDoubleClick(vm, ib);
+                    return true;
+                case PinnedInfobaseItem pinned:
+                    ActivateInfobaseLikeDoubleClick(vm, pinned.Base);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>Запуск базы тем же действием, что и двойной клик (issue #328).</summary>
+        private static void ActivateInfobaseLikeDoubleClick(MainViewModel vm, Infobase ib)
+        {
+            vm.SelectedInfobase = ib;
+            var dblAction = vm.ResolveDoubleClickAction(ib);
+            if (dblAction == Configuration_Management.Models.DoubleClickAction.None)
+                return;
+            if (dblAction == Configuration_Management.Models.DoubleClickAction.Configurator)
+                vm.LaunchConfiguratorCommand.Execute(null);
+            else
+                vm.LaunchEnterpriseCommand.Execute(null);
+        }
+
+        /// <summary>Фокус клавиатуры сейчас в поле ввода/редакторе (TextBox, ComboBox).</summary>
+        private bool FocusedElementIsTextInput =>
+            TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox or ComboBox;
+
+        /// <summary>
+        /// Фокус на интерактивном элементе строки (кнопка, флажок, шеврон раскрытия):
+        /// там Enter активирует сам элемент, а не «двойной клик» по строке.
+        /// </summary>
+        private bool FocusedElementIsInteractiveControl =>
+            TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()
+                is Button or ToggleButton or CheckBox;
+
+        /// <summary>
+        /// Открыт ли другой видимый модальный диалог/окно (свойства базы, настройки,
+        /// командная палитра и т.п.). При открытом окне Enter не перехватывается —
+        /// он работает в нём как обычно (issue #328).
+        /// </summary>
+        private bool AnyOpenModalWindow()
+        {
+            if (Avalonia.Application.Current?.ApplicationLifetime
+                    is not Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                return false;
+            var top = TopLevel.GetTopLevel(this);
+            foreach (var window in desktop.Windows)
+                if (!ReferenceEquals(window, top) && window.IsVisible)
+                    return true;
+            return false;
         }
 
         /// <summary>

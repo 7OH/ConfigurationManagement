@@ -433,7 +433,20 @@ namespace Configuration_Management
             // Двойной клик по базе выполняет настроенное действие (функция №28 StartManager):
             // «1С:Предприятие», «Конфигуратор» или «Ничего». Индивидуальное значение ИБ
             // переопределяет глобальную настройку (см. MainViewModel.ResolveDoubleClickAction).
-            var dblAction = _viewModel.ResolveDoubleClickAction(_viewModel.SelectedInfobase);
+            // Та же логика используется клавишей Enter (issue #328).
+            ActivateInfobaseByDoubleClickAction(_viewModel.SelectedInfobase);
+        }
+
+        /// <summary>
+        /// Выполняет «двойной клик» по базе (issue #328): действие по настройке
+        /// (функция №28 StartManager) — «1С:Предприятие», «Конфигуратор» или
+        /// «Ничего». Общая точка для двойного клика мышью и клавиши Enter.
+        /// </summary>
+        private void ActivateInfobaseByDoubleClickAction(Infobase? infobase)
+        {
+            if (infobase is null)
+                return;
+            var dblAction = _viewModel.ResolveDoubleClickAction(infobase);
             if (dblAction == Configuration_Management.Models.DoubleClickAction.None)
                 return;
             if (dblAction == Configuration_Management.Models.DoubleClickAction.Configurator
