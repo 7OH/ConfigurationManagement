@@ -25,6 +25,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly IAppLogger _logger;
     private readonly IOneCLauncher _launcher;
     private readonly IIbasesSyncService _ibasesSync;
+    private readonly IDeletedGroupPathsStore _deletedGroupPaths;
     private Infobase? _selectedInfobase;
     private string _lastSelectedInfobaseId = string.Empty;
     private string _lastSelectedGroupPath = string.Empty;
@@ -231,13 +232,15 @@ public partial class MainViewModel : ViewModelBase
         IDialogService? dialogs = null,
         IAppLogger? logger = null,
         IOneCLauncher? launcher = null,
-        IIbasesSyncService? ibasesSync = null)
+        IIbasesSyncService? ibasesSync = null,
+        IDeletedGroupPathsStore? deletedGroupPaths = null)
     {
         _repository = repository ?? new InfobaseRepository();
         _dialogs = dialogs ?? new WpfDialogService();
         _logger = logger ?? new FileAppLogger();
         _launcher = launcher ?? new OneCLauncherService();
         _ibasesSync = ibasesSync ?? new IbasesSyncService();
+        _deletedGroupPaths = deletedGroupPaths ?? new DeletedGroupPathsStore();
         _logger.Info("MainViewModel инициализирован");
 
         // При изменении реестра учётных записей (создание/переименование/удаление в окне
@@ -1457,7 +1460,7 @@ public partial class MainViewModel : ViewModelBase
                 return;
             try
             {
-                var result = _ibasesSync.Import(filePath, Infobases, Groups);
+                var result = _ibasesSync.Import(filePath, Infobases, Groups, _deletedGroupPaths.Load());
                 InfobasesView.Refresh();
                 Save();
                 SaveGroups();

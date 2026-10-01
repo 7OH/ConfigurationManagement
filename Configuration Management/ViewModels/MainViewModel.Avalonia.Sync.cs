@@ -252,7 +252,7 @@ public partial class MainViewModel : ViewModelBase
             // тридцать баз восемью из файла.
             var candidateInfobases = _allInfobases.ToList();
             var candidateGroups = _groups.ToList();
-            var result = _sync.Import(path, candidateInfobases, candidateGroups);
+            var result = _sync.Import(path, candidateInfobases, candidateGroups, _deletedGroupPaths.Load());
 
             if (before > 0 && candidateInfobases.Count == 0)
             {
@@ -680,7 +680,7 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var result = _sync.Import(filePath, _allInfobases, _groups);
+            var result = _sync.Import(filePath, _allInfobases, _groups, _deletedGroupPaths.Load());
 
             if (before > 0 && _allInfobases.Count == 0)
             {

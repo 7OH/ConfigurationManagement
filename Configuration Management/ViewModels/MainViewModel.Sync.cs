@@ -244,7 +244,7 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            _ibasesSync.Import(filePath, Infobases, Groups);
+            _ibasesSync.Import(filePath, Infobases, Groups, _deletedGroupPaths.Load());
             InfobasesView.Refresh();
             Save();
             SaveGroups();

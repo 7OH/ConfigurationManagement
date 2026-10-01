@@ -9,6 +9,7 @@ using System.Reflection;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia;
+using Avalonia.Reactive;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
@@ -1491,11 +1492,12 @@ namespace Configuration_Management
             fontFamilyBox.SelectionChanged += (_, _) => StoreFontScope();
             // Ввод имени шрифта руками меняет Text, а не SelectedItem: следим за текстом,
             // чтобы правка сразу попадала в рабочий набор и в предпросмотр (issue #329).
-            fontFamilyBox.GetObservable(ComboBox.TextProperty).Subscribe(_ =>
-            {
-                if (!suppressFontLoad)
-                    StoreFontScope();
-            });
+            fontFamilyBox.GetObservable(ComboBox.TextProperty)
+                .Subscribe(new ValueObserver<string?>(_ =>
+                {
+                    if (!suppressFontLoad)
+                        StoreFontScope();
+                }));
             fontSizeBox.SelectionChanged += (_, _) => StoreFontScope();
             fontFaceBox.SelectionChanged += (_, _) => StoreFontScope();
             fontApply.Click += (_, _) =>

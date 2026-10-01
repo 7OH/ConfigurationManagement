@@ -526,7 +526,17 @@ public partial class MainViewModel : ViewModelBase
             LocalizationManager.T("Main.DeleteGroupConfirmTitle")))
             return;
 
+        // Полный путь удаляемой пустой группы запоминаем ДО удаления из коллекции:
+        // после Groups.Remove путь уже не построить. Список защищает группу от
+        // возвращения при синхронизации с ibases.v8i (issue #327).
+        var deletedGroupPath = GroupHierarchyHelper.GetFullPath(group, Groups);
+
         Groups.Remove(group);
+        if (!string.IsNullOrWhiteSpace(deletedGroupPath))
+        {
+            try { _deletedGroupPaths.Add(deletedGroupPath); }
+            catch { /* хранение не должно ломать удаление группы */ }
+        }
 
         SelectedGroupNode = null;
         SaveGroups();

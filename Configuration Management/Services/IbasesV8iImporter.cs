@@ -38,8 +38,15 @@ public static class IbasesV8iImporter
     /// <param name="filePath">Путь к файлу ibases.v8i.</param>
     /// <param name="infobases">Коллекция баз, в которую выполняется импорт.</param>
     /// <param name="groups">Коллекция групп, в которую добавляются недостающие группы.</param>
+    /// <param name="deletedEmptyGroupPaths">Полные пути пустых групп, удалённых пользователем
+    /// вручную: при импорте такие группы не пересоздаются, пока под путём нет баз из файла
+    /// (issue #327). Может быть null — тогда все группы файла создаются как раньше.</param>
     /// <returns>Результат импорта.</returns>
-    public static IbasesImportResult Import(string filePath, IList<Infobase> infobases, IList<Group> groups)
+    public static IbasesImportResult Import(
+        string filePath,
+        IList<Infobase> infobases,
+        IList<Group> groups,
+        IReadOnlyCollection<string>? deletedEmptyGroupPaths = null)
     {
         var result = new IbasesImportResult();
 
@@ -52,9 +59,20 @@ public static class IbasesV8iImporter
         // слешами. Старые ошибочные варианты и ссылки по имени тоже нормализуем.
         ResolveFolderReferences(entries);
 
+        // Пути удалённых пользователем пустых групп приводим к каноническому виду
+        // (регистронезависимо), чтобы сравнивать их с путями, строящимися при импорте.
+        ISet<string>? deletedPaths = null;
+        if (deletedEmptyGroupPaths is not null)
+        {
+            deletedPaths = deletedEmptyGroupPaths
+                .Select(NormalizeGroupPath)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
         // Создаём недостающие группы из импортируемых баз.
         var groupsBefore = groups.Count;
-        EnsureGroups(entries, groups, result);
+        EnsureGroups(entries, groups, result, deletedPaths);
 
         // Канонические пути групп после импорта — для диагностики дублирования
         // вложенных папок при синхронизации со штатным стартером (issue #165).
@@ -266,7 +284,13 @@ public static class IbasesV8iImporter
     /// Определяет уникальные группы из импортируемых записей и добавляет
     /// недостающие группы в коллекцию.
     /// </summary>
-    private static void EnsureGroups(List<IbaseEntry> entries, IList<Group> groups, IbasesImportResult result)
+    /// <param name="deletedGroupPaths">Канонические полные пути удалённых пользователем
+    /// пустых групп (регистронезависимо) или null, если такой фильтр не задан.</param>
+    private static void EnsureGroups(
+        List<IbaseEntry> entries,
+        IList<Group> groups,
+        IbasesImportResult result,
+        ISet<string>? deletedGroupPaths = null)
     {
         // Группы из файла ibases.v8i — это секции без строки подключения (Connect),
         // у которых есть собственный ID. Также учитываем группы, на которые
@@ -288,6 +312,15 @@ public static class IbasesV8iImporter
         // (<see cref="ResolveGroupIdFromFile"/>), поэтому на каждую папку приходится ровно
         // один источник пути и ID.
         groupEntries = NormalizeAndDedupeGroupSections(groupEntries);
+
+        // Полные пути групп, под которыми в файле есть БАЗЫ: они нужны, чтобы
+        // удалённую пустую группу (issue #327) не возвращать, если под ней в файле
+        // снова появились базы — тогда группа пересоздаётся, иначе базам некуда падать.
+        var basePaths = entries
+            .Where(e => !e.IsGroup && e.Enabled)
+            .Select(e => NormalizeGroupPath(e.Group))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Собираем полные пути групп: из ссылок баз (по Folder) и из канонизированных
         // секций-групп (по Name и Folder).
@@ -314,7 +347,7 @@ public static class IbasesV8iImporter
         // Создаём группы для каждого уникального пути, выстраивая иерархию.
         foreach (var groupPath in groupPaths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            CreateGroupWithParents(groupPath, groupEntries, groups, result);
+            CreateGroupWithParents(groupPath, groupEntries, groups, result, deletedGroupPaths, basePaths);
         }
 
         // Устраняем уже накопившиеся дубликаты групп по полному пути (например, созданные
@@ -399,11 +432,17 @@ public static class IbasesV8iImporter
     /// Создаёт группу по полному пути (например, «Учёт\Бухгалтерия»),
     /// автоматически создавая недостающие родительские группы и выставляя ParentId.
     /// </summary>
+    /// <param name="deletedGroupPaths">Канонические полные пути удалённых пользователем
+    /// пустых групп (регистронезависимо) или null. Пути из этого списка не создаются,
+    /// пока под ними нет баз из файла (<paramref name="basePaths"/>) — issue #327.</param>
+    /// <param name="basePaths">Полные пути групп, под которыми в файле есть базы.</param>
     private static void CreateGroupWithParents(
         string groupPath,
         List<IbaseEntry> groupEntries,
         IList<Group> groups,
-        IbasesImportResult result)
+        IbasesImportResult result,
+        ISet<string>? deletedGroupPaths = null,
+        ISet<string>? basePaths = null)
     {
         var segments = SplitGroupPath(groupPath);
         if (segments.Count == 0)
@@ -411,9 +450,16 @@ public static class IbasesV8iImporter
 
         string? parentId = null;
         var pathSegments = new List<string>(segments.Count);
+        // Ветка «мертва»: родительская группа — удалённая пользователем пустая группа
+        // без баз в файле, её не восстановили. Потомков под ней тоже не создаём, иначе
+        // они остались бы без родителя («осиротели»).
+        var branchSuppressed = false;
 
         for (var i = 0; i < segments.Count; i++)
         {
+            if (branchSuppressed)
+                continue;
+
             var segment = segments[i];
             pathSegments.Add(segment);
             var pathSoFar = string.Join(GroupHierarchyHelper.PathSeparator, pathSegments);
@@ -426,6 +472,17 @@ public static class IbasesV8iImporter
 
             if (existing is null)
             {
+                // Путь удалённой пользователем пустой группы (issue #327): не возвращаем её,
+                // если под путём в файле нет баз. Если базы появились — группа нужна, и она
+                // создаётся как обычно.
+                if (deletedGroupPaths is not null
+                    && deletedGroupPaths.Contains(NormalizeGroupPath(pathSoFar))
+                    && !HasBasesUnderPath(basePaths, NormalizeGroupPath(pathSoFar)))
+                {
+                    branchSuppressed = true;
+                    continue;
+                }
+
                 var id = ResolveGroupIdFromFile(groupEntries, pathSoFar, segment) ?? Guid.NewGuid().ToString();
                 // Идентификатор из файла может совпасть с Id уже существующей группы коллекции,
                 // живущей под другим полным путём (поиск по пути её не нашёл). Дубль Id ломает
@@ -498,6 +555,27 @@ public static class IbasesV8iImporter
         return groups.FirstOrDefault(g =>
             string.Equals(g.Name, leafName, StringComparison.OrdinalIgnoreCase)
             && (IsParent(g, parentId) || IsOrphanedParent(g, groups)));
+    }
+
+    /// <summary>
+    /// Есть ли в файле базы с полным путём <paramref name="path"/> или в любой
+    /// подгруппе под ним (по префиксу пути). Используется для решения, нужна ли
+    /// удалённая пользователем пустая группа снова (issue #327).
+    /// </summary>
+    private static bool HasBasesUnderPath(ISet<string>? basePaths, string path)
+    {
+        if (basePaths is null || basePaths.Count == 0)
+            return false;
+        if (basePaths.Contains(path))
+            return true;
+
+        var prefix = path + GroupHierarchyHelper.PathSeparator;
+        foreach (var p in basePaths)
+        {
+            if (p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>

@@ -25,6 +25,10 @@ public static class AppServices
         services.AddSingleton<IOneCComConnector, OneCComConnector>();
         services.AddSingleton<IPlatformVersionService, PlatformVersionServiceAdapter>();
         services.AddSingleton<IIbasesSyncService, IbasesSyncService>();
+        // Пути удалённых пользователем пустых групп (issue #327): персистентный список
+        // deleted_groups.json рядом с настройками, чтобы импорт из ibases.v8i не возвращал
+        // удалённые пустые группы обратно. Чистый сервис — без UI-зависимостей.
+        services.AddSingleton<IDeletedGroupPathsStore, DeletedGroupPathsStore>();
         services.AddSingleton<ICreateInfobaseService, CreateInfobaseService>();
         // Проверка обновлений конфигураций 1С по web-ресурсу обновлений (функции №21/№22).
         services.AddSingleton<IOneCUpdatesService, OneCUpdatesService>();

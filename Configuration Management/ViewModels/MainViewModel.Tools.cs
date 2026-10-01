@@ -261,7 +261,7 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var importResult = _ibasesSync.Import(filePath, Infobases, Groups);
+            var importResult = _ibasesSync.Import(filePath, Infobases, Groups, _deletedGroupPaths.Load());
 
             InfobasesView.Refresh();
             Save();
@@ -361,7 +361,7 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var result = _ibasesSync.Import(filePath, Infobases, Groups);
+            var result = _ibasesSync.Import(filePath, Infobases, Groups, _deletedGroupPaths.Load());
 
             InfobasesView.Refresh();
             Save();

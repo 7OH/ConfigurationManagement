@@ -27,6 +27,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly IDialogService _dialog;
     private readonly IOneCLauncher _launcher;
     private readonly IIbasesSyncService _sync;
+    private readonly IDeletedGroupPathsStore _deletedGroupPaths;
     private readonly IPlatformVersionService _platformService;
 
     private List<Infobase> _allInfobases = new();
@@ -373,13 +374,15 @@ public partial class MainViewModel : ViewModelBase
         IDialogService dialog,
         IOneCLauncher launcher,
         IIbasesSyncService sync,
-        IPlatformVersionService platformService)
+        IPlatformVersionService platformService,
+        IDeletedGroupPathsStore? deletedGroupPaths = null)
     {
         _repository = repository;
         _logger = logger;
         _dialog = dialog;
         _launcher = launcher;
         _sync = sync;
+        _deletedGroupPaths = deletedGroupPaths ?? new DeletedGroupPathsStore();
         _platformService = platformService;
 
         GroupNodes = new ObservableCollection<GroupNodeViewModel>();
@@ -1809,7 +1812,17 @@ public partial class MainViewModel : ViewModelBase
         if (!_dialog.Confirm(string.Format(LocalizationManager.T("Main.DeleteGroupConfirm"), group.Name)))
             return;
 
+        // Полный путь удаляемой пустой группы запоминаем ДО удаления из коллекции:
+        // после _groups.Remove путь уже не построить. Список защищает группу от
+        // возвращения при синхронизации с ibases.v8i (issue #327).
+        var deletedGroupPath = GroupHierarchyHelper.GetFullPath(group, _groups);
+
         _groups.Remove(group);
+        if (!string.IsNullOrWhiteSpace(deletedGroupPath))
+        {
+            try { _deletedGroupPaths.Add(deletedGroupPath); }
+            catch { /* хранение не должно ломать удаление группы */ }
+        }
         SelectedGroupNode = null;
         SaveGroupsSilently();
         RebuildTree();

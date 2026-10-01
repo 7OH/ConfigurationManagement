@@ -87,6 +87,16 @@ namespace Configuration_Management
             new("Settings.Font.StyleItalic", "Normal", "Italic"),
             new("Settings.Font.StyleBoldItalic", "Bold", "Italic")
         };
+
+        /// <summary>Простой наблюдатель значения (для Text редактируемого поля шрифта).</summary>
+        private sealed class ValueObserver<T> : IObserver<T>
+        {
+            private readonly Action<T> _onNext;
+            public ValueObserver(Action<T> onNext) => _onNext = onNext;
+            public void OnCompleted() { }
+            public void OnError(Exception error) { }
+            public void OnNext(T value) => _onNext(value);
+        }
     }
 }
 #endif
