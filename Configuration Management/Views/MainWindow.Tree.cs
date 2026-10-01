@@ -72,25 +72,29 @@ namespace Configuration_Management
 
         /// <summary>
         /// Базы в видимом порядке строк дерева (сверху вниз, включая строки
-        /// развёрнутых подгрупп). Используется Shift-диапазоном мультивыделения
-        /// (0.3.9.90): порядок строится по контейнерам, как в навигации
-        /// (GetVisibleTreeViewItems). Строки узла «Закреплённые» в диапазон НЕ
-        /// входят (issue #314) — обёртки PinnedInfobaseItem исключаются, а основная
-        /// копия закреплённой базы берётся из её собственной группы.
+        /// развёрнутых подгрупп) ТОЛЬКО в пределах одной секции. Используется
+        /// Shift-диапазоном мультивыделения (0.3.9.90): порядок строится по
+        /// контейнерам, как в навигации (GetVisibleTreeViewItems), а правило
+        /// секций (issue #326) не даёт смешать «Закреплённые» с обычным списком.
         /// </summary>
-        private List<Infobase> VisibleInfobasesInOrder()
+        /// <param name="pinnedSection">
+        /// true — только строки узла «Закреплённые» (обёртки PinnedInfobaseItem,
+        /// разворачиваются до реальной базы); false — только обычные строки
+        /// (Infobase), закреплённые копии исключаются (issue #314).
+        /// </param>
+        private List<Infobase> VisibleInfobasesInOrder(bool pinnedSection)
         {
             var result = new List<Infobase>();
             foreach (var item in GetVisibleTreeViewItems())
             {
                 // Строки узла «Закреплённые» несут обёртку PinnedInfobaseItem
-                // (уникальные данные строки, issue #314) и стоят первыми в видимом
-                // порядке. Из Shift-диапазона они исключаются: иначе любой диапазон
-                // ниже захватывал бы закреплённые копии («Лишнее выделение»).
-                // Основная копия закреплённой базы лежит в её собственной группе и
-                // попадает в порядок там; клик по закреплённой строке как якорю
-                // работает — обработчик разворачивает обёртку до реальной базы.
-                if (item.DataContext is Infobase ib && !result.Contains(ib))
+                // (уникальные данные строки, issue #314), обычные — саму модель.
+                // Берём только строки запрошенной секции (#326): диапазон в одной
+                // секции никогда не захватывает строки другой.
+                var isPinnedRow = Services.BatchSelectionHelper.IsPinnedSection(item.DataContext);
+                if (isPinnedRow != pinnedSection)
+                    continue;
+                if (UnwrapInfobase(item.DataContext) is { } ib && !result.Contains(ib))
                     result.Add(ib);
             }
             return result;

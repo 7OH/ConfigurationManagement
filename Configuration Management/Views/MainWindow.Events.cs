@@ -637,20 +637,29 @@ namespace Configuration_Management
                     // строка помечается вторичным фоном «для выделенных» и попадает
                     // в набор пакетных операций. Закладка (номер Alt+N) ставится
                     // горячей клавишей Ctrl+Shift+P или звёздочкой в строке.
+                    // Секция строки (закреплённая vs обычная) передаётся явно: клик
+                    // в другой секции не смешивает наборы (issue #326).
+                    var isPinnedSection = Services.BatchSelectionHelper.IsPinnedSection(treeViewItem.DataContext);
                     if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
                         && (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
                     {
                         _draggedData = null;
-                        _viewModel.ToggleBatchSelection(infobase, "Ctrl");
+                        _viewModel.ToggleBatchSelection(infobase, "Ctrl", isPinnedSection: isPinnedSection);
                         e.Handled = true;
                         return;
                     }
                     // Shift+щелчок — диапазон от «якоря» (последний клик без Ctrl)
-                    // до текущей строки по видимому порядку дерева (0.3.9.90).
+                    // до текущей строки по видимому порядку ТОЛЬКО в пределах той же
+                    // секции (0.3.9.90, #326): закреплённые строки в диапазон обычного
+                    // списка не попадают и наоборот.
                     if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
                     {
                         _draggedData = null;
-                        _viewModel.SelectRange(_viewModel.SelectedInfobase, infobase, VisibleInfobasesInOrder());
+                        _viewModel.SelectRange(
+                            _viewModel.SelectedInfobase,
+                            infobase,
+                            VisibleInfobasesInOrder(isPinnedSection),
+                            isPinnedSection);
                         e.Handled = true;
                         return;
                     }

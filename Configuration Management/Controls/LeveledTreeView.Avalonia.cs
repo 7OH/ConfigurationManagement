@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
 
 namespace Configuration_Management.Controls
@@ -98,19 +99,25 @@ namespace Configuration_Management.Controls
             // Правый клик набор НЕ трогает (только SelectRow): иначе при правом
             // клике с зажатым Ctrl строка набора снималась бы повторным toggle —
             // из мультивыделения «пропадала первая база» (issue #313).
+            //
+            // Секция строки определяется по данным контейнера (обёртка
+            // PinnedInfobaseItem в узле «Закреплённые»): клик в другой секции
+            // не смешивает наборы, а Shift-диапазон строится только по строкам
+            // той же секции (issue #326).
             var rowBase = row.DataContext switch
             {
                 Infobase ib => ib,
                 PinnedInfobaseItem pinned => pinned.Base,
                 _ => null
             };
+            var isPinnedSection = BatchSelectionHelper.IsPinnedSection(row.DataContext);
             if (rowBase is not null &&
                 point.Properties.IsLeftButtonPressed &&
                 (e.KeyModifiers & KeyModifiers.Control) == KeyModifiers.Control &&
                 (e.KeyModifiers & KeyModifiers.Shift) != KeyModifiers.Shift)
             {
                 if (DataContext is MainViewModel vm)
-                    vm.ToggleBatchSelection(rowBase, "Ctrl");
+                    vm.ToggleBatchSelection(rowBase, "Ctrl", isPinnedSection: isPinnedSection);
                 e.Handled = true;
                 return;
             }
@@ -120,7 +127,11 @@ namespace Configuration_Management.Controls
                 point.Properties.IsLeftButtonPressed)
             {
                 if (DataContext is MainViewModel vm)
-                    vm.SelectRange(vm.SelectedInfobase, rowBase, VisibleInfobasesInOrder());
+                    vm.SelectRange(
+                        vm.SelectedInfobase,
+                        rowBase,
+                        VisibleInfobasesInOrder(isPinnedSection),
+                        isPinnedSection);
                 e.Handled = true;
                 return;
             }
@@ -140,24 +151,30 @@ namespace Configuration_Management.Controls
 
         /// <summary>
         /// Базы в видимом порядке строк дерева (сверху вниз, включая строки
-        /// развёрнутых подгрупп). Используется Shift-диапазоном мультивыделения
-        /// (0.3.9.90) по тем же контейнерам, что и навигация клавишами.
-        /// Строки узла «Закреплённые» в диапазон НЕ входят (issue #314): обёртки
-        /// PinnedInfobaseItem исключаются, основная копия закреплённой базы
-        /// берётся из её собственной группы.
+        /// развёрнутых подгрупп) ТОЛЬКО в пределах одной секции. Используется
+        /// Shift-диапазоном мультивыделения (0.3.9.90) по тем же контейнерам,
+        /// что и навигация клавишами.
         /// </summary>
-        private List<Infobase> VisibleInfobasesInOrder()
+        /// <param name="pinnedSection">
+        /// true — только строки узла «Закреплённые» (обёртки PinnedInfobaseItem,
+        /// разворачиваются до реальной базы); false — только обычные строки
+        /// (Infobase), закреплённые копии исключаются (issue #314). Диапазон
+        /// одной секции никогда не захватывает строки другой (issue #326).
+        /// </param>
+        private List<Infobase> VisibleInfobasesInOrder(bool pinnedSection)
         {
             var result = new List<Infobase>();
             foreach (var row in VisibleRows())
             {
                 // Строки узла «Закреплённые» несут обёртку PinnedInfobaseItem
-                // (issue #301) и стоят первыми в видимом порядке — из Shift-диапазона
-                // они исключаются, иначе любой диапазон ниже захватывал бы
-                // закреплённые копии («Лишнее выделение», issue #314). Основная
-                // копия закреплённой базы лежит в её собственной группе и попадает
-                // в порядок там; клик по закреплённой строке как якорю работает —
+                // (issue #301), обычные — саму модель. Берём только запрошенную
+                // секцию: иначе любой диапазон ниже захватывал бы закреплённые
+                // копии («Лишнее выделение», issue #314) или смешивал секции
+                // (issue #326). Клик по закреплённой строке как якорю работает —
                 // обработчик разворачивает обёртку до реальной базы.
+                var isPinnedRow = BatchSelectionHelper.IsPinnedSection(row.DataContext);
+                if (isPinnedRow != pinnedSection)
+                    continue;
                 if (row.DataContext is Infobase ib && !result.Contains(ib))
                     result.Add(ib);
             }

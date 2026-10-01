@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 
 namespace Configuration_Management.ViewModels;
 
@@ -17,10 +18,23 @@ namespace Configuration_Management.ViewModels;
 /// Ctrl. При Shift-клике диапазон строится от него до цели по видимому порядку
 /// строк (порядок передаёт UI — только он знает свёрнутые группы и вкладки).
 /// </para>
+/// <para>
+/// Секции дерева (issue #326): узел «Закреплённые» и обычный список не смешиваются
+/// в одном наборе. Клик в другой секции очищает текущий набор и начинает новый —
+/// признак секции строки под кликом передаёт UI
+/// (<see cref="BatchSelectionHelper.IsPinnedSection"/>), секция текущего набора
+/// хранится в <see cref="_batchSectionIsPinned"/>.
+/// </para>
 /// </summary>
 public partial class MainViewModel
 {
     private readonly HashSet<string> _batchSelectedIds = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Секция текущего набора «для выделенных»: true — «Закреплённые»,
+    /// false — обычный список, null — набор пуст (issue #326).
+    /// </summary>
+    private bool? _batchSectionIsPinned;
 
     /// <summary>
     /// Событие изменения набора «для выделенных». Поднимается после любого
@@ -53,54 +67,68 @@ public partial class MainViewModel
     /// Пустая строка/null — как Ctrl (точечное переключение).
     /// </param>
     /// <param name="visibleOrder">
-    /// Видимый порядок строк дерева (для Shift-диапазона). Передаёт UI.
+    /// Видимый порядок строк дерева в пределах секции цели (для Shift-диапазона).
+    /// Передаёт UI.
     /// </param>
-    public void ToggleBatchSelection(Infobase? ib, string? modifier, IReadOnlyList<Infobase>? visibleOrder = null)
+    /// <param name="isPinnedSection">
+    /// Секция строки под кликом: true — «Закреплённые» (issue #326). Признак
+    /// берётся из данных контейнера (<see cref="BatchSelectionHelper.IsPinnedSection"/>).
+    /// </param>
+    public void ToggleBatchSelection(Infobase? ib, string? modifier,
+        IReadOnlyList<Infobase>? visibleOrder = null, bool isPinnedSection = false)
     {
-        if (ib is null)
+        if (ib is null || ib.Id is not { Length: > 0 })
             return;
 
         if (string.Equals(modifier, "Shift", StringComparison.OrdinalIgnoreCase))
         {
-            SelectRange(SelectedInfobase, ib, visibleOrder);
+            SelectRange(SelectedInfobase, ib, visibleOrder, isPinnedSection);
             return;
         }
 
-        SetBatchSelected(ib, !_batchSelectedIds.Contains(ib.Id));
+        var next = BatchSelectionHelper.ApplyModifiedClick(
+            _batchSelectedIds,
+            _batchSectionIsPinned ?? false,
+            ib.Id,
+            isPinnedSection,
+            "Ctrl");
+        ApplyBatchSet(next, isPinnedSection);
         RaiseBatchSelectionChanged();
     }
 
     /// <summary>
-    /// Выделяет диапазон баз от «якоря» до цели по видимому порядку строк.
-    /// Если якорь не задан или не найден в порядке — выбирается только цель.
+    /// Выделяет диапазон баз от «якоря» до цели по видимому порядку строк
+    /// в пределах секции цели. Если якорь не задан, не найден в порядке или
+    /// набор был в другой секции — выбирается только цель.
     /// </summary>
     /// <param name="from">Якорь (последний клик без Ctrl) или null.</param>
     /// <param name="to">Цель (база под Shift-кликом).</param>
-    /// <param name="visibleOrder">Видимый порядок строк дерева (передаёт UI).</param>
-    public void SelectRange(Infobase? from, Infobase? to, IReadOnlyList<Infobase>? visibleOrder = null)
+    /// <param name="visibleOrder">Видимый порядок строк дерева в пределах секции (передаёт UI).</param>
+    /// <param name="isPinnedSection">Секция строки под кликом (issue #326).</param>
+    public void SelectRange(Infobase? from, Infobase? to,
+        IReadOnlyList<Infobase>? visibleOrder = null, bool isPinnedSection = false)
     {
-        if (to is null)
+        if (to is null || to.Id is not { Length: > 0 })
             return;
 
         var order = visibleOrder;
         if (order is null || order.Count == 0)
             order = Infobases.ToList();
 
-        var iFrom = from is null ? -1 : IndexOfReference(order, from);
-        var iTo = IndexOfReference(order, to);
-        if (iFrom < 0 || iTo < 0)
-        {
-            // Якоря нет или одна из границ вне списка: выбираем только цель,
-            // как делает проводник при Shift-клике без активного якоря.
-            SetBatchSelected(to, true);
-            RaiseBatchSelectionChanged();
-            return;
-        }
+        var orderIds = order
+            .Select(ib => ib.Id)
+            .Where(id => id is { Length: > 0 })
+            .ToList();
 
-        var lo = Math.Min(iFrom, iTo);
-        var hi = Math.Max(iFrom, iTo);
-        for (var i = lo; i <= hi; i++)
-            SetBatchSelected(order[i], true);
+        var next = BatchSelectionHelper.ApplyModifiedClick(
+            _batchSelectedIds,
+            _batchSectionIsPinned ?? false,
+            to.Id,
+            isPinnedSection,
+            "Shift",
+            orderIds,
+            from?.Id);
+        ApplyBatchSet(next, isPinnedSection);
         RaiseBatchSelectionChanged();
     }
 
@@ -110,21 +138,26 @@ public partial class MainViewModel
         if (_batchSelectedIds.Count == 0)
             return;
         _batchSelectedIds.Clear();
+        _batchSectionIsPinned = null;
         SyncBatchFlags();
         RaiseBatchSelectionChanged();
     }
 
+    /// <summary>
+    /// Применяет вычисленный хелпером набор к хранилищу идентификаторов и флагам
+    /// строк, запоминает секцию набора (issue #326).
+    /// </summary>
+    private void ApplyBatchSet(IReadOnlyCollection<string> next, bool sectionIsPinned)
+    {
+        _batchSelectedIds.Clear();
+        foreach (var id in next)
+            _batchSelectedIds.Add(id);
+        SyncBatchFlags();
+        _batchSectionIsPinned = next.Count > 0 ? sectionIsPinned : null;
+    }
+
     /// <summary>Есть ли хотя бы одна база в мультивыделении.</summary>
     public bool HasBatchSelection => _batchSelectedIds.Count > 0;
-
-    private void SetBatchSelected(Infobase ib, bool selected)
-    {
-        if (selected)
-            _batchSelectedIds.Add(ib.Id);
-        else
-            _batchSelectedIds.Remove(ib.Id);
-        ib.IsBatchSelected = selected;
-    }
 
     /// <summary>
     /// Приводит флаг <see cref="Infobase.IsBatchSelected"/> всех баз в соответствие
@@ -139,13 +172,5 @@ public partial class MainViewModel
     private void RaiseBatchSelectionChanged()
     {
         BatchSelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private static int IndexOfReference(IReadOnlyList<Infobase> list, Infobase target)
-    {
-        for (var i = 0; i < list.Count; i++)
-            if (ReferenceEquals(list[i], target))
-                return i;
-        return -1;
     }
 }
