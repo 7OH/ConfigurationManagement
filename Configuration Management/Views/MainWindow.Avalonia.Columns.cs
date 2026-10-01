@@ -650,12 +650,33 @@ namespace Configuration_Management
                 grid.ColumnDefinitions[row].Width = new GridLength(width);
             }
 
-            // Минимум области считается заново: иначе после сужения колонки
-            // прокручиваемая область осталась бы прежней ширины с пустотой справа.
-            UpdateListMinWidth();
+            // Минимум области пересчитывается отложенно (дебаунс): во время
+            // перетаскивания PointerMoved приходит часто, а полный пересчёт на каждый
+            // шаг дёргал бы раскладку. Полоса прокрутки обновляется живьём — один
+            // вызов в очереди диспетчера собирает все движения кадра (issue #309).
+            QueueListMinWidthRefresh();
             // И заново выравнивается шапка: новая ширина колонки меняет и общую
             // ширину сеток, от равенства которой зависит совпадение колонок.
             QueueHeaderAlign();
+        }
+
+        /// <summary>
+        /// Ставит пересчёт минимальной ширины списка в очередь диспетчера (дебаунс,
+        /// issue #309): собирает частые движения указателя при перетаскивании
+        /// разделителя колонок в один пересчёт на кадр (Background). Полоса
+        /// горизонтальной прокрутки расширяется/сужается ЖИВЬЁМ, пока колонку тянут
+        /// за край видимой области, а не только после отпускания кнопки.
+        /// </summary>
+        private void QueueListMinWidthRefresh()
+        {
+            if (_listMinWidthQueued)
+                return;
+            _listMinWidthQueued = true;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                _listMinWidthQueued = false;
+                UpdateListMinWidth();
+            }, Avalonia.Threading.DispatcherPriority.Background);
         }
 
         /// <summary>

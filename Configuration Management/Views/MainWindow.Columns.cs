@@ -697,6 +697,14 @@ namespace Configuration_Management
         /// </summary>
         private double _treeMinWidthContent;
 
+        /// <summary>
+        /// Флаг очереди пересчёта минимальной ширины списка (дебаунс, issue #309):
+        /// ручное перетаскивание разделителя колонок генерирует MouseMove десятки раз
+        /// в секунду, и полный пересчёт на каждое движение нагружал бы раскладку.
+        /// Один отложенный вызов на проход диспетчера собирает все движения кадра.
+        /// </summary>
+        private bool _treeMinWidthQueued;
+
         /// <summary>Данные верхней видимой строки при последнем замере <see cref="_treeMinWidthContent"/>.</summary>
         private object? _treeMinWidthAnchorData;
 
@@ -810,6 +818,30 @@ namespace Configuration_Management
             }
         }
 
+        /// <summary>
+        /// Ставит пересчёт минимальной ширины списка в очередь диспетчера (дебаунс,
+        /// issue #309): вызывается из MouseMove ручного перетаскивания разделителя
+        /// колонок и исполняется один раз на проход (Background), когда binding уже
+        /// применил новую ширину колонок к заголовку и строкам. Так горизонтальная
+        /// полоса прокрутки расширяется/сужается ЖИВЬЁМ во время перетаскивания,
+        /// а не только после отпускания мыши (раньше полный пересчёт выполнялся лишь
+        /// в MouseUp). Дорогой замер фактической ширины строк
+        /// (<see cref="UpdateTreeMinWidthContent"/>) остаётся только на завершении
+        /// перетаскивания — горячий путь не нагружается (анти-регресс #255).
+        /// </summary>
+        private void QueueTreeMinWidthRefresh()
+        {
+            if (_treeMinWidthQueued)
+                return;
+            _treeMinWidthQueued = true;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _treeMinWidthQueued = false;
+                UpdateTreeMinWidth();
+                SyncHeaderWidthWithList();
+            }), System.Windows.Threading.DispatcherPriority.Background);
+        }
+
         /// <summary>Спецификация колонки заголовка для расчёта минимальной ширины.</summary>
         private static ListMinWidthCalculator.Column HeaderColumnSpec(ColumnDefinition d)
             => new(
@@ -910,18 +942,21 @@ namespace Configuration_Management
             {
                 // SizeColumnWidth имеет публичный сеттер и авто-сохраняется при изменении.
                 _viewModel.SizeColumnWidth = newWidth;
+                QueueTreeMinWidthRefresh();
                 return;
             }
             if (ReferenceEquals(_resizeColumn, ModifiedColumn))
             {
                 // ModifiedColumnWidth имеет публичный сеттер и авто-сохраняется при изменении.
                 _viewModel.ModifiedColumnWidth = newWidth;
+                QueueTreeMinWidthRefresh();
                 return;
             }
             if (ReferenceEquals(_resizeColumn, LastBackupColumn))
             {
                 // LastBackupColumnWidth имеет публичный сеттер и авто-сохраняется при изменении.
                 _viewModel.LastBackupColumnWidth = newWidth;
+                QueueTreeMinWidthRefresh();
                 return;
             }
 
@@ -934,6 +969,11 @@ namespace Configuration_Management
                 ReferenceEquals(_resizeColumn, ServerColumn) ? newWidth : ServerColumn?.ActualWidth ?? 0,
                 ReferenceEquals(_resizeColumn, LastLaunchColumn) ? newWidth : LastLaunchColumn?.ActualWidth ?? 0,
                 ReferenceEquals(_resizeColumn, ActionsColumn) ? newWidth : ActionsColumn?.ActualWidth ?? 0);
+
+            // Живой пересчёт минимума во время перетаскивания (дебаунс, issue #309):
+            // полоса горизонтальной прокрутки расширяется сразу, пока колонку тянут
+            // за край видимой области, а не только после отпускания мыши.
+            QueueTreeMinWidthRefresh();
         }
 
         /// <summary>

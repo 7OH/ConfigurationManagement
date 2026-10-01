@@ -219,4 +219,54 @@ public sealed class ListMinWidthCalculatorTests
 
         Assert.Equal(470, total);
     }
+
+    /// <summary>
+    /// Сценарий issue #309 (ручное перетаскивание колонок): пользователь раздвинул
+    /// колонки шире исходных («взял 4 колонки сразу — подвинул за край видимости») —
+    /// сумма ширин растёт, и минимум обязан вырасти вместе с ней, иначе полоса
+    /// горизонтальной прокрутки не расширится и раздвинутые колонки останутся
+    /// недоступными по прокрутке.
+    /// </summary>
+    [Fact]
+    public void Compute_ColumnsResizedWider_MinWidthGrows()
+    {
+        var leading = new[] { C(24), C(26) };
+        // До перетаскивания: колонки узкие, сумма помещается во вьюпорт.
+        var before = new[] { C(120), C(80) };
+        var totalBefore = ListMinWidthCalculator.Compute(220, 220, leading, 0, before);
+
+        // После перетаскивания: те же колонки стали заметно шире.
+        var after = new[] { C(340), C(260) };
+        var totalAfter = ListMinWidthCalculator.Compute(220, 220, leading, 0, after);
+
+        Assert.Equal(220 + 50 + 200, totalBefore);
+        Assert.Equal(220 + 50 + 600, totalAfter);
+        Assert.True(totalAfter > totalBefore, "После расширения колонок минимум должен вырасти.");
+
+        const double viewport = 500;
+        Assert.True(totalAfter > viewport, "Расширенные колонки не помещаются — полоса обязана появиться.");
+    }
+
+    /// <summary>
+    /// Обратный сценарий issue #309: колонку сузили перетаскиванием — сумма колонок
+    /// падает, и минимум не должен «застревать» на прежней широкой величине (иначе
+    /// после сужения оставалась бы пустая область справа с лишней полосой).
+    /// </summary>
+    [Fact]
+    public void Compute_ColumnsResizedNarrower_MinWidthShrinks()
+    {
+        var leading = new[] { C(24), C(26) };
+        var wide = new[] { C(340), C(260) };
+        var narrow = new[] { C(120), C(80) };
+
+        var totalWide = ListMinWidthCalculator.Compute(220, 220, leading, 0, wide);
+        var totalNarrow = ListMinWidthCalculator.Compute(220, 220, leading, 0, narrow);
+
+        Assert.Equal(220 + 50 + 600, totalWide);
+        Assert.Equal(220 + 50 + 200, totalNarrow);
+        Assert.True(totalNarrow < totalWide, "После сужения колонок минимум должен уменьшаться.");
+
+        const double viewport = 500;
+        Assert.True(totalNarrow <= viewport, "Суженные колонки помещаются — ложной полосы нет.");
+    }
 }

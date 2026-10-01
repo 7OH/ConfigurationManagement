@@ -98,6 +98,14 @@ namespace Configuration_Management
         private bool _syncingScrollBar;
         private bool _columnHeaderRefreshQueued;
         private bool _headerAlignQueued;
+
+        /// <summary>
+        /// Флаг очереди пересчёта минимальной ширины списка (дебаунс, issue #309):
+        /// ручное перетаскивание разделителя колонок приходит PointerMoved десятки раз
+        /// в секунду, и синхронный пересчёт на каждое движение нагружал бы раскладку.
+        /// Один отложенный вызов в очереди диспетчера собирает движения за кадр.
+        /// </summary>
+        private bool _listMinWidthQueued;
         private readonly Dictionary<string, int> _headerColumnIndex = new(StringComparer.Ordinal);
         private object? _dragPayload;
         private Point _dragStartPoint;
