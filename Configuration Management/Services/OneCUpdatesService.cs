@@ -279,7 +279,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <c>*setup*.zip</c> и возвращает максимальную версию, извлечённую из имён файлов.
     /// При невозможности распарсить ни одну версию возвращает пустую строку.
     /// </summary>
-    private static string ParseLatestVersion(string html)
+    internal static string ParseLatestVersion(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
@@ -320,7 +320,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// переносам строк. Если таблица не найдена — как запасной вариант ищет первую ссылку
     /// <c>version_files?...&ver=</c> во всём HTML. Возвращает найденную версию или пустую строку.
     /// </summary>
-    private static string ParseLatestVersionFromProjectHtml(string html)
+    internal static string ParseLatestVersionFromProjectHtml(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
@@ -396,41 +396,53 @@ public class OneCUpdatesService : IOneCUpdatesService
         return bestText;
     }
 
-    /// <summary>Извлекает подстроку версии из имени файла дистрибутива (устойчиво к префиксам).</summary>
+    /// <summary>
+    /// Извлекает подстроку версии из имени файла дистрибутива (устойчиво к префиксам).
+    /// Пропускает цифровые группы без точек («1c», «setup_2…», префиксы) и возвращает
+    /// первую группу вида «3.0.13.7» (суффиксы «.zip»/«.rar» отбрасываются).
+    /// </summary>
     private static string ExtractVersionFromFileName(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
             return string.Empty;
 
-        var start = -1;
-        for (var i = 0; i < fileName.Length; i++)
+        var i = 0;
+        while (i < fileName.Length)
         {
-            if (char.IsDigit(fileName[i]))
-            {
-                start = i;
+            while (i < fileName.Length && !char.IsDigit(fileName[i]))
+                i++;
+            if (i >= fileName.Length)
                 break;
+
+            var start = i;
+            var end = fileName.Length;
+            for (var j = start; j < fileName.Length; j++)
+            {
+                var c = fileName[j];
+                if (c is ' ' or '_' or '-' or '+' or '\\' or '/')
+                {
+                    end = j;
+                    break;
+                }
             }
+
+            var candidate = fileName.Substring(start, end - start);
+            // Отбрасываем хвостовые суффиксы вида «.zip»/«.rar»/«setup» и прочие нечисловые хвосты:
+            // версия обычно выглядит как «3.0.142.32», и суффикс не должен мешать парсингу.
+            var lastDot = candidate.LastIndexOf('.');
+            if (lastDot > 0 && lastDot < candidate.Length - 1)
+            {
+                var tail = candidate.Substring(lastDot + 1);
+                if (tail.Length > 0 && !char.IsDigit(tail[0]))
+                    candidate = candidate.Substring(0, lastDot);
+            }
+            if (candidate.Contains('.'))
+                return candidate;
+
+            i = end;
         }
 
-        if (start < 0)
-            return string.Empty;
-
-        var end = fileName.Length;
-        for (var i = start; i < fileName.Length; i++)
-        {
-            var c = fileName[i];
-            if (c is ' ' or '_' or '-' or '+' or '\\' or '/')
-            {
-                end = i;
-                break;
-            }
-        }
-
-        var candidate = fileName.Substring(start, end - start);
-        // Версия обычно выглядит как «3.0.142.32» — отбрасываем хвост без точек.
-        if (!candidate.Contains('.'))
-            return string.Empty;
-        return candidate;
+        return string.Empty;
     }
 
     /// <summary>

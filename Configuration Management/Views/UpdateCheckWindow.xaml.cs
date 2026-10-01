@@ -71,6 +71,12 @@ public partial class UpdateCheckWindow : Window
         try
         {
             var config = FindLinkedConfig();
+            // Явное связывание (UpdateConfigCode) — приоритет. Если связи нет, но свойства
+            // конфигурации базы определены (вкладка «Платформа»), строим каталог релизов из них:
+            // типовая конфигурация подбирается автоматически по имени (issue #323).
+            if (config is null && !string.IsNullOrWhiteSpace(_infobase.ConfigurationName))
+                config = ConfigTypeMatcher.FindByInfobaseName(_store.LoadAll(), _infobase.ConfigurationName);
+
             var url = _updates.BuildUpdateUrl(config, config?.DefaultEdition, _infobase.UpdateUrlOverride,
                 _infobase.UpdateUrlSegment);
             _row.Url = url;
@@ -157,12 +163,27 @@ public partial class UpdateCheckWindow : Window
         return LocalizationManager.T(error);
     }
 
-    /// <summary>Пояснение при пустом адресе каталога релизов: различает «база не связана» и «нет адреса».</summary>
+    /// <summary>
+    /// Пояснение при пустом адресе каталога релизов: различает «база не связана», «у конфигурации
+    /// нет ника на releases.1c.ru» и «нет адреса» (issue #323).
+    /// </summary>
     private string EmptyUrlMessage()
     {
-        if (string.IsNullOrWhiteSpace(_infobase.UpdateConfigCode))
-            return LocalizationManager.T("Updates.NoLink");
-        return LocalizationManager.T("Updates.NoUrl");
+        if (!string.IsNullOrWhiteSpace(_infobase.UpdateConfigCode))
+        {
+            var config = FindLinkedConfig();
+            if (config is not null && string.IsNullOrWhiteSpace(config.Nick))
+                return string.Format(LocalizationManager.T("Updates.NoNick"), config.Name);
+            return LocalizationManager.T("Updates.NoUrl");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_infobase.ConfigurationName))
+        {
+            var config = ConfigTypeMatcher.FindByInfobaseName(_store.LoadAll(), _infobase.ConfigurationName);
+            if (config is not null && string.IsNullOrWhiteSpace(config.Nick))
+                return string.Format(LocalizationManager.T("Updates.NoNick"), config.Name);
+        }
+        return LocalizationManager.T("Updates.NoLink");
     }
 
     /// <summary>
