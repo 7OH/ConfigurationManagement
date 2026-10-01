@@ -1145,7 +1145,9 @@
                             </Button>
                         </Grid>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Connection.ConfigurationLabel}" VerticalAlignment="Center" Margin="0,6,0,3"/>
+                        <!-- Issue #325: подпись прижата к верхней линии полей конфигурации,
+                             чтобы было понятно, к чему относятся два поля (имя/№ релиза). -->
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Connection.ConfigurationLabel}" VerticalAlignment="Top" Margin="0,6,0,3"/>
                         <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,6,0,3">
                             <Grid>
                                 <Grid.ColumnDefinitions>

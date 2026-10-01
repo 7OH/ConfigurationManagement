@@ -1084,7 +1084,9 @@ namespace Configuration_Management
             };
             ThemeBrushes.Bind(configHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
             configStack.Children.Add(configHint);
-            Place(fields, 1, "Connection.ConfigurationLabel", configStack);
+            // Issue #325: подпись прижимаем к верхней линии полей конфигурации (по умолчанию
+            // Place центрирует по всей высоте блока, и «Конфигурация» оказывалась посередине).
+            Place(fields, 1, "Connection.ConfigurationLabel", configStack, labelAlignment: VerticalAlignment.Top);
 
             var parameters = Tb("LaunchParameters");
             parameters.Padding = new Thickness(8, 6);

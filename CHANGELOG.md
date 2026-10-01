@@ -9,6 +9,22 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.235] — 2026-10-01
+
+### Исправлено
+
+- **Подпись «Конфигурация» в окне свойств базы висела низко, между полями (issue #325)** —
+  на вкладке «Платформа» окна «Параметры подключения» подпись
+  [`Connection.ConfigurationLabel`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml)
+  выравнивалась по центру всей строки блока (два поля, кнопка «Определить», подсказка),
+  поэтому визуально «отрывалась» от полей конфигурации. Подпись прижата к верхней линии
+  полей (`VerticalAlignment="Top"`), чтобы было понятно, что два поля ниже — это имя
+  конфигурации и № релиза. Обе платформы: WPF
+  ([`ConnectionSettingsWindow.xaml`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml))
+  и Avalonia
+  ([`ConnectionSettingsWindow.Avalonia.cs`](Configuration%20Management/Views/ConnectionSettingsWindow.Avalonia.cs),
+  у `Place` для этой строки задано `labelAlignment: Top`).
+
 ## [0.3.9.234] — 2026-10-01
 
 ### Исправлено
