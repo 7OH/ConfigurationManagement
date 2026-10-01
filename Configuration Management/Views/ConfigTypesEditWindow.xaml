@@ -176,6 +176,8 @@
                                         ElementStyle="{StaticResource CenteredCellText}"/>
                     <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.UrlCode}" Binding="{Binding UrlCode}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Nick}" Binding="{Binding Nick}"
+                                        ElementStyle="{StaticResource CenteredCellText}"/>
                     <DataGridTextColumn Width="*" Header="{loc:Loc Updates.Editions}" Binding="{Binding EditionsSummary}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>
 
@@ -203,19 +205,15 @@
                     <DataGridTemplateColumn Width="44">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
+                                <!-- Правка доступна и для предопределённых (issue #321): изменение
+                                     встроенной строки создаёт пользовательскую копию-переопределение,
+                                     а «Восстановить типовые» возвращает предопределённый набор. -->
                                 <Button x:Name="EditButton" Style="{StaticResource SelectAllButtonStyle}"
                                         Command="{Binding EditCommand}"
                                         ToolTip="{loc:Loc Updates.Edit}">
                                     <materialDesign:PackIcon Kind="PencilOutline" Width="16" Height="16"
                                                              Foreground="{DynamicResource AccentBrush}"/>
                                 </Button>
-                                <!-- Предопределённые конфигурации только для чтения: кнопка
-                                     «Изменить» для них скрыта (issue #321). -->
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
-                                        <Setter TargetName="EditButton" Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -223,12 +221,20 @@
                     <DataGridTemplateColumn Width="44">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Style="{StaticResource SelectAllButtonStyle}"
+                                <Button x:Name="DeleteButton" Style="{StaticResource SelectAllButtonStyle}"
                                         Command="{Binding DeleteCommand}"
                                         ToolTip="{loc:Loc Updates.Delete}">
                                     <materialDesign:PackIcon Kind="TrashCanOutline" Width="16" Height="16"
                                                              Foreground="#EF4444"/>
                                 </Button>
+                                <!-- Предопределённые конфигурации не удаляются (issue #321):
+                                     их можно только дополнить правкой или восстановить кнопкой
+                                     «Восстановить типовые». -->
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
+                                        <Setter TargetName="DeleteButton" Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -244,13 +250,23 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0" Height="36" HorizontalAlignment="Left" Style="{StaticResource PrimaryButtonStyle}"
-                    Click="OnAddConfigClick">
-                <StackPanel Orientation="Horizontal">
-                    <materialDesign:PackIcon Kind="Plus" Width="16" Height="16" Foreground="White"/>
-                    <TextBlock Text="{loc:Loc Updates.AddConfig}" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="White"/>
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button Height="36" Style="{StaticResource PrimaryButtonStyle}" Click="OnAddConfigClick">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Plus" Width="16" Height="16" Foreground="White"/>
+                        <TextBlock Text="{loc:Loc Updates.AddConfig}" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="White"/>
+                    </StackPanel>
+                </Button>
+                <!-- Восстановление предопределённого набора (issue #321): убирает пользовательские
+                     копии встроенных конфигураций, обычные пользовательские записи не трогает. -->
+                <Button Height="36" Margin="10,0,0,0" Style="{StaticResource OutlineButtonStyle}"
+                        Click="OnRestoreDefaultsClick">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Restore" Width="16" Height="16"/>
+                        <TextBlock Text="{loc:Loc Updates.RestoreDefaults}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Width="120" Height="36" Style="{StaticResource OutlineButtonStyle}" Click="OnClose_Click">

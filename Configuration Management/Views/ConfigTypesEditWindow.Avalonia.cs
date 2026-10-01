@@ -101,7 +101,7 @@ namespace Configuration_Management
         /// <summary>Строит визуальную строку таблицы конфигураций.</summary>
         private Grid BuildRow(ConfigTypeItemViewModel row, int index)
         {
-            var grid = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            var grid = new Grid { Margin = new Thickness(0, 2, 0, 2), Focusable = true };
 
             // Подсветка только нечётных строк (1-я, 3-я, 5-я…): индекс строки начинается с 0,
             // поэтому нечётной позиции соответствует чётный индекс. Hover подсвечивает текущую строку.
@@ -112,6 +112,18 @@ namespace Configuration_Management
             grid.PointerEntered += (_, _) => grid.Background = hoverBrush;
             grid.PointerExited += (_, _) => grid.Background = bandBrush;
 
+            // DEL на сфокусированной пользовательской строке удаляет её (issue #321).
+            if (!row.IsBuiltIn)
+                grid.KeyDown += (_, e) =>
+                {
+                    if (e.Key == Avalonia.Input.Key.Delete)
+                    {
+                        e.Handled = true;
+                        OnDeleteRow(row);
+                    }
+                };
+
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(3, GridUnitType.Star)));
@@ -140,6 +152,16 @@ namespace Configuration_Management
             Grid.SetColumn(urlCode, 1);
             grid.Children.Add(urlCode);
 
+            var nick = new TextBlock
+            {
+                Text = row.Nick,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 8, 0)
+            };
+            Grid.SetColumn(nick, 2);
+            grid.Children.Add(nick);
+
             var editions = new TextBlock
             {
                 Text = row.EditionsSummary,
@@ -147,25 +169,25 @@ namespace Configuration_Management
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 8, 0)
             };
-            Grid.SetColumn(editions, 2);
+            Grid.SetColumn(editions, 3);
             grid.Children.Add(editions);
 
-            // Предопределённые конфигурации только для чтения: кнопки «Изменить»/«Удалить»
-            // для них не выводятся (issue #321).
+            // Кнопка «Изменить» доступна для всех строк (issue #321): правка предопределённой
+            // создаёт пользовательскую копию-переопределение. «Удалить» — только у пользовательских.
+            var edit = new Button
+            {
+                Content = T("Updates.Edit"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(10, 4),
+                Margin = new Thickness(4, 0, 4, 0)
+            };
+            edit.Styled(ControlThemes.SelectAllButton);
+            edit.Click += (_, _) => OnEditRow(row);
+            Grid.SetColumn(edit, 4);
+            grid.Children.Add(edit);
+
             if (!row.IsBuiltIn)
             {
-                var edit = new Button
-                {
-                    Content = T("Updates.Edit"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Padding = new Thickness(10, 4),
-                    Margin = new Thickness(4, 0, 4, 0)
-                };
-                edit.Styled(ControlThemes.SelectAllButton);
-                edit.Click += (_, _) => OnEditRow(row);
-                Grid.SetColumn(edit, 3);
-                grid.Children.Add(edit);
-
                 var delete = new Button
                 {
                     Content = T("Updates.Delete"),
@@ -175,24 +197,39 @@ namespace Configuration_Management
                 };
                 delete.Styled(ControlThemes.SelectAllButton);
                 delete.Click += (_, _) => OnDeleteRow(row);
-                Grid.SetColumn(delete, 4);
+                Grid.SetColumn(delete, 5);
                 grid.Children.Add(delete);
             }
 
             return grid;
         }
 
-        /// <summary>Открывает отдельное окно правки пользовательской конфигурации.</summary>
+        /// <summary>
+        /// Открывает отдельное окно правки конфигурации. Правка предопределённой строки создаёт
+        /// пользовательскую копию-переопределение с тем же кодом (статические экземпляры
+        /// <see cref="BuiltInConfigTypes"/> не мутируются — issue #321); обычная пользовательская
+        /// строка правится на месте.
+        /// </summary>
         private void OnEditRow(ConfigTypeItemViewModel row)
         {
-            if (row.IsBuiltIn)
-                return; // Предопределённые конфигурации только для чтения.
-
-            var edit = new ConfigTypeEditWindow(row.Model);
+            var edit = new ConfigTypeEditWindow(CloneType(row.Model));
             if (!edit.ShowSync(this) || edit.Result is not { } updated)
                 return; // Отмена — модель не изменялась (правка велась на копии).
 
-            ApplyTo(row.Model, updated);
+            if (row.IsBuiltIn)
+            {
+                // Правка встроенной строки: сохраняем как пользовательскую копию (тот же код),
+                // которая в общем списке LoadAll() заменяет предопределённую.
+                updated.IsBuiltIn = false;
+                updated.OverridesBuiltIn = true;
+                _customTypes.RemoveAll(c => SameCode(c.Code, updated.Code) && c.OverridesBuiltIn);
+                _customTypes.Add(updated);
+            }
+            else
+            {
+                ApplyTo(row.Model, updated);
+            }
+
             Save();
             RebuildRows();
         }
@@ -206,9 +243,46 @@ namespace Configuration_Management
 
             created.IsBuiltIn = false;
             created.IsTracked = true;
+            created.OverridesBuiltIn = false;
+
+            // Уникальность по составному ключу «наименование + редакции» (issue #321): несколько
+            // записей одной конфигурации допустимы (ЗУП 3.0 и 3.1), точные дубли — нет.
+            if (HasDuplicate(created))
+            {
+                _dialogs.ShowWarning(T("Updates.ConfigExists"), T("Updates.ConfigTypesTitle"));
+                return;
+            }
+
             _customTypes.Add(created);
             Save();
             RebuildRows();
+        }
+
+        /// <summary>
+        /// «Восстановить типовые» (issue #321): удаляет пользовательские копии предопределённых
+        /// конфигураций (<see cref="OneCConfigType.OverridesBuiltIn"/>) — предопределённый набор
+        /// возвращается к <see cref="BuiltInConfigTypes.All"/>, пользовательские записи не трогаются.
+        /// </summary>
+        private void OnRestoreDefaultsClick()
+        {
+            if (_customTypes.Count == 0 || !_customTypes.Any(c => c.OverridesBuiltIn))
+            {
+                _dialogs.ShowInfo(T("Updates.NothingToRestore"), T("Updates.ConfigTypesTitle"));
+                return;
+            }
+
+            if (!_dialogs.Confirm(T("Updates.RestoreDefaultsConfirm"), T("Updates.ConfigTypesTitle")))
+                return;
+            try
+            {
+                _store.RestoreDefaults();
+                LoadCustomTypes();
+                RebuildRows();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Ошибка восстановления предопределённого набора типовых конфигураций", ex);
+            }
         }
 
         private void OnDeleteRow(ConfigTypeItemViewModel row)
@@ -253,6 +327,57 @@ namespace Configuration_Management
             target.Nick = source.Nick;
             target.Editions.Clear();
             target.Editions.AddRange(source.Editions);
+        }
+
+        /// <summary>Глубокая копия конфигурации (для правки без мутации исходного экземпляра).</summary>
+        private static OneCConfigType CloneType(OneCConfigType source) => new()
+        {
+            Code = source.Code,
+            Name = source.Name,
+            UrlCode = source.UrlCode,
+            Nick = source.Nick,
+            IsBuiltIn = source.IsBuiltIn,
+            IsTracked = source.IsTracked,
+            OverridesBuiltIn = source.OverridesBuiltIn,
+            Editions = source.Editions.Select(e => new OneCConfigEdition
+            {
+                Name = e.Name,
+                Red = e.Red,
+                SubRed = e.SubRed,
+                UrlOverride = e.UrlOverride,
+            }).ToList(),
+        };
+
+        /// <summary>Сравнивает коды конфигураций без учёта регистра.</summary>
+        private static bool SameCode(string? a, string? b) =>
+            !string.IsNullOrWhiteSpace(a) && !string.IsNullOrWhiteSpace(b) &&
+            string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Проверка дубля по составному ключу «наименование + редакции» (issue #321): дублем
+        /// считается запись с тем же наименованием и тем же набором редакций (в любом порядке).
+        /// Разные редакции одной конфигурации (ЗУП 3.0 и 3.1) дублями не считаются.
+        /// </summary>
+        private bool HasDuplicate(OneCConfigType candidate)
+        {
+            foreach (var existing in BuiltInConfigTypes.All.Concat(_customTypes))
+            {
+                if (string.Equals(existing.Name.Trim(), candidate.Name.Trim(), StringComparison.OrdinalIgnoreCase)
+                    && SameEditions(existing.Editions, candidate.Editions))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool SameEditions(IReadOnlyCollection<OneCConfigEdition> a, IReadOnlyCollection<OneCConfigEdition> b)
+        {
+            if (a.Count != b.Count)
+                return false;
+            var namesA = a.Select(e => e.Name.Trim()).Where(n => n.Length > 0)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+            var namesB = b.Select(e => e.Name.Trim()).Where(n => n.Length > 0)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+            return namesA.SequenceEqual(namesB, StringComparer.OrdinalIgnoreCase);
         }
 
         private Control BuildRoot()
@@ -321,6 +446,12 @@ namespace Configuration_Management
             addButton.Styled(ControlThemes.ModernButton);
             addButton.Click += (_, _) => OnAddConfigClick();
 
+            // «Восстановить типовые» (issue #321): убирает пользовательские копии встроенных
+            // конфигураций, обычные пользовательские записи не трогает.
+            var restoreButton = new Button { Content = T("Updates.RestoreDefaults"), Height = 32 };
+            restoreButton.Styled(ControlThemes.SelectAllButton);
+            restoreButton.Click += (_, _) => OnRestoreDefaultsClick();
+
             var toolbar = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -328,6 +459,7 @@ namespace Configuration_Management
                 Margin = new Thickness(8, 8, 8, 4)
             };
             toolbar.Children.Add(addButton);
+            toolbar.Children.Add(restoreButton);
 
             var toolbarBorder = new Border
             {
@@ -348,15 +480,24 @@ namespace Configuration_Management
             Grid.SetRow(listBorder, 2);
             grid.Children.Add(listBorder);
 
-            // Нижняя панель: «Добавить» / «Закрыть» (закрывает только окно списка).
+            // Нижняя панель: «Добавить» + «Восстановить типовые» / «Закрыть».
             var bottom = new Grid { Margin = new Thickness(0, 14, 0, 0) };
             bottom.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
             bottom.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+            var leftButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
             var addBottom = new Button { Content = T("Updates.AddConfig"), Height = 34 };
             addBottom.Styled(ControlThemes.ModernButton);
             addBottom.Click += (_, _) => OnAddConfigClick();
-            Grid.SetColumn(addBottom, 0);
-            bottom.Children.Add(addBottom);
+            leftButtons.Children.Add(addBottom);
+
+            var restoreBottom = new Button { Content = T("Updates.RestoreDefaults"), Height = 34 };
+            restoreBottom.Styled(ControlThemes.SelectAllButton);
+            restoreBottom.Click += (_, _) => OnRestoreDefaultsClick();
+            leftButtons.Children.Add(restoreBottom);
+
+            Grid.SetColumn(leftButtons, 0);
+            bottom.Children.Add(leftButtons);
 
             var close = BuildCancelActionButton(140);
             close.Click += (_, _) => Close();
@@ -375,13 +516,15 @@ namespace Configuration_Management
             var grid = new Grid { Margin = new Thickness(8, 0, 8, 2) };
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(3, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
             grid.Children.Add(MakeHeaderText(T("Updates.Name"), 0));
             grid.Children.Add(MakeHeaderText(T("Updates.UrlCode"), 1));
-            grid.Children.Add(MakeHeaderText(T("Updates.Editions"), 2));
+            grid.Children.Add(MakeHeaderText(T("Updates.Nick"), 2));
+            grid.Children.Add(MakeHeaderText(T("Updates.Editions"), 3));
             return grid;
         }
 

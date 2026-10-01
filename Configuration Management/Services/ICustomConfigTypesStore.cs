@@ -22,6 +22,19 @@ public interface ICustomConfigTypesStore
     /// <summary>Сохраняет пользовательские конфигурации в файл (читаемый UTF-8, атомарная запись).</summary>
     void Save(IReadOnlyCollection<OneCConfigType> types);
 
-    /// <summary>Общий список типовых конфигураций: предопределённые + пользовательские из файла.</summary>
+    /// <summary>
+    /// Общий список типовых конфигураций: предопределённые + пользовательские из файла.
+    /// Пользовательская копия предопределённой (<see cref="OneCConfigType.OverridesBuiltIn"/>)
+    /// заменяет встроенную с тем же кодом; остальные пользовательские записи добавляются следом
+    /// (несколько записей одной конфигурации — например ЗУП 3.0 и 3.1 — сосуществуют, issue #321).
+    /// </summary>
     IReadOnlyList<OneCConfigType> LoadAll();
+
+    /// <summary>
+    /// «Восстановить типовые» (issue #321): удаляет пользовательские копии предопределённых
+    /// конфигураций (<see cref="OneCConfigType.OverridesBuiltIn"/>), возвращая предопределённый
+    /// набор к исходному виду <see cref="BuiltInConfigTypes.All"/>. Обычные пользовательские
+    /// конфигурации не трогаются.
+    /// </summary>
+    void RestoreDefaults();
 }

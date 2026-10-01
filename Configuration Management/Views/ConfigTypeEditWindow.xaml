@@ -119,10 +119,16 @@
                              DisplayMemberPath="Name">
                     </ListBox>
 
-                    <TextBox Grid.Row="1" Grid.Column="0" x:Name="EditionNameBox" Margin="0,0,6,0" Padding="6,5"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="EditionRedBox" Margin="0,0,6,0" Padding="6,5"/>
-                    <TextBox Grid.Row="1" Grid.Column="2" x:Name="EditionSubRedBox" Margin="0,0,6,0" Padding="6,5"/>
-                    <TextBox Grid.Row="1" Grid.Column="3" x:Name="EditionUrlOverrideBox" Padding="6,5"/>
+                    <!-- Подписи (водяные знаки) четырёх полей редакции (issue #321): раньше поля
+                         были без подписей, и сохранялось только первое из них. -->
+                    <TextBox Grid.Row="1" Grid.Column="0" x:Name="EditionNameBox" Margin="0,0,6,0" Padding="6,5"
+                             materialDesign:HintAssist.Hint="{loc:Loc Updates.Name}"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="EditionRedBox" Margin="0,0,6,0" Padding="6,5"
+                             materialDesign:HintAssist.Hint="{loc:Loc Updates.EditionRed}"/>
+                    <TextBox Grid.Row="1" Grid.Column="2" x:Name="EditionSubRedBox" Margin="0,0,6,0" Padding="6,5"
+                             materialDesign:HintAssist.Hint="{loc:Loc Updates.EditionSubRed}"/>
+                    <TextBox Grid.Row="1" Grid.Column="3" x:Name="EditionUrlOverrideBox" Padding="6,5"
+                             materialDesign:HintAssist.Hint="{loc:Loc Updates.UrlOverride}"/>
 
                     <StackPanel Grid.Row="2" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,6,0,0">
                         <Button x:Name="AddEditionButton" Height="30" Style="{StaticResource OutlineButtonStyle}"

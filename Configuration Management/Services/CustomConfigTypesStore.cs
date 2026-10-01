@@ -88,10 +88,50 @@ public sealed class CustomConfigTypesStore : ICustomConfigTypesStore
     /// <inheritdoc />
     public IReadOnlyList<OneCConfigType> LoadAll()
     {
-        var result = new List<OneCConfigType>(BuiltInConfigTypes.All.Count + 8);
-        result.AddRange(BuiltInConfigTypes.All);
-        result.AddRange(Load());
+        var custom = Load();
+        var result = new List<OneCConfigType>(BuiltInConfigTypes.All.Count + custom.Count);
+
+        // Пользовательская копия предопределённой конфигурации (правка встроенной строки в окне
+        // «Типовые конфигурации», issue #321) заменяет встроенную с тем же кодом; статические
+        // экземпляры BuiltInConfigTypes при этом не мутируются и не «расползаются» по окнам.
+        foreach (var builtIn in BuiltInConfigTypes.All)
+        {
+            var customCopy = custom.FirstOrDefault(c =>
+                c.OverridesBuiltIn && SameCode(c.Code, builtIn.Code));
+            result.Add(customCopy ?? builtIn);
+        }
+
+        // Обычные пользовательские конфигурации добавляются следом. Несколько записей одной
+        // конфигурации (ЗУП 3.0 и 3.1) сосуществуют — уникальность по составному ключу
+        // «наименование + редакция», а не по наименованию (issue #321).
+        foreach (var c in custom)
+        {
+            if (c.OverridesBuiltIn &&
+                BuiltInConfigTypes.All.Any(b => SameCode(b.Code, c.Code)))
+                continue; // уже заменил встроенную выше
+            result.Add(c);
+        }
+
         return result;
+    }
+
+    /// <inheritdoc />
+    public void RestoreDefaults()
+    {
+        // Удаляем только пользовательские копии предопределённых (OverridesBuiltIn):
+        // предопределённый набор возвращается к BuiltInConfigTypes.All, обычные пользовательские
+        // конфигурации не трогаем (issue #321).
+        var custom = Load();
+        var remaining = custom.Where(c => !c.OverridesBuiltIn).ToList();
+        Save(remaining);
+    }
+
+    /// <summary>Сравнивает коды конфигураций без учёта регистра (пустой код не совпадает ни с чем).</summary>
+    private static bool SameCode(string? a, string? b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+            return false;
+        return string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
     private IReadOnlyList<OneCConfigType> ReadFile()

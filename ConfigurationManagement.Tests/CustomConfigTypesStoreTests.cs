@@ -195,4 +195,178 @@ public sealed class CustomConfigTypesStoreTests : IDisposable
         Assert.Equal("Вторая", loaded[1].Name);
         Assert.Equal("2.0", loaded[1].Editions[0].Red);
     }
+
+    // ---------- 0.3.9.244 (issue #321): правка предопределённых, «Восстановить типовые», ----------
+    // ---------- сосуществование записей одной конфигурации, реальное удаление. --------------------
+
+    [Fact]
+    public void SaveLoad_Roundtrip_PreservesAllEditorFields()
+    {
+        var store = CreateStore();
+        var item = new OneCConfigType
+        {
+            Code = "MYCODE",
+            Name = "Моя конфигурация",
+            UrlCode = "my-segment",
+            Nick = "MyNick123",
+            OverridesBuiltIn = true,
+            Editions =
+            {
+                new OneCConfigEdition { Name = "Релиз 3.0", Red = "3.0", SubRed = "142", UrlOverride = "" },
+                new OneCConfigEdition { Name = "Патч", Red = "3.0", SubRed = "143", UrlOverride = "https://example.test/cat" },
+            },
+        };
+
+        store.Save(new[] { item });
+        var loaded = store.Load();
+
+        var single = Assert.Single(loaded);
+        // Все 4 поля редактора + редакции сохраняются и читаются полностью.
+        Assert.Equal("MYCODE", single.Code);
+        Assert.Equal("Моя конфигурация", single.Name);
+        Assert.Equal("my-segment", single.UrlCode);
+        Assert.Equal("MyNick123", single.Nick);
+        Assert.True(single.OverridesBuiltIn);
+        Assert.False(single.IsBuiltIn); // в файле живут только пользовательские записи
+        Assert.Equal(2, single.Editions.Count);
+        Assert.Equal("Релиз 3.0", single.Editions[0].Name);
+        Assert.Equal("3.0", single.Editions[0].Red);
+        Assert.Equal("142", single.Editions[0].SubRed);
+        Assert.Equal("", single.Editions[0].UrlOverride);
+        Assert.Equal("Патч", single.Editions[1].Name);
+        Assert.Equal("143", single.Editions[1].SubRed);
+        Assert.Equal("https://example.test/cat", single.Editions[1].UrlOverride);
+    }
+
+    [Fact]
+    public void DeleteItem_SavedWithoutIt_Disappears()
+    {
+        var store = CreateStore();
+        var first = Sample("Первая", "3.0");
+        var second = Sample("Вторая", "2.0");
+        store.Save(new[] { first, second });
+
+        // «Удаление» = сохранение списка без записи (так делает окно списка).
+        store.Save(new[] { second });
+
+        var loaded = store.Load();
+        Assert.Single(loaded);
+        Assert.Equal("Вторая", loaded[0].Name);
+    }
+
+    [Fact]
+    public void LoadAll_OverrideByCode_ReplacesBuiltIn()
+    {
+        var store = CreateStore();
+        // Правка встроенной ЗУП (код ZUP): создана пользовательская копия-переопределение.
+        store.Save(new[]
+        {
+            new OneCConfigType
+            {
+                Code = "ZUP",
+                Name = "Зарплата и управление персоналом",
+                UrlCode = "Зарплата и управление персоналом",
+                OverridesBuiltIn = true,
+                Editions =
+                {
+                    new OneCConfigEdition { Name = "3.0", Red = "3.0" },
+                    new OneCConfigEdition { Name = "3.1", Red = "3.1" },
+                },
+            },
+        });
+
+        var all = store.LoadAll();
+        // Встроенная ЗУП (3.1) заменена копией с редакциями 3.0 и 3.1.
+        var zup = all.First(c => c.Code == "ZUP");
+        Assert.False(zup.IsBuiltIn);
+        Assert.True(zup.OverridesBuiltIn);
+        Assert.Equal(2, zup.Editions.Count);
+        Assert.Contains(zup.Editions, e => e.Red == "3.0");
+        Assert.Contains(zup.Editions, e => e.Red == "3.1");
+        // Общее количество строк не изменилось (замена, а не добавление дубля).
+        Assert.Equal(BuiltInConfigTypes.All.Count, all.Count);
+    }
+
+    [Fact]
+    public void LoadAll_UserEntryWithBuiltInCode_NotMarked_Coexists()
+    {
+        var store = CreateStore();
+        // Обычная пользовательская запись с кодом встроенной (без флага переопределения):
+        // встроенная НЕ заменяется — обе записи сосуществуют (никакого «плющения»).
+        store.Save(new[]
+        {
+            new OneCConfigType
+            {
+                Code = "ZUP",
+                Name = "Зарплата и управление персоналом",
+                UrlCode = "zup-custom",
+                OverridesBuiltIn = false,
+                Editions = { new OneCConfigEdition { Name = "3.0", Red = "3.0" } },
+            },
+        });
+
+        var all = store.LoadAll();
+        var withCode = all.Where(c => c.Code == "ZUP").ToList();
+        Assert.Equal(2, withCode.Count);
+        Assert.Contains(withCode, c => c.IsBuiltIn && c.OverridesBuiltIn == false && c.Editions.Count == 1);
+        Assert.Contains(withCode, c => !c.IsBuiltIn && c.Editions.Count == 1 && c.Editions[0].Red == "3.0");
+    }
+
+    [Fact]
+    public void TwoZupEntries_DifferentEditions_Coexist()
+    {
+        var store = CreateStore();
+        // Две пользовательские записи ЗУП: 3.0 и 3.1 — уникальность по составному ключу
+        // «наименование + редакция», а не по наименованию (issue #321).
+        store.Save(new[]
+        {
+            Sample("Зарплата и управление персоналом", "3.0"),
+            Sample("Зарплата и управление персоналом", "3.1"),
+        });
+
+        var loaded = store.Load();
+        Assert.Equal(2, loaded.Count);
+        Assert.All(loaded, c => Assert.Equal("Зарплата и управление персоналом", c.Name));
+        Assert.Equal("3.0", loaded[0].Editions[0].Red);
+        Assert.Equal("3.1", loaded[1].Editions[0].Red);
+
+        // В общем списке обе записи присутствуют (плюс встроенная ЗУП 3.1 — итого три).
+        var all = store.LoadAll();
+        var zupRows = all.Where(c => c.Name == "Зарплата и управление персоналом").ToList();
+        Assert.Equal(3, zupRows.Count);
+    }
+
+    [Fact]
+    public void RestoreDefaults_RemovesOnlyOverrides_KeepsPlainCustom()
+    {
+        var store = CreateStore();
+        store.Save(new[]
+        {
+            // Пользовательская копия встроенной БП (правка встроенной строки).
+            new OneCConfigType
+            {
+                Code = "BP",
+                Name = "Бухгалтерия предприятия",
+                UrlCode = "Бухгалтерия предприятия",
+                OverridesBuiltIn = true,
+                Editions = { new OneCConfigEdition { Name = "3.0", Red = "3.0" } },
+            },
+            // Обычная пользовательская конфигурация (не трогается при восстановлении).
+            Sample("Моя конфигурация", "1.0"),
+        });
+
+        store.RestoreDefaults();
+
+        var remaining = store.Load();
+        Assert.Single(remaining);
+        Assert.Equal("Моя конфигурация", remaining[0].Name);
+        Assert.False(remaining[0].OverridesBuiltIn);
+
+        // Встроенная БП снова из исходного набора, пользовательская запись на месте.
+        var all = store.LoadAll();
+        var bp = all.First(c => c.Code == "BP");
+        Assert.True(bp.IsBuiltIn);
+        Assert.Equal(2, bp.Editions.Count); // 3.0 и 2.0 — исходный набор
+        Assert.Contains(all, c => c.Code == "C_Моя конфигурация");
+    }
 }

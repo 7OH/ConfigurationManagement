@@ -18,8 +18,14 @@ public class ConfigTypeItemViewModel : ViewModelBase
     /// <summary>Отображаемое имя конфигурации.</summary>
     public string Name => Model.Name;
 
+    /// <summary>Стабильный код конфигурации (используется для связи ИБ ↔ конфигурация).</summary>
+    public string Code => Model.Code;
+
     /// <summary>Сегмент web-адреса обновлений (UrlCode), либо имя, если сегмент пуст.</summary>
     public string UrlCode => string.IsNullOrWhiteSpace(Model.UrlCode) ? Model.Name : Model.UrlCode;
+
+    /// <summary>Ник конфигурации на releases.1c.ru (пустая строка — не задан).</summary>
+    public string Nick => Model.Nick;
 
     /// <summary>Признак предопределённой конфигурации из встроенного набора.</summary>
     public bool IsBuiltIn => Model.IsBuiltIn;
@@ -59,11 +65,13 @@ public class ConfigTypeItemViewModel : ViewModelBase
         DeleteCommand = new RelayCommand(() => delete(this), () => !model.IsBuiltIn);
     }
 
-    /// <summary>Обновляет привязки после редактирования модели (имя, сегмент, редакции).</summary>
+    /// <summary>Обновляет привязки после редактирования модели (код, имя, сегмент, ник, редакции).</summary>
     public void Refresh()
     {
+        OnPropertyChanged(nameof(Code));
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(UrlCode));
+        OnPropertyChanged(nameof(Nick));
         OnPropertyChanged(nameof(EditionsSummary));
         OnPropertyChanged(nameof(IsTracked));
     }
