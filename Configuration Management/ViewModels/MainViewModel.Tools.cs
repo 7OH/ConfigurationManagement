@@ -2684,7 +2684,9 @@ public partial class MainViewModel : ViewModelBase
         var vm = new NetworkDiagnosticsViewModel(
             AppServices.GetRequiredService<INetworkDiagnosticsService>(),
             target,
-            action => System.Windows.Application.Current?.Dispatcher.BeginInvoke(action));
+            action => System.Windows.Application.Current?.Dispatcher.BeginInvoke(action),
+            portsStore: AppServices.GetRequiredService<IServerPortsStore>(),
+            availableServers: GetAvailableServers());
 
         new NetworkDiagnosticsWindow(vm)
         {

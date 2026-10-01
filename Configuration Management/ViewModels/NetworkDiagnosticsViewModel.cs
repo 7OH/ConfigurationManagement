@@ -20,32 +20,66 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
 {
     private readonly INetworkDiagnosticsService _service;
     private readonly Action<Action>? _dispatchToUi;
-    private IReadOnlyList<int> _currentPorts;
+    private readonly IServerPortsStore? _portsStore;
     private int _busy;
 
     private string _host;
+    private string _selectedServer = string.Empty;
+    private int _port;
     private string _statusText = string.Empty;
     private string _dnsText = string.Empty;
     private string _ipAddressesText = string.Empty;
     private string _pingText = string.Empty;
+    private bool _suppressPortSync;
 
     /// <param name="target">Цель диагностики (хост + стартовые порты).</param>
     /// <param name="dispatchToUi">Доставка применения результатов в UI-поток; null — прямо (тесты).</param>
+    /// <param name="portsStore">Хранилище портов в разрезе сервера (issue #335); null — не запоминать.</param>
+    /// <param name="availableServers">Список известных серверов 1С для выпадающего списка.</param>
     public NetworkDiagnosticsViewModel(
         INetworkDiagnosticsService service,
         NetworkDiagnosticsTarget target,
-        Action<Action>? dispatchToUi = null)
+        Action<Action>? dispatchToUi = null,
+        IServerPortsStore? portsStore = null,
+        IEnumerable<string>? availableServers = null)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         if (target is null)
             throw new ArgumentNullException(nameof(target));
         _dispatchToUi = dispatchToUi;
-        _host = target.Host;
-        _currentPorts = target.Ports.ToList();
+        _portsStore = portsStore;
+        _host = target.Host?.Trim() ?? string.Empty;
+
+        if (availableServers is not null)
+        {
+            foreach (var s in availableServers
+                         .Where(x => !string.IsNullOrWhiteSpace(x))
+                         .Select(x => x!.Trim())
+                         .Distinct(StringComparer.OrdinalIgnoreCase)
+                         .OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+                AvailableServers.Add(s);
+        }
+
+        // Стартовый порт: порт цели (базы/монитора), иначе сохранённый для этого
+        // сервера порт кластера, иначе порт кластера по умолчанию (issue #335 —
+        // раньше порт цели «помнился», но в поле не попадал).
+        var savedForHost = GetSaved(_host);
+        _port = target.Ports.Count > 0 && target.Ports[0] > 0
+            ? target.Ports[0]
+            : (savedForHost.Cluster > 0 ? savedForHost.Cluster : OneCPorts.Cluster);
 
         RunCommand = new RelayCommand(_ => _ = RunAsync(), _ => !IsRunning);
         CheckPortsCommand = new RelayCommand(_ => _ = CheckPortsAsync(), _ => !IsRunning);
+        CheckRepositoryCommand = new RelayCommand(_ => _ = CheckRepositoryAsync(), _ => !IsRunning);
         RetryCommand = new RelayCommand(_ => _ = RetryAsync(), _ => !IsRunning);
+
+        // Выбранный сервер из списка — без подстановки порта (стартовый порт уже
+        // вычислен выше): программная установка не должна перетирать его.
+        _suppressPortSync = true;
+        SelectedServer = AvailableServers.Contains(_host, StringComparer.OrdinalIgnoreCase)
+            ? _host
+            : string.Empty;
+        _suppressPortSync = false;
     }
 
     /// <summary>Адрес диагностики (редактируемое поле окна).</summary>
@@ -53,6 +87,49 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
     {
         get => _host;
         set => SetProperty(ref _host, value);
+    }
+
+    /// <summary>Известные серверы 1С для выпадающего списка (имена без портов).</summary>
+    public ObservableCollection<string> AvailableServers { get; } = new();
+
+    /// <summary>
+    /// Выбранный сервер из списка. При смене пользователем подставляет адрес и
+    /// сохранённый для этого сервера порт кластера (issue #335).
+    /// </summary>
+    public string SelectedServer
+    {
+        get => _selectedServer;
+        set
+        {
+            if (!SetProperty(ref _selectedServer, value))
+                return;
+            if (_suppressPortSync || string.IsNullOrWhiteSpace(value))
+                return;
+
+            var server = value.Trim();
+            Host = server;
+            var saved = GetSaved(server);
+            Port = saved.Cluster > 0 ? saved.Cluster : OneCPorts.Cluster;
+        }
+    }
+
+    /// <summary>Активный порт проверки (порт кластера по умолчанию, если не задан).</summary>
+    public int Port
+    {
+        get => _port;
+        set => SetProperty(ref _port, value);
+    }
+
+    /// <summary>Строковое представление порта для текстового поля окна.</summary>
+    public string PortText
+    {
+        get => _port > 0 ? _port.ToString() : string.Empty;
+        set
+        {
+            if (!int.TryParse(value, out var parsed) || parsed is < 1 or > 65535)
+                parsed = 0;
+            Port = parsed;
+        }
     }
 
     /// <summary>true — прогон выполняется (команды заблокированы).</summary>
@@ -92,33 +169,99 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
     /// <summary>Выводы/подсказки по результату (уже локализованные тексты).</summary>
     public ObservableCollection<string> Hints { get; } = new();
 
-    /// <summary>Полная проверка: DNS + ICMP + TCP по текущему набору портов.</summary>
+    /// <summary>Полная проверка: DNS + ICMP + TCP по активному порту поля.</summary>
     public ICommand RunCommand { get; }
 
-    /// <summary>Проверка стандартных портов 1С: 1540 (агент) / 1541 (кластер) / 1545 (RAS).</summary>
+    /// <summary>Проверка стандартных портов 1С: 1540 (агент) / 1541 (кластер) /
+    /// 1542 (хранилище) / 1545 (RAS) — issue #335.</summary>
     public ICommand CheckPortsCommand { get; }
 
-    /// <summary>Повтор последней проверки (с текущим значением поля адреса).</summary>
+    /// <summary>Проверка порта сервера хранилища 1С (issue #335): сохранённый
+    /// или порт по умолчанию 1542.</summary>
+    public ICommand CheckRepositoryCommand { get; }
+
+    /// <summary>Повтор последней проверки (с текущим значением полей адреса и порта).</summary>
     public ICommand RetryCommand { get; }
 
     /// <inheritdoc cref="RunCommand"/>
-    public Task RunAsync() => RunCoreAsync(_currentPorts);
+    public Task RunAsync() =>
+        RunCoreAsync(new[] { EffectivePort }, remember: p => p with { Cluster = EffectivePort });
 
     /// <inheritdoc cref="CheckPortsCommand"/>
     public Task CheckPortsAsync() =>
-        RunCoreAsync(new[] { OneCPorts.Agent, OneCPorts.Cluster, OneCPorts.Ras });
+        RunCoreAsync(new[]
+        {
+            OneCPorts.Agent, OneCPorts.Cluster, OneCPorts.Repository, OneCPorts.Ras
+        });
+
+    /// <inheritdoc cref="CheckRepositoryCommand"/>
+    public Task CheckRepositoryAsync()
+    {
+        var saved = GetSaved(Host);
+        var repositoryPort = saved.Repository > 0 ? saved.Repository : OneCPorts.Repository;
+        return RunCoreAsync(
+            new[] { repositoryPort },
+            remember: p => p with { Repository = repositoryPort });
+    }
 
     /// <inheritdoc cref="RetryCommand"/>
-    public Task RetryAsync() => RunCoreAsync(_currentPorts);
+    public Task RetryAsync() =>
+        RunCoreAsync(new[] { EffectivePort }, remember: p => p with { Cluster = EffectivePort });
 
-    private async Task RunCoreAsync(IReadOnlyList<int> ports)
+    /// <summary>Порт для проверки: значение поля или порт кластера по умолчанию.</summary>
+    private int EffectivePort => Port > 0 ? Port : OneCPorts.Cluster;
+
+    /// <summary>Возвращает сохранённые порты сервера (пустая запись, если их нет).</summary>
+    private ServerPortsSettings GetSaved(string? server)
+    {
+        if (_portsStore is null)
+            return ServerPortsSettings.Empty;
+
+        var host = (server ?? string.Empty).Trim();
+        if (host.Length == 0)
+            return ServerPortsSettings.Empty;
+
+        try
+        {
+            return _portsStore.Load().TryGetValue(host, out var saved) && saved is not null
+                ? saved
+                : ServerPortsSettings.Empty;
+        }
+        catch
+        {
+            return ServerPortsSettings.Empty;
+        }
+    }
+
+    /// <summary>Сохраняет порты для текущего сервера (обновляя заданные поля).</summary>
+    private void RememberPorts(Func<ServerPortsSettings, ServerPortsSettings> transform)
+    {
+        if (_portsStore is null)
+            return;
+
+        var host = Host?.Trim() ?? string.Empty;
+        if (host.Length == 0)
+            return;
+
+        try
+        {
+            _portsStore.Save(host, transform(GetSaved(host)));
+        }
+        catch
+        {
+            // Несохранение порта не должно ломать проверку.
+        }
+    }
+
+    private async Task RunCoreAsync(
+        IReadOnlyList<int> ports,
+        Func<ServerPortsSettings, ServerPortsSettings>? remember = null)
     {
         if (Interlocked.Exchange(ref _busy, 1) == 1)
             return; // повторный запуск во время прогона игнорируется
 
         try
         {
-            _currentPorts = ports;
             Publish(() =>
             {
                 StatusText = LocalizationManager.T("Diagnostics.StatusRunning");
@@ -147,6 +290,12 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
         }
         finally
         {
+            // Порт, введённый пользователем, запоминается в разрезе сервера независимо
+            // от результата проверки (issue #335): при следующей смене сервера он
+            // подставится в поле.
+            if (remember is not null)
+                RememberPorts(remember);
+
             Interlocked.Exchange(ref _busy, 0);
             Publish(OnIsRunningChanged);
         }
@@ -195,7 +344,8 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
         // явный вызов для Avalonia-зеркала RelayCommand).
         if (RunCommand is RelayCommand r1) r1.RaiseCanExecuteChanged();
         if (CheckPortsCommand is RelayCommand r2) r2.RaiseCanExecuteChanged();
-        if (RetryCommand is RelayCommand r3) r3.RaiseCanExecuteChanged();
+        if (CheckRepositoryCommand is RelayCommand r3) r3.RaiseCanExecuteChanged();
+        if (RetryCommand is RelayCommand r4) r4.RaiseCanExecuteChanged();
     }
 
     private void Publish(Action action)

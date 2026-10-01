@@ -77,7 +77,8 @@ public sealed record NetworkAddress(string Host, int Port);
 /// <summary>
 /// Стандартные порты 1С:Предприятие 8.3 (функция 12). 1540 — агент сервера (ragent),
 /// точка входа rac; 1541 — порт кластера по умолчанию (rphost), фактический порт
-/// кластера может отличаться; 1545 — сервер администрирования (RAS).
+/// кластера может отличаться; 1542 — сервер хранилища конфигурации (1cv8 8.3.x);
+/// 1545 — сервер администрирования (RAS).
 /// </summary>
 public static class OneCPorts
 {
@@ -86,6 +87,9 @@ public static class OneCPorts
 
     /// <summary>Порт кластера 1С по умолчанию.</summary>
     public const int Cluster = 1541;
+
+    /// <summary>Порт сервера хранилища конфигурации (issue #335).</summary>
+    public const int Repository = 1542;
 
     /// <summary>Порт сервера администрирования RAS.</summary>
     public const int Ras = 1545;
@@ -99,6 +103,7 @@ public static class OneCPorts
     {
         Agent => "Diagnostics.PortAgent",
         Cluster => "Diagnostics.PortCluster",
+        Repository => "Diagnostics.PortRepository",
         Ras => "Diagnostics.PortRas",
         _ => "Diagnostics.PortCustom"
     };

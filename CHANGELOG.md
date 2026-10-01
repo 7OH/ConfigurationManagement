@@ -9,6 +9,40 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.243] — 2026-10-01
+
+### Исправлено
+
+- **«Диагностика подключения»: порт базы не попадал в поле, нет выбора сервера и
+  запоминания портов (issue #335)** — окно `NetworkDiagnosticsWindow` (0.3.9.231–232):
+  1) при открытии из базы порт кластера «помнился», но в поле не подставлялся — цепочка
+     `NetworkDiagnosticsTarget.FromInfobase → ViewModel → поле` обрывалась, потому что поле
+     порта в окне отсутствовало вовсе. В ViewModel добавлены свойства `Port`/`PortText`,
+     стартовый порт берётся из цели диагностики (порт базы/монитора имеет приоритет над
+     сохранённым) ([`NetworkDiagnosticsViewModel.cs`](Configuration%20Management/ViewModels/NetworkDiagnosticsViewModel.cs));
+  2) выбор сервера с портом как при правке базы: в окно добавлены список известных серверов
+     1С (`AvailableServers`/`SelectedServer`) и поле «Порт»; при смене сервера подставляется
+     сохранённый для него порт кластера ([`NetworkDiagnosticsWindow.xaml`](Configuration%20Management/Views/NetworkDiagnosticsWindow.xaml),
+     [`NetworkDiagnosticsWindow.Avalonia.cs`](Configuration%20Management/Views/NetworkDiagnosticsWindow.Avalonia.cs));
+     новые поля выровнены по центру строки команд;
+  3) запоминание портов в разрезе сервера — новое хранилище
+     [`ServerPortsStore`](Configuration%20Management/Services/ServerPortsStore.cs)
+     (`server_ports.json` рядом с настройками, по образцу `DeletedGroupPathsStore`):
+     «сервер → порт(ы)» на каждый сервис — кластер (поле окна), rac/монитор (агент),
+     хранилище конфигурации; порт сохраняется после проверки и подставляется при смене
+     сервера; регистрация в DI (`IServerPortsStore`);
+  4) сервер хранилища 1С добавлен в список поддерживаемых сервисов: порт по умолчанию
+     1542 (`OneCPorts.Repository`), имя сервиса в таблице портов (`Diagnostics.PortRepository`,
+     ru/en) и кнопка «Проверить хранилище» (`CheckRepositoryCommand`); «Проверить порты 1С»
+     теперь проверяет 1540/1541/1542/1545.
+- Тесты: [`NetworkDiagnosticsViewModelTests`](ConfigurationManagement.Tests/NetworkDiagnosticsViewModelTests.cs) —
+  старт с целью заполняет поле портом (порт цели приоритетнее сохранённого), смена сервера
+  подставляет сохранённый порт, команда проверки хранилища использует порт по умолчанию/
+  сохранённый и запоминает его; [`ServerPortsStoreTests`](ConfigurationManagement.Tests/ServerPortsStoreTests.cs) —
+  запись/чтение, обновление, независимость серверов, нормализация ключей, битый файл,
+  санитизация портов. Регрессия `NetworkDiagnosticsIntegrationTests`/`NetworkDiagnosticsTargetTests`
+  без изменений.
+
 ## [0.3.9.242] — 2026-10-01
 
 ### Исправлено

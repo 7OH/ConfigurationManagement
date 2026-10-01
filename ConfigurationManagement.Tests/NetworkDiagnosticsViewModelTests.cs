@@ -51,6 +51,17 @@ public sealed class NetworkDiagnosticsViewModelTests
     private static NetworkDiagnosticsTarget Target(string host = "srv", params int[] ports)
         => new(host, ports.Length > 0 ? ports : new[] { 1541 });
 
+    /// <summary>Fake-хранилище портов (issue #335) для тестов VM.</summary>
+    private sealed class FakeServerPortsStore : IServerPortsStore
+    {
+        public Dictionary<string, ServerPortsSettings> Data { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public IReadOnlyDictionary<string, ServerPortsSettings> Load() => Data;
+
+        public void Save(string server, ServerPortsSettings ports) => Data[server.Trim()] = ports;
+    }
+
     private sealed class FakeDiagnosticsService : INetworkDiagnosticsService
     {
         public NetworkDiagnosticsResult Result { get; set; } = SuccessResult();
@@ -92,13 +103,14 @@ public sealed class NetworkDiagnosticsViewModelTests
     [Fact]
     public async Task RunAsync_Success_PopulatesPortsAndHints_NotRunning()
     {
+        // Run проверяет активный порт поля (issue #335): стартовый порт = первый порт цели.
         var service = new FakeDiagnosticsService { Result = SuccessResult() };
-        var vm = new NetworkDiagnosticsViewModel(service, Target("srv", 1540, 1541));
+        var vm = new NetworkDiagnosticsViewModel(service, Target("srv", 1540));
 
         await vm.RunAsync();
 
         Assert.Equal("srv", service.LastAddress);
-        Assert.Equal(new[] { 1540, 1541 }, service.LastPorts);
+        Assert.Equal(new[] { 1540 }, service.LastPorts);
         Assert.Equal(2, vm.Ports.Count);
         Assert.All(vm.Ports, p => Assert.True(p.IsAvailable));
         Assert.Equal("10.0.0.5", vm.IpAddressesText);
@@ -150,14 +162,121 @@ public sealed class NetworkDiagnosticsViewModelTests
     }
 
     [Fact]
-    public async Task CheckPortsAsync_UsesOneCPorts1540_1541_1545()
+    public async Task CheckPortsAsync_UsesOneCPortsIncludingRepository1542()
     {
+        // 1542 — сервер хранилища конфигурации (issue #335): включён в стандартный набор.
         var service = new FakeDiagnosticsService();
         var vm = new NetworkDiagnosticsViewModel(service, Target("srv", 1541));
 
         await vm.CheckPortsAsync();
 
-        Assert.Equal(new[] { 1540, 1541, 1545 }, service.LastPorts);
+        Assert.Equal(new[] { 1540, 1541, 1542, 1545 }, service.LastPorts);
+    }
+
+    // ===================== Сервер с портом (issue #335) =====================
+
+    [Fact]
+    public void StartWithTarget_FillsPortFieldFromTarget()
+    {
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 1541));
+
+        Assert.Equal("srv", vm.Host);
+        Assert.Equal("1541", vm.PortText);
+        Assert.Equal(1541, vm.Port);
+    }
+
+    [Fact]
+    public void StartWithTarget_PortFieldPrefersTargetPortOverSaved()
+    {
+        // Порт цели (базы) важнее сохранённого: база могла быть настроена на
+        // конкретный порт, и он обязан попасть в поле при открытии (issue #335).
+        var store = new FakeServerPortsStore { Data = { ["srv"] = new ServerPortsSettings(1599, 0, 0) } };
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 1541), portsStore: store);
+
+        Assert.Equal("1541", vm.PortText);
+    }
+
+    [Fact]
+    public void ChangeSelectedServer_AppliesHostAndSavedPort()
+    {
+        var store = new FakeServerPortsStore { Data = { ["b"] = new ServerPortsSettings(1580, 1540, 1542) } };
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 1541),
+            portsStore: store,
+            availableServers: new[] { "a", "b" });
+
+        vm.SelectedServer = "b";
+
+        Assert.Equal("b", vm.Host);
+        Assert.Equal("1580", vm.PortText);
+    }
+
+    [Fact]
+    public void ChangeSelectedServer_WithoutSavedPort_UsesClusterDefault()
+    {
+        var store = new FakeServerPortsStore();
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 1541),
+            portsStore: store,
+            availableServers: new[] { "b" });
+
+        vm.SelectedServer = "b";
+
+        Assert.Equal("b", vm.Host);
+        Assert.Equal(OneCPorts.Cluster, vm.Port);
+    }
+
+    [Fact]
+    public async Task RunAsync_SavesClusterPortForServer()
+    {
+        var store = new FakeServerPortsStore();
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 1541), portsStore: store);
+
+        vm.PortText = "1600";
+        await vm.RunAsync();
+
+        Assert.True(store.Data.TryGetValue("srv", out var saved));
+        Assert.Equal(1600, saved!.Cluster);
+    }
+
+    [Fact]
+    public async Task CheckRepositoryAsync_UsesDefaultRepositoryPort1542()
+    {
+        var service = new FakeDiagnosticsService();
+        var vm = new NetworkDiagnosticsViewModel(service, Target("srv", 1541));
+
+        await vm.CheckRepositoryAsync();
+
+        Assert.Equal(new[] { OneCPorts.Repository }, service.LastPorts);
+    }
+
+    [Fact]
+    public async Task CheckRepositoryAsync_UsesSavedRepositoryPort()
+    {
+        var store = new FakeServerPortsStore { Data = { ["srv"] = new ServerPortsSettings(0, 0, 1549) } };
+        var service = new FakeDiagnosticsService();
+        var vm = new NetworkDiagnosticsViewModel(
+            service, Target("srv", 1541), portsStore: store);
+
+        await vm.CheckRepositoryAsync();
+
+        Assert.Equal(new[] { 1549 }, service.LastPorts);
+    }
+
+    [Fact]
+    public async Task CheckRepositoryAsync_SavesRepositoryPortForServer()
+    {
+        var store = new FakeServerPortsStore();
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 1541), portsStore: store);
+
+        await vm.CheckRepositoryAsync();
+
+        Assert.True(store.Data.TryGetValue("srv", out var saved));
+        Assert.Equal(OneCPorts.Repository, saved!.Repository);
     }
 
     [Fact]

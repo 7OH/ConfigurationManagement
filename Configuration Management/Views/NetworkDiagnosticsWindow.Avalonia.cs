@@ -37,17 +37,46 @@ namespace Configuration_Management
 
             var hostBox = new TextBox
             {
-                Width = 240,
+                Width = 200,
                 Padding = new Thickness(6, 3),
                 VerticalContentAlignment = VerticalAlignment.Center
             };
             hostBox.Styled(ControlThemes.ModernTextBox);
             hostBox.Bind(TextBox.TextProperty, new Binding("Host", BindingMode.TwoWay));
 
+            // Выбор сервера с портом (issue #335): список известных серверов 1С +
+            // отдельное поле порта (сохранённый порт подставляется при смене сервера).
+            var serverCombo = new ComboBox
+            {
+                Width = 150,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            serverCombo.Bind(ComboBox.ItemsSourceProperty, new Binding("AvailableServers"));
+            serverCombo.Bind(ComboBox.SelectedItemProperty, new Binding("SelectedServer", BindingMode.TwoWay));
+            serverCombo.Styles.Add(new Style(x => x.OfType<ComboBoxItem>())
+            {
+                Setters = { new Setter(ComboBoxItem.VerticalContentAlignmentProperty, VerticalAlignment.Center) }
+            });
+
+            var portBox = new TextBox
+            {
+                Width = 64,
+                Padding = new Thickness(6, 3),
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            portBox.Styled(ControlThemes.ModernTextBox);
+            portBox.Bind(TextBox.TextProperty, new Binding("PortText", BindingMode.TwoWay));
+
             var runButton = BuildActionButton(LocalizationManager.T("Diagnostics.Run"), "🔎",
                 () => _ = _vm.RunAsync());
             var checkPortsButton = BuildActionButton(LocalizationManager.T("Diagnostics.CheckPorts"), "🔌",
                 () => _ = _vm.CheckPortsAsync());
+            var checkRepositoryButton = BuildActionButton(
+                LocalizationManager.T("Diagnostics.CheckRepository"), "🗄️",
+                () => _ = _vm.CheckRepositoryAsync());
+            ToolTip.SetTip(checkRepositoryButton,
+                LocalizationManager.T("Diagnostics.CheckRepositoryTooltip"));
             var retryButton = BuildActionButton(LocalizationManager.T("Diagnostics.Retry"), "⟳",
                 () => _ = _vm.RetryAsync());
             var closeButton = BuildCloseButton();
@@ -56,7 +85,19 @@ namespace Configuration_Management
             {
                 Orientation = Orientation.Horizontal,
                 Spacing = 8,
-                Children = { hostBox, runButton, checkPortsButton, retryButton, closeButton }
+                Children =
+                {
+                    hostBox,
+                    Label(LocalizationManager.T("Diagnostics.ServerLabel")),
+                    serverCombo,
+                    Label(LocalizationManager.T("Diagnostics.Port")),
+                    portBox,
+                    runButton,
+                    checkPortsButton,
+                    checkRepositoryButton,
+                    retryButton,
+                    closeButton
+                }
             };
 
             // ---- Карточка хоста: DNS, IP-адреса, пинг. ----
@@ -142,6 +183,13 @@ namespace Configuration_Management
             Grid.SetRow(control, row);
             grid.Children.Add(control);
         }
+
+        /// <summary>Подпись поля панели команд, выровненная по центру строки.</summary>
+        private static TextBlock Label(string text) => new()
+        {
+            Text = text,
+            VerticalAlignment = VerticalAlignment.Center
+        };
 
         private static Control CardRow(string labelKey, string binding)
         {
