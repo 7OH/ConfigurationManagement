@@ -2649,6 +2649,37 @@ public partial class MainViewModel : ViewModelBase
         window.ShowDialog();
     }
 
+    // ================== Диагностика сети до сервера 1С (0.3.9.232, функция 12) ==================
+
+    private ICommand? _networkDiagnosticsCommand;
+
+    /// <summary>
+    /// Команда «Диагностика подключения…»: окно проверки сетевой доступности сервера
+    /// 1С (функция 12, цикл 0.3.9.229–233) — DNS-резолв, ICMP-пинг, TCP-проверка
+    /// портов с задержками и выводы по проблемам. Доступна для клиент-серверной и
+    /// веб-базы (для файловой скрыта); стартовые хост/порт — из настроек подключения.
+    /// </summary>
+    public ICommand NetworkDiagnosticsCommand =>
+        _networkDiagnosticsCommand ??= new RelayCommand(_ => ExecuteNetworkDiagnostics(),
+            _ => NetworkDiagnosticsTargets.FromInfobase(SelectedInfobase) is not null);
+
+    private void ExecuteNetworkDiagnostics()
+    {
+        var target = NetworkDiagnosticsTargets.FromInfobase(SelectedInfobase);
+        if (target is null)
+            return;
+
+        var vm = new NetworkDiagnosticsViewModel(
+            AppServices.GetRequiredService<INetworkDiagnosticsService>(),
+            target,
+            action => System.Windows.Application.Current?.Dispatcher.BeginInvoke(action));
+
+        new NetworkDiagnosticsWindow(vm)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        }.ShowDialog();
+    }
+
     // ======================= Импорт баз из кластера 1С (0.3.9.174) =======================
 
     private ICommand? _importClusterInfobasesCommand;

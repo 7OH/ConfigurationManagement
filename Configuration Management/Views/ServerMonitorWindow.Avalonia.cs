@@ -87,13 +87,18 @@ namespace Configuration_Management
                 }
             };
 
+            // «Диагностика сети…» (0.3.9.232, функция 12): DNS/ICMP/TCP-проверка
+            // адреса:порт монитора и стандартных портов 1С. Работает до подключения rac.
+            var diagnosticsButton = BuildActionButton(
+                LocalizationManager.T("ServerMonitor.NetworkDiagnostics"), "🛜", OpenNetworkDiagnostics);
+
             var buttons = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Spacing = 8,
                 Margin = new Thickness(0, 10, 0, 0),
-                Children = { connectButton, refreshButton, closeButton }
+                Children = { connectButton, refreshButton, diagnosticsButton, closeButton }
             };
 
             // ---- Выбор кластера + статус. ----
@@ -194,6 +199,21 @@ namespace Configuration_Management
             await _vm.ConnectAsync();
             if (_vm.HasConnected)
                 SaveRacSettings();
+        }
+
+        /// <summary>
+        /// «Диагностика сети…» (0.3.9.232, функция 12): открывает окно диагностики
+        /// с текущими адресом/портом монитора. Не требует успешного подключения rac —
+        /// диагностика нужна именно до подключения.
+        /// </summary>
+        private void OpenNetworkDiagnostics()
+        {
+            var target = NetworkDiagnosticsTargets.FromServerMonitor(_vm.ServerAddress, _vm.ServerPort);
+            var vm = new NetworkDiagnosticsViewModel(
+                AppServices.GetRequiredService<INetworkDiagnosticsService>(),
+                target,
+                action => Dispatcher.UIThread.Post(action));
+            new NetworkDiagnosticsWindow(vm).ShowDialog(this);
         }
 
         // ===================== Построители =====================

@@ -1978,6 +1978,10 @@ namespace Configuration_Management
             // блокировка приложения (функция №19) перенесена в «Утилиты» (issue #294).
             adminMenu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
             adminMenu.Items.Add(MenuSeparator());
+            // Диагностика сети до сервера 1С (функция 12): DNS/ICMP/TCP-проверка хоста
+            // и портов 1540/1541/1545 с выводами по проблемам. CanExecute — только для
+            // клиент-серверной и веб-базы (файловая — пункт гаснет).
+            adminMenu.Items.Add(MenuAction("Main.NetworkDiagnostics", _vm.NetworkDiagnosticsCommand, null, "IconNetwork", "#3B82F6"));
             adminMenu.Items.Add(MenuAction("Main.OpenCatalog", _vm.OpenInfobaseFolderCommand, null, "IconFolderOpen", "#0EA5E9"));
             // Дублирование базы (0.3.9.100, функция №10): файловая ИБ — копия каталога,
             // клиент-серверная — клон на сервере; для запущенной базы пункт гаснет (CanExecute).

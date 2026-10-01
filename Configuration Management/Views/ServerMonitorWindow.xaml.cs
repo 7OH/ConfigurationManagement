@@ -80,6 +80,21 @@ namespace Configuration_Management
         private void OnClose_Click(object sender, RoutedEventArgs e) => Close();
 
         /// <summary>
+        /// «Диагностика сети…» (0.3.9.232, функция 12): открывает окно диагностики
+        /// с текущими адресом/портом монитора. Не требует успешного подключения rac —
+        /// диагностика нужна именно до подключения.
+        /// </summary>
+        private void OnDiagnostics_Click(object sender, RoutedEventArgs e)
+        {
+            var target = NetworkDiagnosticsTargets.FromServerMonitor(_vm.ServerAddress, _vm.ServerPort);
+            var vm = new NetworkDiagnosticsViewModel(
+                AppServices.GetRequiredService<INetworkDiagnosticsService>(),
+                target,
+                action => Application.Current?.Dispatcher.BeginInvoke(action));
+            new NetworkDiagnosticsWindow(vm) { Owner = this }.ShowDialog();
+        }
+
+        /// <summary>
         /// Сохраняет адрес/порт/логин после успешного подключения (без пароля —
         /// см. решения планирования; пароль rac необратим в PBKDF2 и не хранится).
         /// </summary>

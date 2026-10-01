@@ -1613,6 +1613,35 @@ public partial class MainViewModel : ViewModelBase
         window.ShowDialogSync(OwnerWindow());
     }
 
+    // ================== Диагностика сети до сервера 1С (0.3.9.232, функция 12) ==================
+
+    private System.Windows.Input.ICommand? _networkDiagnosticsCommand;
+
+    /// <summary>
+    /// Команда «Диагностика подключения…»: окно проверки сетевой доступности сервера
+    /// 1С (функция 12, цикл 0.3.9.229–233) — DNS-резолв, ICMP-пинг, TCP-проверка
+    /// портов с задержками и выводы по проблемам. Доступна для клиент-серверной и
+    /// веб-базы (для файловой скрыта); стартовые хост/порт — из настроек подключения.
+    /// </summary>
+    public System.Windows.Input.ICommand NetworkDiagnosticsCommand =>
+        _networkDiagnosticsCommand ??= new RelayCommand(_ => ExecuteNetworkDiagnostics(),
+            _ => NetworkDiagnosticsTargets.FromInfobase(SelectedInfobase) is not null);
+
+    private void ExecuteNetworkDiagnostics()
+    {
+        var target = NetworkDiagnosticsTargets.FromInfobase(SelectedInfobase);
+        if (target is null)
+            return;
+
+        var vm = new NetworkDiagnosticsViewModel(
+            AppServices.GetRequiredService<INetworkDiagnosticsService>(),
+            target,
+            action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
+
+        new Configuration_Management.NetworkDiagnosticsWindow(vm)
+            .ShowDialogSync(OwnerWindow());
+    }
+
     // ======================= Импорт баз из кластера 1С (0.3.9.174) =======================
 
     private System.Windows.Input.ICommand? _importClusterInfobasesCommand;

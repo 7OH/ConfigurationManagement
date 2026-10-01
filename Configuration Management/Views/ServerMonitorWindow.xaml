@@ -74,6 +74,16 @@
                     <TextBlock Text="{loc:Loc ServerMonitor.Refresh}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
+            <!-- Диагностика сети до сервера 1С (функция 12): DNS/ICMP/TCP-проверка адреса:порт
+                 монитора и стандартных портов 1540/1541/1545. Работает до подключения rac. -->
+            <Button x:Name="DiagnosticsButton" Style="{StaticResource ModernButton}"
+                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
+                    Click="OnDiagnostics_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🛜" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc ServerMonitor.NetworkDiagnostics}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
             <Button x:Name="CloseButton" Style="{StaticResource ModernButton}" IsCancel="True"
                     Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
                     Foreground="{DynamicResource TextPrimaryBrush}"

@@ -2530,6 +2530,12 @@
                                     <MenuItem Header="{loc:Loc Main.RegisterComConnector}" Command="{Binding RegisterComConnectorCommand}" Style="{DynamicResource ModernMenuItem}">
                                         <MenuItem.Icon><materialDesign:PackIcon Kind="Key" Width="16" Height="16" Foreground="#14B8A6"/></MenuItem.Icon>
                                     </MenuItem>
+                                    <!-- Диагностика сети до сервера 1С (функция 12): DNS/ICMP/TCP-проверка
+                                         хоста и портов 1540/1541/1545 с выводами по проблемам. Видна
+                                         только для клиент-серверной и веб-базы (CanExecute команды). -->
+                                    <MenuItem Header="{loc:Loc Main.NetworkDiagnostics}" Command="{Binding NetworkDiagnosticsCommand}" Style="{DynamicResource ModernMenuItem}">
+                                        <MenuItem.Icon><materialDesign:PackIcon Kind="NetworkOutline" Width="16" Height="16" Foreground="#3B82F6"/></MenuItem.Icon>
+                                    </MenuItem>
                                     <Separator/>
                                     <MenuItem Header="{loc:Loc Main.OpenCatalog}" Command="{Binding OpenInfobaseFolderCommand}" Style="{DynamicResource ModernMenuItem}">
                                         <MenuItem.Icon><materialDesign:PackIcon Kind="FolderOpen" Width="16" Height="16" Foreground="#0EA5E9"/></MenuItem.Icon>

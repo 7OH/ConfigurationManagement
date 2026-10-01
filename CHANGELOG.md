@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.232] — 2026-10-01
+
+### Добавлено
+
+- **0.3.9.232: диагностика сети — окна и точки входа** (функция 12):
+- Окно «Диагностика подключения» [`NetworkDiagnosticsWindow`](Configuration%20Management/Views/NetworkDiagnosticsWindow.xaml)
+  (WPF) и [`NetworkDiagnosticsWindow.Avalonia.cs`](Configuration%20Management/Views/NetworkDiagnosticsWindow.Avalonia.cs)
+  (Linux): редактируемый адрес, кнопки «Проверить» / «Проверить порты 1С» (1540/1541/1545) /
+  «Повторить», карточка хоста (DNS, IP-адреса, пинг), таблица портов со состояниями
+  и задержками, выводы-подсказки; автоматический первый прогон при открытии.
+- Точка входа «Диагностика подключения…» в контекстном меню серверной/веб-базы
+  (подменю «Администрирование», обе платформы; для файловой базы пункт скрыт —
+  `CanExecute` по экстракции цели). Команда
+  [`NetworkDiagnosticsCommand`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs)
+  в `MainViewModel` (WPF + Avalonia-зеркало).
+- Точка входа «Диагностика сети…» в окне монитора серверов 1С
+  ([`ServerMonitorWindow`](Configuration%20Management/Views/ServerMonitorWindow.xaml)):
+  открывает диагностику с текущими адресом:портом монитора, работает до подключения rac
+  (обе платформы).
+- Регистрация [`INetworkDiagnosticsService`](Configuration%20Management/Services/NetworkDiagnosticsService.cs)
+  в DI-контейнере; ключи локализации `Main.NetworkDiagnostics` / `ServerMonitor.NetworkDiagnostics`
+  (ru/en).
+- Тесты: [`NetworkDiagnosticsIntegrationTests`](ConfigurationManagement.Tests/NetworkDiagnosticsIntegrationTests.cs) —
+  сквозная связка «база → цель → VM → прогон» (клиент-серверная, кастомный порт,
+  веб-база, файловая → null).
+
 ## [0.3.9.231] — 2026-10-01
 
 ### Добавлено

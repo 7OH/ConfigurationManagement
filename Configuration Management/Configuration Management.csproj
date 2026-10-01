@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.231</Version>
-    <AssemblyVersion>0.3.9.231</AssemblyVersion>
-    <FileVersion>0.3.9.231</FileVersion>
-    <InformationalVersion>0.3.9.231</InformationalVersion>
+    <Version>0.3.9.232</Version>
+    <AssemblyVersion>0.3.9.232</AssemblyVersion>
+    <FileVersion>0.3.9.232</FileVersion>
+    <InformationalVersion>0.3.9.232</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -256,6 +256,10 @@
     <!-- Окно «Серверы 1С» (0.3.9.124): WPF code-behind исключается, Avalonia-версия
          (ServerMonitorWindow.Avalonia.cs) подключается глобом *Window.Avalonia.cs ниже. -->
     <Compile Remove="Views\ServerMonitorWindow.xaml.cs" />
+    <!-- Окно «Диагностика подключения» (0.3.9.232, функция 12): WPF code-behind
+         исключается, Avalonia-версия (NetworkDiagnosticsWindow.Avalonia.cs)
+         подключается глобом *Window.Avalonia.cs ниже. -->
+    <Compile Remove="Views\NetworkDiagnosticsWindow.xaml.cs" />
     <!-- Окно «Импорт из кластера 1С» (0.3.9.174, цикл 0.3.9.172–175): WPF code-behind
          исключается, Avalonia-версия (ClusterImportWindow.Avalonia.cs) подключается
          глобом *Window.Avalonia.cs ниже; разметка ClusterImportWindow.axaml собирается
@@ -350,6 +354,11 @@
          явно (имена не совпадают с глобом *.Avalonia.cs); WPF-окно собирается #if WINDOWS. -->
     <Compile Include="ViewModels\PlatformUpdateRowViewModel.cs" />
     <Compile Include="ViewModels\PlatformUpdateViewModel.cs" />
+    <!-- Диагностика сети до сервера 1С (0.3.9.231, функция 12): чистая ViewModel окна
+         и строка таблицы портов — обе платформы, подключаются явно (имена не совпадают
+         с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\NetworkDiagnosticsViewModel.cs" />
+    <Compile Include="ViewModels\PortDiagnosticRow.cs" />
     <!-- Команды проверки обновлений MainViewModel (Avalonia/Linux): файл не совпадает
          с глобом *.Avalonia.cs (имя «MainViewModel.Avalonia.*.cs»), добавляется явно. -->
     <Compile Include="ViewModels\MainViewModel.Avalonia.Updates.cs" />
