@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Configuration_Management.Models;
 
 namespace Configuration_Management.Services;
@@ -368,5 +369,48 @@ public static partial class OneCLauncher
         {
             /* Не критично: каталог мог быть занят или уже удалён. */
         }
+    }
+
+    /// <summary>
+    /// Отбрасывает завершающий сегмент локали из пути web-ссылки
+    /// (issue #332): «https://host/base/ru_RU/» → «https://host/base/».
+    /// Шаблон <c>/([a-z]{2,3})_[A-Z]{2}</c> применяется ТОЛЬКО к конечному сегменту
+    /// пути (часть до '?'/'#'), поэтому сегмент вида ru_RU в середине пути,
+    /// query/fragment и trailing-slash без локали не затрагиваются.
+    /// Возвращает исходную строку, если сегмент локали не найден.
+    /// </summary>
+    internal static string? StripWebLocaleSegment(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return value;
+
+        var url = value!.Trim();
+
+        // Query/fragment к пути не относятся: регекс применяется только к части пути.
+        var pathEnd = url.Length;
+        for (var i = 0; i < url.Length; i++)
+        {
+            if (url[i] == '?' || url[i] == '#')
+            {
+                pathEnd = i;
+                break;
+            }
+        }
+
+        var pathPart = url.Substring(0, pathEnd);
+        var suffix = url.Substring(pathEnd);
+
+        // Конечный сегмент вида /ru_RU[/], /en_US — регистр значим (шаблон из issue):
+        // /([a-z]{2,3})_[A-Z]{2} сразу после слеша, далее конец пути или завершающий слеш.
+        var match = Regex.Match(pathPart, @"/([a-z]{2,3})_[A-Z]{2}/?$", RegexOptions.CultureInvariant);
+        if (!match.Success)
+            return value;
+
+        // Удаляем сегмент вместе со слешем перед ним; завершающий слеш сохраняем.
+        var trimmed = pathPart.Substring(0, match.Index);
+        if (!trimmed.EndsWith("/", StringComparison.Ordinal))
+            trimmed += "/";
+
+        return trimmed + suffix;
     }
 }

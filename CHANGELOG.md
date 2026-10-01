@@ -9,6 +9,26 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.234] — 2026-10-01
+
+### Исправлено
+
+- **Ссылка на веб-базу с сегментом локали открывалась как страница локали (issue #332)** —
+  ссылка вида `https://accounting.demo.1c.ru/accounting/ru_RU/` при «Перейти по ссылке»
+  передавалась браузеру целиком: завершающий сегмент локали `ru_RU`/`en_US` оставался в пути,
+  и открывалась страница локали, а не сама база. В ветку http/https функций
+  [`ParseLink`](Configuration%20Management/Services/OneCLauncher.Arguments.cs) /
+  [`LaunchByLink`](Configuration%20Management/Services/OneCLauncher.Linux.Process.cs) добавлена
+  нормализация чистым статическим методом
+  [`StripWebLocaleSegment`](Configuration%20Management/Services/OneCLauncher.Arguments.Shared.cs):
+  шаблон `/([a-z]{2,3})_[A-Z]{2}` применяется только к конечному сегменту пути (часть до
+  `?`/`#`), сегмент в середине пути, query/fragment и trailing-slash без локали не
+  затрагиваются; завершающий слеш сохраняется (`…/accounting/`). Обе платформы.
+- Тесты: [`WebLinkLocaleTests`](ConfigurationManagement.Tests/WebLinkLocaleTests.cs) — позитив
+  `ru_RU`/`en_US` (со слешем и без), query после локали; негатив — локаль в середине пути,
+  отсутствие локали, локаль только в query/fragment, trailing-slash, регистрозависимость
+  шаблона, null/пустая строка.
+
 ## [0.3.9.233] — 2026-10-01
 
 ### Добавлено

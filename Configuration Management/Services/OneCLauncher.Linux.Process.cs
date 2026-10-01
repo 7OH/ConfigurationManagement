@@ -255,11 +255,16 @@ namespace Configuration_Management.Services
                 return false;
 
             // Веб-ссылки и ссылки-протоколы обрабатывает системный обработчик (xdg-open).
-            if (value.StartsWith("e1c:", StringComparison.OrdinalIgnoreCase) ||
-                value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            // Для web-ссылок отбрасываем завершающий сегмент локали вида /ru_RU/
+            // (issue #332), чтобы ссылка открывалась как веб-база, а не страница локали.
+            if (value.StartsWith("e1c:", StringComparison.OrdinalIgnoreCase))
             {
                 return OpenUrl(value);
+            }
+            if (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return OpenUrl(StripWebLocaleSegment(value));
             }
 
             // Файловая / клиент-серверная база — запускаем через платформу 1С.

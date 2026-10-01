@@ -156,11 +156,16 @@ public static partial class OneCLauncher
 
         // 1. Ссылка-URI, обрабатываемая ОС (зарегистрированным обработчиком протокола):
         //    e1c://... — стандартный загрузчик 1С; http:// / https:// — веб-клиент в браузере.
-        if (value.StartsWith("e1c:", StringComparison.OrdinalIgnoreCase) ||
-            value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        //    Для web-ссылок отбрасываем завершающий сегмент локали вида /ru_RU/
+        //    (issue #332), чтобы ссылка открывалась как веб-база, а не как страница локали.
+        if (value.StartsWith("e1c:", StringComparison.OrdinalIgnoreCase))
         {
             return new ParsedLink { IsWeb = true, WebUrl = value };
+        }
+        if (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ParsedLink { IsWeb = true, WebUrl = StripWebLocaleSegment(value) };
         }
 
         // 2. Строка подключения 1С: Srvr="...";Ref="..."

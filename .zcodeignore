@@ -1,0 +1,103 @@
+## .NET / Visual Studio
+bin/
+tools/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+dist/
+*_wpftmp.csproj
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio
+.vs/
+.vscode/
+*.VisualState.xml
+TestResult.xml
+[Tt]est[Rr]esult*/
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+*.nuget.props
+*.nuget.targets
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Артефакты упаковки Linux: собираются скриптами из package/linux,
+# в репозитории нужны только сами скрипты.
+package/linux/AppDir/
+package/linux/out/
+package/linux/deb/staging/
+package/linux/deb/out/
+
+## ��������� ������ / ��������� �����
+build_out.txt
+.tmp/
+release_notes_*.md
+ 
+# �������᪨�/�६���� 䠩�� ����� 
+analysis_issues*.md 
+selected_issues*.md 
+issues_fresh.md 
+issues_full.json 
+open_issues_full.json 
+_uncommitted.diff 
+cred_input.txt 
+rel_out.txt 
+PREFLIGHT.md
+_analysis/ 
+Configuration Management/Views/Configuration_Management_linux.code-workspace
+
+# ���������� ���� �������\
+plans/\
+release-artifacts/  
+.gh_headers 
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+node_modules/
+bower_components/
+jspm_packages/
+__pycache__/
+site-packages/
+venv/
+coverage/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）
