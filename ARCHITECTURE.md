@@ -146,6 +146,52 @@ Configuration Management/
 - изменение расписания (`schedule set`), ручной запуск и история запусков глубже последнего —
   вне цикла.
 
+### Диагностика сети до сервера 1С (функция 12)
+
+Функция «Диагностика подключения…» (контекстное меню клиент-серверной/веб-базы →
+«Администрирование») и «Диагностика сети…» (кнопка в мониторе серверов; цикл
+0.3.9.229–0.3.9.233) проверяет сетевую доступность сервера 1С: резолв DNS, ICMP-пинг,
+TCP-проверку портов 1540/1541/1545 с измерением RTT и строит подсказки по типичным
+проблемам (DNS, файрвол, остановленный сервис). Связка чистых сервисов:
+
+- [`NetworkDiagnosticsService`](Configuration Management/Services/NetworkDiagnosticsService.cs)
+  (+ `INetworkDiagnosticsService`) — ядро: парсер адреса `host[:port]`/`[IPv6]:port`,
+  резолв DNS (`Dns.GetHostAddressesAsync`; для IP-адреса пропускается), ICMP-пинг
+  (переносимый: без прав raw-socket на Linux — `PingPerformed=false`, «не проверено»),
+  TCP-проверка портов параллельно с таймаутом и RTT (`TcpClient.ConnectAsync` + `Stopwatch`;
+  `refused` ≠ `timeout`). Низкоуровневые операции инжектируются делегатами
+  (`resolveHost`/`ping`/`tcpProbe`) — юнит-тесты не зависят от реальной сети.
+- [`NetworkDiagnosticsResult`](Configuration Management/Models/NetworkDiagnosticsResult.cs)
+  — чистая модель результата (хост, DNS, IP-адреса, пинг/RTT, порты `NetworkPortProbe`
+  с состояниями доступен/закрыт/таймаут) и константы портов [`OneCPorts`](Configuration Management/Models/NetworkDiagnosticsResult.cs)
+  (1540 — ragent, 1541 — кластер по умолчанию, 1545 — RAS).
+- [`NetworkDiagnosticsHints`](Configuration Management/Services/NetworkDiagnosticsHints.cs)
+  — чистая матрица правил «состояния → ключи локализации с аргументами»; тексты
+  формируются на этапе VM через `LocalizationManager.T` (порядок: критичное → справка).
+- [`NetworkDiagnosticsTargets`](Configuration Management/Services/NetworkDiagnosticsTarget.cs)
+  — экстракция цели: из клиент-серверной базы (`Server`+`Port` из настроек подключения,
+  в т.ч. `host:port`), из веб-базы (хост/порт URL), файловая/битый URL → null; из монитора
+  серверов — текущий адрес:порт rac.
+- [`NetworkDiagnosticsViewModel`](Configuration Management/ViewModels/NetworkDiagnosticsViewModel.cs)
+  + [`PortDiagnosticRow`](Configuration Management/ViewModels/PortDiagnosticRow.cs) — карточка
+  хоста, таблица портов, выводы; команды «Проверить» / «Повторить» / «Проверить порты 1С»;
+  результат публикуется через `dispatchToUi` (паттерн `ServerMonitorViewModel`).
+- Окна — тонкие обёртки: WPF `Views/NetworkDiagnosticsWindow.xaml` и Avalonia
+  `Views/NetworkDiagnosticsWindow.Avalonia.cs`; вход — `NetworkDiagnosticsCommand`
+  в `MainViewModel` (обе платформы) и кнопка в `Views/ServerMonitorWindow.*`.
+- [`NetworkAvailabilityPrecheck`](Configuration Management/Services/NetworkAvailabilityPrecheck.cs)
+  — быстрая TCP-проверка порта кластера перед COM в [`IsBaseAvailable`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs)
+  (флаг настройки `AvailabilityTcpPrecheckEnabled`, по умолчанию выключен): только
+  quick-fail «недоступно» при закрытом порте, любая неопределённость → COM решает
+  (ложных результатов нет).
+
+Ограничения:
+- ICMP на Linux без прав (`net.ipv4.ping_group_range`) помечается «не проверено» и не роняет
+  проверку — TCP остаётся основным критерием;
+- порт 1541 — порт кластера по умолчанию: фактический порт кластера может отличаться
+  (подсказка `HintAgentOkClusterDown` объясняет проверку rphost);
+- для веб-баз проверяется только TCP-доступность порта веб-сервера (без HTTP-запроса).
+
 ### Массовая замена в строке подключения баз
 
 Функция «Заменить в строках подключения…» (цикл 0.3.9.187–0.3.9.192) — массовое применение

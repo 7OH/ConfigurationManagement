@@ -9,6 +9,27 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.233] — 2026-10-01
+
+### Добавлено
+
+- **0.3.9.233: диагностика сети — быстрая TCP-проверка в проверке доступности + документация**:
+- Чистый компонент [`NetworkAvailabilityPrecheck`](Configuration%20Management/Services/NetworkAvailabilityPrecheck.cs):
+  quick-fail «недоступно» по закрытому порту кластера перед COM-подключением в
+  [`IsBaseAvailable`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs) (обе
+  платформы); открытый порт и любая неопределённость (пустой хост, сбой зонда) — проверку
+  продолжает COM, ложных результатов нет. Таймаут зонда 1500 мс — заметно меньше
+  `ComDetectTimeoutMs`.
+- Настройка `AvailabilityTcpPrecheckEnabled` (по умолчанию ВЫКЛЮЧЕНА, консервативно):
+  хранится в `AppSettings`, флажок «Быстрая TCP-проверка порта кластера…» в окне «Настройки»
+  (WPF + Avalonia), свойство в `MainViewModel` обеих платформ.
+- Документация: [`ARCHITECTURE.md`](ARCHITECTURE.md) (раздел «Диагностика сети до сервера 1С»),
+  README (разделы о диагностике и быстрой TCP-проверке).
+- Тесты: [`NetworkAvailabilityPrecheckTests`](ConfigurationManagement.Tests/NetworkAvailabilityPrecheckTests.cs) —
+  выключенный флаг (Skip, делегат не вызывается), закрытый порт/таймаут (FailFast),
+  открытый порт (Continue), пустой/битый адрес и исключение зонда (Continue),
+  приоритет порта из «host:port».
+
 ## [0.3.9.232] — 2026-10-01
 
 ### Добавлено

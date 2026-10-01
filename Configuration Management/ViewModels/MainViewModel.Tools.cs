@@ -1539,6 +1539,18 @@ public partial class MainViewModel : ViewModelBase
 
                 case ConnectionType.ClientServer:
                 {
+                    // Быстрая TCP-проверка порта кластера (функция 12, флаг
+                    // AvailabilityTcpPrecheckEnabled, по умолчанию выключен): закрытый
+                    // порт/таймаут — база точно недоступна, COM не вызываем (ускорение
+                    // массовой проверки недоступных серверов); открытый порт или любая
+                    // неопределённость — проверку продолжает COM (ложных результатов нет).
+                    if (NetworkAvailabilityPrecheck.IsUnreachableFast(
+                            AvailabilityTcpPrecheckEnabled,
+                            ib.Connection.Server,
+                            ib.Connection.Port > 0 ? ib.Connection.Port : OneCPorts.Cluster,
+                            NetworkDiagnosticsService.TcpPortCheckAsync))
+                        return false;
+
                     // Проверка доступности — через безопасный путь процесс-агента (ComReadHost).
                     // Прямой Connect у comcntr.dll под CoreCLR обрывает процесс нативным
                     // fast-fail (0xC0000409), поэтому метод помечен [Obsolete] и здесь не используется.

@@ -91,6 +91,9 @@ namespace Configuration_Management
             // Таймаут определения свойств конфигурации через COM (issue #174).
             if (ComDetectTimeoutMsBox != null)
                 ComDetectTimeoutMsBox.Text = viewModel.ComDetectTimeoutMs.ToString();
+            // Быстрая TCP-проверка порта кластера перед COM (функция 12, 0.3.9.233).
+            if (AvailabilityTcpPrecheckCheckBox != null)
+                AvailabilityTcpPrecheckCheckBox.IsChecked = viewModel.AvailabilityTcpPrecheckEnabled;
             // Глубина истории запусков одной базы (issue #246).
             if (MaxLaunchHistoryDepthBox != null)
                 MaxLaunchHistoryDepthBox.Text = viewModel.MaxLaunchHistoryPerBase.ToString();
@@ -532,6 +535,9 @@ namespace Configuration_Management
             if (ComDetectTimeoutMsBox != null
                 && int.TryParse(ComDetectTimeoutMsBox.Text, out var detectTimeout))
                 _viewModel.ComDetectTimeoutMs = detectTimeout;
+            // Быстрая TCP-проверка порта кластера перед COM (функция 12, 0.3.9.233).
+            if (AvailabilityTcpPrecheckCheckBox != null)
+                _viewModel.AvailabilityTcpPrecheckEnabled = AvailabilityTcpPrecheckCheckBox.IsChecked == true;
             // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96).
             if (MaintenanceFreeSpaceWarningGbBox != null
                 && int.TryParse(MaintenanceFreeSpaceWarningGbBox.Text, out var freeSpaceWarningGb))

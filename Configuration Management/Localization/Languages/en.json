@@ -696,6 +696,7 @@
     "Settings.General.ComDetectTimeoutHint": "How long to wait for the COM connector when detecting the configuration name and version. The first connection to a client-server infobase can take longer than 8 seconds (cold server start, licenses, session creation). Default is 30000 ms.",
     "Settings.General.ComDetectTimeoutTooltip": "COM configuration-read timeout (issue #174). Minimum 1000 ms, default 30000 ms.",
     "Settings.General.ComDetectTimeoutUnit": "ms",
+    "Settings.General.AvailabilityTcpPrecheck": "Quick TCP port check before the availability check of client-server infobases: a closed port marks the base unavailable instantly without waiting for the COM timeout; an open port continues the regular check (no false results)",
 
     "Settings.Ibases.Description": "Synchronization of the application with the standard 1C base list file (ibases.v8i).",
     "Settings.Ibases.HelpText": "Synchronization with the standard 1C base list file ibases.v8i.\n\n• Mode: disabled / load only / export only / two-way (export first, then load).\n• File: path to ibases.v8i (default %APPDATA%\\1C\\1CEStart\\).\n• Synchronization moment: on start, by interval (min) or by schedule (HH:MM).\n• Load from file adds infobases from the file into the application; Export to file does the opposite.\n• It is recommended to enable ibases.v8i backups before synchronization — they can be restored with the Restore from the latest copy button.",

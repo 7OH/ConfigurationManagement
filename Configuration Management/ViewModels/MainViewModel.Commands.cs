@@ -1220,6 +1220,22 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Быстрая TCP-проверка порта кластера перед COM-подключением при проверке
+    /// доступности клиент-серверных баз (функция 12, этап 0.3.9.233). По умолчанию
+    /// выключен; при включении закрытый порт даёт мгновенное «недоступно» без
+    /// ожидания COM-таймаута, открытый порт — продолжает COM-проверку.
+    /// </summary>
+    public bool AvailabilityTcpPrecheckEnabled
+    {
+        get => _tcpPrecheckEnabled;
+        set
+        {
+            if (SetProperty(ref _tcpPrecheckEnabled, value))
+                ScheduleSaveSettings();
+        }
+    }
+
+    /// <summary>
     /// Глубина истории запусков одной базы (issue #246): максимальное количество записей
     /// истории запусков, которое запоминается для информационной базы. Минимум 1.
     /// </summary>

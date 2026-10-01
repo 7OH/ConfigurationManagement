@@ -139,6 +139,24 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Быстрая TCP-проверка порта кластера перед проверкой доступности клиент-серверных
+    /// баз (функция 12, этап 0.3.9.233). По умолчанию выключена; при включении закрытый
+    /// порт даёт мгновенное «недоступно» без ожидания длинного таймаута, открытый —
+    /// продолжает COM-проверку (ложных результатов нет).
+    /// </summary>
+    public bool AvailabilityTcpPrecheckEnabled
+    {
+        get => _settings.AvailabilityTcpPrecheckEnabled;
+        set
+        {
+            if (_settings.AvailabilityTcpPrecheckEnabled == value)
+                return;
+            _settings.AvailabilityTcpPrecheckEnabled = value;
+            SaveSettingsSilently();
+        }
+    }
+
+    /// <summary>
     /// Разрешено ли несколько экземпляров: от этого зависит, вернётся ли
     /// спрятанное окно повторным запуском приложения.
     /// </summary>

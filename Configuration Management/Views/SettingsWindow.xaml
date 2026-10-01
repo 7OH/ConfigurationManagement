@@ -1506,6 +1506,12 @@
                                     <TextBlock Text="{loc:Loc Settings.General.ComDetectTimeoutUnit}"
                                                VerticalAlignment="Center" Margin="8,0,0,0"/>
                                 </StackPanel>
+                                <!-- Быстрая TCP-проверка порта кластера перед COM (функция 12,
+                                     0.3.9.233): закрытый порт — мгновенно «недоступно» без
+                                     ожидания COM-таймаута; открытый порт — продолжает COM. -->
+                                <CheckBox x:Name="AvailabilityTcpPrecheckCheckBox" Margin="0,8,0,0"
+                                          Content="{loc:Loc Settings.General.AvailabilityTcpPrecheck}"
+                                          VerticalAlignment="Center"/>
                             </StackPanel>
                         </GroupBox>
 

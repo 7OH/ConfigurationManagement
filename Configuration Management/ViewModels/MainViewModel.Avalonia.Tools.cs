@@ -1267,10 +1267,16 @@ public partial class MainViewModel : ViewModelBase
 
                 case ConnectionType.ClientServer:
                 {
-                    // На Linux COM-коннектор отсутствует (Connect возвращает null), поэтому
-                    // проверить доступность клиент-серверной базы по сети нельзя. Считать её
-                    // полным DumpCfg конфигуратора для каждой базы слишком дорого — не пробуем,
-                    // база считается недоступной (как и документировано выше).
+                    // Быстрая TCP-проверка порта кластера (функция 12, флаг
+                    // AvailabilityTcpPrecheckEnabled): закрытый порт — мгновенно «недоступно».
+                    // На Linux COM-коннектор отсутствует, поэтому при открытом порте база
+                    // всё равно считается недоступной (как и документировано выше).
+                    if (NetworkAvailabilityPrecheck.IsUnreachableFast(
+                            AvailabilityTcpPrecheckEnabled,
+                            ib.Connection.Server,
+                            ib.Connection.Port > 0 ? ib.Connection.Port : OneCPorts.Cluster,
+                            NetworkDiagnosticsService.TcpPortCheckAsync))
+                        return false;
                     return false;
                 }
 

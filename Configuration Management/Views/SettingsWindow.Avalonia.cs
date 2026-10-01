@@ -616,6 +616,15 @@ namespace Configuration_Management
             });
             settings.Children.Add(detectTimeoutRow);
 
+            // Быстрая TCP-проверка порта кластера перед COM (функция 12, 0.3.9.233).
+            var precheckBox = new CheckBox
+            {
+                Content = LocalizationManager.T("Settings.General.AvailabilityTcpPrecheck"),
+                IsChecked = _viewModel.AvailabilityTcpPrecheckEnabled,
+                Margin = new Thickness(0, 8, 0, 0)
+            };
+            settings.Children.Add(precheckBox);
+
             // Управление учётными записями (профилями).
             // Кнопка учётных записей: значок и тема из разметки
             // (SettingsWindow.xaml:1151-1157).
@@ -3094,6 +3103,8 @@ namespace Configuration_Management
                 // Таймаут определения свойств конфигурации через COM (issue #174).
                 if (int.TryParse(detectTimeoutBox.Text, out var detectTimeout))
                     _viewModel.ComDetectTimeoutMs = detectTimeout;
+                // Быстрая TCP-проверка порта кластера перед COM (функция 12, 0.3.9.233).
+                _viewModel.AvailabilityTcpPrecheckEnabled = precheckBox.IsChecked == true;
 
                 // Авторизация на сайте 1С при проверке обновлений конфигураций (HTTP Basic Auth).
                 _viewModel.UpdatesLogin = updatesLoginBox.Text?.Trim() ?? "";
