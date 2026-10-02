@@ -1,6 +1,7 @@
 #if WINDOWS
 using System.Linq;
 using System.Windows;
+using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -33,6 +34,21 @@ public partial class ScriptPickWindow : Window
         EditButton.Content = T("Common.Edit");
 
         LoadScenarios();
+
+        // issue #308: активным при открытии делаем список, чтобы сценарий можно было
+        // сразу выбирать курсором (стрелками). Первый пункт выбираем заранее — при
+        // фокусе список уже «стоит» на нём, а кнопка «Выполнить» активна.
+        if (ScenariosList.Items.Count > 0)
+            ScenariosList.SelectedIndex = 0;
+        // Focus до показа окна не срабатывает — ставим фокус после загрузки.
+        Loaded += (_, _) => FocusScenarioList();
+    }
+
+    /// <summary>Передаёт фокус списку сценариев (issue #308).</summary>
+    private void FocusScenarioList()
+    {
+        ScenariosList.Focus();
+        Keyboard.Focus(ScenariosList);
     }
 
     private static string T(string key) => LocalizationManager.T(key);
@@ -54,10 +70,20 @@ public partial class ScriptPickWindow : Window
         UpdatePreview();
     }
 
-    private void ScenariosList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void ScenariosList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (Selected is not null)
             Run_Click(sender, e);
+    }
+
+    /// <summary>Enter на выделенной строке = кнопка «Выполнить» (issue #308).</summary>
+    private void ScenariosList_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && Selected is not null)
+        {
+            e.Handled = true;
+            Run_Click(sender, e);
+        }
     }
 
     private void UpdatePreview()

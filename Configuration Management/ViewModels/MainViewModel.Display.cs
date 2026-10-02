@@ -139,7 +139,7 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Есть ли активный фильтр по тегам.</summary>
     public bool HasActiveTagFilter => _activeTagFilters.Count > 0;
 
-    /// <summary>Режим списка: Все / Избранное / Недавние.</summary>
+    /// <summary>Режим списка: Все / Избранное / Недавние / Запущенные.</summary>
     public ListViewMode ListViewMode
     {
         get => _listViewMode;
@@ -149,14 +149,24 @@ public partial class MainViewModel : ViewModelBase
             {
                 // Совместимость с прежним флагом избранного.
                 _showFavoritesOnly = value == ListViewMode.Favorites;
+                _showRunningOnly = value == ListViewMode.Running;
+                // При включении отбора сразу актуализируем флаги запуска —
+                // не дожидаясь 10-секундного таймера монитора (issue #339).
+                if (value == ListViewMode.Running)
+                    RefreshRunningFlags();
                 OnPropertyChanged(nameof(ShowFavoritesOnly));
+                OnPropertyChanged(nameof(ShowRunningOnly));
                 OnPropertyChanged(nameof(IsListModeAll));
                 OnPropertyChanged(nameof(IsListModeFavorites));
                 OnPropertyChanged(nameof(IsListModeRecent));
+                OnPropertyChanged(nameof(IsListModeRunning));
                 RebuildGroupTree();
             }
         }
     }
+
+    /// <summary>Отбор «Только запущенные» включён (issue #339).</summary>
+    public bool ShowRunningOnly => _showRunningOnly;
 
     public bool IsListModeAll
     {
@@ -174,6 +184,13 @@ public partial class MainViewModel : ViewModelBase
     {
         get => _listViewMode == ListViewMode.Recent;
         set { if (value) ListViewMode = ListViewMode.Recent; }
+    }
+
+    /// <summary>Режим «Только запущенные» (issue #339).</summary>
+    public bool IsListModeRunning
+    {
+        get => _listViewMode == ListViewMode.Running;
+        set { if (value) ListViewMode = ListViewMode.Running; }
     }
 
     /// <summary>Проверяет, выбран ли тег в фильтре.</summary>
@@ -999,6 +1016,9 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Команда переключения вкладки списка на «Недавние» (горячая клавиша).</summary>
     public ICommand ShowRecentCommand { get; }
+
+    /// <summary>Команда отбора «Только запущенные» (горячая клавиша, issue #339).</summary>
+    public ICommand ShowRunningCommand { get; }
 
     /// <summary>Команда запуска 1С:Предприятие тонким клиентом (32 бита).</summary>
     public ICommand LaunchEnterpriseThinCommand { get; }

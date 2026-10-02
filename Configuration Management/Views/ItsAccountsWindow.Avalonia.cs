@@ -155,6 +155,9 @@ namespace Configuration_Management
             Grid.SetColumn(delete, 5);
             grid.Children.Add(delete);
 
+            // Двойной клик по строке = правка записи (issue #333), как в WPF-версии.
+            grid.DoubleTapped += (_, _) => OnEditRow(account);
+
             return grid;
         }
 

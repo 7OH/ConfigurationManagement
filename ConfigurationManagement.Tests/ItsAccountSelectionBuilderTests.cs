@@ -152,4 +152,20 @@ public sealed class ItsAccountSelectionBuilderTests : IDisposable
         Assert.Equal(0, ItsAccountSelectionBuilder.IndexOf(items, "несуществующий-id"));
         Assert.Equal(0, ItsAccountSelectionBuilder.IndexOf(items, null));
     }
+
+    [Fact]
+    public void Build_EmptyName_ShowsPlaceholderInsteadOfBlank()
+    {
+        // Пустое наименование записи не должно превращаться в «невидимый» пункт
+        // выпадающего списка (issue #333): подставляем нейтральный плейсхолдер.
+        var store = CreateStore();
+        var blank = new ItsAccount { Id = "acc-blank", Name = "   ", Login = "blank@its" };
+        store.Save(new[] { blank });
+
+        var items = ItsAccountSelectionBuilder.Build(store);
+
+        var item = Assert.Single(items, i => i.Id == blank.Id);
+        Assert.False(string.IsNullOrWhiteSpace(item.Name));
+        Assert.DoesNotContain(items, i => i.Id == blank.Id && i.Name is null);
+    }
 }

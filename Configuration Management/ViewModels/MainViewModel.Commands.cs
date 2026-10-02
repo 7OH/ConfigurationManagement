@@ -98,6 +98,7 @@ public partial class MainViewModel : ViewModelBase
                 // Существующая база — только регистрация в списке.
                 var dialog = new ConnectionSettingsWindow(null, Groups, _installedPlatformVersions, defaultGroupPath,
                     availableServers: GetAvailableServers(), availablePorts: GetAvailablePorts(),
+                    availableConfigurations: GetAvailableConfigurations(),
                     customLaunchParameters: CustomLaunchParameters, onCustomLaunchParametersChanged: SetCustomLaunchParameters,
                     availableRepositoryServers: GetAvailableRepositoryServers(),
                     availableTags: AvailableTags)
@@ -148,6 +149,19 @@ public partial class MainViewModel : ViewModelBase
         return Infobases
             .Where(b => b?.Connection?.Type == ConnectionType.ClientServer)
             .Select(b => b.Connection!.Server?.Trim() ?? string.Empty)
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Имена конфигураций из всех баз списка (без дублей, по алфавиту) для выпадающего
+    /// списка поля «Конфигурация» в окне настройки подключения (issue #338).
+    /// </summary>
+    private IEnumerable<string> GetAvailableConfigurations()
+    {
+        return Infobases
+            .Select(b => b?.ConfigurationName?.Trim() ?? string.Empty)
             .Where(s => !string.IsNullOrEmpty(s))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
@@ -249,6 +263,7 @@ public partial class MainViewModel : ViewModelBase
 
         var dialog = new ConnectionSettingsWindow(ib, Groups, _installedPlatformVersions,
             availableServers: GetAvailableServers(), availablePorts: GetAvailablePorts(),
+            availableConfigurations: GetAvailableConfigurations(),
             customLaunchParameters: CustomLaunchParameters, onCustomLaunchParametersChanged: SetCustomLaunchParameters,
             availableRepositoryServers: GetAvailableRepositoryServers(),
             availableTags: AvailableTags)
@@ -1402,6 +1417,17 @@ public string HotkeyEnterprise
         }
     }
 
+    /// <summary>Горячая клавиша отбора «Только запущенные» (issue #339). Пусто — не назначена.</summary>
+    public string HotkeyShowRunning
+    {
+        get => _hotkeyShowRunning;
+        set
+        {
+            if (SetProperty(ref _hotkeyShowRunning, NormalizeHotkey(value, "")))
+                ScheduleSaveSettings();
+        }
+    }
+
     /// <summary>Горячая клавиша очистки строки поиска. Пусто — не назначена.</summary>
     public string HotkeyClearSearch
     {
@@ -1574,6 +1600,7 @@ public string HotkeyEnterprise
             ("palette.tab-all", "Main.AllBases", ShowAllCommand),
             ("palette.tab-favorites", "Main.Favorites", ShowFavoritesCommand),
             ("palette.tab-recent", "Main.Recent", ShowRecentCommand),
+            ("palette.tab-running", "Main.Running", ShowRunningCommand),
             ("palette.clear-search", "Main.ClearSearch", ClearSearchCommand),
             ("palette.clear-tags", "Main.ClearTagFilters", ClearTagFiltersCommand),
             ("palette.backup-scenarios", "Backup.ScenariosTitle", ShowBackupScenariosCommand),
@@ -1603,6 +1630,7 @@ public string HotkeyEnterprise
             "palette.tab-all" => ShowAllCommand,
             "palette.tab-favorites" => ShowFavoritesCommand,
             "palette.tab-recent" => ShowRecentCommand,
+            "palette.tab-running" => ShowRunningCommand,
             "palette.clear-search" => ClearSearchCommand,
             "palette.clear-tags" => ClearTagFiltersCommand,
             "palette.backup-scenarios" => ShowBackupScenariosCommand,

@@ -82,6 +82,16 @@ public partial class ItsAccountsWindow : Window
         }
     }
 
+    /// <summary>Двойной клик по строке = правка записи (issue #333).</summary>
+    private void AccountsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (AccountsGrid.SelectedItem is ItsAccountItemViewModel row)
+        {
+            e.Handled = true;
+            OnEditRow(row);
+        }
+    }
+
     /// <summary>Удаляет запись с подтверждением; основная после удаления — первая запись списка.</summary>
     private void OnDeleteRow(ItsAccountItemViewModel row)
     {

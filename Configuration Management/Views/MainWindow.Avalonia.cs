@@ -1092,6 +1092,18 @@ namespace Configuration_Management
             recSeg.Bind(ToggleButton.IsCheckedProperty, new Binding("IsListModeRecent") { Mode = BindingMode.TwoWay });
             panel.Children.Add(recSeg);
 
+            // Отбор «Только запущенные» (issue #339): одноцветная точка крупнее индикатора списка.
+            var runningSeg = new SegmentButton("IconRunningDot", LocalizationManager.T("Main.Running"), "ItemHoverBrush", "ItemSelectedBrush",
+                iconSize: UiMetrics.Scaled(16), cornerRadius: 8)
+            {
+                Padding = new Thickness(12, 5),
+                Margin = new Thickness(4, 0, 0, 0),
+                MinHeight = 0
+            };
+            ToolTip.SetTip(runningSeg, LocalizationManager.T("Main.RunningTooltip"));
+            runningSeg.Bind(ToggleButton.IsCheckedProperty, new Binding("IsListModeRunning") { Mode = BindingMode.TwoWay });
+            panel.Children.Add(runningSeg);
+
             container.Child = panel;
             return container;
         }

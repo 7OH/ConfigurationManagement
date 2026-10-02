@@ -446,6 +446,15 @@ namespace Configuration_Management
         {
             if (infobase is null)
                 return;
+
+            // Отбор «Только запущенные» (issue #339): вместо глобальной настройки
+            // двойной клик/Enter активируют окно уже запущенной базы.
+            if (_viewModel.IsListModeRunning && infobase.IsRunning)
+            {
+                _viewModel.ActivateRunningInfobase(infobase);
+                return;
+            }
+
             var dblAction = _viewModel.ResolveDoubleClickAction(infobase);
             if (dblAction == Configuration_Management.Models.DoubleClickAction.None)
                 return;

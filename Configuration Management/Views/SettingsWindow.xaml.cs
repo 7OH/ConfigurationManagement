@@ -464,6 +464,7 @@ namespace Configuration_Management
             var hkShowAll = ReadHotkeyBox(HotkeyShowAllBox);
             var hkShowFavorites = ReadHotkeyBox(HotkeyShowFavoritesBox);
             var hkShowRecent = ReadHotkeyBox(HotkeyShowRecentBox);
+            var hkShowRunning = ReadHotkeyBox(HotkeyShowRunningBox);
             var hkClearSearch = ReadHotkeyBox(HotkeyClearSearchBox);
             var hkClearTags = ReadHotkeyBox(HotkeyClearTagsBox);
             var hkRightPanelDetails = ReadHotkeyBox(HotkeyRightPanelDetailsBox);
@@ -498,6 +499,7 @@ namespace Configuration_Management
                 (LocalizationManager.T("Main.AllBasesTooltip"), hkShowAll),
                 (LocalizationManager.T("Main.FavoritesTooltip"), hkShowFavorites),
                 (LocalizationManager.T("Main.RecentTooltip"), hkShowRecent),
+                (LocalizationManager.T("Main.RunningTooltip"), hkShowRunning),
                 (LocalizationManager.T("Main.ClearSearch"), hkClearSearch),
                 (LocalizationManager.T("Main.ClearTags"), hkClearTags),
                 (LocalizationManager.T("Main.CollapseRightPanel"), hkRightPanelDetails),
@@ -579,7 +581,8 @@ namespace Configuration_Management
                 hotkeyServerConsole: hkServerConsole,
                 hotkeyZoomIn: hkZoomIn,
                 hotkeyZoomOut: hkZoomOut,
-                hotkeyZoomReset: hkZoomReset);
+                hotkeyZoomReset: hkZoomReset,
+                hotkeyShowRunning: hkShowRunning);
 
             // Автообновление платформы 1С (функция 9, этап 0.3.9.214).
             _viewModel.HotkeyPlatformUpdate = hkPlatformUpdate;

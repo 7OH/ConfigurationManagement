@@ -1156,10 +1156,16 @@
                                 <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBox Grid.Column="0"
-                                     Text="{Binding ConfigurationName, UpdateSourceTrigger=PropertyChanged}"
-                                     Padding="8,6" VerticalContentAlignment="Center"
-                                     ToolTip="{loc:Loc Connection.ConfigurationNameTooltip}"/>
+                            <!-- Issue #338: «Конфигурация» — выпадающий список имён конфигураций
+                                 других баз + свободный ввод (как «Сервер 1С»). -->
+                            <ComboBox Grid.Column="0"
+                                      Style="{StaticResource ModernComboBox}"
+                                      IsEditable="True"
+                                      IsTextSearchEnabled="True"
+                                      StaysOpenOnEdit="True"
+                                      ItemsSource="{Binding AvailableConfigurations}"
+                                      Text="{Binding ConfigurationName, UpdateSourceTrigger=PropertyChanged}"
+                                      ToolTip="{loc:Loc Connection.ConfigurationNameTooltip}"/>
                             <TextBox Grid.Column="2"
                                      Text="{Binding ConfigurationVersion, UpdateSourceTrigger=PropertyChanged}"
                                      Padding="8,6" VerticalContentAlignment="Center"

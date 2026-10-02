@@ -619,8 +619,11 @@ public partial class MainViewModel : ViewModelBase
             _defaultDoubleClickAction = DoubleClickAction.Normalize(_settings.DefaultDoubleClickAction);
             _sortField = string.IsNullOrWhiteSpace(_settings.SortField) ? "Name" : _settings.SortField;
             _sortAscending = _settings.SortAscending;
-            // Вид списка хранится тем же признаком, что и в WPF: «только избранные».
-            _listMode = _settings.ShowFavoritesOnly ? "Favorites" : "All";
+            // Вид списка хранится теми же признаками, что и в WPF: «избранные» / «запущенные».
+            if (_settings.ShowRunningOnly)
+                _listMode = "Running";
+            else
+                _listMode = _settings.ShowFavoritesOnly ? "Favorites" : "All";
             _sessionClient = SessionClientFromSetting(_settings.SessionClientMode);
             _sessionArch = SessionArchFromSetting(_settings.SessionArchitecture);
             // «Текущая сессия» учитывается лаунчером первым шагом приоритета
@@ -638,6 +641,7 @@ public partial class MainViewModel : ViewModelBase
             OnPropertyChanged(nameof(IsListModeAll));
             OnPropertyChanged(nameof(IsListModeFavorites));
             OnPropertyChanged(nameof(IsListModeRecent));
+            OnPropertyChanged(nameof(IsListModeRunning));
             NotifyColumnSettings();
             NotifySessionSettings();
 
@@ -1031,6 +1035,9 @@ public partial class MainViewModel : ViewModelBase
             return false;
         if (_listMode == "Recent" && ib.LastLaunchDate is null)
             return false;
+        // Отбор «Только запущенные» (issue #339): флаги обновляет монитор процессов 1С.
+        if (_listMode == "Running" && !ib.IsRunning)
+            return false;
 
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
@@ -1256,7 +1263,7 @@ public partial class MainViewModel : ViewModelBase
         {
             dialog = new Configuration_Management.ConnectionSettingsWindow(
                 ib, _groups, InstalledPlatformVersions(), ib.Group,
-                AvailableServers(), AvailablePorts(),
+                AvailableServers(), AvailablePorts(), AvailableConfigurations(),
                 // Существующие теги всех баз — для автодополнения при добавлении (issue #283).
                 _allInfobases.SelectMany(i => i.Tags)
                     .Where(t => !string.IsNullOrWhiteSpace(t))
@@ -1407,7 +1414,7 @@ public partial class MainViewModel : ViewModelBase
         {
             dialog = new Configuration_Management.ConnectionSettingsWindow(
                 null, _groups, InstalledPlatformVersions(), defaultGroupPath,
-                AvailableServers(), AvailablePorts(),
+                AvailableServers(), AvailablePorts(), AvailableConfigurations(),
                 // Существующие теги всех баз — для автодополнения при добавлении (issue #283).
                 _allInfobases.SelectMany(i => i.Tags)
                     .Where(t => !string.IsNullOrWhiteSpace(t))
@@ -1483,6 +1490,16 @@ public partial class MainViewModel : ViewModelBase
     private IEnumerable<string> AvailableServers() => _allInfobases
         .Where(b => b?.Connection?.Type == ConnectionType.ClientServer)
         .Select(b => b.Connection!.Server?.Trim() ?? string.Empty)
+        .Where(s => !string.IsNullOrEmpty(s))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Имена конфигураций из всех баз списка (без дублей, по алфавиту) для выпадающего
+    /// списка поля «Конфигурация» в окне свойств базы (issue #338).
+    /// </summary>
+    private IEnumerable<string> AvailableConfigurations() => _allInfobases
+        .Select(b => b?.ConfigurationName?.Trim() ?? string.Empty)
         .Where(s => !string.IsNullOrEmpty(s))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);

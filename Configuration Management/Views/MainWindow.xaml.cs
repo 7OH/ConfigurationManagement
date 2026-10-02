@@ -370,6 +370,7 @@ namespace Configuration_Management
                     or nameof(MainViewModel.HotkeyShowAll)
                     or nameof(MainViewModel.HotkeyShowFavorites)
                     or nameof(MainViewModel.HotkeyShowRecent)
+                    or nameof(MainViewModel.HotkeyShowRunning)
                     or nameof(MainViewModel.HotkeyRightPanelDetails)
                     or nameof(MainViewModel.HotkeyFindInList)
                     or nameof(MainViewModel.HotkeySwitchUser))

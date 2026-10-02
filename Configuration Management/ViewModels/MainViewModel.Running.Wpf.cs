@@ -1,6 +1,8 @@
 #if WINDOWS
 using System;
 using System.Windows;
+using Configuration_Management.Models;
+using Configuration_Management.Services;
 
 namespace Configuration_Management.ViewModels;
 
@@ -20,6 +22,23 @@ public partial class MainViewModel
             action();
         else
             dispatcher.BeginInvoke(action);
+    }
+
+    /// <summary>Активирует окно процесса 1С базы через Win32 (issue #339).</summary>
+    partial void ActivateRunningInfobaseCore(Infobase infobase)
+    {
+        // GetRunningDetails может занять время (обход процессов) — запускаем вне UI-потока.
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            try
+            {
+                OneCWindowActivator.Activate(infobase);
+            }
+            catch
+            {
+                // Активация не должна ломать интерфейс.
+            }
+        });
     }
 }
 #endif

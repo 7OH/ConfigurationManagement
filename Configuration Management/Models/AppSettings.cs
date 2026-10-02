@@ -17,6 +17,9 @@ public class AppSettings
     /// <summary>Показывать только избранные базы.</summary>
     public bool ShowFavoritesOnly { get; set; }
 
+    /// <summary>Показывать только запущенные базы (issue #339).</summary>
+    public bool ShowRunningOnly { get; set; }
+
     /// <summary>Группировать базы по группам.</summary>
     public bool GroupByGroup { get; set; } = true;
 
@@ -435,6 +438,9 @@ public class AppSettings
 
     /// <summary>Горячая клавиша показа вкладки «Все базы». Пусто — не назначена.</summary>
     public string HotkeyShowAll { get; set; } = "";
+
+    /// <summary>Горячая клавиша отбора «Только запущенные» (issue #339). Пусто — не назначена.</summary>
+    public string HotkeyShowRunning { get; set; } = "";
 
     /// <summary>Горячая клавиша показа вкладки «Избранное». Пусто — не назначена.</summary>
     public string HotkeyShowFavorites { get; set; } = "";

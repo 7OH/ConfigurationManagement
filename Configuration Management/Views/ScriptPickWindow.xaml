@@ -40,7 +40,8 @@
 
             <ListBox x:Name="ScenariosList" Grid.Row="1" BorderThickness="1" Margin="0,0,0,8"
                      SelectionChanged="ScenariosList_SelectionChanged"
-                     MouseDoubleClick="ScenariosList_MouseDoubleClick">
+                     MouseDoubleClick="ScenariosList_MouseDoubleClick"
+                     KeyDown="ScenariosList_KeyDown">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="3">

@@ -38,6 +38,16 @@ public sealed class ScriptPickWindow : ModalWindowBase
         FontSize = 13;
         Content = BuildRoot();
         Reload();
+
+        // issue #308: активным при открытии делаем список — сценарий можно сразу
+        // выбирать курсором. Первый пункт выбираем, только если ничего не выбрано
+        // (повторный Reload после правки сохраняет восстановленный выбор).
+        Opened += (_, _) =>
+        {
+            if (_list.ItemCount > 0 && _list.SelectedIndex < 0)
+                _list.SelectedIndex = 0;
+            _list.Focus();
+        };
     }
 
     /// <summary>Показывает окно модально (синхронно).</summary>
@@ -88,6 +98,15 @@ public sealed class ScriptPickWindow : ModalWindowBase
         {
             if (Selected is not null)
                 await RunSelectedAsync();
+        };
+        // Enter на выделенной строке = кнопка «Выполнить» (issue #308).
+        _list.KeyDown += async (_, e) =>
+        {
+            if (e.Key == Key.Enter && Selected is not null)
+            {
+                e.Handled = true;
+                await RunSelectedAsync();
+            }
         };
 
         var previewLabel = new TextBlock { Text = T("Script.CommandLinePreview"), FontSize = 11 };

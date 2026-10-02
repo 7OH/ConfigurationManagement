@@ -70,6 +70,8 @@ public partial class MainViewModel : ViewModelBase
     private int _maxLaunchHistoryPerBase = 30;
     private readonly ObservableCollection<string> _activeTagFilters = new();
     private ListViewMode _listViewMode = ListViewMode.All;
+    /// <summary>Отбор «Только запущенные» (issue #339).</summary>
+    private bool _showRunningOnly;
 
     private bool _showTags = true;
     private bool _showVersionColumn = true;
@@ -189,6 +191,8 @@ public partial class MainViewModel : ViewModelBase
     private string _hotkeyShowAll = "";
     private string _hotkeyShowFavorites = "";
     private string _hotkeyShowRecent = "";
+    /// <summary>Горячая клавиша отбора «Только запущенные» (issue #339). Пусто — не назначена.</summary>
+    private string _hotkeyShowRunning = "";
     private string _hotkeyClearSearch = "Ctrl+Shift+C";
     private string _hotkeyClearTags = "Ctrl+Shift+T";
     private string _hotkeyRightPanelDetails = "";
@@ -259,6 +263,8 @@ public partial class MainViewModel : ViewModelBase
         var settings = _repository.LoadSettings();
         _showFavoritesOnly = settings.ShowFavoritesOnly;
         _groupByGroup = settings.GroupByGroup;
+        if (settings.ShowRunningOnly)
+            _listViewMode = ListViewMode.Running;
         _showEmptyGroups = settings.ShowEmptyGroups;
         _noGroupColor = string.IsNullOrWhiteSpace(settings.NoGroupColor) ? "#6B7280" : settings.NoGroupColor;
         _noGroupIconColor = string.IsNullOrWhiteSpace(settings.NoGroupIconColor) ? "#FFFFFF" : settings.NoGroupIconColor;
@@ -442,6 +448,7 @@ public partial class MainViewModel : ViewModelBase
         _hotkeyShowAll = settings.HotkeyShowAll?.Trim() ?? "";
         _hotkeyShowFavorites = settings.HotkeyShowFavorites?.Trim() ?? "";
         _hotkeyShowRecent = settings.HotkeyShowRecent?.Trim() ?? "";
+        _hotkeyShowRunning = settings.HotkeyShowRunning?.Trim() ?? "";
         _hotkeyClearSearch = string.IsNullOrWhiteSpace(settings.HotkeyClearSearch)
             ? "Ctrl+Shift+C"
             : settings.HotkeyClearSearch.Trim();
@@ -558,10 +565,12 @@ public partial class MainViewModel : ViewModelBase
         // Обратная совместимость с XAML: отдельные команды делегируют в единую LaunchCommand.
         LaunchEnterpriseCommand = new RelayCommand(p => Launch(LaunchKind.Enterprise, false, p as Infobase), p => ResolveActionTarget(p) != null);
         LaunchConfiguratorCommand = new RelayCommand(p => Launch(LaunchKind.Configurator, false, p as Infobase), p => ResolveActionTarget(p) != null);
-        // Переключение вкладок списка баз (Все / Избранное / Недавние) по горячим клавишам.
+        // Переключение вкладок списка баз (Все / Избранное / Недавние / Запущенные) по горячим клавишам.
         ShowAllCommand = new RelayCommand(_ => IsListModeAll = true);
         ShowFavoritesCommand = new RelayCommand(_ => IsListModeFavorites = true);
         ShowRecentCommand = new RelayCommand(_ => IsListModeRecent = true);
+        // Отбор «Только запущенные» (issue #339): настраиваемый хоткей.
+        ShowRunningCommand = new RelayCommand(_ => IsListModeRunning = true);
         LaunchEnterpriseThinCommand = new RelayCommand(_ => Launch(LaunchKind.Thin32), _ => SelectedInfobase != null);
         LaunchEnterpriseThickCommand = new RelayCommand(_ => Launch(LaunchKind.Thick32), _ => SelectedInfobase != null);
         LaunchEnterpriseThin64Command = new RelayCommand(_ => Launch(LaunchKind.Thin64), _ => SelectedInfobase != null);

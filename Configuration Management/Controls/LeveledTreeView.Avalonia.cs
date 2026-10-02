@@ -452,6 +452,15 @@ namespace Configuration_Management.Controls
         private static void ActivateInfobaseLikeDoubleClick(MainViewModel vm, Infobase ib)
         {
             vm.SelectedInfobase = ib;
+
+            // Отбор «Только запущенные» (issue #339): вместо глобальной настройки
+            // двойной клик/Enter активируют окно уже запущенной базы.
+            if (vm.IsListModeRunning && ib.IsRunning)
+            {
+                vm.ActivateRunningInfobase(ib);
+                return;
+            }
+
             var dblAction = vm.ResolveDoubleClickAction(ib);
             if (dblAction == Configuration_Management.Models.DoubleClickAction.None)
                 return;

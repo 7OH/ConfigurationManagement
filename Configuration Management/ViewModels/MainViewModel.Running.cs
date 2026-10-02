@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Configuration_Management.Models;
 using Configuration_Management.Services;
 
 namespace Configuration_Management.ViewModels;
@@ -88,6 +89,28 @@ public partial class MainViewModel
             // Применение результатов не должно ломать интерфейс.
         }
     }
+
+    /// <summary>
+    /// Активирует окно уже запущенной базы 1С (issue #339): при включённом отборе
+    /// «Только запущенные» двойной клик и Enter вместо повторного запуска поднимают
+    /// окно процесса 1С этой базы. Платформенная реализация — в партиалах.
+    /// </summary>
+    public void ActivateRunningInfobase(Infobase infobase)
+    {
+        if (infobase is null || !infobase.IsRunning)
+            return;
+        try
+        {
+            ActivateRunningInfobaseCore(infobase);
+        }
+        catch
+        {
+            // Активация окна не должна ломать интерфейс: при любой ошибке тихо пропускаем.
+        }
+    }
+
+    /// <summary>Платформенная активация окна процесса 1С базы.</summary>
+    partial void ActivateRunningInfobaseCore(Infobase infobase);
 
     /// <summary>Выполняет действие в UI-потоке (платформенная реализация).</summary>
     partial void DispatchOnUi(Action action);

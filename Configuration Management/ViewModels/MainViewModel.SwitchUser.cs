@@ -150,6 +150,10 @@ public partial class MainViewModel
             }
 
             _showFavoritesOnly = settings.ShowFavoritesOnly;
+            // Отбор «Только запущенные» (issue #339): флаг восстанавливается вместе с режимом списка.
+            _showRunningOnly = settings.ShowRunningOnly;
+            if (_showRunningOnly)
+                _listViewMode = ListViewMode.Running;
             _groupByGroup = settings.GroupByGroup;
             _showEmptyGroups = settings.ShowEmptyGroups;
             _sortField = string.IsNullOrWhiteSpace(settings.SortField) ? "Name" : settings.SortField;
@@ -169,6 +173,7 @@ public partial class MainViewModel
             _hotkeyShowAll = settings.HotkeyShowAll?.Trim() ?? "";
             _hotkeyShowFavorites = settings.HotkeyShowFavorites?.Trim() ?? "";
             _hotkeyShowRecent = settings.HotkeyShowRecent?.Trim() ?? "";
+            _hotkeyShowRunning = settings.HotkeyShowRunning?.Trim() ?? "";
             _hotkeyClearSearch = string.IsNullOrWhiteSpace(settings.HotkeyClearSearch) ? "Ctrl+Shift+C" : settings.HotkeyClearSearch.Trim();
             _hotkeyClearTags = string.IsNullOrWhiteSpace(settings.HotkeyClearTags) ? "Ctrl+Shift+T" : settings.HotkeyClearTags.Trim();
             _hotkeyRightPanelDetails = settings.HotkeyRightPanelDetails?.Trim() ?? "";
@@ -196,6 +201,8 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(Infobases));
             OnPropertyChanged(nameof(Groups));
             OnPropertyChanged(nameof(ShowFavoritesOnly));
+            OnPropertyChanged(nameof(ShowRunningOnly));
+            OnPropertyChanged(nameof(IsListModeRunning));
             OnPropertyChanged(nameof(GroupByGroup));
             OnPropertyChanged(nameof(ShowEmptyGroups));
             OnPropertyChanged(nameof(SwitchUserVisible));
@@ -210,6 +217,7 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(HotkeyShowAll));
             OnPropertyChanged(nameof(HotkeyShowFavorites));
             OnPropertyChanged(nameof(HotkeyShowRecent));
+            OnPropertyChanged(nameof(HotkeyShowRunning));
             OnPropertyChanged(nameof(HotkeyClearSearch));
             OnPropertyChanged(nameof(HotkeyClearTags));
             OnPropertyChanged(nameof(HotkeyRightPanelDetails));

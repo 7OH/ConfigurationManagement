@@ -73,8 +73,14 @@ public class ItsAccountsViewModel : ViewModelBase
         Reload();
     }
 
-    /// <summary>Удаляет запись; если удаляемая была основной — основной становится первая запись.</summary>
-    public void Delete(string id) => _store.Delete(id);
+    /// <summary>Удаляет запись; если удаляемая была основной — основной становится первая запись.
+    /// Список пересобирается сразу, иначе удалённая запись оставалась видимой до перезапуска
+    /// (issue #333).</summary>
+    public void Delete(string id)
+    {
+        _store.Delete(id);
+        Reload();
+    }
 
     /// <summary>Делает запись основной (снимает флаг с остальных).</summary>
     public void SetPrimary(string id) => _store.SetPrimary(id);
@@ -133,7 +139,12 @@ public static class ItsAccountSelectionBuilder
                     continue;
                 primaryNameSeen = true;
             }
-            result.Add(new ItsAccountSelectionItem(account.Id, account.Name));
+            // Пустое наименование в выпадающем списке «не читалось» как отсутствие пункта
+            // (issue #333): подставляем нейтральный плейсхолдер, чтобы пункт был виден.
+            var displayName = string.IsNullOrWhiteSpace(account.Name)
+                ? LocalizationManager.T("Main.NoName")
+                : account.Name;
+            result.Add(new ItsAccountSelectionItem(account.Id, displayName));
         }
 
         // Реальной «Основной» нет — добавляем виртуальный пункт «Основная» первым (прежнее поведение).

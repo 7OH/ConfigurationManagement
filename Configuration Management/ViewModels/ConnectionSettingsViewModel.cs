@@ -343,6 +343,32 @@ public class ConnectionSettingsViewModel : ViewModelBase
     public ObservableCollection<string> AvailableServers { get; } = new();
 
     /// <summary>
+    /// Имена конфигураций, встречающиеся у других баз списка, для выпадающего списка
+    /// поля «Конфигурация» (issue #338). Поле остаётся редактируемым — ручной ввод сохранён.
+    /// </summary>
+    public ObservableCollection<string> AvailableConfigurations { get; } = new();
+
+    /// <summary>
+    /// Устанавливает список доступных имён конфигураций из других баз списка.
+    /// Сортируем по алфавиту и исключаем пустые значения.
+    /// </summary>
+    public void SetAvailableConfigurations(IEnumerable<string>? configurations)
+    {
+        AvailableConfigurations.Clear();
+        if (configurations is null)
+            return;
+
+        foreach (var config in configurations
+                     .Where(s => !string.IsNullOrWhiteSpace(s))
+                     .Select(s => s.Trim())
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
+        {
+            AvailableConfigurations.Add(config);
+        }
+    }
+
+    /// <summary>
     /// Устанавливает список доступных серверов 1С из других баз списка.
     /// Сортируем по алфавиту и исключаем пустые значения.
     /// </summary>
@@ -1291,7 +1317,10 @@ public class ConnectionSettingsViewModel : ViewModelBase
         conn.Server = Server;
         conn.DatabaseName = DatabaseName;
         conn.FilePath = FilePath;
-        conn.WebUrl = WebUrl;
+        // Завершающий сегмент локали (/ru_RU/) обрезаем при сохранении базы, а не только
+        // при «Перейти по ссылке» (issue #332): адрес публикации вида
+        // https://host/base/ru_RU/ сохраняется в список как https://host/base/.
+        conn.WebUrl = OneCLauncher.StripWebLocaleSegment(WebUrl) ?? string.Empty;
         conn.User = User;
         conn.Password = Password;
         conn.AuthenticationMode = AuthenticationMode;

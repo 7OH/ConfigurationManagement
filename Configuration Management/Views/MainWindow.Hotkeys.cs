@@ -64,10 +64,12 @@ namespace Configuration_Management
             Add(_viewModel.HotkeyClearCache, _viewModel.ClearCacheCommand);
             Add(_viewModel.HotkeyAdd, _viewModel.AddInfobaseCommand);
             Add(_viewModel.HotkeyPin, _viewModel.TogglePinCommand);
-            // Переключение вкладок списка баз: Все / Избранное / Недавние.
+            // Переключение вкладок списка баз: Все / Избранное / Недавние / Запущенные.
             Add(_viewModel.HotkeyShowAll, _viewModel.ShowAllCommand);
             Add(_viewModel.HotkeyShowFavorites, _viewModel.ShowFavoritesCommand);
             Add(_viewModel.HotkeyShowRecent, _viewModel.ShowRecentCommand);
+            // Отбор «Только запущенные» (issue #339): настраиваемый хоткей.
+            Add(_viewModel.HotkeyShowRunning, _viewModel.ShowRunningCommand);
 
             // Очистка строки поиска и сброс фильтра тегов — настраиваемые хоткеи (issue #160),
             // значения по умолчанию Ctrl+Shift+C / Ctrl+Shift+T задаются в настройках.

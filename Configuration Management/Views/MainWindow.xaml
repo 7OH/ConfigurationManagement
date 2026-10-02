@@ -427,6 +427,19 @@
                                                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
                                         </StackPanel>
                                     </RadioButton>
+                                    <!-- Отбор «Только запущенные» (issue #339): одноцветная точка
+                                         крупнее индикатора запущенности в списке. -->
+                                    <RadioButton GroupName="ListMode"
+                                                 IsChecked="{Binding IsListModeRunning, Mode=TwoWay}"
+                                                 Style="{DynamicResource SegmentRadioButton}" Margin="4,0,0,0"
+                                                 ToolTip="{loc:Loc Main.RunningTooltip}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                     Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                            <TextBlock Text="{loc:Loc Main.Running}" VerticalAlignment="Center"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                        </StackPanel>
+                                    </RadioButton>
                                 </StackPanel>
                             </Border>
 

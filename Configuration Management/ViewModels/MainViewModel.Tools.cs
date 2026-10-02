@@ -28,7 +28,8 @@ public partial class MainViewModel : ViewModelBase
         !string.IsNullOrWhiteSpace(SearchText)
         || HasActiveTagFilter
         || _listViewMode == ListViewMode.Favorites
-        || _listViewMode == ListViewMode.Recent;
+        || _listViewMode == ListViewMode.Recent
+        || _listViewMode == ListViewMode.Running;
 
     /// <summary>
     /// Активен ли временный режим фильтра (Избранное / Недавние / отбор по тегу / поиск),
@@ -2439,7 +2440,9 @@ public partial class MainViewModel : ViewModelBase
         string? hotkeyZoomIn = null,
         string? hotkeyZoomOut = null,
         string? hotkeyZoomReset = null,
-        string? hotkeyCommandPalette = null)
+        string? hotkeyCommandPalette = null,
+        // Отбор «Только запущенные» (issue #339): настраиваемая горячая клавиша.
+        string? hotkeyShowRunning = null)
     {
         _allowMultipleInstances = allowMultipleInstances;
         _checkForUpdatesOnStartup = checkForUpdatesOnStartup;
@@ -2463,6 +2466,7 @@ public partial class MainViewModel : ViewModelBase
         if (hotkeyShowAll != null) _hotkeyShowAll = hotkeyShowAll.Trim();
         if (hotkeyShowFavorites != null) _hotkeyShowFavorites = hotkeyShowFavorites.Trim();
         if (hotkeyShowRecent != null) _hotkeyShowRecent = hotkeyShowRecent.Trim();
+        if (hotkeyShowRunning != null) _hotkeyShowRunning = hotkeyShowRunning.Trim();
         if (hotkeyClearSearch != null) _hotkeyClearSearch = hotkeyClearSearch.Trim();
         if (hotkeyClearTags != null) _hotkeyClearTags = hotkeyClearTags.Trim();
         if (hotkeyRightPanelDetails != null) _hotkeyRightPanelDetails = hotkeyRightPanelDetails.Trim();
@@ -2498,6 +2502,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HotkeyShowAll));
         OnPropertyChanged(nameof(HotkeyShowFavorites));
         OnPropertyChanged(nameof(HotkeyShowRecent));
+        OnPropertyChanged(nameof(HotkeyShowRunning));
         OnPropertyChanged(nameof(HotkeyClearSearch));
         OnPropertyChanged(nameof(HotkeyClearTags));
         OnPropertyChanged(nameof(HotkeyRightPanelDetails));

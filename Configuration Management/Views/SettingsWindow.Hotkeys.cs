@@ -40,6 +40,7 @@ namespace Configuration_Management
             BindHotkeyBox(HotkeyShowAllBox, _viewModel.HotkeyShowAll);
             BindHotkeyBox(HotkeyShowFavoritesBox, _viewModel.HotkeyShowFavorites);
             BindHotkeyBox(HotkeyShowRecentBox, _viewModel.HotkeyShowRecent);
+            BindHotkeyBox(HotkeyShowRunningBox, _viewModel.HotkeyShowRunning);
             BindHotkeyBox(HotkeyClearSearchBox, _viewModel.HotkeyClearSearch);
             BindHotkeyBox(HotkeyClearTagsBox, _viewModel.HotkeyClearTags);
             BindHotkeyBox(HotkeyRightPanelDetailsBox, _viewModel.HotkeyRightPanelDetails);

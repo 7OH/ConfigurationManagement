@@ -47,9 +47,11 @@ namespace Configuration_Management
         /// <param name="defaultGroupPath">Путь группы по умолчанию для новой базы.</param>
         /// <param name="availableServers">Список серверов 1С из других баз списка.</param>
         /// <param name="availablePorts">Список портов серверов 1С из других баз списка.</param>
+        /// <param name="availableConfigurations">Имена конфигураций других баз для выпадающего списка (issue #338).</param>
         public ConnectionSettingsWindow(Infobase? infobase = null, IEnumerable<Group>? groups = null,
             IEnumerable<string>? installedPlatformVersions = null, string? defaultGroupPath = null,
             IEnumerable<string>? availableServers = null, IEnumerable<int>? availablePorts = null,
+            IEnumerable<string>? availableConfigurations = null,
             IEnumerable<string>? availableTags = null)
         {
             // Размеры и базовый кегль по разметке (ConnectionSettingsWindow.xaml:13).
@@ -66,6 +68,8 @@ namespace Configuration_Management
             _viewModel.SetInstalledPlatformVersions(installedPlatformVersions ?? new List<string>());
             _viewModel.SetAvailableServers(availableServers);
             _viewModel.SetAvailablePorts(availablePorts);
+            // Имена конфигураций других баз — для выпадающего списка поля «Конфигурация» (issue #338).
+            _viewModel.SetAvailableConfigurations(availableConfigurations);
             // Существующие теги всех баз — для автодополнения при добавлении (issue #283).
             _viewModel.SetAvailableTags(availableTags);
             if (infobase != null)
@@ -1055,7 +1059,9 @@ namespace Configuration_Management
             configRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             configRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(8)));
             configRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            var configName = Tb("ConfigurationName");
+            // Issue #338: «Конфигурация» — выпадающий список имён конфигураций других баз
+            // + свободный ввод (как «Сервер 1С»).
+            var configName = EditableCombo("ConfigurationName", "AvailableConfigurations");
             configName.Margin = new Thickness(0);
             configName.Padding = new Thickness(8, 6);
             ToolTip.SetTip(configName, LocalizationManager.T("Connection.ConfigurationNameTooltip"));

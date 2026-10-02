@@ -280,16 +280,28 @@ public partial class MainViewModel : ViewModelBase
         set { if (value) SetListMode("Recent"); }
     }
 
+    /// <summary>Отбор «Только запущенные» (issue #339).</summary>
+    public bool IsListModeRunning
+    {
+        get => _listMode == "Running";
+        set { if (value) SetListMode("Running"); }
+    }
+
     private void SetListMode(string mode)
     {
         if (_listMode == mode)
             return;
         _listMode = mode;
         _settings.ShowFavoritesOnly = mode == "Favorites";
+        _settings.ShowRunningOnly = mode == "Running";
+        // При включении отбора сразу актуализируем флаги запуска — не дожидаясь таймера.
+        if (mode == "Running")
+            RefreshRunningFlags();
         SaveSettingsSilently();
         OnPropertyChanged(nameof(IsListModeAll));
         OnPropertyChanged(nameof(IsListModeFavorites));
         OnPropertyChanged(nameof(IsListModeRecent));
+        OnPropertyChanged(nameof(IsListModeRunning));
         ApplyFilter();
     }
 
@@ -416,6 +428,8 @@ public partial class MainViewModel : ViewModelBase
     public string HotkeyShowAll => _settings.HotkeyShowAll;
     public string HotkeyShowFavorites => _settings.HotkeyShowFavorites;
     public string HotkeyShowRecent => _settings.HotkeyShowRecent;
+    /// <summary>Горячая клавиша отбора «Только запущенные» (issue #339). Пусто — не назначена.</summary>
+    public string HotkeyShowRunning => _settings.HotkeyShowRunning;
     public string HotkeyClearSearch => _settings.HotkeyClearSearch;
     public string HotkeyClearTags => _settings.HotkeyClearTags;
     public string HotkeyRightPanelDetails => _settings.HotkeyRightPanelDetails;
@@ -441,7 +455,8 @@ public partial class MainViewModel : ViewModelBase
         string findInList = "", string sessionLock = "", string lockApp = "",
         string checkIntegrity = "", string serverConsole = "",
         string zoomIn = "", string zoomOut = "", string zoomReset = "",
-        string commandPalette = "", string platformUpdate = "")
+        string commandPalette = "", string platformUpdate = "",
+        string showRunning = "")
     {
         _settings.HotkeyEnterprise = enterprise ?? string.Empty;
         _settings.HotkeyConfigurator = configurator ?? string.Empty;
@@ -454,6 +469,8 @@ public partial class MainViewModel : ViewModelBase
         _settings.HotkeyShowAll = showAll ?? string.Empty;
         _settings.HotkeyShowFavorites = showFavorites ?? string.Empty;
         _settings.HotkeyShowRecent = showRecent ?? string.Empty;
+        // Отбор «Только запущенные» (issue #339).
+        _settings.HotkeyShowRunning = showRunning ?? string.Empty;
         _settings.HotkeyClearSearch = clearSearch ?? string.Empty;
         _settings.HotkeyClearTags = clearTags ?? string.Empty;
         _settings.HotkeyRightPanelDetails = rightPanelDetails ?? string.Empty;
@@ -487,6 +504,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HotkeyShowAll));
         OnPropertyChanged(nameof(HotkeyShowFavorites));
         OnPropertyChanged(nameof(HotkeyShowRecent));
+        OnPropertyChanged(nameof(HotkeyShowRunning));
         OnPropertyChanged(nameof(HotkeyClearSearch));
         OnPropertyChanged(nameof(HotkeyClearTags));
         OnPropertyChanged(nameof(HotkeyRightPanelDetails));

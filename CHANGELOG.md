@@ -9,6 +9,161 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.276] — 2026-10-02
+
+### Исправлено
+
+- **Горизонтальная прокрутка списка баз: динамическое переключение панели элементов дерева при
+  превышении суммы колонок над шириной вьюпорта (issue #309, восьмая попытка)** (Windows/WPF):
+  - **причина**: `VirtualizingStackPanel` при `CanContentScroll=True` мерит строки вьюпортной
+    шириной, а ресайкл-строки не всегда перемериваются после смены `MinWidth` — `ExtentWidth`
+    остаётся меньше суммы колонок (`extent ≈ viewport < total`), полоса короткая и последние
+    колонки недостижимы (подтверждается инструментальным логом `CM_COLUMNS`);
+  - **решение**: `ApplyTreePanelStrategy` — когда сумма ширин колонок превышает ширину вьюпорта
+    (полоса реально нужна), ItemsPanel дерева динамически переключается с `VirtualizingStackPanel`
+    на обычный `StackPanel`, который даёт честный `ExtentWidth = DesiredSize` (MinWidth строк =
+    сумме колонок) — прокрутка гарантированно доходит до конца; виртуализация отключается только
+    на время отображения полосы и возвращается при нормальной ширине;
+  - **диагностика**: расширен инструментальный лог `CM_COLUMNS` — выводятся total, sumActualHeader,
+    content, presenterMin, viewport, extent для контроля достижимости последних колонок;
+  - **файлы**: [`Views/MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs)
+    (`ApplyTreePanelStrategy`, `UpdateTreeMinWidth`, лог `CM_COLUMNS`), разметка
+    [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml) (ItemsPanel дерева
+    для переключения); Linux/Avalonia не затронута — проблема на ней не воспроизводится;
+  - **тесты**: WPF-раскладка юнит-тестами не покрывается (UI-зависимо); чистая функция «нужна ли
+    полоса / переключение панели» покрыта в
+    [`ListMinWidthCalculatorTests`](ConfigurationManagement.Tests/ListMinWidthCalculatorTests.cs);
+    регрессия `dotnet test` зелёная, кросс-сборка Linux без ошибок; ручная проверка — при узком
+    окне полоса прокрутки достигает последней колонки.
+
+## [0.3.9.275] — 2026-10-02
+
+### Добавлено
+
+- **Режим «Отбор запущенных»: показ только запущенных баз, активация окна запущенной базы
+  двойным кликом/Enter и настраиваемый хоткей (issue #339)** (обе платформы):
+  - **кнопка-переключатель** в панели вкладок списка баз (рядом с «Недавние»): значок — точка,
+    ToolTip `Main.RunningTooltip`; при включении список показывает только базы с активным
+    процессом 1С (индикатор `Infobase.IsRunning`), флаги актуализируются мгновенно
+    (`RefreshRunningFlags`) без ожидания 10-секундного опроса;
+  - **активация окна запущенной базы**: в режиме отбора двойной клик и Enter не запускают базу
+    повторно, а активируют уже открытое окно 1С — Windows: поиск процесса по командной строке
+    (`RunningInfobaseMatcher.MatchesCommandLine`) → видимое окно → `SW_RESTORE` +
+    `SetForegroundWindow` (новый [`Services/OneCWindowActivator.Windows.cs`](Configuration%20Management/Services/OneCWindowActivator.Windows.cs));
+    Linux: метод-заглушка возвращает false (активация чужих окон на X11 требует wmctrl/xdotool —
+    в проект не добавляются, ограничение описано в issue);
+  - **настраиваемый хоткей** `HotkeyShowRunning` — как у «Показать все»/«Избранное»: настройка
+    в окне «Настройки → Клавиши», регистрация в
+    [`Views/MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs) и
+    [`Views/MainWindow.Avalonia.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Hotkeys.cs);
+  - **файлы**: модели [`Models/ListViewMode.cs`](Configuration%20Management/Models/ListViewMode.cs)
+    (режим `Running`) и [`Models/AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs)
+    (`ShowRunningOnly`, `HotkeyShowRunning`), ViewModel
+    [`ViewModels/MainViewModel.Display.cs`](Configuration%20Management/ViewModels/MainViewModel.Display.cs)
+    / [`ViewModels/MainViewModel.Avalonia.Display.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Display.cs)
+    (свойство `IsListModeRunning`, синхронизация с `_showFavoritesOnly`), фильтры
+    [`ViewModels/MainViewModel.Theme.cs`](Configuration%20Management/ViewModels/MainViewModel.Theme.cs)
+    (`EnumerateFilteredInfobases`: ветка Running → `i.IsRunning`) /
+    [`ViewModels/MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs)
+    (`MatchesFilter`: `Running` → `!ib.IsRunning` отклоняется), команда `ShowRunningCommand` и пункты
+    палитры команд ([`ViewModels/MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs),
+    [`ViewModels/MainViewModel.Avalonia.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Commands.cs)),
+    UI-кнопка [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml) /
+    `SegmentButton` в [`Views/MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs),
+    активация окна — [`Views/MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs)
+    / [`Controls/LeveledTreeView.Avalonia.cs`](Configuration%20Management/Controls/LeveledTreeView.Avalonia.cs),
+    локализация `ru.json`/`en.json` (`Main.Running`, `Main.RunningTooltip`, `Settings.Hotkeys.ShowRunning`);
+  - **тесты**: `Etap13ListStateTests` — режим Running показывает только базы с `IsRunning=true`,
+    двойной клик в режиме Running вызывает `ActivateRunningInfobase`, а не `Launch`;
+    нормализация хоткея покрыта `EtapHotkeysFavoritesTests`; регрессия `dotnet test` зелёная,
+    кросс-сборка Linux без ошибок.
+
+## [0.3.9.274] — 2026-10-02
+
+### Исправлено
+
+- **URL публикации автоматически очищается от завершающего сегмента локали при добавлении/правке
+  базы (issue #332)** (обе платформы):
+  - при сохранении свойств базы значение поля «URL публикации» пропускается через
+    `OneCLauncher.StripWebLocaleSegment` — завершающий сегмент локали вида `/ru_RU/`, `/en_US/`
+    тихо отрезается (как это уже делал фикс 0.3.9.234 для «Перейти по ссылке»), без диалогов;
+  - единая точка правки — `ConnectionSettingsViewModel.ApplyTo`
+    ([`ViewModels/ConnectionSettingsViewModel.cs`](Configuration%20Management/ViewModels/ConnectionSettingsViewModel.cs)):
+    оба `OnSave_Click` (WPF и Avalonia) сохраняют базу через `ApplyTo`, поэтому изменение покрывает
+    обе платформы; «Перейти по ссылке» не затронуто (хелпер уже применялся в
+    [`Services/OneCLauncher.Arguments.cs`](Configuration%20Management/Services/OneCLauncher.Arguments.cs));
+  - **тесты**: сквозной кейс в [`WebLinkLocaleTests`](ConfigurationManagement.Tests/WebLinkLocaleTests.cs) —
+    `ConnectionSettingsViewModel.ApplyTo` для `ConnectionType.WebServer` с
+    `WebUrl = https://host/base/ru_RU/` → `Connection.WebUrl == https://host/base/`; для
+    файловой/клиент-серверной базы URL не меняется; регрессия `dotnet test` зелёная, кросс-сборка
+    Linux без ошибок.
+
+## [0.3.9.273] — 2026-10-02
+
+### Добавлено
+
+- **Поле «Конфигурация» в окне правки базы — редактируемый выпадающий список вариантов из других
+  баз с ручным вводом (issue #338)** (обе платформы):
+  - поле заменено с TextBox на редактируемый `ComboBox` (по образцу поля «Сервер 1С»): список
+    наполняется уникальными значениями конфигураций всех баз списка (`GetAvailableConfigurations()`:
+    непустые → `Trim()` → distinct без учёта регистра → отсортированы), при этом можно ввести
+    произвольное значение вручную — сохранение берёт текст из `Text`, а не из `SelectedItem`
+    (введённая вручную конфигурация не теряется, регресс #164 исключён); `IsTextSearchEnabled=False`,
+    чтобы автодополнение не конфликтовало с вводом;
+  - **файлы**: [`ViewModels/ConnectionSettingsViewModel.cs`](Configuration%20Management/ViewModels/ConnectionSettingsViewModel.cs)
+    (`AvailableConfigurations`, `SetAvailableConfigurations`), WPF
+    [`Views/ConnectionSettingsWindow.xaml`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml)
+    (поле → `ComboBox` `IsEditable="True"` с `Text`-binding на `ConfigurationName`), Avalonia
+    [`Views/ConnectionSettingsWindow.Avalonia.cs`](Configuration%20Management/Views/ConnectionSettingsWindow.Avalonia.cs),
+    наполнение списка и передача в окно — [`ViewModels/MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs)
+    и [`ViewModels/MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs);
+  - **тесты**: новые `ConnectionSettingsViewModelTests` — `SetAvailableConfigurations`:
+    дедупликация, сортировка, отсев пустых/пробельных значений; регрессия `dotnet test` зелёная,
+    кросс-сборка Linux без ошибок; ручная проверка — выбор из списка и ввод вручную сохраняются.
+
+## [0.3.9.272] — 2026-10-02
+
+### Исправлено
+
+- **Учётные записи ИТС: список обновляется после удаления, двойной клик открывает правку,
+  заметная кнопка «Задать основным», имя вместо ключа (issue #333)** (обе платформы):
+  - **удаление**: `ItsAccountsViewModel.Delete` вызывал `_store.Delete` без пересборки списка —
+    запись исчезала только после перезапуска; теперь после удаления вызывается `Reload()`
+    ([`ViewModels/ItsAccountsViewModel.cs`](Configuration%20Management/ViewModels/ItsAccountsViewModel.cs));
+  - **двойной клик** по строке таблицы открывает окно правки: WPF — `MouseDoubleClick` на
+    `DataGrid` `AccountsGrid` ([`Views/ItsAccountsWindow.xaml`](Configuration%20Management/Views/ItsAccountsWindow.xaml),
+    обработчик `AccountsGrid_MouseDoubleClick` в `.xaml.cs`), Avalonia — `DoubleTapped` на корневой
+    grid строки ([`Views/ItsAccountsWindow.Avalonia.cs`](Configuration%20Management/Views/ItsAccountsWindow.Avalonia.cs));
+  - **кнопка «Задать основным»** стала видимой: в WPF колонка с иконкой-звездой без текста (только
+    ToolTip) заменена на заметную кнопку «иконка + текст» (`ItsAccounts.SetPrimary`, ширина колонки
+    ~150, стиль и команда `SetPrimaryCommand` сохранены) — единообразно с текстовой кнопкой Avalonia;
+  - **отображение имени**: при пустом/`null` имени записи в списках выбора учёток подставляется
+    локализованный плейсхолдер «Без имени» (`ItsAccountSelectionBuilder.Build`,
+    [`ViewModels/ItsAccountsViewModel.cs`](Configuration%20Management/ViewModels/ItsAccountsViewModel.cs))
+    — раньше пункт отображался пустой строкой, и выбор «не читался»;
+  - **тесты**: `ItsAccountsStoreTests` — «Delete удаляет из Load()»; новый кейс `ItsAccountsViewModel` —
+    после `Add` → `Delete` коллекция `Rows` больше не содержит удалённой записи;
+    `ItsAccountSelectionBuilderTests` — пустое имя → плейсхолдер вместо пустой строки; регрессия
+    `dotnet test` зелёная, кросс-сборка Linux без ошибок.
+
+## [0.3.9.271] — 2026-10-02
+
+### Добавлено
+
+- **Окно выбора скрипта: фокус на список при открытии и Enter = «Выполнить» (issue #308)**
+  (обе платформы):
+  - при открытии окна выбирается первый пункт списка сценариев и фокус ставится на список —
+    через событие `Loaded`/`Opened` (после отображения окна, чтобы фокус гарантированно сработал);
+  - клавиша **Enter** выполняет выбранный сценарий (равнозначно кнопке «Выполнить»/двойному клику),
+    событие помечается обработанным — клавиатурный сценарий завершён;
+  - **файлы**: WPF [`Views/ScriptPickWindow.xaml`](Configuration%20Management/Views/ScriptPickWindow.xaml)
+    (`KeyDown="ScenariosList_KeyDown"` на `ListBox`) и [`Views/ScriptPickWindow.xaml.cs`](Configuration%20Management/Views/ScriptPickWindow.xaml.cs)
+    (выбор первого пункта, фокус в `Loaded`, обработчик `ScenariosList_KeyDown`), Avalonia
+    [`Views/ScriptPickWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptPickWindow.Avalonia.cs)
+    (подписка на `KeyDown` списка, фокус и первый пункт в `Opened`);
+  - **тесты**: UI-поведение юнит-тестами не покрывается; проверка — регрессия `dotnet test`
+    зелёная, кросс-сборка Linux без ошибок, ручная проверка клавиатурой.
+
 ## [0.3.9.270] — 2026-10-02
 
 ### Исправлено

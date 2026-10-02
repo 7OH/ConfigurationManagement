@@ -552,6 +552,10 @@ public partial class MainViewModel : ViewModelBase
         else if (mode == ListViewMode.Recent)
             source = source.Where(i => i.LastLaunchDate.HasValue)
                            .OrderByDescending(i => i.LastLaunchDate);
+        else if (mode == ListViewMode.Running)
+            // Отбор «Только запущенные» (issue #339): флаги обновляет монитор
+            // процессов 1С (MainViewModel.Running).
+            source = source.Where(i => i.IsRunning);
 
         foreach (var infobase in source)
         {

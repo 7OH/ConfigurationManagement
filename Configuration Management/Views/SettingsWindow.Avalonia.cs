@@ -2802,6 +2802,8 @@ namespace Configuration_Management
             var hotkeyShowAll = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ShowAll"), _viewModel.HotkeyShowAll);
             var hotkeyShowFavorites = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ShowFavorites"), _viewModel.HotkeyShowFavorites);
             var hotkeyShowRecent = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ShowRecent"), _viewModel.HotkeyShowRecent);
+            // Отбор «Только запущенные» (issue #339).
+            var hotkeyShowRunning = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ShowRunning"), _viewModel.HotkeyShowRunning);
             var hotkeyClearSearch = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ClearSearch"), _viewModel.HotkeyClearSearch);
             var hotkeyClearTags = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.ClearTags"), _viewModel.HotkeyClearTags);
             var hotkeyRightPanelDetails = HotkeyRow(hotkeys, LocalizationManager.T("Settings.Hotkeys.RightPanelDetails"), _viewModel.HotkeyRightPanelDetails);
@@ -3170,7 +3172,8 @@ namespace Configuration_Management
                     hotkeySwitchUser.Value, hotkeyFindInList.Value, hotkeySessionLock.Value, hotkeyLockApp.Value,
                     hotkeyCheckIntegrity.Value, hotkeyServerConsole.Value,
                     hotkeyZoomIn.Value, hotkeyZoomOut.Value, hotkeyZoomReset.Value,
-                    hotkeyCommandPalette.Value, hotkeyPlatformUpdate.Value);
+                    hotkeyCommandPalette.Value, hotkeyPlatformUpdate.Value,
+                    hotkeyShowRunning.Value);
 
                 // Копия экрана (функция №30) и автозапуск при старте ОС (функция №31, Этап 8).
                 _viewModel.ScreenshotHotkey = hotkeyScreenshot.Value ?? "";

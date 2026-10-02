@@ -125,7 +125,8 @@
                       HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
                       CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
                       BorderThickness="0" Background="Transparent" GridLinesVisibility="None"
-                      RowHeight="36" AlternationCount="2">
+                      RowHeight="36" AlternationCount="2"
+                      MouseDoubleClick="AccountsGrid_MouseDoubleClick">
                 <DataGrid.Resources>
                     <Style x:Key="CenteredCellText" TargetType="TextBlock">
                         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -174,14 +175,20 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Width="120">
+                    <!-- Кнопка «Задать основным» (issue #333): заметная — иконка + текст,
+                         как в Linux/Avalonia-версии; недоступна у уже основной записи. -->
+                    <DataGridTemplateColumn Width="170">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Button x:Name="PrimaryButton" Style="{StaticResource SelectAllButtonStyle}"
                                         Command="{Binding SetPrimaryCommand}"
-                                        ToolTip="{loc:Loc ItsAccounts.SetPrimary}">
-                                    <materialDesign:PackIcon Kind="Star" Width="16" Height="16"
-                                                             Foreground="{DynamicResource AccentBrush}"/>
+                                        ToolTip="{loc:Loc ItsAccounts.PrimaryTooltip}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="Star" Width="14" Height="14"
+                                                                 Foreground="{DynamicResource AccentBrush}"/>
+                                        <TextBlock Text="{loc:Loc ItsAccounts.SetPrimary}" Margin="5,0,0,0"
+                                                   VerticalAlignment="Center" FontSize="12"/>
+                                    </StackPanel>
                                 </Button>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>

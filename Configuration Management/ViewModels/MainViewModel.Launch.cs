@@ -414,6 +414,8 @@ public partial class MainViewModel : ViewModelBase
             return false;
         if (_listViewMode == ListViewMode.Recent && !infobase.LastLaunchDate.HasValue)
             return false;
+        if (_listViewMode == ListViewMode.Running && !infobase.IsRunning)
+            return false;
 
         if (_activeTagFilterSet.Count > 0
             && !_activeTagFilterSet.All(t =>
@@ -576,6 +578,8 @@ public partial class MainViewModel : ViewModelBase
             // пользователя не затирался при закрытии окна (OnClosing).
             Language = Configuration_Management.Localization.LocalizationManager.Instance.CurrentLanguage,
             ShowFavoritesOnly = _showFavoritesOnly,
+            // Отбор «Только запущенные» (issue #339).
+            ShowRunningOnly = _showRunningOnly,
             GroupByGroup = _groupByGroup,
             ShowEmptyGroups = _showEmptyGroups,
             Theme = _savedTheme,
@@ -675,6 +679,7 @@ public partial class MainViewModel : ViewModelBase
             HotkeyShowAll = _hotkeyShowAll,
             HotkeyShowFavorites = _hotkeyShowFavorites,
             HotkeyShowRecent = _hotkeyShowRecent,
+            HotkeyShowRunning = _hotkeyShowRunning,
             HotkeyClearSearch = _hotkeyClearSearch,
             HotkeyClearTags = _hotkeyClearTags,
             HotkeyRightPanelDetails = _hotkeyRightPanelDetails,

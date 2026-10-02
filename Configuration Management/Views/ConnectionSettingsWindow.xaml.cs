@@ -40,6 +40,7 @@ namespace Configuration_Management
         public ConnectionSettingsWindow(Infobase? infobase = null, IEnumerable<Group>? groups = null,
             IEnumerable<string>? installedPlatformVersions = null, string? defaultGroupPath = null,
             IEnumerable<string>? availableServers = null, IEnumerable<int>? availablePorts = null,
+            IEnumerable<string>? availableConfigurations = null,
             IReadOnlyList<string>? customLaunchParameters = null,
             Action<IReadOnlyList<string>>? onCustomLaunchParametersChanged = null,
             IEnumerable<string>? availableRepositoryServers = null,
@@ -66,6 +67,8 @@ namespace Configuration_Management
             _viewModel.SetInstalledPlatformVersions(installedPlatformVersions ?? new List<string>());
             _viewModel.SetAvailableServers(availableServers);
             _viewModel.SetAvailablePorts(availablePorts);
+            // Имена конфигураций других баз — для выпадающего списка поля «Конфигурация» (issue #338).
+            _viewModel.SetAvailableConfigurations(availableConfigurations);
             _viewModel.SetAvailableRepositoryServers(availableRepositoryServers);
             // Существующие теги всех баз — для автодополнения при добавлении (issue #283).
             _viewModel.SetAvailableTags(availableTags);

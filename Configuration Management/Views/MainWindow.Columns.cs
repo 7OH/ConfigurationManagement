@@ -716,6 +716,24 @@ namespace Configuration_Management
         private object? _treeMinWidthAnchorData;
 
         /// <summary>
+        /// Используется ли обычный StackPanel вместо VirtualizingStackPanel (issue #309).
+        /// VirtualizingStackPanel при CanContentScroll=True меряет детей вьюпортной шириной
+        /// и «срезает» горизонтальный экстент — ExtentWidth не дотягивает до суммы колонок,
+        /// полоса короткая, последние колонки недостижимы. Обычный StackPanel не реализует
+        /// IScrollInfo, и ScrollViewer прокручивает контент по фактическому DesiredSize,
+        /// поэтому горизонтальная полоса становится честной. Цена — потеря виртуализации
+        /// на время, пока полоса реально нужна (колонки не помещаются).
+        /// </summary>
+        private bool _treeUsePlainStackPanel;
+
+        /// <summary>
+        /// Максимальное число строк, при котором допустим обычный StackPanel: на очень
+        /// больших списках (тысячи баз) потеря виртуализации дороже горизонтальной
+        /// прокрутки, и мы остаёмся на виртуализирующей панели (известное ограничение).
+        /// </summary>
+        private const int MaxRowsForPlainStackPanel = 4000;
+
+        /// <summary>
         /// Минимальная ширина колонки «Действия»: совпадает с MinWidth=120, заданной трём
         /// ColumnDefinition этой колонки (заголовок, группа, база) в MainWindow.xaml, чтобы
         /// три кнопки-иконки (Запуск, Конфигуратор, Очистить кеш) оставались доступными.
@@ -803,6 +821,80 @@ namespace Configuration_Management
                 // чтобы следующая итерация правки опиралась на данные, а не на предположения.
                 LogColumnsDiagnostics(total, presenter);
             }
+
+            // Восьмая попытка (issue #309): VirtualizingStackPanel при CanContentScroll=True
+            // измеряет строки вьюпортной шириной, и ExtentWidth не растёт до суммы колонок —
+            // даже с MinWidth на строках полоса остаётся короткой (подтверждается логом
+            // CM_COLUMNS: extent < total). Переключаем ItemsPanel на обычный StackPanel,
+            // как только колонки реально не помещаются: ScrollViewer начинает вести
+            // прокрутку по фактической ширине контента (DesiredSize), и последние колонки
+            // становятся достижимыми. Обратное переключение — когда полоса не нужна.
+            ApplyTreePanelStrategy(total);
+        }
+
+        /// <summary>
+        /// Выбирает панель списка: обычный <see cref="System.Windows.Controls.StackPanel"/>
+        /// при необходимости горизонтальной прокрутки (честный ExtentWidth), иначе
+        /// <see cref="VirtualizingStackPanel"/> (виртуализация). Повторная установка
+        /// ItemsPanelTemplate каждый раз пересоздавала бы контейнеры — применяем только
+        /// при фактической смене стратегии (issue #309, восьмая попытка).
+        /// </summary>
+        private void ApplyTreePanelStrategy(double total)
+        {
+            var treeScroll = GetTreeScrollViewer();
+            double viewport = treeScroll?.ViewportWidth ?? MainTree.ActualWidth;
+            var needHorizontal = total > viewport + 1;
+
+            // На очень больших списках жертвовать виртуализацией нельзя —
+            // остаёмся на VirtualizingStackPanel (колонки могут быть недостижимы).
+            var wantPlain = needHorizontal && CountVisibleTreeItems() <= MaxRowsForPlainStackPanel;
+            if (wantPlain == _treeUsePlainStackPanel)
+                return;
+
+            try
+            {
+                var template = new ItemsPanelTemplate(new FrameworkElementFactory(
+                    wantPlain ? typeof(System.Windows.Controls.StackPanel) : typeof(VirtualizingStackPanel)));
+                MainTree.ItemsPanel = template;
+                _treeUsePlainStackPanel = wantPlain;
+
+                // У виртуализирующей панели возвращаем режимы из разметки
+                // (MainWindow.xaml:1362-1364): Recycling + пиксельный скролл.
+                if (!wantPlain)
+                {
+                    VirtualizingPanel.SetIsVirtualizing(MainTree, true);
+                    VirtualizingPanel.SetVirtualizationMode(MainTree, VirtualizationMode.Recycling);
+                    VirtualizingPanel.SetScrollUnit(MainTree, ScrollUnit.Pixel);
+                }
+
+                MainTree.InvalidateMeasure();
+                LogColumnsDiagnostics(total, GetTreeScrollContentPresenter());
+            }
+            catch
+            {
+                // Сбой переключения не должен ломать раскладку: остаёмся на прежней панели.
+            }
+        }
+
+        /// <summary>Число строк дерева (группы + базы), приблизительно — по корням.</summary>
+        private int CountVisibleTreeItems()
+        {
+            if (_viewModel is null)
+                return 0;
+            try
+            {
+                var count = 0;
+                foreach (var root in _viewModel.GroupNodes)
+                {
+                    count++;
+                    count += root.TotalInfobaseCount;
+                }
+                return count;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         /// <summary>
@@ -821,11 +913,14 @@ namespace Configuration_Management
                 var sumActual = defs is null ? 0 : defs.Sum(d => d.ActualWidth);
                 var viewport = treeScroll?.ViewportWidth ?? 0;
                 var extent = treeScroll?.ExtentWidth ?? 0;
+                var scrollable = treeScroll?.ScrollableWidth ?? 0;
                 var dpi = VisualTreeHelper.GetDpi(this);
                 AppServices.GetRequiredService<IAppLogger>().Info(
                     $"CM_COLUMNS: total={total:F1}, sumActualHeader={sumActual:F1}, " +
                     $"content={_treeMinWidthContent:F1}, presenterMin={presenter?.MinWidth ?? 0:F1}, " +
-                    $"viewport={viewport:F1}, extent={extent:F1}, dpiScale={dpi.DpiScaleX:F2}");
+                    $"viewport={viewport:F1}, extent={extent:F1}, scrollable={scrollable:F1}, " +
+                    $"panel={(_treeUsePlainStackPanel ? "StackPanel" : "VirtualizingStackPanel")}, " +
+                    $"dpiScale={dpi.DpiScaleX:F2}");
             }
             catch
             {

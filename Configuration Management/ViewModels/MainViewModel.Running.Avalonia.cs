@@ -1,6 +1,8 @@
 #if LINUX
 using System;
 using Avalonia.Threading;
+using Configuration_Management.Models;
+using Configuration_Management.Services;
 
 namespace Configuration_Management.ViewModels;
 
@@ -13,6 +15,13 @@ public partial class MainViewModel
             action();
         else
             Dispatcher.UIThread.Post(action);
+    }
+
+    /// <summary>Активация окна 1С на Linux не поддержана (нужны wmctrl/xdotool) — no-op.</summary>
+    partial void ActivateRunningInfobaseCore(Infobase infobase)
+    {
+        // OneCWindowActivator.Activate возвращает false; тихо пропускаем.
+        _ = infobase;
     }
 }
 #endif

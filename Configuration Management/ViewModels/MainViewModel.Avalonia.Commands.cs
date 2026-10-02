@@ -21,6 +21,8 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ShowAllCommand { get; private set; } = null!;
     public ICommand ShowFavoritesCommand { get; private set; } = null!;
     public ICommand ShowRecentCommand { get; private set; } = null!;
+    /// <summary>Команда отбора «Только запущенные» (горячая клавиша, issue #339).</summary>
+    public ICommand ShowRunningCommand { get; private set; } = null!;
     public ICommand LaunchEnterpriseCommand { get; private set; } = null!;
     public ICommand LaunchConfiguratorCommand { get; private set; } = null!;
 
@@ -95,6 +97,7 @@ public partial class MainViewModel : ViewModelBase
         ShowAllCommand = new RelayCommand(() => IsListModeAll = true);
         ShowFavoritesCommand = new RelayCommand(() => IsListModeFavorites = true);
         ShowRecentCommand = new RelayCommand(() => IsListModeRecent = true);
+        ShowRunningCommand = new RelayCommand(() => IsListModeRunning = true);
         LaunchEnterpriseCommand = new RelayCommand(_ => Launch(_launchVm.LaunchCommand, LaunchKind.Enterprise), _ => SelectedInfobase is not null);
         LaunchConfiguratorCommand = new RelayCommand(_ => Launch(_launchVm.LaunchCommand, LaunchKind.Configurator), _ => SelectedInfobase is not null);
         LaunchEnterpriseWithParamsCommand = new RelayCommand(_ => LaunchWithParams(LaunchKind.Enterprise), _ => SelectedInfobase is not null);
@@ -315,6 +318,7 @@ public partial class MainViewModel : ViewModelBase
             ("palette.tab-all", "Main.AllBases", ShowAllCommand),
             ("palette.tab-favorites", "Main.Favorites", ShowFavoritesCommand),
             ("palette.tab-recent", "Main.Recent", ShowRecentCommand),
+            ("palette.tab-running", "Main.Running", ShowRunningCommand),
             ("palette.clear-search", "Main.ClearSearch", ClearSearchCommand),
             ("palette.clear-tags", "Main.ClearTagFilters", ClearTagFiltersCommand),
             ("palette.backup-scenarios", "Backup.ScenariosTitle", ShowBackupScenariosCommand),
@@ -344,6 +348,7 @@ public partial class MainViewModel : ViewModelBase
             "palette.tab-all" => ShowAllCommand,
             "palette.tab-favorites" => ShowFavoritesCommand,
             "palette.tab-recent" => ShowRecentCommand,
+            "palette.tab-running" => ShowRunningCommand,
             "palette.clear-search" => ClearSearchCommand,
             "palette.clear-tags" => ClearTagFiltersCommand,
             "palette.backup-scenarios" => ShowBackupScenariosCommand,

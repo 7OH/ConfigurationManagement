@@ -130,10 +130,12 @@ namespace Configuration_Management
             AddHotkey(_vm.HotkeyFavorite, _vm.ToggleFavoriteCommand);
             AddHotkey(_vm.HotkeyPin, _vm.TogglePinCommand);
             AddHotkey(_vm.HotkeyClearCache, _vm.ClearCacheCommand);
-            // Переключение режимов списка баз: Все, Избранное, Недавние.
+            // Переключение режимов списка баз: Все, Избранное, Недавние, Запущенные.
             AddHotkey(_vm.HotkeyShowAll, _vm.ShowAllCommand);
             AddHotkey(_vm.HotkeyShowFavorites, _vm.ShowFavoritesCommand);
             AddHotkey(_vm.HotkeyShowRecent, _vm.ShowRecentCommand);
+            // Отбор «Только запущенные» (issue #339): настраиваемый хоткей.
+            AddHotkey(_vm.HotkeyShowRunning, _vm.ShowRunningCommand);
 
             // Очистка строки поиска и сброс фильтра тегов — настраиваемые хоткеи (issue #160),
             // значения по умолчанию Ctrl+Shift+C / Ctrl+Shift+T задаются в настройках.
