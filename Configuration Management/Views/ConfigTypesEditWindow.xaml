@@ -5,8 +5,8 @@
         xmlns:loc="clr-namespace:Configuration_Management.Localization"
         Title="{loc:Loc Updates.ConfigTypesTitle}"
         Icon="{StaticResource AppIcon}"
-        Width="720" Height="600"
-        MinHeight="460" MinWidth="600"
+        Width="960" Height="600"
+        MinHeight="460" MinWidth="760"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
         FontFamily="Segoe UI"
@@ -109,6 +109,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -124,8 +125,27 @@
                        TextWrapping="Wrap" Text="{loc:Loc Updates.CustomStorageHint}"/>
         </StackPanel>
 
+        <!-- Поиск/отбор (issue #321, часть 2): фильтр по наименованию, коду, сегменту
+             адреса, нику и редакциям; очистка кнопкой или Esc в поле поиска. -->
+        <Grid Grid.Row="2" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="SearchBox" Padding="10,6" VerticalContentAlignment="Center"
+                     TextChanged="OnSearchTextChanged"
+                     materialDesign:HintAssist.Hint="{loc:Loc Updates.SearchPlaceholder}"/>
+            <Button Grid.Column="1" Margin="8,0,0,0" Height="32" Style="{StaticResource OutlineButtonStyle}"
+                    Click="OnClearSearchClick" ToolTip="{loc:Loc Updates.ClearSearch}">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="Close" Width="14" Height="14"/>
+                    <TextBlock Text="{loc:Loc Updates.ClearSearch}" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
         <!-- Таблица типовых конфигураций -->
-        <Border Grid.Row="2" Margin="0,12,0,0"
+        <Border Grid.Row="3" Margin="0,12,0,0"
                 BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"
                 CornerRadius="6" Background="{DynamicResource CardBackgroundBrush}">
             <DataGrid x:Name="ConfigGrid" AutoGenerateColumns="False" IsReadOnly="True"
@@ -141,6 +161,15 @@
                         <Setter Property="VerticalAlignment" Value="Center"/>
                         <!-- Горизонтальные отступы текста от краёв ячейки (issue #266). -->
                         <Setter Property="Margin" Value="8,0,8,0"/>
+                    </Style>
+                    <!-- Пояснение «Сегмент адреса (ник)» (issue #321, часть 2): что это и как
+                         используется при построении адреса каталога релизов. -->
+                    <Style x:Key="UrlCodeCellText" TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+                        <Setter Property="ToolTip" Value="{loc:Loc Updates.UrlCodeHint}"/>
+                    </Style>
+                    <!-- Пояснение колонки учётной записи ИТС (issue #321, часть 2). -->
+                    <Style x:Key="AccountCellText" TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
+                        <Setter Property="ToolTip" Value="{loc:Loc ItsAccounts.AccountColumnHint}"/>
                     </Style>
                 </DataGrid.Resources>
                 <DataGrid.CellStyle>
@@ -172,19 +201,42 @@
                     </Style>
                 </DataGrid.RowStyle>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Name}" Binding="{Binding Name}"
-                                        ElementStyle="{StaticResource CenteredCellText}"/>
+                    <!-- Наименование + пометка о перекрытии типовой пользовательской копией
+                         (issue #321, часть 2): у строки-переопределения (значок ✎★ в колонке
+                         слева) рядом с именем показывается подпись «заменена пользовательской». -->
+                    <DataGridTemplateColumn Width="3*" Header="{loc:Loc Updates.Name}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="ReplacedNote" Margin="8,0,0,0" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="{loc:Loc Updates.ReplacedByUser}"
+                                               ToolTip="{loc:Loc Updates.OverrideRowHint}"
+                                               Visibility="Collapsed"/>
+                                </StackPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsOverride}" Value="True">
+                                        <Setter TargetName="ReplacedNote" Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.UrlCode}" Binding="{Binding UrlCode}"
-                                        ElementStyle="{StaticResource CenteredCellText}"/>
+                                        ElementStyle="{StaticResource UrlCodeCellText}"/>
                     <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Nick}" Binding="{Binding Nick}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>
-                    <DataGridTextColumn Width="*" Header="{loc:Loc Updates.Editions}" Binding="{Binding EditionsSummary}"
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Editions}" Binding="{Binding EditionsSummary}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>
                     <!-- Учётная запись ИТС для конфигурации (issue #333): имя выбранной записи
-                         справочника либо «Основная», если запись не указана. -->
-                    <DataGridTextColumn Width="1.5*" Header="{loc:Loc ItsAccounts.AccountLabel}"
+                         справочника либо «Основная», если запись не указана. ToolTip поясняет
+                         назначение колонки (issue #321, часть 2). -->
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc ItsAccounts.AccountLabel}"
                                         Binding="{Binding AccountDisplay}"
-                                        ElementStyle="{StaticResource CenteredCellText}"/>
+                                        ElementStyle="{StaticResource AccountCellText}"/>
 
                     <!-- Признак предопределённой; пользовательская копия предопределённой
                          (правка встроенной строки, issue #321) помечается значком ✎★. -->
@@ -255,7 +307,7 @@
 
 
         <!-- Нижняя панель: Добавить / Закрыть -->
-        <Grid Grid.Row="3" Margin="0,14,0,0">
+        <Grid Grid.Row="4" Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>

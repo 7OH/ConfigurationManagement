@@ -156,6 +156,9 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
 
         panel.Children.Add(MakeFieldRow(T("Updates.ConfigCode"), _codeBox));
         panel.Children.Add(MakeFieldRow(T("Updates.Name"), _nameBox));
+        // Сегмент адреса (ник) каталога релизов (issue #321, часть 2): ToolTip поясняет,
+        // как значение используется при построении адреса каталога релизов на releases.1c.ru.
+        ToolTip.SetTip(_urlCodeBox, T("Updates.UrlCodeHint"));
         panel.Children.Add(MakeFieldRow(T("Updates.UrlCode"), _urlCodeBox));
         panel.Children.Add(MakeFieldRow(T("Updates.Nick"), _nickBox));
         panel.Children.Add(MakeFieldRow(T("ItsAccounts.AccountLabel"), _accountBox));

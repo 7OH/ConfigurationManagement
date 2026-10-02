@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.265</Version>
-    <AssemblyVersion>0.3.9.265</AssemblyVersion>
-    <FileVersion>0.3.9.265</FileVersion>
-    <InformationalVersion>0.3.9.265</InformationalVersion>
+    <Version>0.3.9.266</Version>
+    <AssemblyVersion>0.3.9.266</AssemblyVersion>
+    <FileVersion>0.3.9.266</FileVersion>
+    <InformationalVersion>0.3.9.266</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -350,6 +350,9 @@
     <!-- Общие модели окна «Проверка обновлений конфигураций» (Этап 1, функции №21/№22):
          чистый .NET без WPF-зависимостей, используются и Windows, и Linux. -->
     <Compile Include="ViewModels\ConfigTypeItemViewModel.cs" />
+    <!-- Чистый фильтр строк списка типовых конфигураций (issue #321, часть 2):
+         обе платформы; подключается явно (имя не совпадает с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\ConfigTypesFilter.cs" />
     <Compile Include="ViewModels\UpdateCheckRowViewModel.cs" />
     <Compile Include="ViewModels\ActualReleasesViewModel.cs" />
     <!-- Учётные данные ИТС (issue #333): чистые ViewModel справочника и строки списка,

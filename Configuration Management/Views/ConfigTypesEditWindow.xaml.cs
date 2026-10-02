@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
@@ -31,6 +32,9 @@ public partial class ConfigTypesEditWindow : Window
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
     private readonly List<OneCConfigType> _customTypes = new();
+    // Полный набор строк (из LoadAll) и видимый набор после поискового фильтра.
+    // Фильтрация по копии полного списка, а не по MergeAll на каждый ввод (issue #321, часть 2).
+    private readonly List<ConfigTypeItemViewModel> _allRows = new();
     private readonly ObservableCollection<ConfigTypeItemViewModel> _rows = new();
 
     /// <summary>
@@ -49,11 +53,18 @@ public partial class ConfigTypesEditWindow : Window
         PreviewKeyDown += OnWindow_PreviewKeyDown;
     }
 
-    /// <summary>Обрабатывает Esc (закрыть окно) и DEL (удалить выбранную пользовательскую строку).</summary>
+    /// <summary>Обрабатывает Esc (закрыть окно / очистить поиск) и DEL (удалить выбранную
+    /// пользовательскую строку). Esc в поле поиска сначала очищает запрос (issue #321, часть 2).</summary>
     private void OnWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None)
         {
+            if (SearchBox.IsKeyboardFocusWithin && !string.IsNullOrEmpty(SearchBox.Text))
+            {
+                SearchBox.Text = string.Empty;
+                e.Handled = true;
+                return;
+            }
             e.Handled = true;
             Close();
             return;
@@ -87,14 +98,35 @@ public partial class ConfigTypesEditWindow : Window
     /// (issue #321); обычные пользовательские записи добавляются следом.</summary>
     private void RebuildRows()
     {
-        _rows.Clear();
+        _allRows.Clear();
         foreach (var ct in CustomConfigTypesStore.MergeAll(BuiltInConfigTypes.All, _customTypes))
-            AddRow(ct);
+            _allRows.Add(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow, _itsAccounts));
+        ApplyFilter();
     }
 
-    private void AddRow(OneCConfigType config)
+    /// <summary>Применяет поисковый фильтр к полному списку строк (пустой запрос — весь список).</summary>
+    private void ApplyFilter()
     {
-        _rows.Add(new ConfigTypeItemViewModel(config, OnEditRow, OnDeleteRow, _itsAccounts));
+        var query = SearchBox?.Text; // SearchBox создаётся InitializeComponent; до этого — null
+        _rows.Clear();
+        foreach (var row in _allRows)
+        {
+            if (ViewModels.ConfigTypesFilter.Matches(row, query))
+                _rows.Add(row);
+        }
+    }
+
+    /// <summary>Поиск/отбор списка по мере ввода (issue #321, часть 2).</summary>
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        ApplyFilter();
+    }
+
+    /// <summary>Очищает поиск кнопкой и возвращает фокус в поле поиска.</summary>
+    private void OnClearSearchClick(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = string.Empty;
+        SearchBox.Focus();
     }
 
     /// <summary>

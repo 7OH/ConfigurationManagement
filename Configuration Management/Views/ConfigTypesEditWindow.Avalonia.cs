@@ -34,7 +34,11 @@ namespace Configuration_Management
         private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
         private readonly List<OneCConfigType> _customTypes = new();
+        // Полный набор строк (из LoadAll) и видимый набор после поискового фильтра
+        // (issue #321, часть 2): фильтрация по копии полного списка, а не MergeAll на каждый ввод.
+        private readonly List<ConfigTypeItemViewModel> _allRows = new();
         private readonly List<ConfigTypeItemViewModel> _rows = new();
+        private TextBox? _searchBox;
 
         // Панель строк списка (пересобирается после каждого изменения).
         private readonly StackPanel _rowsPanel = new();
@@ -46,9 +50,9 @@ namespace Configuration_Management
         public ConfigTypesEditWindow()
         {
             Title = LocalizationManager.T("Updates.ConfigTypesTitle");
-            Width = 820;
+            Width = 960;
             Height = 560;
-            MinWidth = 640;
+            MinWidth = 760;
             MinHeight = 440;
             FontSize = 13;
             CanResize = true;
@@ -88,10 +92,23 @@ namespace Configuration_Management
         /// следом.</summary>
         private void RebuildRows()
         {
+            _allRows.Clear();
+            foreach (var ct in Services.CustomConfigTypesStore.MergeAll(BuiltInConfigTypes.All, _customTypes))
+                _allRows.Add(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow, _itsAccounts));
+            ApplyFilter();
+        }
+
+        /// <summary>Применяет поисковый фильтр к полному списку строк (пустой запрос — весь список).</summary>
+        private void ApplyFilter()
+        {
+            var query = _searchBox?.Text; // до BuildRoot поле поиска ещё не создано
             _rows.Clear();
             _rowsPanel.Children.Clear();
-            foreach (var ct in Services.CustomConfigTypesStore.MergeAll(BuiltInConfigTypes.All, _customTypes))
-                AddRow(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow, _itsAccounts));
+            foreach (var row in _allRows)
+            {
+                if (ViewModels.ConfigTypesFilter.Matches(row, query))
+                    AddRow(row);
+            }
         }
 
         private void AddRow(ConfigTypeItemViewModel row)
@@ -126,11 +143,11 @@ namespace Configuration_Management
                     }
                 };
 
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(3, GridUnitType.Star)));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
@@ -151,17 +168,32 @@ namespace Configuration_Management
                 Margin = new Thickness(8, 0, 8, 0)
             };
             namePanel.Children.Add(name);
+            // Пользовательская копия предопределённой (правка встроенной строки, issue #321):
+            // значок ✎★ + серая подпись «заменена пользовательской» и пояснение (часть 2).
             if (row.IsOverride)
             {
                 var mark = new TextBlock
                 {
-                    Text = " ✎★",
+                    Text = "✎★",
                     FontSize = 12,
-                    VerticalAlignment = VerticalAlignment.Center
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(8, 0, 0, 0)
                 };
                 ToolTip.SetTip(mark, T("Updates.OverrideHint"));
                 Themes.ThemeBrushes.Bind(mark, TextBlock.ForegroundProperty, "AccentBrush");
                 namePanel.Children.Add(mark);
+
+                var note = new TextBlock
+                {
+                    Text = " · " + T("Updates.ReplacedByUser"),
+                    FontSize = 11,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(4, 0, 0, 0)
+                };
+                Themes.ThemeBrushes.Bind(note, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+                namePanel.Children.Add(note);
+
+                ToolTip.SetTip(namePanel, T("Updates.OverrideRowHint"));
             }
             Grid.SetColumn(namePanel, 0);
             grid.Children.Add(namePanel);
@@ -173,6 +205,9 @@ namespace Configuration_Management
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 8, 0)
             };
+            // Пояснение «Сегмент адреса (ник)» (issue #321, часть 2): как используется
+            // при построении адреса каталога релизов.
+            ToolTip.SetTip(urlCode, T("Updates.UrlCodeHint"));
             Grid.SetColumn(urlCode, 1);
             grid.Children.Add(urlCode);
 
@@ -205,6 +240,8 @@ namespace Configuration_Management
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 8, 0)
             };
+            // Пояснение колонки учётной записи ИТС (issue #321, часть 2).
+            ToolTip.SetTip(account, T("ItsAccounts.AccountColumnHint"));
             Grid.SetColumn(account, 4);
             grid.Children.Add(account);
 
@@ -496,6 +533,33 @@ namespace Configuration_Management
                 Spacing = 8,
                 Margin = new Thickness(8, 8, 8, 4)
             };
+            // Поиск/отбор списка (issue #321, часть 2): фильтр по мере ввода,
+            // очистка кнопкой или Esc в поле поиска.
+            _searchBox = new TextBox
+            {
+                Watermark = T("Updates.SearchPlaceholder"),
+                MinHeight = 32,
+                MinWidth = 260
+            };
+            _searchBox.Styled(ControlThemes.ModernTextBox);
+            _searchBox.TextChanged += (_, _) => ApplyFilter();
+            _searchBox.KeyDown += (_, e) =>
+            {
+                if (e.Key == Avalonia.Input.Key.Escape && !string.IsNullOrEmpty(_searchBox.Text))
+                {
+                    e.Handled = true;
+                    _searchBox.Text = string.Empty;
+                }
+            };
+            var clearSearch = new Button { Content = T("Updates.ClearSearch"), Height = 32 };
+            clearSearch.Styled(ControlThemes.SelectAllButton);
+            clearSearch.Click += (_, _) =>
+            {
+                _searchBox!.Text = string.Empty;
+                _searchBox.Focus();
+            };
+            toolbar.Children.Add(_searchBox);
+            toolbar.Children.Add(clearSearch);
             toolbar.Children.Add(addButton);
             toolbar.Children.Add(restoreButton);
 
@@ -552,11 +616,11 @@ namespace Configuration_Management
         private Grid BuildHeaderGrid()
         {
             var grid = new Grid { Margin = new Thickness(8, 0, 8, 2) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(3, GridUnitType.Star)));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
 
             grid.Children.Add(MakeHeaderText(T("Updates.Name"), 0));
             grid.Children.Add(MakeHeaderText(T("Updates.UrlCode"), 1));

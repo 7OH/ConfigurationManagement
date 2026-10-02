@@ -9,6 +9,48 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.266] — 2026-10-02
+
+### Исправлено
+
+- **Окно «Типовые конфигурации»: комфорт работы со списком — поиск/отбор, ширина окна,
+  подсветка перекрытия типовой пользовательской копией, пояснение «Сегмент адреса (ник)»,
+  понятная колонка учётной записи (issue #321, часть 2)** (обе платформы):
+  - **поиск/отбор**: над таблицей добавлено поле поиска (фильтр по наименованию, коду,
+    сегменту адреса, нику и сводке редакций, без учёта регистра); очистка кнопкой или Esc
+    в поле поиска; пустой запрос показывает весь список. Чистый предикат вынесен в
+    [`ConfigTypesFilter`](Configuration%20Management/ViewModels/ConfigTypesFilter.cs) —
+    используется обеими платформами и покрыт юнит-тестами;
+  - **ширина окна**: список по умолчанию шире (`Width=960`/`MinWidth=760`, было
+    720/600), колонки «Наименование / Сегмент адреса / Ник / Редакции / Учётная запись»
+    перераспределены пропорционально — длинные наименования не обрезаются;
+  - **подсветка перекрытия**: строка-копия предопределённой (правка встроенной, `IsOverride`)
+    теперь помечается не только значком ✎★ с подсказкой, но и серой подписью
+    «заменена пользовательской» рядом с именем + ToolTip «пользовательская копия заменяет
+    типовую запись (типовая строка больше не используется и скрыта из списка)» — на обеих
+    платформах;
+  - **«Сегмент УРЛ»**: подпись переименована в «Сегмент адреса (ник)» (ключ
+    `Updates.UrlCode`) и получила ToolTip-пояснение, что это часть адреса каталога релизов
+    на releases.1c.ru (после `/project/`), используемая при проверке обновлений
+    конфигурации (`Updates.UrlCodeHint`) — в редакторе записи (WPF + Avalonia) и в ячейках
+    списка;
+  - **учётная запись**: колонка показывает текстовое имя записи ИТС либо «Основная»
+    (без иконок-замков), добавлен ToolTip с пояснением назначения колонки
+    (`ItsAccounts.AccountColumnHint`);
+  - **файлы**: [`ViewModels/ConfigTypesFilter.cs`](Configuration%20Management/ViewModels/ConfigTypesFilter.cs)
+    (новый, чистый фильтр), WPF [`Views/ConfigTypesEditWindow.xaml`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml)
+    и [`Views/ConfigTypesEditWindow.xaml.cs`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml.cs),
+    WPF [`Views/ConfigTypeEditWindow.xaml`](Configuration%20Management/Views/ConfigTypeEditWindow.xaml),
+    Avalonia [`Views/ConfigTypesEditWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigTypesEditWindow.Avalonia.cs)
+    и [`Views/ConfigTypeEditWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigTypeEditWindow.Avalonia.cs),
+    локализация `ru.json`/`en.json` (ключи `Updates.SearchPlaceholder`, `Updates.ClearSearch`,
+    `Updates.UrlCodeHint`, `Updates.ReplacedByUser`, `Updates.OverrideRowHint`,
+    `ItsAccounts.AccountColumnHint`; значение `Updates.UrlCode`);
+  - **тесты**: новый [`ConfigTypesFilterTests`](ConfigurationManagement.Tests/ConfigTypesFilterTests.cs) —
+    пустой запрос = весь список, подстроки по всем полям, регистронезависимость, пробелы;
+    регрессия [`ConfigTypeItemViewModelTests`](ConfigurationManagement.Tests/ConfigTypeItemViewModelTests.cs)
+    (`IsOverride`/`IsBuiltIn`). Полный набор `dotnet test` зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.265] — 2026-10-02
 
 ### Исправлено
