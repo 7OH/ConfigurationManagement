@@ -129,7 +129,15 @@ namespace Configuration_Management.Controls
                 (e.KeyModifiers & KeyModifiers.Shift) != KeyModifiers.Shift)
             {
                 if (DataContext is MainViewModel vm)
-                    vm.ToggleBatchSelection(rowBase, "Ctrl", isPinnedSection: isPinnedSection);
+                {
+                    // Правило issue #313: первый Ctrl-клик по строке, отличной от
+                    // «текущей», добавляет в набор и «текущую» — но только если она
+                    // лежит в той же секции (#326). Секция текущей строки берётся из
+                    // контейнера, выделенного через SelectRow (_selectedRow): текущая
+                    // строка может быть закреплённой копией (обёртка PinnedInfobaseItem).
+                    vm.ToggleBatchSelection(rowBase, "Ctrl", isPinnedSection: isPinnedSection,
+                        currentRowSectionIsPinned: BatchSelectionHelper.IsPinnedSection(_selectedRow?.DataContext));
+                }
                 e.Handled = true;
                 return;
             }

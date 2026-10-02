@@ -74,8 +74,16 @@ public partial class MainViewModel
     /// Секция строки под кликом: true — «Закреплённые» (issue #326). Признак
     /// берётся из данных контейнера (<see cref="BatchSelectionHelper.IsPinnedSection"/>).
     /// </param>
+    /// <param name="currentRowSectionIsPinned">
+    /// Секция «текущей» строки (<see cref="SelectedInfobase"/>, последняя выбранная
+    /// без Ctrl): true — «Закреплённые». Признак берётся из данных контейнера
+    /// текущей строки и нужен для правила issue #313 — при первом Ctrl-клике по
+    /// строке, отличной от текущей, текущая добавляется в набор, но только если
+    /// она лежит в той же секции, что и цель (#326).
+    /// </param>
     public void ToggleBatchSelection(Infobase? ib, string? modifier,
-        IReadOnlyList<Infobase>? visibleOrder = null, bool isPinnedSection = false)
+        IReadOnlyList<Infobase>? visibleOrder = null, bool isPinnedSection = false,
+        bool currentRowSectionIsPinned = false)
     {
         if (ib is null || ib.Id is not { Length: > 0 })
             return;
@@ -91,7 +99,9 @@ public partial class MainViewModel
             _batchSectionIsPinned ?? false,
             ib.Id,
             isPinnedSection,
-            "Ctrl");
+            "Ctrl",
+            includeId: SelectedInfobase?.Id,
+            includeSectionIsPinned: currentRowSectionIsPinned);
         ApplyBatchSet(next, isPinnedSection);
         RaiseBatchSelectionChanged();
     }

@@ -23,9 +23,10 @@ public static class BatchSelectionHelper
     /// правилом секций (#326): клик в другой секции («Закреплённые» vs обычный
     /// список) не смешивает строки — текущий набор очищается, и клик начинает
     /// новый набор в своей секции. Внутри секции поведение прежнее: Ctrl —
-    /// точечное переключение, Shift — диапазон от якоря до цели по видимому
-    /// порядку (порядок должен быть построен в пределах той же секции).
-    /// Возвращает новый набор идентификаторов баз.
+    /// точечное переключение (первый Ctrl-клик по строке, отличной от «текущей»,
+    /// добавляет в набор и «текущую» — issue #313), Shift — диапазон от якоря до
+    /// цели по видимому порядку (порядок должен быть построен в пределах той же
+    /// секции). Возвращает новый набор идентификаторов баз.
     /// </summary>
     /// <param name="currentIds">Текущий набор мультивыделения.</param>
     /// <param name="currentSectionIsPinned">
@@ -36,6 +37,14 @@ public static class BatchSelectionHelper
     /// <param name="modifier">"Ctrl" или "Shift" (регистр не важен).</param>
     /// <param name="visibleOrder">Видимый порядок строк в пределах секции цели (для Shift).</param>
     /// <param name="anchorId">Якорь диапазона (обычно последняя строка, выбранная без Ctrl).</param>
+    /// <param name="includeId">
+    /// «Текущая» строка (последняя выбранная без Ctrl, issue #313). При ПЕРВОМ
+    /// Ctrl-клике (набор фактически пуст) по строке, отличной от неё, добавляется
+    /// в набор вместе с целевой — как в проводнике; повторный Ctrl-клик по строке
+    /// набора остаётся toggle. Не добавляется, если секция «текущей» отличается
+    /// от секции цели (правило секций #326).
+    /// </param>
+    /// <param name="includeSectionIsPinned">Секция «текущей» строки (из данных её контейнера).</param>
     public static HashSet<string> ApplyModifiedClick(
         IReadOnlyCollection<string> currentIds,
         bool currentSectionIsPinned,
@@ -43,7 +52,9 @@ public static class BatchSelectionHelper
         bool targetSectionIsPinned,
         string? modifier,
         IReadOnlyList<string>? visibleOrder = null,
-        string? anchorId = null)
+        string? anchorId = null,
+        string? includeId = null,
+        bool includeSectionIsPinned = false)
     {
         var result = new HashSet<string>(currentIds ?? Array.Empty<string>(), StringComparer.Ordinal);
 
@@ -81,6 +92,22 @@ public static class BatchSelectionHelper
         // Ctrl: точечное переключение (toggle).
         if (targetId is null)
             return result;
+
+        // Первый Ctrl-клик по строке, отличной от «текущей» (issue #313):
+        // «текущая» строка (последняя выбранная без Ctrl) добавляется в набор
+        // вместе с целевой — иначе при правом клике «Для выделенных» она
+        // пропадает из набора. Правило действует только когда набор фактически
+        // пуст (после возможного сброса секции выше): повторный Ctrl-клик по
+        // строке набора остаётся toggle. «Текущая» добавляется только если её
+        // секция совпадает с секцией цели (#326) — закреплённые и обычные
+        // строки в одном наборе не смешиваются.
+        if (result.Count == 0 && includeId is { Length: > 0 }
+            && !string.Equals(includeId, targetId, StringComparison.Ordinal)
+            && includeSectionIsPinned == targetSectionIsPinned)
+        {
+            result.Add(includeId);
+        }
+
         if (!result.Add(targetId))
             result.Remove(targetId);
         return result;
@@ -88,10 +115,12 @@ public static class BatchSelectionHelper
 
     /// <summary>
     /// Набор «для выделенных» на момент правого клика (issue #313). Правый клик
-    /// набор НЕ меняет: строка под курсором входит в него только после
-    /// Ctrl/Shift-клика по ней, а «бывшая текущая» (выбранная без Ctrl) не
-    /// добавляется и toggle не выполняется. Метод фиксирует семантику и
-    /// возвращает фактический набор; его используют тесты регрессии сценария.
+    /// набор НЕ меняет: строка под курсором не добавляется и не снимается, даже
+    /// если она была «просто текущей» (выбранной без Ctrl). Попадание «текущей»
+    /// в набор теперь обеспечивается на этапе Ctrl-клика (<see cref="ApplyModifiedClick"/>,
+    /// параметр <c>includeId</c>) — сам правый клик состав набора не трогает.
+    /// Метод фиксирует семантику и возвращает фактический набор; его используют
+    /// тесты регрессии сценария.
     /// </summary>
     public static IReadOnlyCollection<string> BuildRightClickSet(
         IReadOnlyCollection<string> batchIds, string? rightClickedId)

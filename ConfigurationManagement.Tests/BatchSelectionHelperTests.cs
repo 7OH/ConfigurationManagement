@@ -121,9 +121,10 @@ public sealed class BatchSelectionHelperTests
     [Fact]
     public void BuildRightClickSet_RowWasSimplyCurrent_NotAddedToSet()
     {
-        // Сценарий из issue #313: первая строка была просто текущей (без Ctrl),
-        // затем Ctrl-кликами добавлены другие. При правом клике по последней
-        // Ctrl-строке «бывшая текущая» НЕ должна попадать в набор.
+        // Правый клик сам по себе набор не меняет: «бывшая текущая» (выбранная
+        // без Ctrl) попадает в набор НЕ здесь, а на этапе Ctrl-клика (issue #313,
+        // см. ApplyModifiedClick + includeId). Для BuildRightClickSet действует
+        // прежнее правило: строка, которой нет в наборе, не добавляется.
         var batch = new[] { "b", "c" };
 
         var result = BatchSelectionHelper.BuildRightClickSet(batch, rightClickedId: "c");
@@ -160,28 +161,124 @@ public sealed class BatchSelectionHelperTests
         Assert.Empty(result);
     }
 
+    // ======================= Issue #313: первый Ctrl-клик добавляет «текущую» =======================
+
+    [Fact]
+    public void ApplyModifiedClick_FirstCtrlClickOnOtherRow_AddsCurrentAndTarget()
+    {
+        // Правило 7OH (issue #313): «при клике с контролом не на текущей строке,
+        // ставить внутреннюю галку выделения текущей строке тоже». Первый Ctrl-клик
+        // по строке, отличной от «текущей» ("a"), добавляет в набор и "a", и цель "b".
+        var set = new HashSet<string>(StringComparer.Ordinal);
+
+        var result = BatchSelectionHelper.ApplyModifiedClick(
+            set,
+            currentSectionIsPinned: false,
+            targetId: "b",
+            targetSectionIsPinned: false,
+            modifier: "Ctrl",
+            includeId: "a",
+            includeSectionIsPinned: false);
+
+        Assert.Equal(new[] { "a", "b" }, result.OrderBy(x => x));
+    }
+
+    [Fact]
+    public void ApplyModifiedClick_FirstCtrlClickOnCurrentRow_TogglesOnlyCurrent()
+    {
+        // Ctrl-клик по самой «текущей» строке — как раньше: строка просто входит
+        // в набор (toggle), ничего лишнего не добавляется.
+        var result = BatchSelectionHelper.ApplyModifiedClick(
+            Array.Empty<string>(),
+            currentSectionIsPinned: false,
+            targetId: "a",
+            targetSectionIsPinned: false,
+            modifier: "Ctrl",
+            includeId: "a",
+            includeSectionIsPinned: false);
+
+        Assert.Equal(new[] { "a" }, result.OrderBy(x => x));
+    }
+
+    [Fact]
+    public void ApplyModifiedClick_CtrlClickWithNonEmptySet_KeepsToggleOnly()
+    {
+        // Набор уже не пуст — повторные Ctrl-клики остаются точечным toggle:
+        // «текущая» не «допрыгивает» в набор на каждом клике.
+        var current = new[] { "a", "b" };
+
+        // "a" (текущая) уже в наборе — ничего не меняется кроме toggle цели "c".
+        var added = BatchSelectionHelper.ApplyModifiedClick(
+            current, currentSectionIsPinned: false, "c", targetSectionIsPinned: false, "Ctrl",
+            includeId: "a", includeSectionIsPinned: false);
+        Assert.Equal(new[] { "a", "b", "c" }, added.OrderBy(x => x));
+
+        // Текущая "z" вне набора при непустом наборе НЕ добавляется (только toggle цели).
+        var detached = BatchSelectionHelper.ApplyModifiedClick(
+            current, currentSectionIsPinned: false, "c", targetSectionIsPinned: false, "Ctrl",
+            includeId: "z", includeSectionIsPinned: false);
+        Assert.Equal(new[] { "a", "b", "c" }, detached.OrderBy(x => x));
+    }
+
+    [Fact]
+    public void ApplyModifiedClick_FirstCtrlClick_CurrentInOtherSection_NotAdded()
+    {
+        // Правило секций (#326): «текущая» из обычного списка не добавляется в набор,
+        // который начинается Ctrl-кликом в «Закреплённых» (и наоборот).
+        var result = BatchSelectionHelper.ApplyModifiedClick(
+            Array.Empty<string>(),
+            currentSectionIsPinned: false,
+            targetId: "pinned-1",
+            targetSectionIsPinned: true,
+            modifier: "Ctrl",
+            includeId: "regular-a",
+            includeSectionIsPinned: false);
+
+        Assert.Equal(new[] { "pinned-1" }, result.OrderBy(x => x));
+        Assert.DoesNotContain("regular-a", result);
+    }
+
+    [Fact]
+    public void ApplyModifiedClick_FirstCtrlClickInPinnedSection_AddsPinnedCurrentAndTarget()
+    {
+        // То же правило работает внутри «Закреплённых»: текущая закреплённая строка
+        // добавляется вместе с целью Ctrl-клика (обе в секции закреплений).
+        var result = BatchSelectionHelper.ApplyModifiedClick(
+            Array.Empty<string>(),
+            currentSectionIsPinned: false,
+            targetId: "pinned-2",
+            targetSectionIsPinned: true,
+            modifier: "Ctrl",
+            includeId: "pinned-1",
+            includeSectionIsPinned: true);
+
+        Assert.Equal(new[] { "pinned-1", "pinned-2" }, result.OrderBy(x => x));
+    }
+
     // ======================= Регрессия полного сценария #313 =======================
 
     [Fact]
-    public void Regression313_PlainClickThenCtrlClicksThenRightClick_KeepsCtrlMarkedSet()
+    public void Regression313_PlainClickThenCtrlClicksThenRightClick_KeepsFullSet()
     {
         // Сценарий из комментария пользователя к issue #313:
-        // строка "a" была просто текущей (обычный клик, набор пуст),
-        // затем Ctrl-кликами добавлены "b" и "c"; правый клик по "c"
-        // не должен терять "a" — потому что "a" в набор и не входила,
-        // а "b"/"c" (отмеченные Ctrl) обязаны остаться.
+        // строка "a" была просто текущей (обычный клик, набор пуст), затем
+        // Ctrl-кликами добавлены "b" и "c"; правый клик по "c" не должен терять
+        // ни одной строки: "a" теперь входит в набор с первого Ctrl-клика
+        // (как и просил пользователь), "b"/"c" — обычные Ctrl-toggle.
         var set = new HashSet<string>(StringComparer.Ordinal);
 
-        // Обычный клик по "a" в UI вызывает ClearBatchSelection — набор остаётся пустым.
+        // Обычный клик по "a" в UI вызывает ClearBatchSelection — набор остаётся пустым,
+        // а UI передаёт "a" как includeId (текущую строку) при первом Ctrl-клике.
         Assert.Empty(set);
 
-        set = BatchSelectionHelper.ApplyModifiedClick(set, currentSectionIsPinned: false, "b", false, "Ctrl");
-        set = BatchSelectionHelper.ApplyModifiedClick(set, currentSectionIsPinned: false, "c", false, "Ctrl");
+        set = BatchSelectionHelper.ApplyModifiedClick(set, currentSectionIsPinned: false, "b", false, "Ctrl",
+            includeId: "a", includeSectionIsPinned: false);
+        set = BatchSelectionHelper.ApplyModifiedClick(set, currentSectionIsPinned: false, "c", false, "Ctrl",
+            includeId: "a", includeSectionIsPinned: false);
 
         var rightClick = BatchSelectionHelper.BuildRightClickSet(set, rightClickedId: "c");
 
-        Assert.Equal(new[] { "b", "c" }, rightClick.OrderBy(x => x));
-        Assert.DoesNotContain("a", rightClick);
+        Assert.Equal(new[] { "a", "b", "c" }, rightClick.OrderBy(x => x));
     }
 
     [Fact]
