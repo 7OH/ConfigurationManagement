@@ -229,6 +229,67 @@ public sealed class PlatformUpdateViewModelTests
     }
 
     [Fact]
+    public async Task CheckUpdatesAsync_EmptyProviderResponse_WritesErrorWithoutException()
+    {
+        // Сценарий issue #334: портал вернул пустое тело (releases.1c.ru/project/Platform83) —
+        // провайдер (PlatformUpdateService.FetchTextAsync) возвращает NetworkError БЕЗ
+        // исключения; VM обязана показать понятное сообщение (общий ключ ErrorNetwork) и
+        // не пробрасывать ошибку даже при запуске проверки из фонового потока.
+        var service = new FakePlatformUpdateService
+        {
+            AvailableResult = new PlatformCatalogResult
+            {
+                Status = PortalFetchStatus.NetworkError,
+                ErrorKey = string.Empty,
+            },
+        };
+        var vm = CreateVm(service);
+
+        await Task.Run(async () => await vm.CheckUpdatesAsync()); // исключение уронило бы сам тест
+
+        Assert.Empty(vm.Rows);
+        Assert.False(vm.IsBusy);
+        Assert.Equal(0, vm.Progress);
+        Assert.Contains(LocalizationManager.T("PlatformUpdate.Error.NetworkError"), vm.LogText);
+    }
+
+    [Fact]
+    public async Task AppendLog_FromBackgroundThread_RaisesPropertyChangedWithoutException()
+    {
+        // Регрессия issue #334: AppendLog вызывается из фоновых задач (CheckUpdatesAsync
+        // использует ConfigureAwait(false)), и обработчики UI получают уведомление на
+        // фоновом потоке. Контракт VM: уведомление поднимается, исключений не бросается —
+        // потокозависимые UI-действия (ScrollToEnd) выполняет само окно через Dispatcher.
+        var vm = CreateVm();
+        var notifications = new List<string?>();
+        vm.PropertyChanged += (_, e) => notifications.Add(e.PropertyName);
+
+        await Task.Run(() => vm.AppendLog("Фоновая строка журнала"));
+
+        Assert.Contains(nameof(PlatformUpdateViewModel.LogText), notifications);
+        Assert.Contains("Фоновая строка журнала", vm.LogText);
+    }
+
+    [Fact]
+    public async Task CheckUpdatesAsync_FromBackgroundThread_RaisesNotificationsWithoutException()
+    {
+        // Регрессия issue #334: запуск проверки из фонового потока (команда окна может
+        // выполниться вне UI-потока) не бросает исключений, а уведомления PropertyChanged
+        // поднимаются — UI сам перекидывает прокрутку в свой поток.
+        var service = OkService(Release("8.3.27.2214"));
+        var vm = CreateVm(service);
+        var notifications = new List<string?>();
+        vm.PropertyChanged += (_, e) => notifications.Add(e.PropertyName);
+
+        await Task.Run(async () => await vm.CheckUpdatesAsync());
+
+        Assert.Single(vm.Rows);
+        Assert.False(vm.IsBusy);
+        Assert.Contains(nameof(PlatformUpdateViewModel.LogText), notifications);
+        Assert.Contains(nameof(PlatformUpdateViewModel.IsBusy), notifications);
+    }
+
+    [Fact]
     public async Task CheckUpdatesAsync_SetsIsBusy_WhileOperationInProgress()
     {
         var gate = new TaskCompletionSource<PlatformCatalogResult>(TaskCreationOptions.RunContinuationsAsynchronously);

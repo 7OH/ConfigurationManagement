@@ -117,12 +117,16 @@ public partial class PlatformUpdateWindow : Window
 
     /// <summary>Автопрокрутка журнала в конец и анти-мигание панели статуса:
     /// показ при старте операции, скрытие с задержкой <see cref="StatusHideDelay"/>
-    /// после её завершения.</summary>
+    /// после её завершения. PropertyChanged от AppendLog может прийти с ФОНОВОГО
+    /// потока (CheckUpdatesAsync использует ConfigureAwait(false)), а прямой вызов
+    /// ScrollToEnd в WPF бросает InvalidOperationException «Вызывающий поток не может
+    /// получить доступ к данному объекту» (issue #334). Прокрутка перекидывается в
+    /// UI-поток; защита ?. покрывает закрытие окна до исполнения отложенного вызова.</summary>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(PlatformUpdateViewModel.LogText))
         {
-            LogBox?.ScrollToEnd();
+            Dispatcher.BeginInvoke(new Action(() => LogBox?.ScrollToEnd()));
             return;
         }
 

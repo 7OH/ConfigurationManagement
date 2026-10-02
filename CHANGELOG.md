@@ -9,6 +9,29 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.260] — 2026-10-02
+
+### Исправлено
+
+- **Падение при открытии «Обновление платформы» (issue #334)** (Windows/WPF):
+  `InvalidOperationException` «Вызывающий поток не может получить доступ к данному объекту»
+  при проверке обновлений — журнал обновлялся с фонового потока;
+  - **причина**: `PlatformUpdateViewModel.AppendLog` вызывает `OnPropertyChanged(LogText)`
+    из фоновых задач (`CheckUpdatesAsync`, `ConfigureAwait(false)`), а окно
+    ([`Views/PlatformUpdateWindow.xaml.cs`](Configuration%20Management/Views/PlatformUpdateWindow.xaml.cs))
+    вызывало `LogBox.ScrollToEnd()` прямо в обработчике `PropertyChanged` — WPF бросал
+    `Dispatcher.VerifyAccess`;
+  - **как исправлено**: автопрокрутка журнала перекинута в UI-поток
+    (`Dispatcher.BeginInvoke` + защита `?.` от закрытия окна); Linux/Avalonia-версия уже
+    использовала `Dispatcher.UIThread.Post` — правок не требовалось; пустой ответ портала
+    `releases.1c.ru/project/Platform83` корректно отображается пользователю как
+    «Ошибка сети при обращении к сайту 1С» (журнал + уведомление), без исключений;
+  - **тесты**: контракт VM — `AppendLog` и запуск `CheckUpdatesAsync` из `Task.Run`
+    поднимают уведомления без исключений; сценарий «пустой ответ провайдера» —
+    статус ошибки без проброса исключений
+    ([`PlatformUpdateViewModelTests`](ConfigurationManagement.Tests/PlatformUpdateViewModelTests.cs)).
+  - Полный набор `dotnet test` зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.259] — 2026-10-02
 
 ### Исправлено
