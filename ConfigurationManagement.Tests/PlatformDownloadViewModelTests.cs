@@ -275,6 +275,23 @@ public sealed class PlatformDownloadViewModelTests
         Assert.True(vm.HasDownloaded);
     }
 
+    [Fact]
+    public async Task AppendLog_FromBackgroundThread_RaisesPropertyChangedWithoutException()
+    {
+        // Регрессия issue #330: AppendLog вызывается из фоновых задач (LoadCatalogAsync
+        // использует ConfigureAwait(false)), и обработчики UI получают уведомление на
+        // фоновом потоке. Контракт VM: уведомление поднимается, исключений не бросается —
+        // потокозависимые UI-действия (ScrollToEnd) выполняет само окно через Dispatcher.
+        var vm = CreateVm();
+        var notifications = new List<string?>();
+        vm.PropertyChanged += (_, e) => notifications.Add(e.PropertyName);
+
+        await Task.Run(() => vm.AppendLog("Фоновая строка журнала"));
+
+        Assert.Contains(nameof(PlatformDownloadViewModel.LogText), notifications);
+        Assert.Contains("Фоновая строка журнала", vm.LogText);
+    }
+
     // ---------- Fake-сервис ----------
 
     /// <summary>Ждёт выполнения условия с таймаутом (для асинхронных отчётов прогресса).</summary>

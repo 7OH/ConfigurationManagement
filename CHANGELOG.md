@@ -9,6 +9,25 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.259] — 2026-10-02
+
+### Исправлено
+
+- **Падение при открытии «Скачивание платформы» (issue #330)** (Windows/WPF):
+  `InvalidOperationException` «Вызывающий поток не может получить доступ к данному объекту»
+  при открытии окна — журнал обновлялся с фонового потока;
+  - **причина**: `PlatformDownloadViewModel.AppendLog` вызывает `OnPropertyChanged(LogText)`
+    из фоновых задач (`LoadCatalogAsync`/`DownloadAsync`, `ConfigureAwait(false)`), а окно
+    ([`Views/PlatformDownloadWindow.xaml.cs`](Configuration%20Management/Views/PlatformDownloadWindow.xaml.cs))
+    вызывало `LogBox.ScrollToEnd()` прямо в обработчике `PropertyChanged` — WPF бросал
+    `Dispatcher.VerifyAccess`;
+  - **как исправлено**: автопрокрутка журнала перекинута в UI-поток
+    (`Dispatcher.BeginInvoke` + защита `?.` от закрытия окна); Linux/Avalonia-версия уже
+    использовала `Dispatcher.UIThread.Post` — правок не требовалось;
+  - **тест**: контракт VM — `AppendLog` из `Task.Run` поднимает уведомление без исключений
+    ([`PlatformDownloadViewModelTests`](ConfigurationManagement.Tests/PlatformDownloadViewModelTests.cs)).
+  - Полный набор `dotnet test` зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.258] — 2026-10-02
 
 ### Исправлено

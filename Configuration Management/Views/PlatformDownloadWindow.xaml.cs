@@ -108,8 +108,15 @@ public partial class PlatformDownloadWindow : Window
             }
         }
 
-        if (e.PropertyName == nameof(PlatformDownloadViewModel.LogText) && LogBox is not null)
-            LogBox.ScrollToEnd();
+        // Автопрокрутка журнала (issue #330): PropertyChanged от AppendLog может прийти
+        // с ФОНОВОГО потока (LoadCatalogAsync/DownloadAsync используют ConfigureAwait(false)),
+        // а прямой вызов ScrollToEnd в WPF бросает InvalidOperationException «Вызывающий поток
+        // не может получить доступ к данному объекту». Перекидываем прокрутку в UI-поток;
+        // защита ?. покрывает закрытие окна до исполнения отложенного вызова.
+        if (e.PropertyName == nameof(PlatformDownloadViewModel.LogText))
+        {
+            Dispatcher.BeginInvoke(new Action(() => LogBox?.ScrollToEnd()));
+        }
     }
 
     /// <summary>Открывает папку со скачанным файлом (проводник с выделением файла).</summary>
