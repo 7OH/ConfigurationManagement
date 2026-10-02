@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.269] — 2026-10-02
+
+### Исправлено
+
+- **Окно «Диагностика подключения»: команды на отдельной строке — кнопки видны при любой
+  ширине окна, список «Серверы» гарантированно не пуст (issue #335)** (обе платформы):
+  - **компоновка**: панель команд разделена на две строки — строка 1: «Сервер:» (адрес),
+    «Серверы:» (выпадающий список), «Порт:» и кнопка «Проверить»; строка 2: «Проверить порты
+    1С», «Проверить хранилище», «Повторить», «Закрыть». Раньше поля и все пять кнопок лежали
+    в одном горизонтальном ряду, и при сужении окна кнопки обрезались за краем; минимальная
+    ширина окна увеличена (680 → 760), чтобы обе строки помещались целиком;
+  - **список серверов**: в «Серверы» теперь попадают серверы клиент-серверных баз списка +
+    серверы из сохранённых портов ([`Services/ServerPortsStore.cs`](Configuration%20Management/Services/ServerPortsStore.cs)
+    — записи мониторинга/диагностики) + адрес цели проверки — гарантированно, даже когда
+    внешних источников нет (раньше поле могло быть пустым, если в списке не было
+    клиент-серверных баз); адрес цели подставляется в список и выбирается при открытии;
+  - **файлы**: WPF [`Views/NetworkDiagnosticsWindow.xaml`](Configuration%20Management/Views/NetworkDiagnosticsWindow.xaml),
+    Avalonia [`Views/NetworkDiagnosticsWindow.Avalonia.cs`](Configuration%20Management/Views/NetworkDiagnosticsWindow.Avalonia.cs),
+    [`ViewModels/NetworkDiagnosticsViewModel.cs`](Configuration%20Management/ViewModels/NetworkDiagnosticsViewModel.cs)
+    (гарантия адреса цели в списке), новый чистый хелпер
+    [`ViewModels/NetworkDiagnosticsServerSources.cs`](Configuration%20Management/ViewModels/NetworkDiagnosticsServerSources.cs)
+    (объединение источников: без дублей, по алфавиту, устойчиво к битому хранилищу), точки
+    вызова [`ViewModels/MainViewModel.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Tools.cs)
+    и [`ViewModels/MainViewModel.Avalonia.Tools.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Tools.cs);
+  - **тесты**: `NetworkDiagnosticsViewModelTests` — пустой внешний список → адрес цели
+    присутствует в «Серверы» и выбран, поле ручного ввода рабочее; дубликаты внешнего
+    списка и цели снимаются, список отсортирован; новые
+    `NetworkDiagnosticsServerSourcesTests` — объединение источников, дедупликация/сортировка,
+    гарантия адреса цели, битое хранилище; регрессия `dotnet test` зелёная, кросс-сборка
+    Linux без ошибок; ручная проверка — окно на 1024px и 1366px: кнопки видны, «Серверы»
+    не пусты.
+
 ## [0.3.9.268] — 2026-10-02
 
 ### Исправлено

@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.268</Version>
-    <AssemblyVersion>0.3.9.268</AssemblyVersion>
-    <FileVersion>0.3.9.268</FileVersion>
-    <InformationalVersion>0.3.9.268</InformationalVersion>
+    <Version>0.3.9.269</Version>
+    <AssemblyVersion>0.3.9.269</AssemblyVersion>
+    <FileVersion>0.3.9.269</FileVersion>
+    <InformationalVersion>0.3.9.269</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -375,11 +375,12 @@
          явно (имя не совпадает с глобом *.Avalonia.cs); строка PlatformDownloadRowViewModel
          объявлена в этом же файле. -->
     <Compile Include="ViewModels\PlatformDownloadViewModel.cs" />
-    <!-- Диагностика сети до сервера 1С (0.3.9.231, функция 12): чистая ViewModel окна
-         и строка таблицы портов — обе платформы, подключаются явно (имена не совпадают
-         с глобом *.Avalonia.cs). -->
+    <!-- Диагностика сети до сервера 1С (0.3.9.231, функция 12): чистая ViewModel окна,
+         строка таблицы портов и объединение источников списка серверов (issue #335) —
+         обе платформы, подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
     <Compile Include="ViewModels\NetworkDiagnosticsViewModel.cs" />
     <Compile Include="ViewModels\PortDiagnosticRow.cs" />
+    <Compile Include="ViewModels\NetworkDiagnosticsServerSources.cs" />
     <!-- Команды проверки обновлений MainViewModel (Avalonia/Linux): файл не совпадает
          с глобом *.Avalonia.cs (имя «MainViewModel.Avalonia.*.cs»), добавляется явно. -->
     <Compile Include="ViewModels\MainViewModel.Avalonia.Updates.cs" />

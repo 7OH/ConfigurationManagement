@@ -1639,12 +1639,14 @@ public partial class MainViewModel : ViewModelBase
         if (target is null)
             return;
 
+        var portsStore = AppServices.GetRequiredService<IServerPortsStore>();
         var vm = new NetworkDiagnosticsViewModel(
             AppServices.GetRequiredService<INetworkDiagnosticsService>(),
             target,
             action => Avalonia.Threading.Dispatcher.UIThread.Post(action),
-            portsStore: AppServices.GetRequiredService<IServerPortsStore>(),
-            availableServers: AvailableServers());
+            portsStore: portsStore,
+            availableServers: NetworkDiagnosticsServerSources.Merge(
+                AvailableServers(), portsStore, target.Host));
 
         new Configuration_Management.NetworkDiagnosticsWindow(vm)
             .ShowDialogSync(OwnerWindow());

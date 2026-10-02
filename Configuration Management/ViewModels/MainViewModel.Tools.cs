@@ -2681,12 +2681,14 @@ public partial class MainViewModel : ViewModelBase
         if (target is null)
             return;
 
+        var portsStore = AppServices.GetRequiredService<IServerPortsStore>();
         var vm = new NetworkDiagnosticsViewModel(
             AppServices.GetRequiredService<INetworkDiagnosticsService>(),
             target,
             action => System.Windows.Application.Current?.Dispatcher.BeginInvoke(action),
-            portsStore: AppServices.GetRequiredService<IServerPortsStore>(),
-            availableServers: GetAvailableServers());
+            portsStore: portsStore,
+            availableServers: NetworkDiagnosticsServerSources.Merge(
+                GetAvailableServers(), portsStore, target.Host));
 
         new NetworkDiagnosticsWindow(vm)
         {

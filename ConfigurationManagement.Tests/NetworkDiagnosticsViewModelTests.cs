@@ -173,6 +173,48 @@ public sealed class NetworkDiagnosticsViewModelTests
         Assert.Equal(new[] { 1540, 1541, 1542, 1545 }, service.LastPorts);
     }
 
+    // ===================== Пустой список серверов (issue #335) =====================
+
+    [Fact]
+    public void EmptyExternalServers_TargetHostPresentAndSelected()
+    {
+        // Клиент-серверных баз/сохранённых портов нет — адрес цели обязан попасть
+        // в «Серверы» и быть выбранным, поле для ручного ввода остаётся рабочим.
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 1541),
+            availableServers: Array.Empty<string>());
+
+        Assert.Equal(new[] { "srv" }, vm.AvailableServers);
+        Assert.Equal("srv", vm.SelectedServer);
+        Assert.Equal("srv", vm.Host);
+    }
+
+    [Fact]
+    public void NullAvailableServers_TargetHostPresentAndSelected()
+    {
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 1541));
+
+        Assert.Equal(new[] { "srv" }, vm.AvailableServers);
+        Assert.Equal("srv", vm.SelectedServer);
+        Assert.Equal("srv", vm.Host);
+    }
+
+    [Fact]
+    public void ExternalServersPlusTargetHost_DeduplicatedAndSorted()
+    {
+        // Внешний список + адрес цели: дубликаты снимаются (регистронезависимо),
+        // итоговый список отсортирован по алфавиту.
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("beta", 1541),
+            availableServers: new[] { "  ALPHA ", "beta", "gamma" });
+
+        // Регистр исходных значений сохраняется; порядок — по алфавиту
+        // (без учёта регистра); дубликаты сняты регистронезависимо.
+        Assert.Equal(new[] { "ALPHA", "beta", "gamma" }, vm.AvailableServers);
+        Assert.Equal("beta", vm.SelectedServer);
+    }
+
     // ===================== Сервер с портом (issue #335) =====================
 
     [Fact]

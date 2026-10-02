@@ -50,15 +50,26 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
         _portsStore = portsStore;
         _host = target.Host?.Trim() ?? string.Empty;
 
+        // Список известных серверов: внешние источники (клиент-серверные базы,
+        // сохранённые порты) + адрес цели. Адрес цели включается гарантированно —
+        // даже когда внешний список пуст, поле «Серверы» заполнено текущим
+        // сервером (issue #335: «в поле Серверы — ничего нет — пусто»).
+        var servers = new List<string>();
         if (availableServers is not null)
         {
             foreach (var s in availableServers
                          .Where(x => !string.IsNullOrWhiteSpace(x))
-                         .Select(x => x!.Trim())
-                         .Distinct(StringComparer.OrdinalIgnoreCase)
-                         .OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
-                AvailableServers.Add(s);
+                         .Select(x => x!.Trim()))
+                servers.Add(s);
         }
+        if (!string.IsNullOrEmpty(_host) &&
+            !servers.Contains(_host, StringComparer.OrdinalIgnoreCase))
+            servers.Add(_host);
+
+        foreach (var s in servers
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            AvailableServers.Add(s);
 
         // Стартовый порт: порт цели (базы/монитора), иначе сохранённый для этого
         // сервера порт кластера, иначе порт кластера по умолчанию (issue #335 —

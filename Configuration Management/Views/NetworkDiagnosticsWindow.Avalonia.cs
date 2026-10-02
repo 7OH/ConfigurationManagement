@@ -30,7 +30,7 @@ namespace Configuration_Management
             Title = LocalizationManager.T("Diagnostics.Title");
             Width = 860;
             Height = 620;
-            MinWidth = 680;
+            MinWidth = 760;
             MinHeight = 460;
             FontSize = 13;
             CanResize = true;
@@ -81,22 +81,44 @@ namespace Configuration_Management
                 () => _ = _vm.RetryAsync());
             var closeButton = BuildCloseButton();
 
-            var commandPanel = new StackPanel
+            // Панель команд (issue #335, 0.3.9.269): поля — на первой строке,
+            // кнопки команд — на второй, чтобы при узком окне кнопки не обрезались.
+            var fieldsPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 Spacing = 8,
                 Children =
                 {
+                    Label(LocalizationManager.T("Diagnostics.Host")),
                     hostBox,
                     Label(LocalizationManager.T("Diagnostics.ServerLabel")),
                     serverCombo,
                     Label(LocalizationManager.T("Diagnostics.Port")),
                     portBox,
-                    runButton,
+                    runButton
+                }
+            };
+
+            var buttonsPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Children =
+                {
                     checkPortsButton,
                     checkRepositoryButton,
                     retryButton,
                     closeButton
+                }
+            };
+
+            var commandPanel = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    fieldsPanel,
+                    buttonsPanel
                 }
             };
 

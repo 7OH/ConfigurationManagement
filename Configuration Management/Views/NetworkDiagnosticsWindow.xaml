@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:Configuration_Management.Localization"
         Icon="{StaticResource AppIcon}"
-        Height="620" Width="860" MinHeight="460" MinWidth="680"
+        Height="620" Width="860" MinHeight="460" MinWidth="760"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         Background="{DynamicResource ContentBackgroundBrush}">
@@ -37,62 +37,67 @@
         </Grid.RowDefinitions>
 
         <!-- Адрес, сервер с портом и команды (issue #335): выбор сервера из списка
-             подставляет сохранённый порт; все элементы выровнены по центру. -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBlock Text="{loc:Loc Diagnostics.Host}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-            <TextBox Width="200" Style="{StaticResource ModernTextBox}" Padding="6,3"
-                     VerticalContentAlignment="Center"
-                     Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"/>
-            <TextBlock Text="{loc:Loc Diagnostics.ServerLabel}" VerticalAlignment="Center" Margin="10,0,6,0"/>
-            <ComboBox Width="150" VerticalAlignment="Center" Padding="6,3"
-                      ItemsSource="{Binding AvailableServers}"
-                      SelectedItem="{Binding SelectedServer, Mode=TwoWay}"/>
-            <TextBlock Text="{loc:Loc Diagnostics.Port}" VerticalAlignment="Center" Margin="10,0,6,0"/>
-            <TextBox Width="64" Style="{StaticResource ModernTextBox}" Padding="6,3"
-                     VerticalContentAlignment="Center"
-                     Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}"/>
-            <Button Style="{StaticResource ModernButton}"
-                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="14,0,8,0"
-                    Command="{Binding RunCommand}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🔎" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{loc:Loc Diagnostics.Run}" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            <Button Style="{StaticResource ModernButton}"
-                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
-                    Command="{Binding CheckPortsCommand}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🔌" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{loc:Loc Diagnostics.CheckPorts}" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            <Button Style="{StaticResource ModernButton}"
-                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
-                    Command="{Binding CheckRepositoryCommand}"
-                    ToolTip="{loc:Loc Diagnostics.CheckRepositoryTooltip}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🗄️" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{loc:Loc Diagnostics.CheckRepository}" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            <Button Style="{StaticResource ModernButton}"
-                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
-                    Command="{Binding RetryCommand}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="⟳" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{loc:Loc Diagnostics.Retry}" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            <Button Style="{StaticResource ModernButton}" IsCancel="True"
-                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
-                    Foreground="{DynamicResource TextPrimaryBrush}"
-                    Click="OnClose_Click">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{loc:Loc Common.Close}" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
+             подставляет сохранённый порт; поля — на первой строке, кнопки команд —
+             на второй, чтобы при узком окне кнопки не обрезались (0.3.9.269). -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="{loc:Loc Diagnostics.Host}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox Width="200" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                         VerticalContentAlignment="Center"
+                         Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="{loc:Loc Diagnostics.ServerLabel}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+                <ComboBox Width="150" VerticalAlignment="Center" Padding="6,3"
+                          ItemsSource="{Binding AvailableServers}"
+                          SelectedItem="{Binding SelectedServer, Mode=TwoWay}"/>
+                <TextBlock Text="{loc:Loc Diagnostics.Port}" VerticalAlignment="Center" Margin="10,0,6,0"/>
+                <TextBox Width="64" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                         VerticalContentAlignment="Center"
+                         Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}"/>
+                <Button Style="{StaticResource ModernButton}"
+                        Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="14,0,0,0"
+                        Command="{Binding RunCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🔎" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{loc:Loc Diagnostics.Run}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource ModernButton}"
+                        Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
+                        Command="{Binding CheckPortsCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🔌" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{loc:Loc Diagnostics.CheckPorts}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource ModernButton}"
+                        Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
+                        Command="{Binding CheckRepositoryCommand}"
+                        ToolTip="{loc:Loc Diagnostics.CheckRepositoryTooltip}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🗄️" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{loc:Loc Diagnostics.CheckRepository}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource ModernButton}"
+                        Background="{DynamicResource ItemHoverBrush}" Padding="12,5" Margin="0,0,8,0"
+                        Command="{Binding RetryCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⟳" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{loc:Loc Diagnostics.Retry}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource ModernButton}" IsCancel="True"
+                        Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
+                        Click="OnClose_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{loc:Loc Common.Close}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </StackPanel>
 
         <!-- Карточка хоста: DNS, IP-адреса, пинг -->
