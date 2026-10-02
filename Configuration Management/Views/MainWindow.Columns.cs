@@ -705,6 +705,13 @@ namespace Configuration_Management
         /// </summary>
         private bool _treeMinWidthQueued;
 
+        /// <summary>
+        /// Последняя установленная минимальная ширина контента (issue #309). Обход
+        /// материализованных строк для дублирования MinWidth выполняется только при
+        /// фактическом изменении значения, а не на каждый ScrollChanged.
+        /// </summary>
+        private double _lastTreeMinWidth = -1;
+
         /// <summary>Данные верхней видимой строки при последнем замере <see cref="_treeMinWidthContent"/>.</summary>
         private object? _treeMinWidthAnchorData;
 
@@ -770,6 +777,60 @@ namespace Configuration_Management
             var presenter = GetTreeScrollContentPresenter();
             if (presenter is not null)
                 presenter.MinWidth = total;
+
+            // Внутренний ScrollViewer TreeView работает с CanContentScroll=True и пиксельной
+            // виртуализацией (MainWindow.xaml): виртуализирующая панель меряется ВЬЮПОРТНОЙ
+            // шириной, поэтому MinWidth одного ScrollContentPresenter может не расширять
+            // ExtentWidth — горизонтальная полоса остаётся короче суммы колонок, и последние
+            // колонки («Конфигурация»/«№ релиза») недостижимы (issue #309, седьмая попытка).
+            // Поэтому жёсткий минимум дублируется на корневые Grid материализованных строк:
+            // DesiredSize панели становится >= total, ExtentWidth дотягивает до конца колонок.
+            // Обход выполняется только при фактическом изменении значения (не на каждый
+            // ScrollChanged) — при пиксельной виртуализации новые строки перекрываются
+            // ближайшим пересчётом (ExtentWidthChange обновляет минимум в OnTreeScroll).
+            if (Math.Abs(total - _lastTreeMinWidth) > 0.5)
+            {
+                _lastTreeMinWidth = total;
+                foreach (var row in GetVisibleTreeViewItems())
+                {
+                    var rowGrid = FindGridByMarker(row, RowGridMarker)
+                                  ?? FindGridByMarker(row, GroupGridMarker);
+                    if (rowGrid is not null)
+                        rowGrid.MinWidth = total;
+                }
+
+                // Инструментальный лог (issue #309): фактические значения в журнале приложения,
+                // чтобы следующая итерация правки опиралась на данные, а не на предположения.
+                LogColumnsDiagnostics(total, presenter);
+            }
+        }
+
+        /// <summary>
+        /// Пишет в журнал приложения фактические значения расчёта минимальной ширины
+        /// (issue #309): сумму колонок заголовка, замер контента строк, MinWidth
+        /// презентера, viewport/extent внутреннего ScrollViewer дерева и DPI окна.
+        /// Выключено по умолчанию — включается постоянным логированием только при
+        /// изменении рассчитанной суммы (редкий путь).
+        /// </summary>
+        private void LogColumnsDiagnostics(double total, ScrollContentPresenter? presenter)
+        {
+            try
+            {
+                var treeScroll = GetTreeScrollViewer();
+                var defs = HeaderGrid?.ColumnDefinitions;
+                var sumActual = defs is null ? 0 : defs.Sum(d => d.ActualWidth);
+                var viewport = treeScroll?.ViewportWidth ?? 0;
+                var extent = treeScroll?.ExtentWidth ?? 0;
+                var dpi = VisualTreeHelper.GetDpi(this);
+                AppServices.GetRequiredService<IAppLogger>().Info(
+                    $"CM_COLUMNS: total={total:F1}, sumActualHeader={sumActual:F1}, " +
+                    $"content={_treeMinWidthContent:F1}, presenterMin={presenter?.MinWidth ?? 0:F1}, " +
+                    $"viewport={viewport:F1}, extent={extent:F1}, dpiScale={dpi.DpiScaleX:F2}");
+            }
+            catch
+            {
+                // Диагностика не должна ломать раскладку.
+            }
         }
 
         /// <summary>
@@ -797,7 +858,11 @@ namespace Configuration_Management
             var measured = knownRowGrid is null ? 0 : 1;
             foreach (var row in GetVisibleTreeViewItems())
             {
-                if (measured >= 3)
+                // Лимит поднят с 3 до 12 (issue #309, седьмая попытка): широкая строка ниже
+                // первых трёх не учитывалась, и полоса не дотягивала до конца контента.
+                // Замер по 12 строкам покрывает видимую область при типичных высотах строк
+                // и остаётся дешёвым (вызов не в горячем пути прокрутки).
+                if (measured >= 12)
                     break;
                 var grid = FindGridByMarker(row, RowGridMarker)
                            ?? FindGridByMarker(row, GroupGridMarker);
