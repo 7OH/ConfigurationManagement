@@ -120,8 +120,15 @@
                     <TextBlock x:Name="StatusText" FontSize="14" FontWeight="SemiBold"/>
 
                     <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{loc:Loc Updates.Url}"/>
+                    <!-- Адрес каталога релизов — кликабельная ссылка (issue #323): клик открывает
+                         браузер через OneCLauncher.OpenUrl; при пустом/невалидном адресе («—»)
+                         ссылка неактивна. Стиль ссылки задаётся в UpdateUrlLinkDisplay. -->
                     <TextBlock x:Name="UrlText" FontSize="12" TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                               Foreground="{DynamicResource TextSecondaryBrush}">
+                        <Hyperlink x:Name="UrlLink" RequestNavigate="UrlLink_RequestNavigate">
+                            <Run x:Name="UrlRun" Text="—"/>
+                        </Hyperlink>
+                    </TextBlock>
 
                     <TextBlock x:Name="ErrorText" FontSize="12" Margin="0,12,0,0" TextWrapping="Wrap"
                                Foreground="#EF4444"/>

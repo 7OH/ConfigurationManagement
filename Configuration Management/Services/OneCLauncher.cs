@@ -438,6 +438,28 @@ public static partial class OneCLauncher
         }
     }
 
+    /// <summary>Открывает URL в приложении по умолчанию (браузер).
+    /// Зеркало Linux-версии (xdg-open) — единая точка открытия ссылок в окнах
+    /// (например, каталога релизов в «Проверке обновлений», issue #323).</summary>
+    public static bool OpenUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     /// <summary>
     /// Ищет исполняемый файл платформы 1С нужной разрядности и типа клиента.
     /// <list type="bullet">

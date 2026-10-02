@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -36,6 +37,9 @@ namespace Configuration_Management
         private readonly Infobase _infobase;
         private readonly UpdateCheckRowViewModel _row;
         private CancellationTokenSource? _cts;
+
+        /// <summary>Активна ли ссылка каталога релизов (валидный http/https-адрес, issue #323).</summary>
+        private bool _urlLinkEnabled;
 
         private readonly TextBlock _baseNameText = new();
         private readonly TextBlock _currentVersionText = new();
@@ -77,6 +81,9 @@ namespace Configuration_Management
                          || e.PropertyName == nameof(_row.CanDownload))
                     RefreshDetailDisplay();
             };
+
+            // Клик по адресу каталога релизов открывает браузер (issue #323).
+            _urlText.PointerReleased += OnUrlTextPointerReleased;
 
             Content = BuildRoot();
             Opened += async (_, _) => await RunCheckAsync();
@@ -171,7 +178,7 @@ namespace Configuration_Management
         private void RefreshDetailDisplay()
         {
             _latestVersionText.Text = string.IsNullOrWhiteSpace(_row.LatestVersion) ? "—" : _row.LatestVersion;
-            _urlText.Text = string.IsNullOrWhiteSpace(_row.Url) ? "—" : _row.Url;
+            UpdateUrlLinkDisplay();
             _statusText.Text = StatusTextLocalized(_row.Status);
 
             IBrush? brush = new SolidColorBrush(Colors.Gray);
@@ -191,6 +198,54 @@ namespace Configuration_Management
             // ключ переводим, свободный текст LocalizationManager.T() вернёт как есть.
             _errorText.Text = _row.Status == ConfigUpdateStatus.Failed ? LocalizeError(_row.Error) : string.Empty;
             _downloadButton.IsEnabled = _row.CanDownload;
+        }
+
+        /// <summary>Обновляет ссылку каталога релизов: текст, активность и вид (issue #323).
+        /// Валидный http/https-адрес — кликабельная ссылка (AccentBrush, подчёркивание, курсор Hand,
+        /// ToolTip); пустой/невалидный адрес («—») — обычный вторичный текст без перехода.</summary>
+        private void UpdateUrlLinkDisplay()
+        {
+            var url = string.IsNullOrWhiteSpace(_row.Url) ? null : _row.Url;
+            _urlText.Text = url ?? "—";
+
+            var valid = url is not null
+                        && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+            _urlLinkEnabled = valid;
+
+            if (valid)
+            {
+                _urlText.TextDecorations = TextDecorations.Underline;
+                _urlText.Cursor = new Cursor(StandardCursorType.Hand);
+                Themes.ThemeBrushes.Bind(_urlText, TextBlock.ForegroundProperty, "AccentBrush");
+                ToolTip.SetTip(_urlText, T("Updates.OpenCatalog"));
+            }
+            else
+            {
+                _urlText.TextDecorations = null;
+                _urlText.Cursor = Cursor.Default;
+                Themes.ThemeBrushes.Bind(_urlText, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+                ToolTip.SetTip(_urlText, null);
+            }
+        }
+
+        /// <summary>Клик по адресу каталога релизов открывает браузер через
+        /// <see cref="OneCLauncher.OpenUrl"/> (не собственным Process.Start, issue #323).
+        /// Проверка попадания по Bounds — как в ссылке окна «Ручное обновление».</summary>
+        private void OnUrlTextPointerReleased(object? sender, PointerReleasedEventArgs e)
+        {
+            if (!_urlLinkEnabled || e.InitialPressMouseButton != MouseButton.Left)
+                return;
+
+            var point = e.GetPosition(_urlText);
+            if (point.X < 0 || point.Y < 0
+                || point.X > _urlText.Bounds.Width || point.Y > _urlText.Bounds.Height)
+                return;
+
+            if (!OneCLauncher.OpenUrl(_row.Url))
+            {
+                _errorText.Text = T("Settings.About.LinkOpenFailed");
+            }
         }
 
         /// <summary>Локализует текст ошибки: ключи «Updates.*» переводит, остальное возвращает без изменений.</summary>

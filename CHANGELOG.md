@@ -9,6 +9,30 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.268] — 2026-10-02
+
+### Исправлено
+
+- **Окно «Проверка обновлений»: адрес каталога релизов стал кликабельной ссылкой (issue #323)**
+  (обе платформы):
+  - адрес каталога релизов (например, `https://releases.1c.ru/project/...`) выводится как
+    гиперссылка — клик открывает браузер через единый хелпер
+    [`OneCLauncher.OpenUrl`](Configuration%20Management/Services/OneCLauncher.cs) (Windows —
+    `UseShellExecute`, Linux — `xdg-open`), а не собственным `Process.Start`;
+  - ссылка активна только для валидного http/https-адреса: при пустом или невалидном адресе
+    («—») — обычный вторичный текст без перехода и курсора-руки;
+  - вид ссылки: AccentBrush + подчёркивание (WPF — `Hyperlink` в `TextBlock`, Avalonia —
+    `TextBlock` с подчёркиванием и `PointerReleased`); ToolTip «Открыть каталог релизов»
+    (`Updates.OpenCatalog`); текст по-прежнему переносится по ширине и копируется;
+  - **файлы**: WPF [`Views/UpdateCheckWindow.xaml`](Configuration%20Management/Views/UpdateCheckWindow.xaml)
+    и [`Views/UpdateCheckWindow.xaml.cs`](Configuration%20Management/Views/UpdateCheckWindow.xaml.cs),
+    Avalonia [`Views/UpdateCheckWindow.Avalonia.cs`](Configuration%20Management/Views/UpdateCheckWindow.Avalonia.cs),
+    [`Services/OneCLauncher.cs`](Configuration%20Management/Services/OneCLauncher.cs) — добавлен
+    Windows-хелпер `OpenUrl` (зеркало Linux-версии);
+  - **тесты**: регрессия `dotnet test` зелёная, кросс-сборка Linux без ошибок; ручная проверка —
+    клик по адресу в окне F9 открывает releases.1c.ru в браузере, при отсутствии адреса ссылка
+    неактивна.
+
 ## [0.3.9.267] — 2026-10-02
 
 ### Исправлено

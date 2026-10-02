@@ -31,6 +31,9 @@ public partial class UpdateCheckWindow : Window
     private readonly UpdateCheckRowViewModel _row;
     private CancellationTokenSource? _cts;
 
+    /// <summary>Активна ли ссылка каталога релизов (валидный http/https-адрес, issue #323).</summary>
+    private bool _urlLinkEnabled;
+
     /// <param name="infobase">Информационная база, для которой выполняется проверка обновлений.</param>
     public UpdateCheckWindow(Infobase infobase)
     {
@@ -147,12 +150,59 @@ public partial class UpdateCheckWindow : Window
         LatestVersionText.Text = string.IsNullOrWhiteSpace(_row.LatestVersion)
             ? "—"
             : _row.LatestVersion;
-        UrlText.Text = string.IsNullOrWhiteSpace(_row.Url) ? "—" : _row.Url;
+        UpdateUrlLinkDisplay();
         DownloadButton.IsEnabled = _row.CanDownload;
 
         // Error может быть ключом локализации (Updates.*) либо свободным текстом («HTTP 500»):
         // ключ переводим, свободный текст LocalizationManager.T() вернёт как есть.
         ErrorText.Text = _row.Status == ConfigUpdateStatus.Failed ? LocalizeError(_row.Error) : string.Empty;
+    }
+
+    /// <summary>Обновляет ссылку каталога релизов: текст, активность и вид (issue #323).
+    /// Валидный http/https-адрес — кликабельная ссылка (AccentBrush, подчёркивание, ToolTip);
+    /// пустой/невалидный адрес («—») — обычный вторичный текст без перехода.</summary>
+    private void UpdateUrlLinkDisplay()
+    {
+        var url = string.IsNullOrWhiteSpace(_row.Url) ? null : _row.Url;
+        UrlRun.Text = url ?? "—";
+
+        if (url is not null
+            && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            _urlLinkEnabled = true;
+            UrlLink.NavigateUri = uri;
+            UrlLink.IsEnabled = true;
+            UrlLink.Foreground = FindResource("AccentBrush") as Brush ?? Brushes.Blue;
+            UrlLink.TextDecorations = TextDecorations.Underline;
+            System.Windows.Controls.ToolTipService.SetToolTip(UrlLink, LocalizationManager.T("Updates.OpenCatalog"));
+        }
+        else
+        {
+            _urlLinkEnabled = false;
+            UrlLink.NavigateUri = null;
+            UrlLink.IsEnabled = false;
+            UrlLink.Foreground = FindResource("TextSecondaryBrush") as Brush ?? Brushes.Gray;
+            UrlLink.TextDecorations = null;
+            System.Windows.Controls.ToolTipService.SetToolTip(UrlLink, null);
+        }
+    }
+
+    /// <summary>Открывает каталог релизов в браузере через <see cref="OneCLauncher.OpenUrl"/>
+    /// (не собственным Process.Start, issue #323).</summary>
+    private void UrlLink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        e.Handled = true;
+        if (!_urlLinkEnabled)
+            return;
+
+        var url = e.Uri?.AbsoluteUri ?? _row.Url;
+        if (!OneCLauncher.OpenUrl(url))
+        {
+            ErrorText.Text = LocalizationManager.T("Settings.About.LinkOpenFailed");
+            ErrorText.Foreground = new SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
+        }
     }
 
     /// <summary>Локализует текст ошибки: ключи «Updates.*» переводит, остальное возвращает без изменений.</summary>
