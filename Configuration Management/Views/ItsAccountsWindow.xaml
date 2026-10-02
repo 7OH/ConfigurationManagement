@@ -161,11 +161,13 @@
                                         ElementStyle="{StaticResource CenteredCellText}"/>
                     <DataGridTextColumn Width="2*" Header="{loc:Loc ItsAccounts.Login}" Binding="{Binding Login}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>
-                    <!-- Флажок «Основная» — только для чтения (смена только через кнопку «Задать основным») -->
+                    <!-- Флажок «Основная» — только для чтения (смена только через кнопку «Задать основным»);
+                         Mode=OneWay обязателен: IsPrimary у ItsAccountItemViewModel доступен только для чтения
+                         (иначе WPF: InvalidOperationException «Привязка типа TwoWay …», issue #333) -->
                     <DataGridTemplateColumn Width="90" Header="{loc:Loc ItsAccounts.Primary}">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <CheckBox IsChecked="{Binding IsPrimary}" IsHitTestVisible="False"
+                                <CheckBox IsChecked="{Binding IsPrimary, Mode=OneWay}" IsHitTestVisible="False"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"
                                           IsEnabled="False"/>
                             </DataTemplate>

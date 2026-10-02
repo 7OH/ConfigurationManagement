@@ -104,20 +104,42 @@ public class ItsAccountsViewModel : ViewModelBase
 }
 
 /// <summary>
-/// Строит список пунктов выбора учётной записи (виртуальный пункт «Основная» + записи
-/// справочника) для ComboBox в настройках и редакторе типовой конфигурации.
+/// Строит список пунктов выбора учётной записи (записи справочника; виртуальный пункт
+/// «Основная» с Id == null — только если в справочнике нет реальной записи с таким именем)
+/// для ComboBox в настройках и редакторе типовой конфигурации (issue #333/#322).
 /// </summary>
 public static class ItsAccountSelectionBuilder
 {
-    /// <summary>Список пунктов выбора; первым всегда идёт «Основная» (Id == null).</summary>
+    /// <summary>
+    /// Список пунктов выбора. Дедупликация «Основной» (issue #333/#322): виртуальный пункт
+    /// «Основная» (Id == null) добавляется первым ТОЛЬКО если в справочнике нет записи
+    /// с именем <see cref="ItsAccountsStore.PrimaryName"/> (без учёта регистра); если таких
+    /// записей несколько (ручная правка файла) — в списке остаётся первая из них.
+    /// </summary>
     public static List<ItsAccountSelectionItem> Build(IItsAccountsStore store)
     {
-        var result = new List<ItsAccountSelectionItem>
-        {
-            new(null, LocalizationManager.T("ItsAccounts.Primary")),
-        };
+        var result = new List<ItsAccountSelectionItem>();
+
+        var primaryNameSeen = false;
         foreach (var account in store.Load())
+        {
+            var isPrimaryNamed = !string.IsNullOrWhiteSpace(account.Name) &&
+                                 string.Equals(account.Name!.Trim(), ItsAccountsStore.PrimaryName,
+                                     System.StringComparison.OrdinalIgnoreCase);
+            if (isPrimaryNamed)
+            {
+                // Защита от дублей реальных записей «Основная» в файле.
+                if (primaryNameSeen)
+                    continue;
+                primaryNameSeen = true;
+            }
             result.Add(new ItsAccountSelectionItem(account.Id, account.Name));
+        }
+
+        // Реальной «Основной» нет — добавляем виртуальный пункт «Основная» первым (прежнее поведение).
+        if (!primaryNameSeen)
+            result.Insert(0, new(null, LocalizationManager.T("ItsAccounts.Primary")));
+
         return result;
     }
 

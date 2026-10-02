@@ -62,7 +62,8 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         _urlCodeBox.Text = model?.UrlCode ?? string.Empty;
         _nickBox.Text = model?.Nick ?? string.Empty;
 
-        // Учётная запись ИТС (issue #333): «Основная» + записи справочника.
+        // Учётная запись ИТС (issue #333): записи справочника; виртуальный пункт «Основная»
+        // добавляется только если в справочнике нет реальной записи с таким именем.
         _accountItems.AddRange(ViewModels.ItsAccountSelectionBuilder.Build(
             AppServices.GetRequiredService<Services.IItsAccountsStore>()));
         _accountBox.ItemsSource = _accountItems;

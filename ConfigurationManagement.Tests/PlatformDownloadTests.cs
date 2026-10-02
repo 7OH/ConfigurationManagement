@@ -110,10 +110,15 @@ public sealed class PlatformDownloadTests
 
         try
         {
+            // Прогресс отдаётся из фоновых потоков параллельной загрузки: сбор в List
+            // не потокобезопасен (значения могут перезаписать друг друга), поэтому
+            // добавление/чтение — под общим lock (порядок вызовов уже монотонный:
+            // ParallelProgressAggregator публикует только возрастающие проценты).
+            var progressGate = new object();
             var progressValues = new List<double>();
             var result = await service.DownloadDistributionAsync(
                 DistributionUrl, targetPath,
-                new Progress<double>(value => progressValues.Add(value)));
+                new Progress<double>(value => { lock (progressGate) { progressValues.Add(value); } }));
 
             // Успех параллельного пути: возвращён путь, файл существует и целостен.
             Assert.Equal(targetPath, result);
@@ -124,11 +129,14 @@ public sealed class PlatformDownloadTests
             Assert.True(handler.RequestCount >= 3, $"Ожидалось ≥3 запросов, фактически {handler.RequestCount}");
 
             // Прогресс монотонно растёт и завершается на 1.
-            Assert.NotEmpty(progressValues);
-            Assert.Equal(1.0, progressValues[^1]);
-            for (var i = 1; i < progressValues.Count; i++)
-                Assert.True(progressValues[i] >= progressValues[i - 1],
-                    $"Прогресс убывает: {progressValues[i - 1]} -> {progressValues[i]}");
+            lock (progressGate)
+            {
+                Assert.NotEmpty(progressValues);
+                Assert.Equal(1.0, progressValues[^1]);
+                for (var i = 1; i < progressValues.Count; i++)
+                    Assert.True(progressValues[i] >= progressValues[i - 1],
+                        $"Прогресс убывает: {progressValues[i - 1]} -> {progressValues[i]}");
+            }
         }
         finally
         {

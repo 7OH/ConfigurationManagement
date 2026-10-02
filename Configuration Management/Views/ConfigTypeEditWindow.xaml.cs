@@ -47,7 +47,8 @@ public partial class ConfigTypeEditWindow : Window
         UrlCodeBox.Text = model?.UrlCode ?? string.Empty;
         NickBox.Text = model?.Nick ?? string.Empty;
 
-        // Учётная запись ИТС (issue #333): «Основная» + записи справочника.
+        // Учётная запись ИТС (issue #333): записи справочника; виртуальный пункт «Основная»
+        // добавляется только если в справочнике нет реальной записи с таким именем.
         _accountItems.AddRange(ViewModels.ItsAccountSelectionBuilder.Build(
             AppServices.GetRequiredService<IItsAccountsStore>()));
         AccountCombo.ItemsSource = _accountItems;

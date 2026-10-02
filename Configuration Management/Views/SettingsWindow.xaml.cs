@@ -818,7 +818,8 @@ namespace Configuration_Management
 
         // ---- Учётные данные ИТС (issue #333): выбор записи справочника its_accounts.json ----
 
-        /// <summary>Перестраивает ComboBox выбора учётной записи ИТС (первый пункт — «Основная»).</summary>
+        /// <summary>Перестраивает ComboBox выбора учётной записи ИТС (виртуальный пункт
+        /// «Основная» — только если в справочнике нет реальной записи с таким именем).</summary>
         private void ReloadItsAccountsCombo()
         {
             if (ItsAccountsCombo is null)

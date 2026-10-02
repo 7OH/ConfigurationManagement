@@ -8,14 +8,15 @@ namespace Configuration_Management
 {
     /// <summary>
     /// Учётные данные ИТС в окне настроек (Avalonia/Linux, issue #333): выбор записи
-    /// справочника <c>its_accounts.json</c> (первый пункт — «Основная») и кнопка открытия
-    /// окна справочника. Частичный класс <see cref="SettingsWindow"/>.
+    /// справочника <c>its_accounts.json</c> (виртуальный пункт «Основная» — только при
+    /// отсутствии реальной записи с таким именем) и кнопка открытия окна справочника.
+    /// Частичный класс <see cref="SettingsWindow"/>.
     /// </summary>
     public partial class SettingsWindow
     {
         private ComboBox? _itsAccountsCombo;
 
-        /// <summary>Перестраивает ComboBox выбора учётной записи ИТС (первый пункт — «Основная»).</summary>
+        /// <summary>Перестраивает ComboBox выбора учётной записи ИТС (дедупликация «Основной», issue #333).</summary>
         private void ReloadItsAccountsCombo()
         {
             if (_itsAccountsCombo is null)
