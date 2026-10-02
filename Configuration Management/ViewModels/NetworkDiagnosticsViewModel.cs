@@ -80,7 +80,11 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
             : (savedForHost.Cluster > 0 ? savedForHost.Cluster : OneCPorts.Cluster);
 
         RunCommand = new RelayCommand(_ => _ = RunAsync(), _ => !IsRunning);
-        CheckPortsCommand = new RelayCommand(_ => _ = CheckPortsAsync(), _ => !IsRunning);
+        // «Проверить порты 1С» открывает диалог портов сервисов (issue #335); окно
+        // подписывается на <see cref="EditPortsRequested"/> и после подтверждения вызывает
+        // <see cref="ApplyEditedPortsAndCheckAsync"/>. Метод <see cref="CheckPortsAsync"/>
+        // остаётся для прямого сканирования стандартных портов (тесты).
+        CheckPortsCommand = new RelayCommand(_ => EditPortsRequested?.Invoke(), _ => !IsRunning);
         CheckRepositoryCommand = new RelayCommand(_ => _ = CheckRepositoryAsync(), _ => !IsRunning);
         RetryCommand = new RelayCommand(_ => _ = RetryAsync(), _ => !IsRunning);
 
@@ -198,12 +202,59 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
     public Task RunAsync() =>
         RunCoreAsync(new[] { EffectivePort }, remember: p => p with { Cluster = EffectivePort });
 
+    /// <summary>Запрос на редактирование портов 1С — обрабатывается окном диагностики,
+    /// которое открывает модальный диалог портов (issue #335).</summary>
+    public event Action? EditPortsRequested;
+
     /// <inheritdoc cref="CheckPortsCommand"/>
     public Task CheckPortsAsync() =>
         RunCoreAsync(new[]
         {
             OneCPorts.Agent, OneCPorts.Cluster, OneCPorts.Repository, OneCPorts.Ras
         });
+
+    /// <summary>
+    /// Начальная карта портов для диалога (issue #335): сохранённые для текущего сервера
+    /// порты (по сервисам), незаданные — из «догадки» по порту кластера поля окна
+    /// (<see cref="ServerPortsGuesser"/>): например порт 2541 даёт 2540/2541/2542/2545.
+    /// </summary>
+    public ServerPortsSettings BuildPortsForEdit()
+    {
+        var saved = GetSaved(Host);
+        var guessed = ServerPortsGuesser.Guess(EffectivePort);
+        return new ServerPortsSettings(
+            saved.Cluster > 0 ? saved.Cluster : guessed.Cluster,
+            saved.Agent > 0 ? saved.Agent : guessed.Agent,
+            saved.Repository > 0 ? saved.Repository : guessed.Repository,
+            saved.Ras > 0 ? saved.Ras : guessed.Ras);
+    }
+
+    /// <summary>
+    /// Сохраняет отредактированные порты для текущего сервера и сканирует их (issue #335):
+    /// вызывается окном после подтверждения диалога портов.
+    /// </summary>
+    public async Task ApplyEditedPortsAndCheckAsync(ServerPortsSettings ports)
+    {
+        RememberPorts(_ => SanitizePorts(ports));
+        await RunCoreAsync(new[]
+        {
+            EffectivePortOr(ports.Agent, OneCPorts.Agent),
+            EffectivePortOr(ports.Cluster, OneCPorts.Cluster),
+            EffectivePortOr(ports.Repository, OneCPorts.Repository),
+            EffectivePortOr(ports.Ras, OneCPorts.Ras),
+        }).ConfigureAwait(false);
+    }
+
+    /// <summary>Возвращает порт, если он задан, иначе порт по умолчанию.</summary>
+    private static int EffectivePortOr(int port, int fallback) => port > 0 ? port : fallback;
+
+    /// <summary>Нормализует порты (0 для недопустимых значений) перед сохранением.</summary>
+    private static ServerPortsSettings SanitizePorts(ServerPortsSettings ports)
+    {
+        static int Norm(int p) => p is >= 1 and <= 65535 ? p : 0;
+        return new ServerPortsSettings(
+            Norm(ports.Cluster), Norm(ports.Agent), Norm(ports.Repository), Norm(ports.Ras));
+    }
 
     /// <inheritdoc cref="CheckRepositoryCommand"/>
     public Task CheckRepositoryAsync()

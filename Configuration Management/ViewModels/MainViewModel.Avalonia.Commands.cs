@@ -47,6 +47,9 @@ public partial class MainViewModel : ViewModelBase
     public ICommand OpenSettingsCommand { get; private set; } = null!;
     public ICommand ExpandAllGroupsCommand { get; private set; } = null!;
     public ICommand CollapseAllGroupsCommand { get; private set; } = null!;
+    public ICommand ExpandBranchCommand { get; private set; } = null!;
+    public ICommand CollapseBranchCommand { get; private set; } = null!;
+    public ICommand ToggleGroupBranchCommand { get; private set; } = null!;
     public ICommand SortGroupsAscendingCommand { get; private set; } = null!;
     public ICommand SortGroupsDescendingCommand { get; private set; } = null!;
     public ICommand SynchronizeWithIbasesCommand { get; private set; } = null!;
@@ -144,6 +147,10 @@ public partial class MainViewModel : ViewModelBase
         TakeScreenshotCommand = new RelayCommand(TakeScreenshot);
         ExpandAllGroupsCommand = new RelayCommand(ExpandAllGroups);
         CollapseAllGroupsCommand = new RelayCommand(CollapseAllGroups);
+        // Ветки дерева (issue #341): развернуть/свернуть только текущую группу с подгруппами.
+        ExpandBranchCommand = new RelayCommand(_ => ExpandBranchOf(CurrentBranchNode()));
+        CollapseBranchCommand = new RelayCommand(_ => CollapseBranchOf(CurrentBranchNode()));
+        ToggleGroupBranchCommand = new RelayCommand(p => ToggleGroupBranch(p as GroupNodeViewModel));
         SortGroupsAscendingCommand = new RelayCommand(() => SortGroups(true));
         SortGroupsDescendingCommand = new RelayCommand(() => SortGroups(false));
         SynchronizeWithIbasesCommand = new RelayCommand(SynchronizeWithIbases);

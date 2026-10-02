@@ -201,6 +201,30 @@ namespace Configuration_Management
                 Gesture = new KeyGesture(Key.Subtract, KeyModifiers.Control | KeyModifiers.Shift),
                 Command = _vm.CollapseAllGroupsCommand
             });
+
+            // Ctrl+Alt+Plus / Ctrl+Alt+Minus — развернуть/свернуть ТОЛЬКО ветку под курсором
+            // (issue #341): Ctrl+Plus/Minus заняты масштабом строк (#303), Ctrl+Shift+Plus/Minus —
+            // «развернуть/свернуть всё» (#160). Обе раскладки: основная и цифровой блок.
+            KeyBindings.Add(new KeyBinding
+            {
+                Gesture = new KeyGesture(Key.OemPlus, KeyModifiers.Control | KeyModifiers.Alt),
+                Command = _vm.ExpandBranchCommand
+            });
+            KeyBindings.Add(new KeyBinding
+            {
+                Gesture = new KeyGesture(Key.Add, KeyModifiers.Control | KeyModifiers.Alt),
+                Command = _vm.ExpandBranchCommand
+            });
+            KeyBindings.Add(new KeyBinding
+            {
+                Gesture = new KeyGesture(Key.OemMinus, KeyModifiers.Control | KeyModifiers.Alt),
+                Command = _vm.CollapseBranchCommand
+            });
+            KeyBindings.Add(new KeyBinding
+            {
+                Gesture = new KeyGesture(Key.Subtract, KeyModifiers.Control | KeyModifiers.Alt),
+                Command = _vm.CollapseBranchCommand
+            });
         }
 
         /// <summary>
@@ -264,6 +288,27 @@ namespace Configuration_Management
                 if (e.Key is Key.OemMinus or Key.Subtract)
                 {
                     _vm.CollapseAllGroupsCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Ctrl+Alt++ / Ctrl+Alt+- — развернуть/свернуть ветку под курсором (issue #341):
+            // явный разбор как и для «всех групп» выше (KeyBinding на части раскладок
+            // срабатывает не всегда, а прямой вызов команды детерминирован).
+            if ((e.KeyModifiers & KeyModifiers.Control) != 0 &&
+                (e.KeyModifiers & KeyModifiers.Alt) != 0)
+            {
+                if (e.Key is Key.OemPlus or Key.Add)
+                {
+                    _vm.ExpandBranchCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+
+                if (e.Key is Key.OemMinus or Key.Subtract)
+                {
+                    _vm.CollapseBranchCommand.Execute(null);
                     e.Handled = true;
                     return;
                 }

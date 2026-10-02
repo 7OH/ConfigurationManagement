@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -67,6 +68,10 @@ public partial class MainViewModel
     {
         try
         {
+            var before = new HashSet<string>(
+                Infobases.Where(i => i.IsRunning).Select(i => i.Id),
+                StringComparer.Ordinal);
+
             foreach (var ib in Infobases)
             {
                 // База считается запущенной, если хотя бы один процесс 1С подключён к ней.
@@ -83,12 +88,36 @@ public partial class MainViewModel
                 ib.IsNotResponding = notResponding;
                 ib.NotRespondingStreak = notResponding ? ib.NotRespondingStreak + 1 : 0;
             }
+
+            // issue #339: в режиме «Только запущенные» изменение состава запущенных баз
+            // должно сразу отражаться в списке. Раньше флаги обновлялись, но список не
+            // пересобирался: база, дозапустившаяся после включения отбора, не появлялась,
+            // а закрытая/вылетевшая — не исчезала (до переключения режима).
+            var after = new HashSet<string>(
+                Infobases.Where(i => i.IsRunning).Select(i => i.Id),
+                StringComparer.Ordinal);
+            if (IsRunningOnlyModeActive() &&
+                (before.Count != after.Count || !before.SetEquals(after)))
+                RefreshListAfterRunningFlagsChanged();
         }
         catch
         {
             // Применение результатов не должно ломать интерфейс.
         }
     }
+
+    /// <summary>
+    /// Пересобирает видимый список после изменения состава запущенных баз в режиме
+    /// «Только запущенные» (issue #339). Платформенная реализация: WPF — RebuildGroupTree,
+    /// Avalonia — ApplyFilter.
+    /// </summary>
+    partial void RefreshListAfterRunningFlagsChanged();
+
+    /// <summary>
+    /// Активен ли отбор «Только запущенные» (issue #339). Платформенная реализация:
+    /// WPF — флаг <c>_showRunningOnly</c>, Avalonia — режим списка <c>_listMode</c>.
+    /// </summary>
+    private partial bool IsRunningOnlyModeActive();
 
     /// <summary>
     /// Активирует окно уже запущенной базы 1С (issue #339): при включённом отборе

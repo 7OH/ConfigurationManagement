@@ -94,9 +94,16 @@
                 <TextBlock Text="{loc:Loc Updates.Name}" FontWeight="SemiBold" Margin="0,12,0,4"/>
                 <TextBox x:Name="NameBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
 
-                <!-- Сегмент адреса (ник) каталога релизов (issue #321, часть 2): подпись
-                     переименована, ToolTip поясняет, как значение используется при построении
-                     адреса каталога релизов на releases.1c.ru. -->
+                <!-- Имя конфигурации (issue #321): имя в метаданных 1С, например
+                     «БухгалтерияПредприятия». Для сопоставления данных о конфигурации,
+                     в адрес обновлений не попадает. -->
+                <TextBlock Text="{loc:Loc Updates.ConfigName}" FontWeight="SemiBold" Margin="0,12,0,4"
+                           ToolTip="{loc:Loc Updates.ConfigNameHint}"/>
+                <TextBox x:Name="ConfigNameBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"
+                         ToolTip="{loc:Loc Updates.ConfigNameHint}"/>
+
+                <!-- Сегмент адреса каталога релизов (issue #321, часть 2): ToolTip поясняет,
+                     как значение используется при построении адреса на releases.1c.ru. -->
                 <TextBlock Text="{loc:Loc Updates.UrlCode}" FontWeight="SemiBold" Margin="0,12,0,4"
                            ToolTip="{loc:Loc Updates.UrlCodeHint}"/>
                 <TextBox x:Name="UrlCodeBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"

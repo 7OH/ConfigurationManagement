@@ -34,6 +34,11 @@ namespace Configuration_Management
         private readonly StackPanel _rowsPanel = new();
         private readonly DockPanel _listView = new() { LastChildFill = true };
 
+        // «Текущая» запись для кнопки «Задать основным» на нижней панели (issue #333):
+        // выбор строки отслеживается кликом; кнопка активна только для неосновной записи.
+        private ItsAccount? _selectedAccount;
+        private Button? _primaryButton;
+
         /// <summary>
         /// Открывает окно редактирования списка учётных записей ИТС.
         /// </summary>
@@ -63,6 +68,8 @@ namespace Configuration_Management
         private void ReloadRows()
         {
             _rowsPanel.Children.Clear();
+            _selectedAccount = null;
+            UpdatePrimaryButtonState();
             foreach (var account in _store.Load())
                 _rowsPanel.Children.Add(BuildRow(account));
         }
@@ -75,7 +82,6 @@ namespace Configuration_Management
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(80, GridUnitType.Pixel)));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
@@ -117,20 +123,6 @@ namespace Configuration_Management
             Grid.SetColumn(primary, 2);
             grid.Children.Add(primary);
 
-            // «Задать основным» — недоступна для уже основной записи.
-            var setPrimary = new Button
-            {
-                Content = T("ItsAccounts.SetPrimary"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Padding = new Thickness(10, 4),
-                Margin = new Thickness(4, 0, 4, 0),
-                IsEnabled = !account.IsPrimary
-            };
-            setPrimary.Styled(ControlThemes.SelectAllButton);
-            setPrimary.Click += (_, _) => OnSetPrimary(account);
-            Grid.SetColumn(setPrimary, 3);
-            grid.Children.Add(setPrimary);
-
             var edit = new Button
             {
                 Content = T("ItsAccounts.Edit"),
@@ -140,7 +132,7 @@ namespace Configuration_Management
             };
             edit.Styled(ControlThemes.SelectAllButton);
             edit.Click += (_, _) => OnEditRow(account);
-            Grid.SetColumn(edit, 4);
+            Grid.SetColumn(edit, 3);
             grid.Children.Add(edit);
 
             var delete = new Button
@@ -152,13 +144,30 @@ namespace Configuration_Management
             };
             delete.Styled(ControlThemes.SelectAllButton);
             delete.Click += (_, _) => OnDeleteRow(account);
-            Grid.SetColumn(delete, 5);
+            Grid.SetColumn(delete, 4);
             grid.Children.Add(delete);
 
             // Двойной клик по строке = правка записи (issue #333), как в WPF-версии.
             grid.DoubleTapped += (_, _) => OnEditRow(account);
 
+            // Клик по строке запоминает «текущую» запись для кнопки «Задать основным».
+            grid.PointerPressed += (_, _) => SelectRow(account);
+
             return grid;
+        }
+
+        /// <summary>Запоминает выбранную строку и обновляет доступность кнопки «Задать основным».</summary>
+        private void SelectRow(ItsAccount account)
+        {
+            _selectedAccount = account;
+            UpdatePrimaryButtonState();
+        }
+
+        /// <summary>«Задать основным» активна только при выбранной неосновной записи (issue #333).</summary>
+        private void UpdatePrimaryButtonState()
+        {
+            if (_primaryButton is not null)
+                _primaryButton.IsEnabled = _selectedAccount is { } account && !account.IsPrimary;
         }
 
         private Control BuildRoot()
@@ -221,6 +230,23 @@ namespace Configuration_Management
             addButton.Styled(ControlThemes.ModernButton);
             addButton.Click += (_, _) => OnAddClick();
             toolbar.Children.Add(addButton);
+
+            // «Задать основным» — на панели рядом с «Добавить» (issue #333): активна
+            // при выбранной неосновной записи (клик по строке запоминает выбор).
+            _primaryButton = new Button
+            {
+                Content = T("ItsAccounts.SetPrimary"),
+                Height = 32,
+                IsEnabled = false
+            };
+            _primaryButton.Styled(ControlThemes.SelectAllButton);
+            _primaryButton.Click += (_, _) =>
+            {
+                if (_selectedAccount is { } account && !account.IsPrimary)
+                    OnSetPrimary(account);
+            };
+            toolbar.Children.Add(_primaryButton);
+            UpdatePrimaryButtonState();
 
             var toolbarBorder = new Border
             {

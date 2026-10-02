@@ -1,3 +1,4 @@
+using System.Text;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Xunit;
@@ -204,5 +205,58 @@ public sealed class RacClientTests
             "--cluster=" + clusterId,
             "--job=" + jobId
         }, args);
+    }
+
+    // ---------- DecodeRacOutput (кодировка вывода rac, issue #324) ----------
+
+    [Fact]
+    public void DecodeRacOutput_Utf8_Passthrough()
+    {
+        // Linux/Avalonia: rac выводит UTF-8 — строгий UTF-8 декодируется как есть.
+        var bytes = Encoding.UTF8.GetBytes("cluster\tname\n111-222\tЛокальный кластер\n");
+
+        Assert.Equal("cluster\tname\n111-222\tЛокальный кластер\n",
+            RacClient.DecodeRacOutput(bytes));
+    }
+
+    [Fact]
+    public void DecodeRacOutput_Cp866_RussianText_IsDecoded()
+    {
+        // Windows: rac пишет в OEM-кодовой странице (cp866) — байты невалидны как UTF-8,
+        // fallback должен декодировать их без символов замены. Провайдер кодовых страниц
+        // регистрируется здесь, чтобы тест не зависел от порядка выполнения.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var bytes = Encoding.GetEncoding(866).GetBytes(
+            "cluster\tname\n111-222\tЛокальный кластер\n");
+
+        var decoded = RacClient.DecodeRacOutput(bytes);
+
+        Assert.Contains("Локальный кластер", decoded);
+        Assert.DoesNotContain("\uFFFD", decoded);
+    }
+
+    [Fact]
+    public void DecodeRacOutput_SingleByteWindowsText_DecodesWithoutReplacementChars()
+    {
+        // Однобайтовые кодовые страницы (cp866 приоритетно, cp1251 резерв) не дают
+        // символов замены U+FFFD и сохраняют ASCII-часть (цифры, GUID, ключи колонок —
+        // то, что парсеру нужно). Приоритет cp866 соответствует OEM-кодировке консоли
+        // Windows; точное различие 866/1251 без образца вывода недостижимо, поэтому
+        // тест фиксирует именно гарантию отсутствия потерь при fallback (issue #324).
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var bytes = Encoding.GetEncoding(1251).GetBytes("Имя: Тестовый кластер 1С");
+
+        var decoded = RacClient.DecodeRacOutput(bytes);
+
+        Assert.DoesNotContain("\uFFFD", decoded);
+        // ASCII-фрагмент (« 1» перед «С») сохраняется в любой однобайтовой кодировке.
+        Assert.Contains(" 1", decoded);
+    }
+
+    [Fact]
+    public void DecodeRacOutput_EmptyAndNull_ReturnEmpty()
+    {
+        Assert.Equal(string.Empty, RacClient.DecodeRacOutput(Array.Empty<byte>()));
+        Assert.Equal(string.Empty, RacClient.DecodeRacOutput(null!));
     }
 }

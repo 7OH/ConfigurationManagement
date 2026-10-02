@@ -19,6 +19,10 @@ public partial class ItsAccountEditWindow : Window
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
     private readonly string _originalId;
 
+    // Флаг показа пароля «глазом» (issue #333). WPF-PasswordBox не умеет снимать маску
+    // напрямую, поэтому при показе скрываем его и показываем текстовое поле (паттерн #211).
+    private bool _isPasswordRevealed;
+
     /// <summary>Готовая учётная запись при подтверждении, иначе <c>null</c>.</summary>
     public ItsAccount? Result { get; private set; }
 
@@ -53,6 +57,25 @@ public partial class ItsAccountEditWindow : Window
         };
     }
 
+    /// <summary>Переключает видимость пароля между PasswordBox и полем показа.</summary>
+    private void OnShowPasswordToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _isPasswordRevealed = !_isPasswordRevealed;
+        if (_isPasswordRevealed)
+        {
+            PasswordRevealTextBox.Text = PasswordBox.Password;
+            PasswordBox.Visibility = Visibility.Collapsed;
+            PasswordRevealTextBox.Visibility = Visibility.Visible;
+            PasswordRevealTextBox.Focus();
+        }
+        else
+        {
+            PasswordBox.Password = PasswordRevealTextBox.Text;
+            PasswordRevealTextBox.Visibility = Visibility.Collapsed;
+            PasswordBox.Visibility = Visibility.Visible;
+        }
+    }
+
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         var name = NameBox.Text?.Trim();
@@ -69,7 +92,9 @@ public partial class ItsAccountEditWindow : Window
             Id = _originalId,
             Name = name,
             Login = LoginBox.Text?.Trim() ?? string.Empty,
-            Password = PasswordBox.Password ?? string.Empty,
+            Password = _isPasswordRevealed
+                ? (PasswordRevealTextBox.Text ?? string.Empty)
+                : (PasswordBox.Password ?? string.Empty),
             // Флаг «Основная» не меняется редактором: хранилище сохраняет его при правке.
         };
         DialogResult = true;

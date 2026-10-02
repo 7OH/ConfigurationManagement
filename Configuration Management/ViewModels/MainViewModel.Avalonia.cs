@@ -1241,6 +1241,49 @@ public partial class MainViewModel : ViewModelBase
             SetExpandedRecursive(child, expanded);
     }
 
+    // ===================== Ветки дерева групп (issue #341) =====================
+
+    /// <summary>Узел «под курсором» для команд ветки: выбранная группа либо группа,
+    /// в которой находится выбранная база. null — ветки нет.</summary>
+    private GroupNodeViewModel? CurrentBranchNode()
+    {
+        if (SelectedGroupNode is { } group)
+            return group;
+        if (SelectedInfobase is { } ib && !string.IsNullOrWhiteSpace(ib.Group))
+            return FindNode(n => string.Equals(n.FullPath, ib.Group, System.StringComparison.OrdinalIgnoreCase));
+        return null;
+    }
+
+    /// <summary>Разворачивает ветку: узел и рекурсивно все подгруппы; соседние ветки
+    /// не трогаются (issue #341). Свёрнутость отслеживается автоматически через
+    /// <see cref="OnNodeExpandedChanged"/>.</summary>
+    public void ExpandBranchOf(GroupNodeViewModel? node)
+    {
+        if (node is null)
+            return;
+        SetExpandedRecursive(node, expanded: true);
+    }
+
+    /// <summary>Сворачивает ветку: узел и рекурсивно все подгруппы; соседние ветки
+    /// не трогаются (issue #341).</summary>
+    public void CollapseBranchOf(GroupNodeViewModel? node)
+    {
+        if (node is null)
+            return;
+        SetExpandedRecursive(node, expanded: false);
+    }
+
+    /// <summary>Переключает ветку: свёрнутая — разворачивается, развёрнутая — сворачивается.</summary>
+    public void ToggleGroupBranch(GroupNodeViewModel? node)
+    {
+        if (node is null)
+            return;
+        if (node.IsExpanded)
+            CollapseBranchOf(node);
+        else
+            ExpandBranchOf(node);
+    }
+
     private void SortGroups(bool ascending)
     {
         // Направление запоминается: RebuildTree пересобирает дерево из _groups
@@ -1495,14 +1538,16 @@ public partial class MainViewModel : ViewModelBase
         .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Имена конфигураций из всех баз списка (без дублей, по алфавиту) для выпадающего
-    /// списка поля «Конфигурация» в окне свойств базы (issue #338).
+    /// Имена конфигураций из всех баз списка и из «Имени конфигурации» типовых конфигураций
+    /// (без дублей, по алфавиту) для выпадающего списка поля «Конфигурация» в окне свойств
+    /// базы (issue #338). Правило объединения — <see cref="ConnectionSettingsViewModel.MergeAvailableConfigurations"/>.
     /// </summary>
-    private IEnumerable<string> AvailableConfigurations() => _allInfobases
-        .Select(b => b?.ConfigurationName?.Trim() ?? string.Empty)
-        .Where(s => !string.IsNullOrEmpty(s))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+    private IEnumerable<string> AvailableConfigurations()
+    {
+        return ConnectionSettingsViewModel.MergeAvailableConfigurations(
+            _allInfobases.Select(b => b?.ConfigurationName ?? string.Empty),
+            AppServices.GetRequiredService<ICustomConfigTypesStore>().LoadAll());
+    }
 
     /// <summary>
     /// Серверы 1С для выпадающего списка окна создания ИБ (issue #305): «server:port»,

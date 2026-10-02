@@ -200,14 +200,14 @@ namespace Configuration_Management
 
             var urlCode = new TextBlock
             {
-                Text = row.UrlCode,
+                Text = row.ConfigName,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 8, 0)
             };
-            // Пояснение «Сегмент адреса (ник)» (issue #321, часть 2): как используется
-            // при построении адреса каталога релизов.
-            ToolTip.SetTip(urlCode, T("Updates.UrlCodeHint"));
+            // Колонка «Имя конфигурации» (issue #321): имя в метаданных 1С — для
+            // сопоставления данных о конфигурации, в адрес обновлений не попадает.
+            ToolTip.SetTip(urlCode, T("Updates.ConfigNameHint"));
             Grid.SetColumn(urlCode, 1);
             grid.Children.Add(urlCode);
 
@@ -396,6 +396,7 @@ namespace Configuration_Management
         {
             target.Code = source.Code;
             target.Name = source.Name;
+            target.ConfigName = source.ConfigName ?? string.Empty;
             target.UrlCode = source.UrlCode;
             target.Nick = source.Nick;
             target.AccountId = source.AccountId ?? string.Empty;
@@ -408,6 +409,7 @@ namespace Configuration_Management
         {
             Code = source.Code,
             Name = source.Name,
+            ConfigName = source.ConfigName ?? string.Empty,
             UrlCode = source.UrlCode,
             Nick = source.Nick,
             AccountId = source.AccountId ?? string.Empty,
@@ -623,7 +625,7 @@ namespace Configuration_Management
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
 
             grid.Children.Add(MakeHeaderText(T("Updates.Name"), 0));
-            grid.Children.Add(MakeHeaderText(T("Updates.UrlCode"), 1));
+            grid.Children.Add(MakeHeaderText(T("Updates.ConfigName"), 1));
             grid.Children.Add(MakeHeaderText(T("Updates.Nick"), 2));
             grid.Children.Add(MakeHeaderText(T("Updates.Editions"), 3));
             grid.Children.Add(MakeHeaderText(T("ItsAccounts.AccountLabel"), 4));

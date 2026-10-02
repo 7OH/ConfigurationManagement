@@ -49,6 +49,25 @@ public partial class ScriptPickWindow : Window
     {
         ScenariosList.Focus();
         Keyboard.Focus(ScenariosList);
+
+        // issue #308 (финал): на Loaded окно может быть ещё неактивным, и WPF отдаёт
+        // фокус первому focusable-элементу окна — ListBox фактически не получает
+        // клавиатурный фокус, и стрелки не двигают выбор до клика мышью. Повторяем
+        // перенос фокуса после полной активации/первой отрисовки окна.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (!IsLoaded || !IsVisible)
+                return;
+            ScenariosList.Focus();
+            Keyboard.Focus(ScenariosList);
+            if (ScenariosList.SelectedIndex >= 0 &&
+                ScenariosList.ItemContainerGenerator.ContainerFromIndex(ScenariosList.SelectedIndex)
+                    is System.Windows.Controls.ListBoxItem container)
+            {
+                container.Focus();
+                Keyboard.Focus(container);
+            }
+        }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     private static string T(string key) => LocalizationManager.T(key);

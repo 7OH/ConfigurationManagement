@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Configuration_Management.Models;
 
 namespace Configuration_Management.Services;
@@ -39,16 +40,41 @@ public static class RacOutputParser
         if (string.IsNullOrEmpty(output))
             return rows;
 
-        foreach (var rawLine in output.Split('\n'))
-        {
-            var line = rawLine.TrimEnd('\r');
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
+        var lines = SplitLines(output);
+        if (lines.Count == 0)
+            return rows;
 
+        // Вывод, выровненный пробелами (некоторые версии/окружения rac не используют
+        // табуляции; issue #324): позиции начала колонок берём из строки заголовка.
+        // Позиционный разбор применяем ТОЛЬКО при единообразном выравнивании — когда
+        // границы колонок в заголовке совпадают с границами в первой строке данных
+        // (иначе индексы из заголовка резали бы значения, шире заголовка, и мы бы
+        // сломали вывод с неравномерными отступами — см. существующие образцы тестов).
+        IReadOnlyList<int>? columnStarts = null;
+        if (lines[0].IndexOf('\t') < 0 && lines.Count > 1)
+        {
+            var headerStarts = TryGetColumnStarts(lines[0]);
+            // Позиционный разбор корректен, если выравнивание ЕДИНООБРАЗНО: каждая
+            // граница колонки из заголовка в строках данных указывает на начало
+            // непробельного блока. Внутренние пробелы значения (имя кластера) дают
+            // свои «переходы», но они не совпадают с границами заголовка — их
+            // наличие не отключает позиционный разбор.
+            if (headerStarts is not null &&
+                headerStarts.Count > 1 &&
+                StartsAlignWithRows(lines, headerStarts))
+                columnStarts = headerStarts;
+        }
+
+        foreach (var line in lines)
+        {
             IReadOnlyList<string> fields;
             if (line.IndexOf('\t') >= 0)
             {
                 fields = line.Split('\t');
+            }
+            else if (columnStarts is not null && columnStarts.Count > 1)
+            {
+                fields = SplitByColumnStarts(line, columnStarts);
             }
             else
             {
@@ -58,6 +84,84 @@ public static class RacOutputParser
         }
 
         return rows;
+    }
+
+    /// <summary>Делит вывод на непустые строки, убирая «\r» (CRLF из cmd/Windows).</summary>
+    private static List<string> SplitLines(string output)
+    {
+        var lines = new List<string>();
+        foreach (var rawLine in output.Split('\n'))
+        {
+            var line = rawLine.TrimEnd('\r');
+            if (!string.IsNullOrWhiteSpace(line))
+                lines.Add(line);
+        }
+        return lines;
+    }
+
+    /// <summary>
+    /// Определяет позиции начала колонок в строке заголовка: колонка начинается там,
+    /// где последовательность пробелов сменяется непробельным символом (первая колонка —
+    /// в начале строки). Возвращает null, если колонок меньше двух (заголовок из одного
+    /// слова — позиционный разбор бессмыслен, оставляем fallback по 2+ пробелам).
+    /// </summary>
+    private static IReadOnlyList<int>? TryGetColumnStarts(string header)
+    {
+        var starts = new List<int>();
+        var prevWasSpace = true;
+        for (var i = 0; i < header.Length; i++)
+        {
+            var isSpace = header[i] == ' ' || header[i] == '\t';
+            if (!isSpace && prevWasSpace)
+                starts.Add(i);
+            prevWasSpace = isSpace;
+        }
+        return starts.Count > 1 ? starts : null;
+    }
+
+    /// <summary>
+    /// Проверяет единообразность выравнивания: во всех строках данных (кроме заголовка)
+    /// каждая граница колонки из заголовка (кроме последней) указывает на начало
+    /// непробельного блока. Если выравнивание неравномерное (границы из заголовка
+    /// попадают внутрь пробельного «хвоста» или за конец строки) — позиционный разбор
+    /// не применяется, остаётся fallback «2+ пробела».
+    /// </summary>
+    private static bool StartsAlignWithRows(List<string> lines, IReadOnlyList<int> starts)
+    {
+        for (var rowIndex = 1; rowIndex < lines.Count; rowIndex++)
+        {
+            var row = lines[rowIndex];
+            for (var i = 1; i < starts.Count - 1; i++)
+            {
+                var pos = starts[i];
+                if (pos >= row.Length || row[pos] == ' ' || row[pos] == '\t')
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Разбивает строку данных по фиксированным позициям начала колонок (вычисленным
+    /// из заголовка). Поля обрезаются; внутренние пробелы значения (имя кластера)
+    /// сохраняются — в отличие от fallback «2+ пробела», который резал такие значения.
+    /// </summary>
+    private static IReadOnlyList<string> SplitByColumnStarts(string line, IReadOnlyList<int> starts)
+    {
+        var fields = new List<string>(starts.Count);
+        for (var i = 0; i < starts.Count; i++)
+        {
+            var from = starts[i];
+            var to = i + 1 < starts.Count ? starts[i + 1] : line.Length;
+            if (from >= line.Length)
+            {
+                fields.Add(string.Empty);
+                continue;
+            }
+            var end = Math.Min(to, line.Length);
+            fields.Add(line.Substring(from, end - from).Trim());
+        }
+        return fields;
     }
 
     /// <summary>

@@ -85,7 +85,38 @@ namespace Configuration_Management
 
             panel.Children.Add(MakeFieldRow(T("ItsAccounts.Name"), _nameBox));
             panel.Children.Add(MakeFieldRow(T("ItsAccounts.Login"), _loginBox));
-            panel.Children.Add(MakeFieldRow(T("ItsAccounts.Password"), _passwordBox));
+
+            // Просмотр пароля «глазом» (issue #333): кнопка справа от поля; наше поле —
+            // TextBox с маской, поэтому показать/скрыть пароль можно сменой символа маски
+            // (паттерн окна свойств базы, issue #169/#211).
+            var revealed = false;
+            var revealButton = new Button
+            {
+                Content = IconHelper.MakeIcon("IconEye", 16),
+                Width = 30,
+                Height = 30,
+                Padding = new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            revealButton.Styled(ControlThemes.IconButton);
+            ToolTip.SetTip(revealButton, LocalizationManager.T("Connection.ShowPasswordTooltip"));
+            revealButton.Click += (_, _) =>
+            {
+                revealed = !revealed;
+                _passwordBox.PasswordChar = revealed ? '\0' : '•';
+            };
+
+            var passwordGrid = new Grid();
+            passwordGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            passwordGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            _passwordBox.Margin = new Thickness(0);
+            Grid.SetColumn(_passwordBox, 0);
+            passwordGrid.Children.Add(_passwordBox);
+            Grid.SetColumn(revealButton, 1);
+            revealButton.Margin = new Thickness(6, 0, 0, 0);
+            passwordGrid.Children.Add(revealButton);
+
+            panel.Children.Add(MakeFieldRow(T("ItsAccounts.Password"), passwordGrid));
 
             var buttons = new StackPanel
             {

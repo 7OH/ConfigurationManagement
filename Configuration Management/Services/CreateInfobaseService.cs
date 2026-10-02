@@ -146,11 +146,14 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
         // Разрядность, выбранная суффиксом версии «(32)/(64)», сохраняется
         // в отдельное поле Architecture, а PlatformVersion — чистая версия
         // (без встроенной разрядности, чтобы она не попадала в ibases.v8i).
+        // Если суффикс не указан — новая база наследует режим «Разрядности по
+        // умолчанию» из настроек, а не жёстко 32-битную приоритетную (issue #305:
+        // при дефолте X64 база создавалась с разрядностью х86).
         PlatformVersionService.ParseVariant(platform, out var cleanPlatform, out var platformArch);
         var storedPlatform = string.IsNullOrWhiteSpace(cleanPlatform) ? platform : cleanPlatform;
         var storedArchitecture = platformArch == "32" || platformArch == "64"
             ? platformArch
-            : "32-priority";
+            : PriorityArchitectureFromDefault(_repository.LoadSettings().DefaultArchitecture);
 
         var created = new Infobase
         {
@@ -314,6 +317,16 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             // Несохранение последней версии не должно прерывать создание ИБ.
         }
     }
+
+    /// <summary>
+    /// Приоритетная разрядность новой базы без суффикса в выбранной версии (issue #305):
+    /// X64 из настроек → «64-priority», X86/Priority/легаси → «32-priority» (как раньше).
+    /// Internal — для юнит-тестов.
+    /// </summary>
+    internal static string PriorityArchitectureFromDefault(string? defaultArchitecture) =>
+        string.Equals(defaultArchitecture, "X64", StringComparison.OrdinalIgnoreCase)
+            ? "64-priority"
+            : "32-priority";
 
     /// <summary>
     /// Запоминает последний успешно использованный сервер СУБД и его порт (issue #305):

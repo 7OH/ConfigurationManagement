@@ -83,6 +83,79 @@ public sealed class RacOutputParserTests
         Assert.Equal(3, table[1].Count);
     }
 
+    [Fact]
+    public void ParseTable_PositionalSplit_KeepsInnerMultiSpaces()
+    {
+        // Вывод с ЕДИНООБРАЗНЫМ выравниванием пробелами без табуляций (issue #324):
+        // границы колонок заголовка совпадают с границами строк данных, поэтому имя
+        // с НЕСКОЛЬКИМИ пробелами подряд не режется (прежний fallback «2+ пробела»
+        // терял такие имена).
+        const string guid = "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b";
+        var output =
+            "cluster".PadRight(38) + "name".PadRight(20) + "port\n" +
+            guid.PadRight(38) + "Локальный  кластер".PadRight(20) + "1541\n";
+
+        var table = RacOutputParser.ParseTable(output);
+
+        Assert.Equal(2, table.Count);
+        Assert.Equal("cluster", table[0][0]);
+        Assert.Equal("port", table[0][2]);
+        Assert.Equal(guid, table[1][0]);
+        Assert.Equal("Локальный  кластер", table[1][1]); // двойной пробел внутри имени
+        Assert.Equal("1541", table[1][2]);
+    }
+
+    [Fact]
+    public void ParseTable_PositionalSplit_HandlesShorterValues()
+    {
+        // Значение короче ширины колонки — остаток поля обрезается, без смещения
+        // последующих колонок (единообразное выравнивание — позиционный разбор активен).
+        const string guid = "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b";
+        var output =
+            "cluster".PadRight(38) + "name".PadRight(20) + "port\n" +
+            guid.PadRight(38) + "Тест".PadRight(20) + "1541\n";
+
+        var table = RacOutputParser.ParseTable(output);
+
+        Assert.Equal("Тест", table[1][1]);
+        Assert.Equal("1541", table[1][2]);
+    }
+
+    [Fact]
+    public void ParseTable_PositionalSplit_HandlesCrLf()
+    {
+        // CRLF-вывод (cmd на Windows): «\r» удаляется до позиционного разбора,
+        // единообразное выравнивание сохраняется.
+        const string guid = "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b";
+        var output =
+            "cluster".PadRight(38) + "name".PadRight(20) + "port\r\n" +
+            guid.PadRight(38) + "Локальный кластер".PadRight(20) + "1541\r\n";
+
+        var table = RacOutputParser.ParseTable(output);
+
+        Assert.Equal(2, table.Count);
+        Assert.Equal("Локальный кластер", table[1][1]);
+        Assert.Equal("1541", table[1][2]);
+    }
+
+    [Fact]
+    public void ParseTable_HeaderWithTabs_FallsBackToSpacesInDataRows()
+    {
+        // Смешанный вывод: заголовок через табуляции, строки данных — выравнивание
+        // пробелами. Заголовок с табами отключает позиционный разбор (иначе индексы
+        // колонок были бы неверными), строки без табов делятся по 2+ пробелам.
+        const string output =
+            "cluster\tname\tport\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b     Локальный кластер    1541\n";
+
+        var table = RacOutputParser.ParseTable(output);
+
+        Assert.Equal("cluster", table[0][0]); // заголовок — по табам
+        Assert.Equal("8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b", table[1][0]);
+        Assert.Equal("Локальный кластер", table[1][1]);
+        Assert.Equal("1541", table[1][2]);
+    }
+
     // ---------- ParseInfo ----------
 
     [Fact]

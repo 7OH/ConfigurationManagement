@@ -32,6 +32,7 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
 
     private readonly TextBox _codeBox = MakeTextBox(string.Empty);
     private readonly TextBox _nameBox = MakeTextBox(string.Empty);
+    private readonly TextBox _configNameBox = MakeTextBox(string.Empty);
     private readonly TextBox _urlCodeBox = MakeTextBox(string.Empty);
     private readonly TextBox _nickBox = MakeTextBox(string.Empty);
     private readonly ComboBox _accountBox = new() { Height = 32, DisplayMemberBinding = new Avalonia.Data.Binding(nameof(ViewModels.ItsAccountSelectionItem.Name)) };
@@ -63,6 +64,7 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
 
         _codeBox.Text = model?.Code ?? string.Empty;
         _nameBox.Text = model?.Name ?? string.Empty;
+        _configNameBox.Text = model?.ConfigName ?? string.Empty;
         _urlCodeBox.Text = model?.UrlCode ?? string.Empty;
         _nickBox.Text = model?.Nick ?? string.Empty;
 
@@ -156,7 +158,11 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
 
         panel.Children.Add(MakeFieldRow(T("Updates.ConfigCode"), _codeBox));
         panel.Children.Add(MakeFieldRow(T("Updates.Name"), _nameBox));
-        // Сегмент адреса (ник) каталога релизов (issue #321, часть 2): ToolTip поясняет,
+        // Имя конфигурации (issue #321): имя в метаданных 1С — для сопоставления данных
+        // о конфигурации, в адрес обновлений не попадает.
+        ToolTip.SetTip(_configNameBox, T("Updates.ConfigNameHint"));
+        panel.Children.Add(MakeFieldRow(T("Updates.ConfigName"), _configNameBox));
+        // Сегмент адреса каталога релизов (issue #321, часть 2): ToolTip поясняет,
         // как значение используется при построении адреса каталога релизов на releases.1c.ru.
         ToolTip.SetTip(_urlCodeBox, T("Updates.UrlCodeHint"));
         panel.Children.Add(MakeFieldRow(T("Updates.UrlCode"), _urlCodeBox));
@@ -170,6 +176,14 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         _editionsList.MinHeight = 34;
         _editionsList.MaxDropDownHeight = 200;
         _editionsList.SelectionChanged += OnEditionSelectionChanged;
+
+        // Поля редакции пишут значения в выбранную строку СРАЗУ при вводе (issue #321,
+        // часть 2): раньше перенос происходил только при смене выделения или нажатии ОК —
+        // если выделение слетало, введённые строки терялись и оставалась одна редакция.
+        _editionNameBox.TextChanged += (_, _) => CommitEditionFields();
+        _editionRedBox.TextChanged += (_, _) => CommitEditionFields();
+        _editionSubRedBox.TextChanged += (_, _) => CommitEditionFields();
+        _editionUrlOverrideBox.TextChanged += (_, _) => CommitEditionFields();
 
         var editionButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var addEd = new Button { Content = T("Updates.Add"), Height = 30 };
@@ -244,6 +258,7 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         {
             Code = code,
             Name = name,
+            ConfigName = _configNameBox.Text?.Trim() ?? string.Empty,
             UrlCode = _urlCodeBox.Text?.Trim() ?? string.Empty,
             Nick = _nickBox.Text?.Trim() ?? string.Empty,
             // Учётная запись ИТС: пусто — «Основная» (либо выбранная в настройках).
@@ -270,6 +285,9 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         _editionsList.SelectedIndex = _editions.Count - 1;
         _editionsList.SelectedItem = edition;
         _editionsList.ScrollIntoView(edition);
+        // Новая строка — пустая: поля освобождаем, чтобы ввод не перезаписал значения
+        // предыдущей строки (поля самокоммитятся по TextChanged).
+        ClearEditionFields();
     }
 
     private void OnRemoveEditionClick()

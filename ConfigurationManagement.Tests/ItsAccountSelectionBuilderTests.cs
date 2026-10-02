@@ -168,4 +168,39 @@ public sealed class ItsAccountSelectionBuilderTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(item.Name));
         Assert.DoesNotContain(items, i => i.Id == blank.Id && i.Name is null);
     }
+
+    [Fact]
+    public void Build_VirtualPrimaryItem_HasDisplayName()
+    {
+        // Виртуальный пункт «Основная» (Id == null) должен иметь непустое отображаемое
+        // имя: ComboBox выбора использует DisplayMemberPath=Name, пустой пункт «не читался»
+        // бы как отсутствие (issue #333).
+        var store = CreateStore();
+        store.Save(new[] { Sample("Бухгалтерия", "acc@its", primary: true) });
+
+        var items = ItsAccountSelectionBuilder.Build(store);
+
+        var primary = Assert.Single(items, i => i.Id is null);
+        Assert.False(string.IsNullOrWhiteSpace(primary.Name));
+        Assert.All(items, i => Assert.False(string.IsNullOrWhiteSpace(i.Name)));
+    }
+
+    [Fact]
+    public void Build_AllItems_HaveDisplayNamesForComboBox()
+    {
+        // Отображение в ComboBox строится по Name — ни один пункт (реальные записи
+        // и виртуальный) не должен оставаться без имени (issue #333).
+        var store = CreateStore();
+        store.Save(new[]
+        {
+            Sample("Бухгалтерия", "acc@its", primary: true),
+            Sample("   ", "blank@its"),
+            new ItsAccount { Id = "null-name", Name = null!, Login = "n@its" },
+        });
+
+        var items = ItsAccountSelectionBuilder.Build(store);
+
+        Assert.Equal(4, items.Count); // «Основная» (виртуальная) + 3 записи
+        Assert.All(items, i => Assert.False(string.IsNullOrWhiteSpace(i.Name)));
+    }
 }

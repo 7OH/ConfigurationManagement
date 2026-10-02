@@ -165,6 +165,12 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Пересобирает дерево при изменении состава запущенных баз (issue #339).</summary>
+    partial void RefreshListAfterRunningFlagsChanged() => RebuildGroupTree();
+
+    /// <summary>Активен ли отбор «Только запущенные» (issue #339).</summary>
+    private partial bool IsRunningOnlyModeActive() => _showRunningOnly;
+
     /// <summary>Отбор «Только запущенные» включён (issue #339).</summary>
     public bool ShowRunningOnly => _showRunningOnly;
 
@@ -960,6 +966,18 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Команда сворачивания/разворачивания отдельной группы с сохранением состояния.</summary>
     public ICommand ToggleGroupExpandedCommand { get; }
+
+    /// <summary>Команда разворачивания ветки: группа и рекурсивно все её подгруппы
+    /// (issue #341); соседние ветки не меняются.</summary>
+    public ICommand ExpandBranchCommand { get; }
+
+    /// <summary>Команда сворачивания ветки: группа и рекурсивно все её подгруппы
+    /// (issue #341); соседние ветки не меняются.</summary>
+    public ICommand CollapseBranchCommand { get; }
+
+    /// <summary>Команда переключения ветки по Ctrl+клику на группе (issue #341): если
+    /// группа развёрнута — сворачивает ветку, иначе разворачивает. Выделение не меняется.</summary>
+    public ICommand ToggleGroupBranchCommand { get; }
 
     /// <summary>Команда открытия окна настроек приложения.</summary>
     public ICommand OpenSettingsCommand { get; }

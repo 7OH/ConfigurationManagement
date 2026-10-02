@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Net;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Xunit;
@@ -185,11 +186,202 @@ public sealed class UpdateCheckCatalogTests : IDisposable
         Assert.Equal("3.0.15.2", version);
     }
 
-    /// <summary>Минимальный логгер для конструктора OneCUpdatesService (без внешних зависимостей).</summary>
+    // ---------- HTTP 302 от releases.1c.ru и авторизация портала 1С (issue #323/#334) ----------
+
+    [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_302WithoutLocation_ReturnsAuthRequired()
+    {
+        // releases.1c.ru при отсутствии сессии может вернуть 302 БЕЗ заголовка Location
+        // (CAS). Учётные данные не настроены — вход невозможен: проверка должна завершиться
+        // понятной ошибкой авторизации, а не техническим «HTTP 302».
+        var handler = new StaticHandler(new HttpResponseMessage(HttpStatusCode.Found));
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/AccountingCorp30");
+
+        Assert.Equal(ConfigUpdateStatus.Failed, result.Status);
+        Assert.Equal("Updates.AuthRequired", result.Error);
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_302ToLoginHost_ReturnsAuthRequired()
+    {
+        // Классический CAS: редирект на login.1c.ru. Учётных данных нет — вход не выполнен,
+        // проверка завершается понятной ошибкой авторизации.
+        var response = new HttpResponseMessage(HttpStatusCode.Found);
+        response.Headers.Location = new Uri("https://login.1c.ru/login");
+        var handler = new StaticHandler(response);
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/AccountingCorp30");
+
+        Assert.Equal(ConfigUpdateStatus.Failed, result.Status);
+        Assert.Equal("Updates.AuthRequired", result.Error);
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_302WithoutLocation_LoginThenRetry_Succeeds()
+    {
+        // Сценарий #323/#334 с настроенными учётными данными: первый запрос каталога получает
+        // 302 без Location → служба выполняет вход на portal.1c.ru (GET формы + POST) и повторяет
+        // запрос каталога — тот отвечает 200 с таблицей версий.
+        var handler = new AuthFlowHandler();
+        var repo = CreateRepo();
+        repo.Settings.UpdatesLogin = "its-user";
+        repo.Settings.UpdatesPassword = "secret";
+        var service = new OneCUpdatesService(repo, new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/AccountingCorp30");
+
+        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
+        Assert.Equal("3.0.130.1", result.LatestVersion);
+        Assert.True(handler.ProjectRequests >= 2, "Запрос каталога должен быть повторён после входа.");
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_200WithProjectHtml_ReturnsNewerAvailable()
+    {
+        // Зелёный путь без редиректов: 200 с HTML каталога — находится более новая версия.
+        const string html = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td>1</td><td><a href="/version_files?nick=AccountingCorp30&ver=3.0.130.1">3.0.130.1</a></td></tr>
+            </table>
+            </body></html>
+            """;
+        var handler = new StaticHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(html),
+        });
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/AccountingCorp30");
+
+        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
+        Assert.Equal("3.0.130.1", result.LatestVersion);
+    }
+
+    /// <summary>Репозиторий с настройками в памяти (для входных данных авторизации).</summary>
+    private FakeRepo CreateRepo() => new();
+
+    /// <summary>Логгер-заглушка для OneCUpdatesService.</summary>
     private sealed class TestLogger : IAppLogger
     {
         public void Info(string message) { }
         public void Warn(string message) { }
         public void Error(string message, Exception? exception = null) { }
+    }
+
+    /// <summary>Обработчик, всегда возвращающий один и тот же ответ.</summary>
+    private sealed class StaticHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
+
+        public StaticHandler(HttpResponseMessage response)
+            => _responder = _ => response;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = _responder(request);
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Fake репозитория: настройки портала в памяти, базы/группы пустые.</summary>
+    private sealed class FakeRepo : IInfobaseRepository
+    {
+        public AppSettings Settings { get; set; } = new();
+
+        public List<Infobase> Load() => new();
+
+        public void Save(List<Infobase> infobases) { }
+
+        public Task SaveAsync(List<Infobase> infobases, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public List<Group> LoadGroups() => new();
+
+        public void SaveGroups(List<Group> groups) { }
+
+        public Task SaveGroupsAsync(List<Group> groups, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public AppSettings LoadSettings() => Settings;
+
+        public void SaveSettings(AppSettings settings) => Settings = settings;
+
+        public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
+        {
+            Settings = settings;
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Обработчик сценария «302 без Location → вход на portal.1c.ru → повтор запроса»:
+    /// первый запрос каталога возвращает 302 без Location, форма входа содержит токен
+    /// <c>execution</c>, POST входа редиректит обратно на каталог, повторный запрос
+    /// каталога возвращает 200 с таблицей версий.
+    /// </summary>
+    private sealed class AuthFlowHandler : HttpMessageHandler
+    {
+        private int _projectRequests;
+
+        public int ProjectRequests => _projectRequests;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (url.Contains("/project/AccountingCorp30", StringComparison.OrdinalIgnoreCase))
+            {
+                _projectRequests++;
+                response = _projectRequests == 1
+                    ? new HttpResponseMessage(HttpStatusCode.Found) // 302 без Location
+                    : Ok(HtmlWithVersions);
+            }
+            else if (url.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                // GET формы входа → HTML с токеном; POST входа → редирект обратно на каталог.
+                response = request.Method == HttpMethod.Post
+                    ? Redirect(new Uri("https://releases.1c.ru/project/AccountingCorp30"))
+                    : Ok("<form><input type=\"hidden\" name=\"execution\" value=\"e1s2\"/></form>");
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        private static HttpResponseMessage Redirect(Uri location)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Found);
+            response.Headers.Location = location;
+            return response;
+        }
+
+        private const string HtmlWithVersions = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td>1</td><td><a href="/version_files?nick=AccountingCorp30&ver=3.0.130.1">3.0.130.1</a></td></tr>
+            </table>
+            </body></html>
+            """;
     }
 }

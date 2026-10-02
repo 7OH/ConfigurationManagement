@@ -359,6 +359,39 @@ namespace Configuration_Management
             // новый порядок колонок.
             UpdateTreeMinWidthContent();
             SyncHeaderWidthWithList();
+
+            // Fallback-минимум (issue #309, девятая попытка): после применения настроек
+            // колонок/порядка список принудительно прокручивается до конца горизонтальной
+            // полосы — последние колонки гарантированно достижимы и видны, даже если
+            // расчётная минимальная ширина оказалась меньше фактической ширины контента.
+            EnsureHorizontalReach();
+        }
+
+        /// <summary>
+        /// Fallback-минимум (issue #309, девятая попытка): после применения настроек
+        /// колонок/порядка принудительно прокручивает список до конца горизонтальной
+        /// полосы, чтобы последние колонки были гарантированно достижимы и видны даже
+        /// при расхождении расчётной и фактической ширины контента. Выполняется отложенно
+        /// — после завершения раскладки строк под новый порядок колонок. Вызывается только
+        /// из точки применения настроек, поэтому позиция прокрутки, установленная
+        /// пользователем в обычной работе, не затрагивается.
+        /// </summary>
+        private void EnsureHorizontalReach()
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    var treeScroll = GetTreeScrollViewer();
+                    if (treeScroll is null || treeScroll.ScrollableWidth <= 1)
+                        return;
+                    treeScroll.ScrollToHorizontalOffset(treeScroll.ExtentWidth);
+                }
+                catch
+                {
+                    // Fallback не должен ломать раскладку.
+                }
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
 
         /// <summary>
@@ -785,6 +818,18 @@ namespace Configuration_Management
             var total = ListMinWidthCalculator.Compute(
                 nameWidth, NameColumnMinWidth, leading, 0, values, _treeMinWidthContent);
 
+            // Девятая попытка (issue #309): расчётная сумма (total) не учитывает фактическую
+            // ширину звёздной колонки «Название» (для гибкой колонки nameWidth=0), поэтому
+            // при растянутой «Название» последние колонки выталкиваются за правый край, а
+            // минимум контента остаётся короче фактической ширины строк — полоса есть
+            // (scrollable ~3 px в логе пользователя), но до конца колонок не дотягивает.
+            // Берём фактическую сумму колонок заголовка, когда заголовок реально не
+            // помещается; иначе полоса появлялась бы «на волосок» из-за округления.
+            var headerSumNow = defs.Sum(d => d.ActualWidth);
+            var scrollViewerNow = GetTreeScrollViewer();
+            var viewportNow = scrollViewerNow?.ViewportWidth ?? MainTree.ActualWidth;
+            var effective = headerSumNow > viewportNow + 1 ? Math.Max(total, headerSumNow) : total;
+
             // Минимум задаём КОНТЕНТУ прокрутки (внутреннему ScrollContentPresenter дерева),
             // а не самому MainTree: у дерева собственный внутренний ScrollViewer, и MinWidth
             // на контроле лишь растянул бы область просмотра, а не заставил бы контент
@@ -794,7 +839,7 @@ namespace Configuration_Management
             // (пустой) колонки «Конфигурация».
             var presenter = GetTreeScrollContentPresenter();
             if (presenter is not null)
-                presenter.MinWidth = total;
+                presenter.MinWidth = effective;
 
             // Внутренний ScrollViewer TreeView работает с CanContentScroll=True и пиксельной
             // виртуализацией (MainWindow.xaml): виртуализирующая панель меряется ВЬЮПОРТНОЙ
@@ -802,24 +847,24 @@ namespace Configuration_Management
             // ExtentWidth — горизонтальная полоса остаётся короче суммы колонок, и последние
             // колонки («Конфигурация»/«№ релиза») недостижимы (issue #309, седьмая попытка).
             // Поэтому жёсткий минимум дублируется на корневые Grid материализованных строк:
-            // DesiredSize панели становится >= total, ExtentWidth дотягивает до конца колонок.
+            // DesiredSize панели становится >= effective, ExtentWidth дотягивает до конца колонок.
             // Обход выполняется только при фактическом изменении значения (не на каждый
             // ScrollChanged) — при пиксельной виртуализации новые строки перекрываются
             // ближайшим пересчётом (ExtentWidthChange обновляет минимум в OnTreeScroll).
-            if (Math.Abs(total - _lastTreeMinWidth) > 0.5)
+            if (Math.Abs(effective - _lastTreeMinWidth) > 0.5)
             {
-                _lastTreeMinWidth = total;
+                _lastTreeMinWidth = effective;
                 foreach (var row in GetVisibleTreeViewItems())
                 {
                     var rowGrid = FindGridByMarker(row, RowGridMarker)
                                   ?? FindGridByMarker(row, GroupGridMarker);
                     if (rowGrid is not null)
-                        rowGrid.MinWidth = total;
+                        rowGrid.MinWidth = effective;
                 }
 
                 // Инструментальный лог (issue #309): фактические значения в журнале приложения,
                 // чтобы следующая итерация правки опиралась на данные, а не на предположения.
-                LogColumnsDiagnostics(total, presenter);
+                LogColumnsDiagnostics(effective, presenter);
             }
 
             // Восьмая попытка (issue #309): VirtualizingStackPanel при CanContentScroll=True
@@ -829,7 +874,7 @@ namespace Configuration_Management
             // как только колонки реально не помещаются: ScrollViewer начинает вести
             // прокрутку по фактической ширине контента (DesiredSize), и последние колонки
             // становятся достижимыми. Обратное переключение — когда полоса не нужна.
-            ApplyTreePanelStrategy(total);
+            ApplyTreePanelStrategy(effective);
         }
 
         /// <summary>
@@ -915,16 +960,83 @@ namespace Configuration_Management
                 var extent = treeScroll?.ExtentWidth ?? 0;
                 var scrollable = treeScroll?.ScrollableWidth ?? 0;
                 var dpi = VisualTreeHelper.GetDpi(this);
+
+                // Девятая попытка (issue #309): фактические ширины колонок заголовка.
+                // Растянутая звёздная «Название» может выталкивать последние колонки за
+                // правый край, и сумма колонок (sumActualHeader) оказывается больше
+                // расчётной (total) — это прямое объяснение обрезания при scrollable ~0.
+                var headerCols = defs is null ? string.Empty
+                    : string.Join(",", defs.Select((d, i) => $"{i}:{d.ActualWidth:F1}"));
+                var headerOrigin = 0d;
+                var headerRight = 0d;
+                if (HeaderGrid is not null)
+                {
+                    headerOrigin = HeaderGrid.TransformToAncestor(this).Transform(new Point(0, 0)).X;
+                    headerRight = headerOrigin + sumActual;
+                }
+
+                // Эксперимент A: сравнение фактической ширины строк с заголовком — разные
+                // сетки могут дать разный остаток звёздной «Название», и правая граница
+                // строки уходит дальше правой границы заголовка (колонки данных обрезаются
+                // заголовком или наоборот).
+                var (rowSum, rowOrigin, rowRight, rowCols, rowCount) = MeasureFirstRowDiagnostics();
+
+                // Эксперимент B: ширина окна и вертикального скроллбара — вьюпорт
+                // внутреннего ScrollViewer дерева может быть меньше доступной ширины
+                // списка на ширину вертикальной полосы (последняя колонка «не влезает»
+                // именно из-за неё, а не из-за ширины заголовка).
+                var sbw = SystemParameters.VerticalScrollBarWidth;
+                var winW = ActualWidth;
+                var winH = ActualHeight;
+                var treeW = MainTree?.ActualWidth ?? 0;
+                var headerW = HeaderGrid?.ActualWidth ?? 0;
+
                 AppServices.GetRequiredService<IAppLogger>().Info(
                     $"CM_COLUMNS: total={total:F1}, sumActualHeader={sumActual:F1}, " +
                     $"content={_treeMinWidthContent:F1}, presenterMin={presenter?.MinWidth ?? 0:F1}, " +
                     $"viewport={viewport:F1}, extent={extent:F1}, scrollable={scrollable:F1}, " +
                     $"panel={(_treeUsePlainStackPanel ? "StackPanel" : "VirtualizingStackPanel")}, " +
-                    $"dpiScale={dpi.DpiScaleX:F2}");
+                    $"dpiScale={dpi.DpiScaleX:F2}, win={winW:F1}x{winH:F1}, treeW={treeW:F1}, " +
+                    $"headerW={headerW:F1}, sbw={sbw:F1}, viewportSbw={viewport + sbw:F1}, " +
+                    $"hdrOrigin={headerOrigin:F1}, hdrRight={headerRight:F1}, " +
+                    $"rows={rowCount}, rowSum={rowSum:F1}, rowOrigin={rowOrigin:F1}, rowRight={rowRight:F1}, " +
+                    $"cols=[{headerCols}], rowCols=[{rowCols}]");
             }
             catch
             {
                 // Диагностика не должна ломать раскладку.
+            }
+        }
+
+        /// <summary>
+        /// Замер фактической ширины первой материализованной строки базы (или заголовка
+        /// группы, если базы ещё не созданы): сумма <c>ActualWidth</c> колонок сетки строки,
+        /// её левая координата в окне и правый край последней колонки (issue #309,
+        /// эксперимент A — сравнение строк с заголовком). Возвращает нули и пустую строку,
+        /// если ни одна строка ещё не материализована либо обход визуального дерева не
+        /// удался. Диагностика не должна падать в горячем пути.
+        /// </summary>
+        private (double Sum, double OriginX, double RightEdgeX, string Columns, int Count) MeasureFirstRowDiagnostics()
+        {
+            if (MainTree is null)
+                return (0, 0, 0, string.Empty, 0);
+            try
+            {
+                var item = FindFirstInfobaseItem(MainTree);
+                var grid = item is null ? null : FindGridByMarker(item, RowGridMarker)
+                           ?? FindGridByMarker(item, GroupGridMarker);
+                if (grid is null || grid.ColumnDefinitions.Count == 0)
+                    return (0, 0, 0, string.Empty, 0);
+
+                var sum = grid.ColumnDefinitions.Sum(d => d.ActualWidth);
+                var origin = grid.TransformToAncestor(this).Transform(new Point(0, 0)).X;
+                var cols = string.Join(",", grid.ColumnDefinitions
+                    .Select((d, i) => $"{i}:{d.ActualWidth:F1}"));
+                return (sum, origin, origin + sum, cols, grid.ColumnDefinitions.Count);
+            }
+            catch
+            {
+                return (0, 0, 0, string.Empty, 0);
             }
         }
 

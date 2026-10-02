@@ -707,6 +707,16 @@ namespace Configuration_Management
                     break;
                 }
                 case GroupNodeViewModel groupNode when groupNode.Group is not null:
+                    // Ctrl+щелчок по группе — развернуть/свернуть ветку (группа + все
+                    // подгруппы), НЕ меняя текущую строку и выделение (issue #341).
+                    if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control &&
+                        (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+                    {
+                        _draggedData = null;
+                        _viewModel.ToggleGroupBranchCommand.Execute(groupNode);
+                        e.Handled = true;
+                        return;
+                    }
                     _draggedData = groupNode;
                     ApplyGroupSelection(treeViewItem, groupNode);
                     break;

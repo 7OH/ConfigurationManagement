@@ -1,0 +1,115 @@
+<Window x:Class="Configuration_Management.PortsEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        Icon="{StaticResource AppIcon}"
+        Width="480" Height="360"
+        MinWidth="420" MinHeight="300"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <!-- Основная зелёная кнопка -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#16A34A"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#15803D"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#166534"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Серая кнопка-контур -->
+        <Style x:Key="OutlineButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="14,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ItemHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="EditorTitle" Grid.Row="0" FontSize="15" FontWeight="SemiBold"/>
+
+        <!-- Таблица «порт | описание сервиса»: правится только порт (issue #335). -->
+        <DataGrid x:Name="PortsGrid" Grid.Row="1" Margin="0,14,0,0"
+                  AutoGenerateColumns="False" HeadersVisibility="Column"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  CanUserSortColumns="False" RowHeaderWidth="0" SelectionMode="Single"
+                  SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
+                  RowHeight="36" AlternationCount="2">
+            <DataGrid.Columns>
+                <DataGridTextColumn Width="*" Header="{loc:Loc Ports.Service}"
+                                    Binding="{Binding Service}" IsReadOnly="True"/>
+                <DataGridTextColumn Width="100" Header="{loc:Loc Ports.Port}"
+                                    Binding="{Binding Port, UpdateSourceTrigger=PropertyChanged}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="OkButton" Width="140" Height="34" Margin="0,0,10,0" IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}" Click="OnOkClick">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔌" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="White"/>
+                    <TextBlock Text="{loc:Loc Ports.Check}" Margin="0,0,0,0" VerticalAlignment="Center" Foreground="White"/>
+                </StackPanel>
+            </Button>
+            <Button Width="120" Height="34" IsCancel="True" Style="{StaticResource OutlineButtonStyle}"
+                    Click="OnCancelClick">
+                <TextBlock Text="{loc:Loc Updates.Cancel}" VerticalAlignment="Center"/>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

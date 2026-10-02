@@ -114,11 +114,15 @@ public sealed class PlatformDownloadTests
             // не потокобезопасен (значения могут перезаписать друг друга), поэтому
             // добавление/чтение — под общим lock (порядок вызовов уже монотонный:
             // ParallelProgressAggregator публикует только возрастающие проценты).
+            // Progress<T> без SynchronizationContext доставляет отчёты через пул потоков
+            // асинхронно — при параллельном прогоне всего набора финальный отчёт 1.0 мог
+            // не успеть к проверке (флак «последним успевал 0.5»). Синхронная реализация
+            // делает проверку детерминированной.
             var progressGate = new object();
             var progressValues = new List<double>();
             var result = await service.DownloadDistributionAsync(
                 DistributionUrl, targetPath,
-                new Progress<double>(value => { lock (progressGate) { progressValues.Add(value); } }));
+                new SyncProgress(value => { lock (progressGate) { progressValues.Add(value); } }));
 
             // Успех параллельного пути: возвращён путь, файл существует и целостен.
             Assert.Equal(targetPath, result);
@@ -356,5 +360,21 @@ public sealed class PlatformDownloadTests
         public void Warn(string message) => Messages.Add(message);
 
         public void Error(string message, Exception? exception = null) => Messages.Add(message);
+    }
+
+    /// <summary>
+    /// Синхронный <see cref="IProgress{T}"/>: отчёт вызывается немедленно из потока,
+    /// публикующего прогресс, без постинга в пул потоков (в отличие от
+    /// <see cref="Progress{T}"/> без SynchronizationContext). Используется в тестах
+    /// прогресса загрузки, чтобы финальный отчёт «1.0» не терялся в параллельном прогоне
+    /// всего набора (флак «последним успевал 0.5», issue #330).
+    /// </summary>
+    private sealed class SyncProgress : IProgress<double>
+    {
+        private readonly Action<double> _report;
+
+        public SyncProgress(Action<double> report) => _report = report;
+
+        public void Report(double value) => _report(value);
     }
 }

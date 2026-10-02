@@ -369,6 +369,26 @@ public class ConnectionSettingsViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Объединяет имена конфигураций из баз списка и «Имя конфигурации» из справочника
+    /// типовых конфигураций (issue #338): фильтр пустых, Trim, дедупликация без учёта
+    /// регистра, сортировка по алфавиту. Используется MainViewModel обеих платформ для
+    /// наполнения выпадающего списка поля «Конфигурация».
+    /// </summary>
+    internal static IEnumerable<string> MergeAvailableConfigurations(
+        IEnumerable<string>? fromBases,
+        IEnumerable<OneCConfigType>? configTypes)
+    {
+        var fromTypes = (configTypes ?? Enumerable.Empty<OneCConfigType>())
+            .Select(t => t.ConfigName?.Trim() ?? string.Empty);
+        return (fromBases ?? Enumerable.Empty<string>())
+            .Select(s => s?.Trim() ?? string.Empty)
+            .Concat(fromTypes)
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Устанавливает список доступных серверов 1С из других баз списка.
     /// Сортируем по алфавиту и исключаем пустые значения.
     /// </summary>

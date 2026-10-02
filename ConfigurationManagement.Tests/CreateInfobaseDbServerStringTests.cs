@@ -283,4 +283,20 @@ public sealed class CreateInfobaseDbServerStringTests
 
         Assert.Equal("1541", request.ServerPort);
     }
+
+    // ======================= Разрядность новой базы (issue #305) =======================
+
+    [Theory]
+    [InlineData("X64", "64-priority")]
+    [InlineData("x64", "64-priority")]
+    [InlineData("X86", "32-priority")]
+    [InlineData("Priority", "32-priority")]
+    [InlineData(null, "32-priority")]
+    [InlineData("", "32-priority")]
+    public void PriorityArchitectureFromDefault_MapsDefaultMode(string? mode, string expected)
+    {
+        // Без суффикса «(32)/(64)» в выбранной версии новая база наследует режим
+        // «Разрядности по умолчанию» из настроек: X64 → 64-priority, остальное — как раньше.
+        Assert.Equal(expected, CreateInfobaseService.PriorityArchitectureFromDefault(mode));
+    }
 }

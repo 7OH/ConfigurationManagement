@@ -71,6 +71,36 @@ public sealed class CustomConfigTypesStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveLoad_MultipleEditions_ArePreserved()
+    {
+        // Регрессия issue #321, часть 2: «добавляешь строку в таблицу релизов — после ОК
+        // остаётся одна строка». После сохранения и повторной загрузки ВСЕ редакции
+        // должны сохраниться целиком, включая UrlOverride и SubRed.
+        var store = CreateStore();
+        var item = new OneCConfigType
+        {
+            Code = "ZUP",
+            Name = "Зарплата и управление персоналом",
+            ConfigName = "ЗарплатаИУправлениеПерсоналом",
+            Editions =
+            {
+                new OneCConfigEdition { Name = "3.1", Red = "3.1", SubRed = "11421", UrlOverride = "" },
+                new OneCConfigEdition { Name = "3.0", Red = "3.0", SubRed = "", UrlOverride = "manual://link" },
+            },
+        };
+
+        store.Save(new[] { item });
+        var loaded = store.Load();
+
+        var single = Assert.Single(loaded);
+        Assert.Equal(2, single.Editions.Count);
+        Assert.Equal("3.1", single.Editions[0].Red);
+        Assert.Equal("11421", single.Editions[0].SubRed);
+        Assert.Equal("3.0", single.Editions[1].Red);
+        Assert.Equal("manual://link", single.Editions[1].UrlOverride);
+    }
+
+    [Fact]
     public void FileIsReadableUtf8_CyrillicNotEscaped()
     {
         var store = CreateStore();

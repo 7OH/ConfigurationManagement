@@ -129,6 +129,14 @@ namespace Configuration_Management
             InputBindings.Add(new KeyBinding(_viewModel.ExpandAllGroupsCommand, Key.Add, ModifierKeys.Control | ModifierKeys.Shift));
             InputBindings.Add(new KeyBinding(_viewModel.CollapseAllGroupsCommand, Key.OemMinus, ModifierKeys.Control | ModifierKeys.Shift));
             InputBindings.Add(new KeyBinding(_viewModel.CollapseAllGroupsCommand, Key.Subtract, ModifierKeys.Control | ModifierKeys.Shift));
+
+            // Ctrl+Alt+Plus / Ctrl+Alt+Minus — развернуть/свернуть ТОЛЬКО ветку под курсором
+            // (issue #341): Ctrl+Plus/Minus заняты масштабом строк (#303), Ctrl+Shift+Plus/Minus —
+            // «развернуть/свернуть всё» (#160). Обе раскладки: основная и цифровой блок.
+            InputBindings.Add(new KeyBinding(_viewModel.ExpandBranchCommand, Key.OemPlus, ModifierKeys.Control | ModifierKeys.Alt));
+            InputBindings.Add(new KeyBinding(_viewModel.ExpandBranchCommand, Key.Add, ModifierKeys.Control | ModifierKeys.Alt));
+            InputBindings.Add(new KeyBinding(_viewModel.CollapseBranchCommand, Key.OemMinus, ModifierKeys.Control | ModifierKeys.Alt));
+            InputBindings.Add(new KeyBinding(_viewModel.CollapseBranchCommand, Key.Subtract, ModifierKeys.Control | ModifierKeys.Alt));
         }
 
         /// <summary>
@@ -653,7 +661,60 @@ namespace Configuration_Management
         private void OnContextMenuClosed(object sender, RoutedEventArgs e)
         {
             if (sender is ContextMenu menu)
+            {
                 _openContextMenus.Remove(menu);
+                // issue #340: клик по строке дерева, закрывший контекстное меню,
+                // перехватывается попапом меню и «проглатывается» — выбор строки и
+                // снятие мультивыделения не выполняются. Повторяем обработку клика.
+                TryApplyTreeClickAfterMenuClosed(menu);
+            }
+        }
+
+        /// <summary>
+        /// Применяет клик по строке дерева, которым пользователь закрыл контекстное меню
+        /// (issue #340). Пока меню открыто, WPF держит захват мыши в попапе: событие клика
+        /// по строке уходит в попап и только закрывает меню — ни выбор строки, ни снятие
+        /// мультивыделения (OnInfobaseTree_PreviewMouseLeftButtonDown) при этом не
+        /// выполняются. Здесь, после фактического закрытия меню, определяем строку под
+        /// курсором и повторяем обычную логику клика: снять мультивыделение и выбрать базу.
+        /// </summary>
+        private void TryApplyTreeClickAfterMenuClosed(ContextMenu menu)
+        {
+            if (!ReferenceEquals(menu, MainTree?.ContextMenu))
+                return;
+            if (_viewModel is null || !IsVisible)
+                return;
+
+            // Отсекаем закрытие выбором пункта меню (мышь в этот момент над пунктом меню)
+            // и закрытие по ESC / программно (кнопка мыши не нажата).
+            if (Mouse.DirectlyOver is { } over && FindAncestor<MenuItem>(over as DependencyObject) is not null)
+                return;
+            if (Mouse.LeftButton != MouseButtonState.Pressed)
+                return;
+
+            var pos = Mouse.GetPosition(MainTree);
+            if (pos.X < 0 || pos.Y < 0 ||
+                pos.X > MainTree.ActualWidth || pos.Y > MainTree.ActualHeight)
+                return;
+
+            var hit = MainTree.InputHitTest(pos) as DependencyObject;
+            var treeViewItem = hit is null ? null : FindAncestor<TreeViewItem>(hit);
+            if (treeViewItem?.DataContext is not Infobase and not PinnedInfobaseItem)
+                return;
+            var infobase = UnwrapInfobase(treeViewItem.DataContext);
+            if (infobase is null)
+                return;
+
+            // Захват мыши попапом освобождается асинхронно — применяем выбор отложенно,
+            // чтобы не наложиться на остатки событий закрытия меню.
+            var item = treeViewItem;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_viewModel is null || !IsVisible)
+                    return;
+                _viewModel.ClearBatchSelection();
+                ApplySelection(item, infobase);
+            }), System.Windows.Threading.DispatcherPriority.Input);
         }
 
         /// <summary>

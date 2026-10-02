@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,12 +13,29 @@ namespace Configuration_Management.Services;
 /// Клиент утилиты rac (Remote Administration Client) — сервисный слой встроенного монитора
 /// серверов 1С (цикл 0.3.9.123–0.3.9.126). Чистый сервис — без UI-зависимостей.
 /// Команды выполняются прямым запуском rac (без shell, через ArgumentList) с захватом
-/// stdout/stderr (UTF-8), параллельным чтением и таймаутом. Пароль администратора кластера
-/// передаётся аргументом <c>--password</c>, но НЕ пишется в журнал (маскируется
-/// <see cref="SensitiveDataMasker.MaskRacPassword"/>).
+/// stdout/stderr, параллельным чтением и таймаутом. Кодировка вывода определяется
+/// автоматически: UTF-8, а на Windows — также OEM (cp866) / ANSI (cp1251) кодовые страницы
+/// (issue #324: «в терминале rac работает, монитор вывод не распознаёт»). Пароль
+/// администратора кластера передаётся аргументом <c>--password</c>, но НЕ пишется
+/// в журнал (маскируется <see cref="SensitiveDataMasker.MaskRacPassword"/>).
 /// </summary>
 public sealed class RacClient : IRacClient
 {
+    /// <summary>Строгий UTF-8 (невалидные байты — ошибка декодирования).</summary>
+    private static readonly UTF8Encoding StrictUtf8 =
+        new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>Кодовые страницы Windows для fallback-декодирования вывода rac.</summary>
+    private static readonly Encoding[] WindowsFallbackEncodings;
+
+    static RacClient()
+    {
+        // Кодовые страницы 866/1251 доступны и на Linux (.NET Core) только после
+        // регистрации провайдера CodePagesEncodingProvider.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        WindowsFallbackEncodings = new[] { Encoding.GetEncoding(866), Encoding.GetEncoding(1251) };
+    }
+
     /// <summary>Таймаут выполнения одной rac-команды (30 секунд).</summary>
     public static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(30);
 
@@ -247,9 +265,10 @@ public sealed class RacClient : IRacClient
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8
+                    RedirectStandardError = true
+                    // Кодировку НЕ задаём: байты читаются сырыми и декодируются
+                    // DecodeRacOutput (UTF-8 / cp866 / cp1251) — rac на Windows пишет
+                    // в OEM-кодовой странице консоли, а не в UTF-8 (issue #324).
                 }
             };
 
@@ -263,8 +282,10 @@ public sealed class RacClient : IRacClient
 
             // Читаем stdout/stderr параллельно с ожиданием выхода: иначе большой вывод
             // может переполнить буфер канала и заблокировать завершение процесса.
-            var stdoutTask = process.StandardOutput.ReadToEndAsync();
-            var stderrTask = process.StandardError.ReadToEndAsync();
+            // Кодировка заранее неизвестна (UTF-8 на Linux, cp866/cp1251 на Windows),
+            // поэтому читаем СЫРЫЕ байты и декодируем их позже (issue #324).
+            var stdoutTask = ReadToEndBytesAsync(process.StandardOutput.BaseStream);
+            var stderrTask = ReadToEndBytesAsync(process.StandardError.BaseStream);
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(CommandTimeout);
@@ -283,8 +304,8 @@ public sealed class RacClient : IRacClient
                 throw new RacClientException(message);
             }
 
-            var stdout = (await stdoutTask.ConfigureAwait(false)) ?? string.Empty;
-            var stderr = (await stderrTask.ConfigureAwait(false)) ?? string.Empty;
+            var stdout = DecodeRacOutput(await stdoutTask.ConfigureAwait(false));
+            var stderr = DecodeRacOutput(await stderrTask.ConfigureAwait(false));
 
             if (process.ExitCode != 0)
             {
@@ -332,5 +353,60 @@ public sealed class RacClient : IRacClient
         {
             // Процесс мог завершиться сам — игнорируем.
         }
+    }
+
+    /// <summary>Читает поток до конца в массив байтов (без декодирования).</summary>
+    private static async Task<byte[]> ReadToEndBytesAsync(Stream stream)
+    {
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer).ConfigureAwait(false);
+        return buffer.ToArray();
+    }
+
+    /// <summary>
+    /// Декодирует байты вывода rac в текст. Сначала строгий UTF-8 (Linux/Avalonia);
+    /// если байты невалидны как UTF-8 (rac на Windows пишет в OEM/ANSI кодовой странице,
+    /// обычно cp866, issue #324) — пробуем cp866 и cp1251 и берём вариант с наименьшим
+    /// числом символов замены U+FFFD. Internal — для юнит-тестов без запуска процесса.
+    /// </summary>
+    internal static string DecodeRacOutput(byte[] bytes)
+    {
+        if (bytes is null || bytes.Length == 0)
+            return string.Empty;
+
+        try
+        {
+            return StrictUtf8.GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            // Не UTF-8 — переходим к кодовым страницам Windows.
+        }
+
+        string? best = null;
+        var bestBad = int.MaxValue;
+        foreach (var encoding in WindowsFallbackEncodings)
+        {
+            var decoded = encoding.GetString(bytes);
+            var bad = CountReplacementChars(decoded);
+            if (bad < bestBad)
+            {
+                bestBad = bad;
+                best = decoded;
+            }
+        }
+        return best ?? WindowsFallbackEncodings[0].GetString(bytes);
+    }
+
+    /// <summary>Считает символы замены U+FFFD (признак неверной кодировки).</summary>
+    private static int CountReplacementChars(string text)
+    {
+        var count = 0;
+        foreach (var ch in text)
+        {
+            if (ch == '\uFFFD')
+                count++;
+        }
+        return count;
     }
 }

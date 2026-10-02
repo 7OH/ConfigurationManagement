@@ -48,6 +48,7 @@ public partial class ConfigTypeEditWindow : Window
 
         CodeBox.Text = model?.Code ?? string.Empty;
         NameBox.Text = model?.Name ?? string.Empty;
+        ConfigNameBox.Text = model?.ConfigName ?? string.Empty;
         UrlCodeBox.Text = model?.UrlCode ?? string.Empty;
         NickBox.Text = model?.Nick ?? string.Empty;
 
@@ -66,6 +67,15 @@ public partial class ConfigTypeEditWindow : Window
                 _editions.Add(edition);
         }
         EditionsList.ItemsSource = _editions;
+
+        // Поля редакции пишут значения в выбранную строку СРАЗУ при вводе (issue #321,
+        // часть 2): раньше они переносились только при смене выделения или нажатии ОК —
+        // если выделение слетало, введённые строки терялись и после сохранения оставалась
+        // одна редакция.
+        EditionNameBox.TextChanged += (_, _) => CommitEditionFields();
+        EditionRedBox.TextChanged += (_, _) => CommitEditionFields();
+        EditionSubRedBox.TextChanged += (_, _) => CommitEditionFields();
+        EditionUrlOverrideBox.TextChanged += (_, _) => CommitEditionFields();
 
         // Фокус в поле «Наименование» (issue #299): отложенный вызов после показа окна —
         // иначе при ShowDialog() фокус «съедается» до активации окна.
@@ -146,6 +156,7 @@ public partial class ConfigTypeEditWindow : Window
         {
             Code = code,
             Name = name,
+            ConfigName = ConfigNameBox.Text?.Trim() ?? string.Empty,
             UrlCode = UrlCodeBox.Text?.Trim() ?? string.Empty,
             Nick = NickBox.Text?.Trim() ?? string.Empty,
             // Учётная запись ИТС: пусто — «Основная» (либо выбранная в настройках).
@@ -170,6 +181,12 @@ public partial class ConfigTypeEditWindow : Window
         // Сразу показываем новую строку и переводим на неё ввод (issue #321).
         EditionsList.SelectedItem = edition;
         EditionsList.ScrollIntoView(edition);
+        // Новая строка — пустая: поля освобождаем, чтобы ввод не перезаписал значения
+        // предыдущей строки (поля самокоммитятся по TextChanged).
+        EditionNameBox.Text = string.Empty;
+        EditionRedBox.Text = string.Empty;
+        EditionSubRedBox.Text = string.Empty;
+        EditionUrlOverrideBox.Text = string.Empty;
     }
 
     private void OnRemoveEditionClick(object sender, RoutedEventArgs e)

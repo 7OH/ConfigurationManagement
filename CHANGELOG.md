@@ -9,6 +9,323 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.290] — 2026-10-02
+
+### Диагностика
+
+- **Горизонтальный скролл списка баз: расширенная диагностика и фикс-минимум (issue #309, WPF)**:
+  - **расширенный инструментальный лог `CM_COLUMNS`** ([`MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs)):
+    - фактические ширины каждой колонки заголовка (`cols=[0:…,1:…]`) и правый край последней
+      колонки заголовка (`hdrOrigin`/`hdrRight`) — растянутая звёздная колонка «Название»
+      может выталкивать последние колонки за правый край при `total < viewport`;
+    - фактическую ширину первой материализованной строки (`rowSum`/`rowCols`, эксперимент A) —
+      сравнение со строкой заголовка; правые границы могут расходиться из-за разного остатка
+      звёздной колонки;
+    - ширину окна (`win`), ширину `MainTree`/`HeaderGrid`, ширину вертикального скроллбара
+      (`sbw`) и вьюпорт с его учётом (`viewportSbw`, эксперимент B) — последняя колонка может
+      «не влезать» именно из-за вертикальной полосы, а не из-за ширины заголовка;
+  - **фикс-минимум**: минимум контента прокрутки теперь учитывает фактическую сумму колонок
+    заголовка (включая растянутую звёздную «Название», которая в расчётной сумме даётся
+    нулём): если заголовок реально не помещается, `MinWidth` презентера и строк
+    устанавливается по фактической сумме, и полоса дотягивает до конца колонок
+    (а не остаётся «короткой», как в прежнем логе `scrollable ~3 px`);
+  - **fallback-минимум**: после применения порядка/настроек колонок список принудительно
+    прокручивается до конца горизонтальной полосы ([`EnsureHorizontalReach()`](Configuration%20Management/Views/MainWindow.Columns.cs)) —
+    последние колонки гарантированно достижимы и видны;
+  - новый замер `MeasureFirstRowDiagnostics()` — сбор фактических ширин строки для лога;
+  - Avalonia и [`ListMinWidthCalculator`](Configuration%20Management/Views/ListMinWidthCalculator.cs)
+    не изменялись (Linux ведёт себя иначе);
+  - **просьба к пользователю**: прислать новый лог `CM_COLUMNS` из журнала приложения —
+    он покажет, подтверждается ли гипотеза «звёздная колонка выталкивает последние колонки»
+    или обрезание вызвано вертикальным скроллбаром (эксперимент B).
+
+## [0.3.9.289] — 2026-10-02
+
+### Добавлено
+
+- **Свертка/развертка ветки дерева групп (issue #341)** (обе платформы):
+  - **Ctrl+клик по группе** — развернуть/свернуть ветку (сама группа + все её подгруппы
+    рекурсивно), текущая строка и выделение не меняются ([`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs));
+  - **горячие клавиши Ctrl+Alt++ / Ctrl+Alt+-** — развернуть/свернуть ветку под курсором
+    (выбранная группа либо группа выбранной базы). Ctrl+Plus/Minus заняты масштабом строк
+    (#303), Ctrl+Shift+Plus/Minus — «развернуть/свернуть всё» (#160), поэтому для веток
+    выбран Ctrl+Alt ([`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+    [`MainWindow.Avalonia.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Hotkeys.cs));
+  - логика веток в ViewModel обеих платформ: `ExpandBranchOf` / `CollapseBranchOf` /
+    `ToggleGroupBranch` (WPF пересобирает набор свёрнутых групп, Avalonia ведёт его через
+    автоматическое отслеживание `IsExpanded`);
+  - **тесты**: [`GroupNodeViewModelTests`](ConfigurationManagement.Tests/GroupNodeViewModelTests.cs) —
+    `BranchCollapse_AffectsOnlyOwnSubtree` и `BranchExpand_AffectsOnlyOwnSubtree` (соседние
+    ветки и родитель не трогаются).
+
+## [0.3.9.288] — 2026-10-02
+
+### Изменено
+
+- **Диагностика подключения: диалог портов сервисов 1С (issue #335)** (обе платформы):
+  - **кнопка «Проверить порты 1С» открывает модальный диалог** с таблицей из двух колонок —
+    «Описание сервиса» (только чтение) и «Порт» (редактируется): агент (ragent), кластер,
+    хранилище конфигурации и RAS; после подтверждения порты сохраняются для сервера
+    и сканируются;
+  - **«догадка» портов при открытии диалога**: нестандартный порт кластера в поле окна
+    (например 2541 вместо 1541) сдвигает всю карту по образцу — 2540/2541/2542/2545
+    (новый чистый helper [`ServerPortsGuesser`](Configuration%20Management/Services/ServerPortsGuesser.cs));
+    сохранённые для сервера порты имеют приоритет над догадкой;
+  - **хранение RAS-порта**: [`ServerPortsSettings`](Configuration%20Management/Services/ServerPortsStore.cs)
+    дополнен полем `Ras` (значение по умолчанию 0 — старые JSON-файлы читаются без ошибок);
+  - новые окна: [`PortsEditWindow.xaml`](Configuration%20Management/Views/PortsEditWindow.xaml)/`.xaml.cs`
+    (WPF) и `.Avalonia.cs`; ViewModel: событие `EditPortsRequested` + методы
+    `BuildPortsForEdit()` / `ApplyEditedPortsAndCheckAsync()`; локализация `Ports.*`;
+  - **тесты**: новый [`ServerPortsGuesserTests`](ConfigurationManagement.Tests/ServerPortsGuesserTests.cs)
+    (2541 → сдвинутая карта, стандартные/недопустимые → стандартная карта),
+    [`NetworkDiagnosticsViewModelTests`](ConfigurationManagement.Tests/NetworkDiagnosticsViewModelTests.cs) —
+    `BuildPortsForEdit_*` и `ApplyEditedPortsAndCheckAsync_ScansEditedPorts_AndSaves`.
+
+## [0.3.9.287] — 2026-10-02
+
+### Исправлено
+
+- **Портал 1С: HTTP 302 без Location от releases.1c.ru теперь распознаётся как «требуется
+  авторизация», а не технический «HTTP 302» (issue #323)** (обе платформы):
+  - **что было**: при отсутствии сессии releases.1c.ru отвечает 302 БЕЗ заголовка Location
+    (CAS); служба возвращала ответ как есть, и проверка обновлений завершалась голой ошибкой
+    «HTTP 302 для '…/project/…'»;
+  - **как исправлено**: в [`SendWithAuthAsync`](Configuration%20Management/Services/OneCUpdatesService.cs)
+    при 3xx без Location или циклическом редиректе на тот же адрес выполняется программный
+    вход на portal.1c.ru (один раз за сессию) и повтор исходного запроса с cookie; если вход
+    невозможен (нет учётных данных) — проверка завершается понятной ошибкой
+    «Updates.AuthRequired» вместо «HTTP 302»; каждый редирект логируется с номером шага и
+    Location для диагностики реального пути CAS;
+  - **тесты**: [`UpdateCheckCatalogTests`](ConfigurationManagement.Tests/UpdateCheckCatalogTests.cs) —
+    `CheckForUpdatesAsync_302WithoutLocation_ReturnsAuthRequired`,
+    `..._302ToLoginHost_ReturnsAuthRequired`, `..._302WithoutLocation_LoginThenRetry_Succeeds`
+    (вход + повторный запрос каталога), `..._200WithProjectHtml_ReturnsNewerAvailable`.
+
+- **Обновление платформы (issue #334): авторизация при получении каталога** — заодно
+  проверено, что выбранная учётная запись ИТС (после фикса #333) доходит до
+  [`GetCredentials()`](Configuration%20Management/Services/OneCUpdatesService.cs); при
+  отсутствии настроенных учётных данных службы показывают понятное сообщение
+  «Требуется вход на сайт 1С», а не голый NetworkError.
+
+## [0.3.9.286] — 2026-10-02
+
+### Изменено
+
+- **Учётные данные ИТС: финальные замечания по окну справочника и редактору (issue #333)**
+  (обе платформы):
+  - **«Задать основным» перенесена с панели строк на нижнюю панель** рядом с «Добавить»:
+    в строках остаётся только индикатор-флажок «Основная»; кнопка доступна при выбранной
+    неосновной записи (WPF — выделение в таблице, Avalonia — клик по строке)
+    ([`ItsAccountsWindow.xaml`](Configuration%20Management/Views/ItsAccountsWindow.xaml),
+    [`ItsAccountsWindow.xaml.cs`](Configuration%20Management/Views/ItsAccountsWindow.xaml.cs),
+    [`ItsAccountsWindow.Avalonia.cs`](Configuration%20Management/Views/ItsAccountsWindow.Avalonia.cs));
+  - **просмотр пароля «глазом»** в редакторе учётной записи: WPF — переключение
+    PasswordBox ↔ текстовое поле с синхронизацией правок, Avalonia — смена символа маски
+    ([`ItsAccountEditWindow.xaml`](Configuration%20Management/Views/ItsAccountEditWindow.xaml),
+    [`ItsAccountEditWindow.xaml.cs`](Configuration%20Management/Views/ItsAccountEditWindow.xaml.cs),
+    [`ItsAccountEditWindow.Avalonia.cs`](Configuration%20Management/Views/ItsAccountEditWindow.Avalonia.cs));
+  - **ключ вместо значения в ComboBox**: проверено — во всех списках выбора учётной записи
+    (Настройки и редактор типовой конфигурации, WPF и Avalonia) уже задан
+    `DisplayMemberPath`/`DisplayMemberBinding` на имя (`ItsAccountSelectionItem.Name`),
+    пункты всегда имеют непустое отображаемое имя (включая виртуальный пункт «Основная»);
+  - **тесты**: [`ItsAccountSelectionBuilderTests`](ConfigurationManagement.Tests/ItsAccountSelectionBuilderTests.cs) —
+    `Build_VirtualPrimaryItem_HasDisplayName`, `Build_AllItems_HaveDisplayNamesForComboBox`
+    (отображаемое имя непусто у всех пунктов — гарантия корректного показа в ComboBox).
+
+## [0.3.9.285] — 2026-10-02
+
+### Изменено
+
+- **Окно свойств базы: в списке «Конфигурация» появляются значения «Имя конфигурации»
+  из справочника типовых конфигураций (issue #338)** (обе платформы):
+  - выпадающий список автодополнения поля «Конфигурация» теперь объединяет имена
+    конфигураций из всех баз списка и значения колонки «Имя конфигурации» из
+    «Типовые конфигурации» (например «БухгалтерияПредприятия», «Retail») — даже если
+    такой базы в списке ещё нет;
+  - правило объединения вынесено в общий helper
+    [`ConnectionSettingsViewModel.MergeAvailableConfigurations`](Configuration%20Management/ViewModels/ConnectionSettingsViewModel.cs)
+    (фильтр пустых, Trim, дедупликация без учёта регистра, сортировка) — используется
+    обеими платформами ([`MainViewModel.Commands.cs`](Configuration%20Management/ViewModels/MainViewModel.Commands.cs),
+    [`MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs));
+  - **тесты**: [`ConnectionSettingsViewModelTests`](ConfigurationManagement.Tests/ConnectionSettingsViewModelTests.cs) —
+    `MergeAvailableConfigurations_*` (добавление значений из типовых, отсев пустых/Trim,
+    дедупликация пересечения без учёта регистра, null-источники) и интеграция с
+    `SetAvailableConfigurations`.
+
+## [0.3.9.284] — 2026-10-02
+
+### Исправлено
+
+- **Типовые конфигурации: введённые строки релизов больше не теряются при сохранении
+  (issue #321, часть 2)** (обе платформы):
+  - **что было**: «добавляешь строку в таблицу релизов — вроде видно в списке — после ОК
+    остаётся одна строка, после повторного открытия на правку — тоже одна»: значения полей
+    редакции (имя/сегменты/ручная ссылка) переносились в выбранную редакцию только при смене
+    выделения или нажатии ОК, поэтому если выделение слетало/не попадало — ввод пропадал;
+  - **как исправлено**: поля редакции теперь самокоммитятся в выбранную строку при каждом
+    вводе (`TextChanged` → `CommitEditionFields`), а при добавлении новой строки поля
+    очищаются, чтобы ввод не перезаписывал предыдущую редакцию
+    ([`ConfigTypeEditWindow.xaml.cs`](Configuration%20Management/Views/ConfigTypeEditWindow.xaml.cs),
+    [`ConfigTypeEditWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigTypeEditWindow.Avalonia.cs));
+  - **тесты**: регрессия [`CustomConfigTypesStoreTests`](ConfigurationManagement.Tests/CustomConfigTypesStoreTests.cs) —
+    `SaveLoad_MultipleEditions_ArePreserved` (две редакции с SubRed и UrlOverride проходят
+    круг Save→Load целиком); полный набор `dotnet test` зелёный (1580), кросс-сборка Linux
+    без ошибок; ручная проверка — добавить две строки релизов, заполнить поля, ОК, открыть
+    на правку снова.
+
+## [0.3.9.283] — 2026-10-02
+
+### Изменено
+
+- **Типовые конфигурации: поле «Имя конфигурации» в модели, данных и интерфейсе
+  (issue #321, часть 1)** (обе платформы):
+  - модель [`Models/OneCConfigType.cs`](Configuration%20Management/Models/OneCConfigType.cs):
+    новое поле `ConfigName` — имя конфигурации в метаданных 1С (например
+    «БухгалтерияПредприятия»), НЕ участвующее в построении адреса обновлений;
+  - данные [`Services/BuiltInConfigTypes.cs`](Configuration%20Management/Services/BuiltInConfigTypes.cs):
+    `ConfigName` заполнен по списку пользователя для всех 7 типовых (БП, ЗУП, УТ, КА,
+    Розница, ERP, БГУ), редакции дополнены по списку (УТ 10.3, КА 1.0/1.1/2.0/2.5,
+    Розница 3.0/2.3);
+  - интерфейс: колонка «Сегмент адреса (ник)» в списке и формах редактирования заменена
+    на «Имя конфигурации» с подсказкой «используется для сопоставления, в адрес не
+    попадает» ([`ConfigTypesEditWindow`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml),
+    [`ConfigTypeEditWindow`](Configuration%20Management/Views/ConfigTypeEditWindow.xaml) и их
+    Avalonia-версии); сегмент адреса остаётся отдельным полем редактора для URL;
+  - поиск [`ConfigTypesFilter.cs`](Configuration%20Management/ViewModels/ConfigTypesFilter.cs)
+    теперь учитывает «Имя конфигурации»; старые JSON-файлы пользовательских конфигураций
+    без нового поля десериализуются в пустую строку;
+  - **тесты**: [`BuiltInConfigTypesTests.cs`](ConfigurationManagement.Tests/BuiltInConfigTypesTests.cs)
+    (значения ConfigName по списку, непустые у всех, независимость от EffectiveUrlCode,
+    редакции); регрессия `dotnet test` зелёная (1579), кросс-сборка Linux без ошибок.
+
+## [0.3.9.282] — 2026-10-02
+
+### Исправлено
+
+- **Создание серверной базы: выбор сервера из списка, запоминание сервера СУБД,
+  разрядность новой базы и пояснение окна (issue #305)** (обе платформы):
+  - **разрядность**: если в выбранной версии платформы нет суффикса «(32)/(64)», новая база
+    наследует режим «Разрядности по умолчанию» из настроек (X64 → 64-priority), а не жёстко
+    создавалась 32-битной приоритетной — [`Services/CreateInfobaseService.cs`](Configuration%20Management/Services/CreateInfobaseService.cs)
+    (`PriorityArchitectureFromDefault`); пояснение «на чём основывается выбор» добавлено
+    в справку окна (`CreateInfobase.HelpText`, ru/en);
+  - **выбор сервера 1С**: к обработчику `SelectionChanged` добавлена страховка
+    `DropDownClosed` — выбранная строка «server:port» гарантированно попадает в поле
+    даже если событие выбора пришло до готовности редактируемого текста
+    ([`CreateInfobaseWindow.xaml`](Configuration%20Management/Views/CreateInfobaseWindow.xaml) +
+    [`.xaml.cs`](Configuration%20Management/Views/CreateInfobaseWindow.xaml.cs),
+    [`CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs));
+  - **запоминание сервера СУБД**: логика сохранения/восстановления проверена —
+    `SaveLastDbServer` вызывается после успешного создания, значение подставляется при
+    открытии окна (`RestoreLastDbServer`);
+  - **тесты**: `CreateInfobaseDbServerStringTests.PriorityArchitectureFromDefault_*`
+    (маппинг X64/X86/Priority/легаси); регрессия `dotnet test` зелёная (1567),
+    кросс-сборка Linux без ошибок; ручная проверка — создать серверную базу с дефолтом
+    X64 (разрядность «(64)»), выбрать сервер из списка, переоткрыть окно (localhost).
+
+## [0.3.9.281] — 2026-10-02
+
+### Исправлено
+
+- **Монитор «Серверы 1С»: вывод rac распознаётся при выравнивании пробелами и в
+  не-UTF-8 кодировке (issue #324)** (обе платформы):
+  - **что было**: «в терминале `rac.exe host:port cluster list` работает и показывает кластер,
+    а монитор вывод не распознаёт» — парсер таблиц умел делить строки только по табуляции либо
+    по fallback «2+ пробела», который резал имена с несколькими пробелами подряд; кроме того,
+    stdout читался строго как UTF-8, тогда как rac на Windows пишет в OEM-кодовой странице
+    консоли (обычно cp866);
+  - **как исправлено**:
+    - [`Services/RacOutputParser.cs`](Configuration%20Management/Services/RacOutputParser.cs) —
+      `ParseTable` получил позиционный разбор: границы колонок берутся из строки заголовка
+      и применяются только при единообразном выравнивании (границы подтверждены строками
+      данных), поэтому внутренние пробелы имени кластера больше не теряются;
+    - [`Services/RacClient.cs`](Configuration%20Management/Services/RacClient.cs) — stdout/stderr
+      читаются сырыми байтами и декодируются автоматически: строгий UTF-8 (Linux/Avalonia),
+      при невалидных байтах — cp866 (OEM Windows) с резервом cp1251; регистрируется
+      `CodePagesEncodingProvider` для кросс-платформенных сборок;
+  - **тесты**: новые кейсы `RacOutputParserTests` (позиционный разбор: двойные пробелы
+    внутри имени, короткие значения, CRLF, смешанный заголовок) и `RacClientTests`
+    (`DecodeRacOutput`: UTF-8 / cp866 / однобайтовый fallback без потерь);
+    регрессия `dotnet test` зелёная (1561), кросс-сборка Linux без ошибок; ручная проверка —
+    монитор «Серверы 1С» при подключении к кластеру.
+
+## [0.3.9.280] — 2026-10-02
+
+### Исправлено
+
+- **Отбор «Только запущенные»: состав списка обновляется при изменении статусов баз —
+  дозапустившаяся база появляется, закрытая/вылетевшая исчезает (issue #339)** (обе платформы):
+  - **что было**: флаги «запущена/нет» обновлял таймер монитора, но видимый список после этого
+    не пересобирался — база, которая долго запускалась после включения отбора, не появлялась
+    в списке, а закрытая не исчезала (до переключения режима);
+  - **как исправлено**: после применения результатов опроса процессов набор запущенных баз
+    сравнивается с прежним; если он изменился и активен режим «Только запущенные», список
+    пересобирается сразу — WPF через `RebuildGroupTree`, Avalonia через `ApplyFilter`
+    (новый partial-метод `RefreshListAfterRunningFlagsChanged`);
+  - **файлы**: [`ViewModels/MainViewModel.Running.cs`](Configuration%20Management/ViewModels/MainViewModel.Running.cs)
+    (`ApplyRunningProcesses` + partial-метод), [`ViewModels/MainViewModel.Display.cs`](Configuration%20Management/ViewModels/MainViewModel.Display.cs)
+    и [`ViewModels/MainViewModel.Avalonia.Display.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Display.cs)
+    (реализации + синхронизация `_showRunningOnly` на Avalonia);
+  - **тесты**: регрессия `dotnet test` зелёная, кросс-сборка Linux без ошибок; ручная проверка —
+    включить отбор, запустить вторую базу (долгий старт) и закрыть одну из запущенных.
+
+## [0.3.9.279] — 2026-10-02
+
+### Исправлено
+
+- **Окно «Скачивание версии платформы 1С» больше не падает с ошибкой привязки TwoWay к
+  доступному только для чтения свойству LogText (issue #330)** (Windows/WPF):
+  - **что было**: при открытии окна WPF строил по умолчанию двустороннюю привязку
+    `TextBox.Text` к свойству `PlatformDownloadViewModel.LogText`, которое доступно только
+    для чтения, — исключение `InvalidOperationException»: «Привязка типа TwoWay или
+    OneWayToSource не может работать с доступным только для чтения свойством "LogText"»;
+  - **как исправлено**: в [`Views/PlatformDownloadWindow.xaml`](Configuration%20Management/Views/PlatformDownloadWindow.xaml)
+    добавлен явный режим `Mode=OneWay`; проверены остальные окна с журналами —
+    `PlatformUpdateWindow.xaml` уже использует `Mode=OneWay`, read-only тексты остальных окон
+    привязаны через `TextBlock` (односторонние по умолчанию), затронуты не были;
+  - **тесты**: регрессия `dotnet test` зелёная, кросс-сборка Linux без ошибок; ручная проверка —
+    многократное открытие окна «Скачивание версии платформы 1С» и «Обновление платформы 1С».
+
+## [0.3.9.278] — 2026-10-02
+
+### Исправлено
+
+- **Окно выбора скрипта: клавиатурный фокус реально попадает в список — стрелки двигают
+  выбор сразу после открытия (issue #308)** (обе платформы):
+  - **что было**: первая строка списка становилась текущей, но пока пользователь не кликнет
+    по списку мышью, стрелки и Enter не работали — `Focus()` на событии загрузки окна
+    срабатывал до полной активации, и фактический клавиатурный фокус оставался на другом
+    элементе окна;
+  - **как исправлено**: перенос фокуса повторяется после полной отрисовки/активации окна —
+    на WPF через `Dispatcher.BeginInvoke(ApplicationIdle)` с фокусом на контейнере выбранной
+    строки (`ListBoxItem`), на Avalonia через `Dispatcher.UIThread.Post(Background)` с фокусом
+    на контейнере (`ContainerFromIndex`);
+  - **файлы**: [`Views/ScriptPickWindow.xaml.cs`](Configuration%20Management/Views/ScriptPickWindow.xaml.cs)
+    (`FocusScenarioList`), [`Views/ScriptPickWindow.Avalonia.cs`](Configuration%20Management/Views/ScriptPickWindow.Avalonia.cs)
+    (`FocusList`);
+  - **тесты**: UI-поведение юнит-тестами не покрывается; регрессия `dotnet test` зелёная,
+    кросс-сборка Linux без ошибок; ручная проверка — стрелки/Enter работают без клика мышью.
+
+## [0.3.9.277] — 2026-10-02
+
+### Исправлено
+
+- **Клик по строке при открытом контекстном меню больше не «проглатывается»: выделение
+  снимается корректно и выбирается строка под курсором (issue #340)** (Windows/WPF):
+  - **что было**: после мультивыделения (Ctrl/Shift) правый клик открывает контекстное меню,
+    а последующий клик по другой строке «для снятия выделения» пропадал — WPF держит захват
+    мыши в попапе меню, событие клика уходит в попап и только закрывает меню, поэтому ни снятие
+    мультивыделения, ни выбор новой строки не выполнялись;
+  - **как исправлено**: при закрытии контекстного меню дерева кликом по строке базы выбор
+    применяется повторно — определяется строка под курсором, мультивыделение снимается
+    (`ClearBatchSelection`) и строка выбирается (`ApplySelection`). Случаи закрытия выбором
+    пункта меню и по ESC отсекаются проверками (мышь над пунктом меню, нажатая кнопка);
+  - **файлы**: [`Views/MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs)
+    — `OnContextMenuClosed` + новый `TryApplyTreeClickAfterMenuClosed`;
+  - **тесты**: UI-поведение юнит-тестами не покрывается; регрессия `dotnet test` зелёная,
+    кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок; ручная проверка — описанный
+    в issue сценарий с мультивыделением и контекстным меню.
+
 ## [0.3.9.276] — 2026-10-02
 
 ### Исправлено

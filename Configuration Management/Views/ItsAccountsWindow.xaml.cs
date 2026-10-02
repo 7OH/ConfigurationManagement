@@ -32,9 +32,38 @@ public partial class ItsAccountsWindow : Window
         _viewModel.EditRequested += OnEditRow;
         _viewModel.DeleteRequested += OnDeleteRow;
         AccountsGrid.ItemsSource = _viewModel.Rows;
+        AccountsGrid.SelectionChanged += OnAccountsGrid_SelectionChanged;
 
         // Закрытие окна по Esc (issue #265).
         PreviewKeyDown += OnWindow_PreviewKeyDown;
+    }
+
+    /// <summary>
+    /// Кнопка «Задать основным» доступна только при выбранной неосновной записи (issue #333):
+    /// кнопка перенесена с панели строк на нижнюю панель рядом с «Добавить».
+    /// </summary>
+    private void OnAccountsGrid_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        PrimaryButton.IsEnabled =
+            AccountsGrid.SelectedItem is ItsAccountItemViewModel row && !row.IsPrimary;
+    }
+
+    /// <summary>«Задать основным» для выбранной записи (снимает флаг с остальных).</summary>
+    private void OnSetPrimaryClick(object sender, RoutedEventArgs e)
+    {
+        if (AccountsGrid.SelectedItem is not ItsAccountItemViewModel row || row.IsPrimary)
+            return;
+
+        try
+        {
+            _viewModel.SetPrimary(row.Id);
+            _viewModel.Reload();
+            _logger.Info($"[ITS] Основной учётной записью назначена «{MaskName(row.Model)}».");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Ошибка смены основной учётной записи ИТС", ex);
+        }
     }
 
     private void OnWindow_PreviewKeyDown(object sender, KeyEventArgs e)

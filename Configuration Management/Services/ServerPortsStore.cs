@@ -9,10 +9,12 @@ namespace Configuration_Management.Services;
 
 /// <summary>
 /// Сохранённые порты сервисов 1С для конкретного сервера (issue #335): кластер,
-/// rac/монитор (агент) и хранилище конфигурации. 0 — «не задан» (используется порт
-/// по умолчанию из <see cref="OneCPorts"/>).
+/// rac/монитор (агент), хранилище конфигурации и RAS. 0 — «не задан» (используется
+/// порт по умолчанию из <see cref="OneCPorts"/>). Поле RAS добавлено позже
+/// (диалог портов 0.3.9.288), поэтому имеет значение по умолчанию — старые
+/// JSON-файлы без него читаются как 0.
 /// </summary>
-public sealed record ServerPortsSettings(int Cluster, int Agent, int Repository)
+public sealed record ServerPortsSettings(int Cluster, int Agent, int Repository, int Ras = 0)
 {
     /// <summary>Пустая запись (все порты по умолчанию).</summary>
     public static readonly ServerPortsSettings Empty = new(0, 0, 0);

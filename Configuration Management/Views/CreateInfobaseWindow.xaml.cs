@@ -639,6 +639,18 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Страховка подстановки выбранного сервера 1С (issue #305): при закрытии
+        /// выпадающего списка ещё раз применяем выбранный элемент к полю — покрывает
+        /// случай, когда SelectionChanged пришёл до готовности редактируемого текста.
+        /// </summary>
+        private void OnServerBox_DropDownClosed(object sender, EventArgs e)
+        {
+            if (ServerBox.SelectedItem is string item &&
+                !string.Equals(ServerBox.Text, item, StringComparison.Ordinal))
+                ServerBox.Text = item;
+        }
+
+        /// <summary>
         /// Клик по подсказке под полем «Сервер СУБД» (issue #305): если поле пустое,
         /// подставляет пример «localhost».
         /// </summary>

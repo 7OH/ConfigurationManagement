@@ -385,6 +385,10 @@ namespace Configuration_Management
 
             // Выбор сервера 1С «server:port» разносится на сервер и порт (issue #305).
             _serverBox.SelectionChanged += (_, _) => SplitSelectedServer();
+            // Страховка подстановки (issue #305): при закрытии списка выбранный
+            // элемент ещё раз применяется к полю — SelectionChanged мог прийти
+            // до готовности редактируемого текста ComboBox.
+            _serverBox.DropDownClosed += (_, _) => SplitSelectedServer();
             // Клик по подсказке подставляет пример «localhost» в поле «Сервер СУБД» (issue #305).
             _dbServerHint.PointerPressed += (_, _) => ApplyDbServerHintExample();
             ToolTip.SetTip(_dbServerHint, LocalizationManager.T("CreateInfobase.DbServerHintClick"));

@@ -165,7 +165,7 @@
                     <!-- Пояснение «Сегмент адреса (ник)» (issue #321, часть 2): что это и как
                          используется при построении адреса каталога релизов. -->
                     <Style x:Key="UrlCodeCellText" TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
-                        <Setter Property="ToolTip" Value="{loc:Loc Updates.UrlCodeHint}"/>
+                        <Setter Property="ToolTip" Value="{loc:Loc Updates.ConfigNameHint}"/>
                     </Style>
                     <!-- Пояснение колонки учётной записи ИТС (issue #321, часть 2). -->
                     <Style x:Key="AccountCellText" TargetType="TextBlock" BasedOn="{StaticResource CenteredCellText}">
@@ -225,7 +225,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.UrlCode}" Binding="{Binding UrlCode}"
+                    <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.ConfigName}" Binding="{Binding ConfigName}"
                                         ElementStyle="{StaticResource UrlCodeCellText}"/>
                     <DataGridTextColumn Width="2*" Header="{loc:Loc Updates.Nick}" Binding="{Binding Nick}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>

@@ -305,6 +305,12 @@ public partial class MainViewModel : ViewModelBase
         ApplyFilter();
     }
 
+    /// <summary>Переприменяет фильтр при изменении состава запущенных баз (issue #339).</summary>
+    partial void RefreshListAfterRunningFlagsChanged() => ApplyFilter();
+
+    /// <summary>Активен ли отбор «Только запущенные» (issue #339).</summary>
+    private partial bool IsRunningOnlyModeActive() => _listMode == "Running";
+
     public bool ShowRightPanelDetails
     {
         get => _showRightPanelDetails;

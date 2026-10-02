@@ -92,4 +92,73 @@ public sealed class ConnectionSettingsViewModelTests
 
         Assert.Equal(string.Empty, ib.Connection!.WebUrl);
     }
+
+    // ============ Объединение имён из баз и типовых конфигураций (issue #338/#321) ============
+
+    [Fact]
+    public void MergeAvailableConfigurations_AddsConfigNamesFromTypes()
+    {
+        var result = ConnectionSettingsViewModel.MergeAvailableConfigurations(
+            new[] { "BP", "ZUP" },
+            new[]
+            {
+                new OneCConfigType { ConfigName = "BP" },          // дубль с базой
+                new OneCConfigType { ConfigName = "Retail" },      // только в типовых
+                new OneCConfigType { ConfigName = "ERP" },         // только в типовых
+                new OneCConfigType { ConfigName = "" },            // пустое — отбросить
+            });
+
+        Assert.Equal(new[] { "BP", "ERP", "Retail", "ZUP" }, result.ToArray());
+    }
+
+    [Fact]
+    public void MergeAvailableConfigurations_TrimsAndDropsEmptyFromBoth()
+    {
+        var result = ConnectionSettingsViewModel.MergeAvailableConfigurations(
+            new[] { "  Retail  ", "", "   ", null! },
+            new[]
+            {
+                new OneCConfigType { ConfigName = "  ERP  " },
+                new OneCConfigType { ConfigName = "" },
+            });
+
+        Assert.Equal(new[] { "ERP", "Retail" }, result.ToArray());
+    }
+
+    [Fact]
+    public void MergeAvailableConfigurations_Intersection_DeduplicatedCaseInsensitive()
+    {
+        // Значение типовой конфигурации повторяет имя из базы без учёта регистра —
+        // в списке остаётся одно вхождение (первое, из баз).
+        var result = ConnectionSettingsViewModel.MergeAvailableConfigurations(
+            new[] { "Бухгалтерия предприятия", "ЗУП 3.1" },
+            new[]
+            {
+                new OneCConfigType { ConfigName = "бухгалтерия предприятия" },
+                new OneCConfigType { ConfigName = "ЗУП 3.1" },
+            });
+
+        Assert.Equal(new[] { "Бухгалтерия предприятия", "ЗУП 3.1" }, result.ToArray());
+    }
+
+    [Fact]
+    public void MergeAvailableConfigurations_NullSources_ReturnsEmpty()
+    {
+        var result = ConnectionSettingsViewModel.MergeAvailableConfigurations(null, null);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void SetAvailableConfigurations_MergedResult_FeedsComboList()
+    {
+        var merged = ConnectionSettingsViewModel.MergeAvailableConfigurations(
+            new[] { "BP" },
+            new[] { new OneCConfigType { ConfigName = "ERP" } });
+        var vm = new ConnectionSettingsViewModel();
+
+        vm.SetAvailableConfigurations(merged);
+
+        Assert.Equal(new[] { "BP", "ERP" }, vm.AvailableConfigurations.ToArray());
+    }
 }

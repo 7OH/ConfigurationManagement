@@ -18,6 +18,15 @@ public class OneCConfigType
     /// <summary>Отображаемое имя конфигурации (например «Бухгалтерия предприятия»).</summary>
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Имя конфигурации в метаданных 1С (например «БухгалтерияПредприятия», «Retail»),
+    /// как оно задано в самой конфигурации. НЕ участвует в построении адреса обновлений
+    /// (в отличие от <see cref="UrlCode"/>/<see cref="Nick"/>) — служит для сопоставления
+    /// данных о конфигурации, её версии и строки таблицы (issue #321).
+    /// Пусто — сопоставление по имени не выполняется.
+    /// </summary>
+    public string ConfigName { get; set; } = string.Empty;
+
     /// <summary>Сегмент web-адреса <c><Конфигурация></c> по правилу 1С. Если пуст —
     /// при формировании URL используется <see cref="Name"/>.</summary>
     public string UrlCode { get; set; } = string.Empty;

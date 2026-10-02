@@ -177,4 +177,55 @@ public sealed class GroupNodeViewModelTests
         Assert.Contains(nameof(GroupNodeViewModel.TotalSubgroupCount), events);
         Assert.Contains(nameof(GroupNodeViewModel.GroupCountSuffix), events);
     }
+
+    // ===================== Ветки дерева групп (issue #341) =====================
+
+    /// <summary>Рекурсивная свёртка/развёртка детей узла — та же рекурсия, что и
+    /// в <c>MainViewModel.SetExpandedDeep</c> (ветка не трогает соседей).</summary>
+    private static void SetExpandedDeep(IEnumerable<GroupNodeViewModel> nodes, bool expanded)
+    {
+        foreach (var node in nodes)
+        {
+            node.IsExpanded = expanded;
+            SetExpandedDeep(node.Children, expanded);
+        }
+    }
+
+    [Fact]
+    public void BranchCollapse_AffectsOnlyOwnSubtree()
+    {
+        // Контракт «ветки» (issue #341): сворачивание группы и её потомков НЕ должно
+        // менять соседние ветки и родительский узел.
+        var (root, child, grandchild, sibling) = BuildDepthThreeTree();
+        root.IsExpanded = true;
+        child.IsExpanded = true;
+        grandchild.IsExpanded = true;
+        sibling.IsExpanded = true;
+
+        child.IsExpanded = false;
+        SetExpandedDeep(child.Children, expanded: false);
+
+        Assert.False(child.IsExpanded);
+        Assert.False(grandchild.IsExpanded);
+        Assert.True(sibling.IsExpanded);   // соседняя ветка не тронута
+        Assert.True(root.IsExpanded);      // родитель не тронут
+    }
+
+    [Fact]
+    public void BranchExpand_AffectsOnlyOwnSubtree()
+    {
+        var (root, child, grandchild, sibling) = BuildDepthThreeTree();
+        root.IsExpanded = false;
+        child.IsExpanded = false;
+        grandchild.IsExpanded = false;
+        sibling.IsExpanded = false;
+
+        child.IsExpanded = true;
+        SetExpandedDeep(child.Children, expanded: true);
+
+        Assert.True(child.IsExpanded);
+        Assert.True(grandchild.IsExpanded);
+        Assert.False(sibling.IsExpanded);  // соседняя ветка не тронута
+        Assert.False(root.IsExpanded);     // родитель не тронут
+    }
 }

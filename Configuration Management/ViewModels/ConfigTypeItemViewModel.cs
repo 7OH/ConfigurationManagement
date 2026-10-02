@@ -28,6 +28,12 @@ public class ConfigTypeItemViewModel : ViewModelBase
     /// <summary>Сегмент web-адреса обновлений (UrlCode), либо имя, если сегмент пуст.</summary>
     public string UrlCode => string.IsNullOrWhiteSpace(Model.UrlCode) ? Model.Name : Model.UrlCode;
 
+    /// <summary>
+    /// Имя конфигурации в метаданных 1С (issue #321), например «БухгалтерияПредприятия».
+    /// Пусто — сопоставление по имени не выполняется.
+    /// </summary>
+    public string ConfigName => Model.ConfigName;
+
     /// <summary>Ник конфигурации на releases.1c.ru (пустая строка — не задан).</summary>
     public string Nick => Model.Nick;
 
@@ -93,11 +99,13 @@ public class ConfigTypeItemViewModel : ViewModelBase
         DeleteCommand = new RelayCommand(() => delete(this), () => !model.IsBuiltIn);
     }
 
-    /// <summary>Обновляет привязки после редактирования модели (код, имя, сегмент, ник, редакции, учётная запись).</summary>
+    /// <summary>Обновляет привязки после редактирования модели (код, имя, имя конфигурации,
+    /// сегмент, ник, редакции, учётная запись).</summary>
     public void Refresh()
     {
         OnPropertyChanged(nameof(Code));
         OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(ConfigName));
         OnPropertyChanged(nameof(UrlCode));
         OnPropertyChanged(nameof(Nick));
         OnPropertyChanged(nameof(EditionsSummary));

@@ -635,6 +635,10 @@ public partial class MainViewModel : ViewModelBase
         SortGroupsAscendingCommand = new RelayCommand(_ => SortGroups(ascending: true));
         SortGroupsDescendingCommand = new RelayCommand(_ => SortGroups(ascending: false));
         ToggleGroupExpandedCommand = new RelayCommand(ToggleGroupExpanded);
+        // Ветки дерева (issue #341): развернуть/свернуть только текущую группу с подгруппами.
+        ExpandBranchCommand = new RelayCommand(_ => ExpandBranchOf(CurrentBranchNode()));
+        CollapseBranchCommand = new RelayCommand(_ => CollapseBranchOf(CurrentBranchNode()));
+        ToggleGroupBranchCommand = new RelayCommand(p => ToggleGroupBranch(p as GroupNodeViewModel));
         OpenSettingsCommand = new RelayCommand(OpenSettings);
         OpenInfobaseByLinkCommand = new RelayCommand(OpenInfobaseByLink);
         RefreshConfigurationInfoCommand = new RelayCommand(RefreshConfigurationInfo, _ => SelectedInfobase != null);

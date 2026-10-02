@@ -459,6 +459,91 @@ public partial class MainViewModel : ViewModelBase
             window.ApplyGroupExpandedState(expand: true);
     }
 
+    // ===================== Ветки дерева групп (issue #341) =====================
+
+    /// <summary>
+    /// Узел «под курсором» для команд ветки: выбранная группа, либо группа, в которой
+    /// находится выбранная база. null — ветки нет.
+    /// </summary>
+    private GroupNodeViewModel? CurrentBranchNode()
+    {
+        if (SelectedGroupNode is { } group)
+            return group;
+        if (SelectedInfobase is { } ib && !string.IsNullOrWhiteSpace(ib.Group))
+            return FindGroupNodeByPath(ib.Group);
+        return null;
+    }
+
+    /// <summary>
+    /// Разворачивает ветку: сам узел и рекурсивно всех его потомков. Соседние ветки
+    /// не трогаются (issue #341).
+    /// </summary>
+    public void ExpandBranchOf(GroupNodeViewModel? node)
+    {
+        if (node is null)
+            return;
+
+        node.IsExpanded = true;
+        SetExpandedDeep(node.Children, expanded: true);
+        RecollectCollapsedGroups();
+        MarkListStateDirty();
+        ScheduleSaveSettings();
+
+        if (Application.Current?.MainWindow is global::Configuration_Management.MainWindow window)
+            window.ApplyGroupExpandedState(expand: true);
+    }
+
+    /// <summary>
+    /// Сворачивает ветку: сам узел и рекурсивно всех его потомков. Соседние ветки
+    /// не трогаются (issue #341).
+    /// </summary>
+    public void CollapseBranchOf(GroupNodeViewModel? node)
+    {
+        if (node is null)
+            return;
+
+        node.IsExpanded = false;
+        SetExpandedDeep(node.Children, expanded: false);
+        RecollectCollapsedGroups();
+        MarkListStateDirty();
+        ScheduleSaveSettings();
+
+        if (Application.Current?.MainWindow is global::Configuration_Management.MainWindow window)
+            window.ApplyGroupExpandedState(expand: false);
+    }
+
+    /// <summary>Переключает ветку: свёрнутая — разворачивается, развёрнутая — сворачивается.</summary>
+    public void ToggleGroupBranch(GroupNodeViewModel? node)
+    {
+        if (node is null)
+            return;
+        if (node.IsExpanded)
+            CollapseBranchOf(node);
+        else
+            ExpandBranchOf(node);
+    }
+
+    /// <summary>
+    /// Пересобирает набор свёрнутых групп из текущего состояния дерева: используется
+    /// после массовых операций над веткой, когда PropertyChanged-отслеживание не ведётся
+    /// (WPF, в отличие от Avalonia, не подписан на IsExpanded узлов).
+    /// </summary>
+    private void RecollectCollapsedGroups()
+    {
+        _collapsedGroups.Clear();
+        Walk(_groupNodes);
+
+        void Walk(IEnumerable<GroupNodeViewModel> nodes)
+        {
+            foreach (var n in nodes)
+            {
+                if (!n.IsExpanded && !string.IsNullOrEmpty(n.NodeKey))
+                    _collapsedGroups.Add(n.NodeKey!);
+                Walk(n.Children);
+            }
+        }
+    }
+
     /// <summary>
     /// Сортирует группы по имени (А→Я или Я→А): корневые группы и рекурсивно все подгруппы.
     /// Направление запоминается и применяется при последующих перестройках дерева.

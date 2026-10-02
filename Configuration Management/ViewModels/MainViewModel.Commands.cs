@@ -155,16 +155,15 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Имена конфигураций из всех баз списка (без дублей, по алфавиту) для выпадающего
-    /// списка поля «Конфигурация» в окне настройки подключения (issue #338).
+    /// Имена конфигураций из всех баз списка и из «Имени конфигурации» типовых конфигураций
+    /// (без дублей, по алфавиту) для выпадающего списка поля «Конфигурация» в окне настройки
+    /// подключения (issue #338). Правило объединения — <see cref="ConnectionSettingsViewModel.MergeAvailableConfigurations"/>.
     /// </summary>
     private IEnumerable<string> GetAvailableConfigurations()
     {
-        return Infobases
-            .Select(b => b?.ConfigurationName?.Trim() ?? string.Empty)
-            .Where(s => !string.IsNullOrEmpty(s))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+        return ConnectionSettingsViewModel.MergeAvailableConfigurations(
+            Infobases.Select(b => b?.ConfigurationName ?? string.Empty),
+            AppServices.GetRequiredService<ICustomConfigTypesStore>().LoadAll());
     }
 
     /// <summary>

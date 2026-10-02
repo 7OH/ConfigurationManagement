@@ -28,6 +28,10 @@ namespace Configuration_Management
         {
             _vm = vm ?? throw new ArgumentNullException(nameof(vm));
             Title = LocalizationManager.T("Diagnostics.Title");
+
+            // «Проверить порты 1С» открывает диалог портов сервисов (issue #335);
+            // после подтверждения — сканирование с выбранными портами.
+            _vm.EditPortsRequested += OnEditPortsRequested;
             Width = 860;
             Height = 620;
             MinWidth = 760;
@@ -196,6 +200,15 @@ namespace Configuration_Management
 
             // Автоматический первый прогон (решение п. 8.5 плана).
             _ = _vm.RunAsync();
+        }
+
+        /// <summary>Открывает диалог портов 1С и запускает сканирование по подтверждению (issue #335).</summary>
+        private void OnEditPortsRequested()
+        {
+            var dialog = new PortsEditWindow(_vm.BuildPortsForEdit());
+            if (!dialog.ShowSync(this) || dialog.Result is not { } ports)
+                return;
+            _ = _vm.ApplyEditedPortsAndCheckAsync(ports);
         }
 
         // ===================== Построители =====================

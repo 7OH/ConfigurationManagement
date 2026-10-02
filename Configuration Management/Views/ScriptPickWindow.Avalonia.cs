@@ -46,8 +46,26 @@ public sealed class ScriptPickWindow : ModalWindowBase
         {
             if (_list.ItemCount > 0 && _list.SelectedIndex < 0)
                 _list.SelectedIndex = 0;
-            _list.Focus();
+            FocusList();
         };
+    }
+
+    /// <summary>
+    /// Передаёт клавиатурный фокус списку сценариев (issue #308). На Opened окно может быть
+    /// ещё неактивным — повторяем перенос фокуса после первой отрисовки, фокусируя и контейнер
+    /// выбранной строки, чтобы стрелки двигали выбор сразу, без клика мышью.
+    /// </summary>
+    private void FocusList()
+    {
+        _list.Focus(NavigationMethod.Pointer);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (!IsVisible)
+                return;
+            _list.Focus(NavigationMethod.Pointer);
+            if (_list.ContainerFromIndex(_list.SelectedIndex) is { } container)
+                container.Focus(NavigationMethod.Pointer);
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     /// <summary>Показывает окно модально (синхронно).</summary>

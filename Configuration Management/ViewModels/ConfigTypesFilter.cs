@@ -22,6 +22,7 @@ public static class ConfigTypesFilter
         var q = query.Trim();
         return Contains(row.Name, q)
             || Contains(row.Code, q)
+            || Contains(row.ConfigName, q)
             || Contains(row.UrlCode, q)
             || Contains(row.Nick, q)
             || Contains(row.EditionsSummary, q);

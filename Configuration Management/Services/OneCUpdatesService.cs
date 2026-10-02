@@ -227,13 +227,15 @@ public class OneCUpdatesService : IOneCUpdatesService
             {
                 // Диагностика: фиксируем реальный код ответа сервера (401/403 — нет доступа,
                 // 5xx — проблемы на стороне 1С) и конечный URI после возможных редиректов.
-                _logger.Warn($"[Updates] HTTP {(int)response.StatusCode} для '{url}' (requestUri={request.RequestUri})");
+                var code = (int)response.StatusCode;
+                _logger.Warn($"[Updates] HTTP {code} для '{url}' (requestUri={request.RequestUri})");
                 result.Status = ConfigUpdateStatus.Failed;
-                // 401/403 — понятная ошибка авторизации (неверный/пустой логин-пароль сайта 1С),
+                // 401/403 и редиректы 3xx (в т.ч. 302 без Location от CAS releases.1c.ru) —
+                // понятная ошибка авторизации (неверный/пустой логин-пароль сайта 1С, issue #323);
                 // остальные коды — техническая диагностика.
-                result.Error = (int)response.StatusCode is 401 or 403
+                result.Error = code is 401 or 403 or (>= 300 and < 400)
                     ? "Updates.AuthRequired"
-                    : $"HTTP {(int)response.StatusCode}";
+                    : $"HTTP {code}";
                 return result;
             }
 
@@ -787,6 +789,15 @@ public class OneCUpdatesService : IOneCUpdatesService
         return setupZip ?? fullZip ?? cf;
     }
 
+    /// <summary>Сравнивает два URI без учёта регистра (для распознавания циклических
+    /// редиректов на тот же адрес, issue #323).</summary>
+    private static bool SameUri(Uri? a, Uri? b)
+    {
+        if (a is null || b is null)
+            return false;
+        return string.Equals(a.AbsoluteUri, b.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>Преобразует относительную ссылку из списка файлов релиза в абсолютную
     /// относительно <paramref name="baseUrl"/>. Абсолютные ссылки возвращаются без изменений.</summary>
     private static string ResolveUrl(string baseUrl, string direct)
@@ -880,6 +891,36 @@ public class OneCUpdatesService : IOneCUpdatesService
                     continue;
                 }
                 // Вход не удался — продолжаем обычную обработку редиректа/ответа ниже.
+            }
+
+            // Диагностика (issue #323): каждый редирект логируем с номером шага и Location,
+            // чтобы по журналу был виден реальный путь CAS-авторизации portal.1c.ru.
+            if (status is >= 300 and < 400)
+            {
+                var locText = response.Headers.Location?.ToString() ?? "<нет Location>";
+                _logger.Info($"[Updates] Редирект {status} (шаг {i}): '{locText}' для '{current.RequestUri}'");
+            }
+
+            // releases.1c.ru при отсутствии сессии может вернуть 302 БЕЗ заголовка Location
+            // либо 302 на тот же адрес (циклический редирект, issue #323). Это не сбой
+            // протокола, а требование авторизации (CAS): пробуем войти один раз за сессию
+            // и повторить исходный запрос с сохранёнными cookie.
+            var selfRedirect = status is >= 300 and < 400 &&
+                               (response.Headers.Location is null ||
+                                SameUri(current.RequestUri, response.Headers.Location));
+            if (selfRedirect && !_portalLoginAttempted)
+            {
+                _portalLoginAttempted = true;
+                var loggedIn = await TryLoginPortalAsync(ct).ConfigureAwait(false);
+                if (loggedIn)
+                {
+                    response.Dispose();
+                    var rebuilt = new HttpRequestMessage(current.Method, current.RequestUri!);
+                    current.Dispose();
+                    current = rebuilt;
+                    continue;
+                }
+                _logger.Warn($"[Updates] HTTP {status} без полезного Location для '{current.RequestUri}' — вход на portal.1c.ru не выполнен (проверьте учётные данные ИТС).");
             }
 
             // На страницу входа portal.1c.ru редирект НЕ следуем: если сессии нет, а программный

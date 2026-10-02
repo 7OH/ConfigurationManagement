@@ -81,7 +81,8 @@
                              перезаписывал ручной ввод — «буква L съедалась», вводилось ocalhost. -->
                         <ComboBox x:Name="ServerBox" IsEditable="True" Margin="0,0,0,10"
                                   IsTextSearchEnabled="False"
-                                  SelectionChanged="OnServerBox_SelectionChanged"/>
+                                  SelectionChanged="OnServerBox_SelectionChanged"
+                                  DropDownClosed="OnServerBox_DropDownClosed"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.RefLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <TextBox x:Name="RefBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,10"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.DbmsLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>

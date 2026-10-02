@@ -252,6 +252,7 @@ public partial class ConfigTypesEditWindow : Window
     {
         target.Code = source.Code;
         target.Name = source.Name;
+        target.ConfigName = source.ConfigName ?? string.Empty;
         target.UrlCode = source.UrlCode;
         target.Nick = source.Nick;
         target.AccountId = source.AccountId ?? string.Empty;
@@ -264,6 +265,7 @@ public partial class ConfigTypesEditWindow : Window
     {
         Code = source.Code,
         Name = source.Name,
+        ConfigName = source.ConfigName ?? string.Empty,
         UrlCode = source.UrlCode,
         Nick = source.Nick,
         AccountId = source.AccountId ?? string.Empty,

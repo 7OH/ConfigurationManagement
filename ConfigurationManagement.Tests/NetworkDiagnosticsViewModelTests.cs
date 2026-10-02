@@ -173,6 +173,59 @@ public sealed class NetworkDiagnosticsViewModelTests
         Assert.Equal(new[] { 1540, 1541, 1542, 1545 }, service.LastPorts);
     }
 
+    // ===================== Диалог портов сервисов (issue #335) =====================
+
+    [Fact]
+    public void BuildPortsForEdit_CustomClusterPort_GuessesShiftedPorts()
+    {
+        // В поле указан нестандартный порт кластера 2541: диалог предлагает
+        // сдвинутую карту 2540 (агент) / 2541 (кластер) / 2542 (хранилище) / 2545 (RAS).
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 2541));
+
+        var ports = vm.BuildPortsForEdit();
+
+        Assert.Equal(2541, ports.Cluster);
+        Assert.Equal(2540, ports.Agent);
+        Assert.Equal(2542, ports.Repository);
+        Assert.Equal(2545, ports.Ras);
+    }
+
+    [Fact]
+    public void BuildPortsForEdit_SavedPortsTakePriorityOverGuess()
+    {
+        var store = new FakeServerPortsStore { Data = { ["srv"] = new ServerPortsSettings(1599, 0, 1598) } };
+        var vm = new NetworkDiagnosticsViewModel(
+            new FakeDiagnosticsService(), Target("srv", 2541), portsStore: store);
+
+        var ports = vm.BuildPortsForEdit();
+
+        // Сохранённые кластер и хранилище приоритетнее «догадки»; агент и RAS — из догадки.
+        Assert.Equal(1599, ports.Cluster);
+        Assert.Equal(1598, ports.Repository);
+        Assert.Equal(2540, ports.Agent);
+        Assert.Equal(2545, ports.Ras);
+    }
+
+    [Fact]
+    public async Task ApplyEditedPortsAndCheckAsync_ScansEditedPorts_AndSaves()
+    {
+        var store = new FakeServerPortsStore();
+        var service = new FakeDiagnosticsService();
+        var vm = new NetworkDiagnosticsViewModel(service, Target("srv", 1541), portsStore: store);
+
+        await vm.ApplyEditedPortsAndCheckAsync(new ServerPortsSettings(2541, 2540, 2542, 2545));
+
+        // Сканируются отредактированные порты в порядке агент/кластер/хранилище/RAS
+        // и сохраняются для сервера (issue #335).
+        Assert.Equal(new[] { 2540, 2541, 2542, 2545 }, service.LastPorts);
+        Assert.True(store.Data.TryGetValue("srv", out var saved));
+        Assert.Equal(2541, saved!.Cluster);
+        Assert.Equal(2540, saved.Agent);
+        Assert.Equal(2542, saved.Repository);
+        Assert.Equal(2545, saved.Ras);
+    }
+
     // ===================== Пустой список серверов (issue #335) =====================
 
     [Fact]
