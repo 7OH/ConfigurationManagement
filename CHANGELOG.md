@@ -9,6 +9,46 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.267] — 2026-10-02
+
+### Исправлено
+
+- **Окно «Связать с конфигурацией»: больше места названию конфигурации, понятные критерии
+  поиска и различимые типовые/пользовательские записи (issue #322)** (обе платформы):
+  - **компоновка**: кнопки «Список типовых конфигураций» и «Определить версию» оставлены
+    в одну строку, а надпись о текущих свойствах базы перенесена на отдельную строку под
+    кнопками — поле выбора конфигурации занимает всю ширину окна, длинные названия не
+    ужимаются (окно расширено: WPF 720/600, Avalonia 700/580);
+  - **понятность поиска**: у кнопки «Определить версию» появился ToolTip
+    (`Updates.DefineVersionHint`) и под строками — подсказка о критериях сопоставления
+    (`Updates.MatchCriteriaHint`): имя конфигурации базы → сегмент адреса обновлений →
+    вхождение имени; в результатах автоопределения показывается причина совпадения
+    («по точному имени / по сегменту адреса / по вхождению») — матчер
+    [`ConfigTypeMatcher`](Configuration%20Management/Services/ConfigTypeMatcher.cs) расширен
+    методом `FindMatch` (`ConfigMatchResult.Kind`), приоритет признаков НЕ менялся;
+  - **различимость записей**: выпадающий список помечает происхождение записи — ★ типовая,
+    «пользовательская», ✎★ пользовательская копия (перекрывает типовую, правка встроенной из
+    0.3.9.265) + ToolTip со справкой (имя, код, сегмент адреса); обёртка
+    [`ConfigLinkItemViewModel`](Configuration%20Management/ViewModels/ConfigLinkItemViewModel.cs)
+    выносит метку в отдельное свойство `OriginBadge`, `ToString` конфигурации не расширяется
+    (не ломает другие окна);
+  - **дубль «Основная»**: списки учёток дедуплицированы в 0.3.9.261 (#333,
+    `ItsAccountSelectionBuilder.Build`) — окно связи их не использует, дубликатов нет;
+  - **файлы**: [`Services/ConfigTypeMatcher.cs`](Configuration%20Management/Services/ConfigTypeMatcher.cs),
+    новый [`ViewModels/ConfigLinkItemViewModel.cs`](Configuration%20Management/ViewModels/ConfigLinkItemViewModel.cs),
+    WPF [`Views/ConfigUpdateLinkWindow.xaml`](Configuration%20Management/Views/ConfigUpdateLinkWindow.xaml)
+    и [`Views/ConfigUpdateLinkWindow.xaml.cs`](Configuration%20Management/Views/ConfigUpdateLinkWindow.xaml.cs),
+    Avalonia [`Views/ConfigUpdateLinkWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigUpdateLinkWindow.Avalonia.cs),
+    локализация `ru.json`/`en.json` (ключи `Updates.ConfigMatchedReason`, `Updates.Reason*`,
+    `Updates.Origin*`, `Updates.DefineVersionHint`, `Updates.MatchCriteriaHint`);
+  - **тесты**: [`ConfigTypeMatcherTests`](ConfigurationManagement.Tests/ConfigTypeMatcherTests.cs) —
+    «пользовательская копия перекрывает типовую (тот же код)», «приоритет точного имени над
+    пользовательской записью с тем же сегментом адреса» (сценарий 7OH), «совпадение по сегменту
+    адреса → пользовательская запись», причина в `MatchKind`; новый
+    [`ConfigLinkItemViewModelTests`](ConfigurationManagement.Tests/ConfigLinkItemViewModelTests.cs) —
+    метки ★/✎★/пользовательская, безопасный `ToString`. Полный набор `dotnet test` зелёный,
+    кросс-сборка Linux без ошибок.
+
 ## [0.3.9.266] — 2026-10-02
 
 ### Исправлено

@@ -118,6 +118,92 @@ public sealed class ConfigTypeMatcherTests
     }
 
     [Fact]
+    public void CustomOverride_ReplacesBuiltInWithSameCode_Wins()
+    {
+        // Сценарий 7OH: пользователь отредактировал встроенную ЗУП (0.3.9.265 — правка встроенной
+        // создаёт копию OverridesBuiltIn с тем же кодом). Единый загрузчик MergeAll заменяет типовую
+        // копией — сопоставление по имени должно выбрать именно пользовательскую запись.
+        var builtIn = Config("ZUP", "Зарплата и управление персоналом");
+        var customCopy = new OneCConfigType
+        {
+            Code = "ZUP",
+            Name = "Зарплата и управление персоналом",
+            OverridesBuiltIn = true,
+            Editions = { new OneCConfigEdition { Name = "3.1", Red = "3.1" } },
+        };
+        var merged = CustomConfigTypesStore.MergeAll(new[] { builtIn }, new[] { customCopy });
+
+        var match = ConfigTypeMatcher.FindByInfobaseName(merged, "Зарплата и управление персоналом");
+
+        Assert.NotNull(match);
+        Assert.Equal("ZUP", match!.Code);
+        Assert.False(match.IsBuiltIn);
+        Assert.True(match.OverridesBuiltIn);
+    }
+
+    [Fact]
+    public void ExactName_Preferred_OverCustomEntryWithSameUrlSegment()
+    {
+        // Точный сценарий 7OH: у пользователя нетиповая запись «Моя ЗУП» с сегментом адреса
+        // «ЗарплатаИУправлениеПерсоналом», но имя базы точно совпадает с типовой ЗУП (с пробелами).
+        // Приоритет НЕ меняется (имя выше сегмента — риск для #323): выбирается типовая по точному
+        // имени, а причина совпадения (ExactName) объясняется в окне.
+        var configs = new List<OneCConfigType>
+        {
+            Config("ZUP", "Зарплата и управление персоналом", "Зарплата и управление персоналом"),
+            Config("ZUP-MY", "Моя ЗУП", "ЗарплатаИУправлениеПерсоналом"),
+        };
+
+        var result = ConfigTypeMatcher.FindMatch(configs, "Зарплата и управление персоналом");
+
+        Assert.NotNull(result);
+        Assert.Equal("ZUP", result!.Config.Code);
+        Assert.Equal(ConfigMatchKind.ExactName, result.Kind);
+    }
+
+    [Fact]
+    public void UrlSegmentMatch_Wins_WhenNoExactName()
+    {
+        // Имя базы не совпало ни с одним именем, но точно совпало с сегментом адреса
+        // пользовательской записи «ЗарплатаИУправлениеПерсоналом» — выбирается она,
+        // причина — ExactUrlCode.
+        var configs = new List<OneCConfigType>
+        {
+            Config("ZUP", "Зарплата и управление персоналом", "Зарплата и управление персоналом"),
+            Config("MY", "Моя конфигурация", "ЗарплатаИУправлениеПерсоналом"),
+        };
+
+        var result = ConfigTypeMatcher.FindMatch(configs, "ЗарплатаИУправлениеПерсоналом");
+
+        Assert.NotNull(result);
+        Assert.Equal("MY", result!.Config.Code);
+        Assert.Equal(ConfigMatchKind.ExactUrlCode, result.Kind);
+    }
+
+    [Fact]
+    public void MatchKind_ReportsContainmentReason()
+    {
+        var configs = new List<OneCConfigType> { Config("ZUP", "Зарплата и управление персоналом") };
+
+        var contained = ConfigTypeMatcher.FindMatch(configs, "1С:Зарплата и управление персоналом, редакция 3.1");
+        Assert.NotNull(contained);
+        Assert.Equal(ConfigMatchKind.NameContainedInBaseName, contained!.Kind);
+
+        var containing = ConfigTypeMatcher.FindMatch(configs, "Зарплата");
+        Assert.NotNull(containing);
+        Assert.Equal(ConfigMatchKind.BaseNameContainedInConfigName, containing!.Kind);
+    }
+
+    [Fact]
+    public void FindMatch_ReturnsNull_WhenNoMatch()
+    {
+        var configs = new List<OneCConfigType> { Config("BP", "Бухгалтерия предприятия") };
+
+        Assert.Null(ConfigTypeMatcher.FindMatch(configs, "Совершенно другая конфигурация"));
+        Assert.Null(ConfigTypeMatcher.FindMatch(configs, null));
+    }
+
+    [Fact]
     public void BuiltInSet_BukhVariant_MatchesBukh()
     {
         var configs = new List<OneCConfigType>(BuiltInConfigTypes.All);

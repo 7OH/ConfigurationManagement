@@ -7,6 +7,7 @@ using System.Windows;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
+using Configuration_Management.ViewModels;
 
 namespace Configuration_Management;
 
@@ -30,6 +31,10 @@ public partial class ConfigUpdateLinkWindow : Window
     private readonly Infobase _infobase;
     private readonly List<OneCConfigType> _configs = new();
 
+    /// <summary>Строки выпадающего списка «Конфигурация» (обёртки с пометкой происхождения,
+    /// issue #322) — рабочий список остаётся в <see cref="_configs"/>.</summary>
+    private readonly List<ConfigLinkItemViewModel> _configItems = new();
+
     private bool _initializing = true;
     private bool _definingVersion;
 
@@ -42,7 +47,7 @@ public partial class ConfigUpdateLinkWindow : Window
         BaseNameText.Text = _infobase.Name;
 
         LoadConfigs();
-        ConfigCombo.ItemsSource = _configs;
+        ConfigCombo.ItemsSource = _configItems;
         SelectInitialConfig();
         ApplyConfigSelection(rebuildUrl: false);
 
@@ -87,18 +92,24 @@ public partial class ConfigUpdateLinkWindow : Window
             _configs.Clear();
             _configs.AddRange(BuiltInConfigTypes.All);
         }
+
+        _configItems.Clear();
+        _configItems.AddRange(_configs.Select(c => new ConfigLinkItemViewModel(c)));
     }
 
     private void SelectInitialConfig()
     {
         var code = _infobase.UpdateConfigCode;
-        OneCConfigType? selected = null;
+        ConfigLinkItemViewModel? selected = null;
         if (!string.IsNullOrWhiteSpace(code))
-            selected = _configs.FirstOrDefault(c =>
-                string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
+            selected = _configItems.FirstOrDefault(i =>
+                string.Equals(i.Code, code, StringComparison.OrdinalIgnoreCase));
 
-        ConfigCombo.SelectedItem = selected ?? (_configs.Count > 0 ? _configs[0] : null);
+        ConfigCombo.SelectedItem = selected ?? (_configItems.Count > 0 ? _configItems[0] : null);
     }
+
+    /// <summary>Выбранная в списке типовая конфигурация (через обёртку строки списка).</summary>
+    private OneCConfigType? SelectedConfig => (ConfigCombo.SelectedItem as ConfigLinkItemViewModel)?.Model;
 
     private void OnConfigSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
@@ -115,7 +126,7 @@ public partial class ConfigUpdateLinkWindow : Window
     /// </summary>
     private void ApplyConfigSelection(bool rebuildUrl)
     {
-        var config = ConfigCombo.SelectedItem as OneCConfigType;
+        var config = SelectedConfig;
         var editions = config?.Editions ?? new List<OneCConfigEdition>();
 
         var previous = EditionCombo.SelectedItem;
@@ -160,7 +171,7 @@ public partial class ConfigUpdateLinkWindow : Window
     /// </summary>
     private void UpdateSegmentControls()
     {
-        var config = ConfigCombo.SelectedItem as OneCConfigType;
+        var config = SelectedConfig;
         var personal = _infobase.UpdateUrlSegment;
         if (!string.IsNullOrWhiteSpace(personal))
         {
@@ -187,12 +198,12 @@ public partial class ConfigUpdateLinkWindow : Window
         win.ShowDialog();
 
         // После правки пользовательских конфигураций перечитываем список и обновляем выбор.
-        var code = (ConfigCombo.SelectedItem as OneCConfigType)?.Code;
+        var code = SelectedConfig?.Code;
         LoadConfigs();
-        ConfigCombo.ItemsSource = _configs;
-        var restored = _configs.FirstOrDefault(c =>
-            string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
-        ConfigCombo.SelectedItem = restored ?? (_configs.Count > 0 ? _configs[0] : null);
+        ConfigCombo.ItemsSource = _configItems;
+        var restored = _configItems.FirstOrDefault(i =>
+            string.Equals(i.Code, code, StringComparison.OrdinalIgnoreCase));
+        ConfigCombo.SelectedItem = restored ?? (_configItems.Count > 0 ? _configItems[0] : null);
         ApplyConfigSelection(rebuildUrl: true);
     }
 
@@ -204,7 +215,7 @@ public partial class ConfigUpdateLinkWindow : Window
         if (ManualUrlRadio.IsChecked == true)
             return;
 
-        var config = ConfigCombo.SelectedItem as OneCConfigType;
+        var config = SelectedConfig;
         var edition = EditionCombo.SelectedItem as OneCConfigEdition;
         var segment = SegmentBox.Text?.Trim() ?? string.Empty;
         UrlBox.Text = _updates.BuildUpdateUrl(config, edition, null, segment);
@@ -250,22 +261,33 @@ public partial class ConfigUpdateLinkWindow : Window
     /// </summary>
     private void TryAutoMatchConfig(string configName, string version)
     {
-        var match = FindConfigByInfobaseName(configName);
-        if (match is null)
+        var result = FindConfigByInfobaseName(configName);
+        if (result is null)
         {
             ResultText.Text = string.Format(LocalizationManager.T("Updates.ConfigNotMatched"), configName);
             return;
         }
 
-        ConfigCombo.SelectedItem = match;
+        var match = result.Config;
+        ConfigCombo.SelectedItem = _configItems.FirstOrDefault(i => ReferenceEquals(i.Model, match));
         ApplyConfigSelection(rebuildUrl: true);
         TrySelectEditionByVersion(match, version);
 
-        ResultText.Text = string.Format(LocalizationManager.T("Updates.ConfigMatched"), match.Name);
+        // Поясняем, по какому полю найдена запись (issue #322): точное имя / сегмент адреса /
+        // вхождение имени — чтобы было видно, почему выбрана именно эта запись.
+        var reason = result.Kind switch
+        {
+            ConfigMatchKind.ExactUrlCode => LocalizationManager.T("Updates.ReasonUrlCode"),
+            ConfigMatchKind.NameContainedInBaseName => LocalizationManager.T("Updates.ReasonNameContains"),
+            ConfigMatchKind.BaseNameContainedInConfigName => LocalizationManager.T("Updates.ReasonBaseContains"),
+            _ => LocalizationManager.T("Updates.ReasonExactName"),
+        };
+        ResultText.Text = string.Format(LocalizationManager.T("Updates.ConfigMatchedReason"), match.Name, reason);
     }
 
-    private OneCConfigType? FindConfigByInfobaseName(string configName) =>
-        ConfigTypeMatcher.FindByInfobaseName(_configs, configName);
+    private ConfigMatchResult? FindConfigByInfobaseName(string configName) =>
+        ConfigTypeMatcher.FindMatch(_configs, configName);
+
 
     /// <summary>Выбирает редакцию по префиксу версии базы («3.0.142.32» → редакция «3.0»).</summary>
     private void TrySelectEditionByVersion(OneCConfigType config, string version)
@@ -295,7 +317,7 @@ public partial class ConfigUpdateLinkWindow : Window
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
-        var config = ConfigCombo.SelectedItem as OneCConfigType;
+        var config = SelectedConfig;
         if (config is null)
         {
             _dialogs.ShowWarning(LocalizationManager.T("Updates.NoConfigSelected"),

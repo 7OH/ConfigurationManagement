@@ -5,8 +5,8 @@
         xmlns:loc="clr-namespace:Configuration_Management.Localization"
         Title="{loc:Loc Updates.EditConfig}"
         Icon="{StaticResource AppIcon}"
-        Width="640" Height="660"
-        MinHeight="580" MinWidth="560"
+        Width="720" Height="660"
+        MinHeight="580" MinWidth="600"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
         FontFamily="Segoe UI"
@@ -94,10 +94,24 @@
 
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
             <StackPanel>
-                <!-- Типовая конфигурация -->
+                <!-- Типовая конфигурация: выпадающий список помечает происхождение записи
+                     (★ типовая / пользовательская / ✎★ пользовательская копия — перекрывает
+                     типовую, issue #322), чтобы было видно, какая именно запись выбрана. -->
                 <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{loc:Loc Updates.Name}"/>
                 <ComboBox x:Name="ConfigCombo" SelectionChanged="OnConfigSelectionChanged" Padding="10,7"
-                          DisplayMemberPath="Name" VerticalContentAlignment="Center"/>
+                          VerticalContentAlignment="Center">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,2" ToolTip="{Binding ToolTipText}">
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding OriginBadge}" Margin="10,0,0,0" FontSize="11"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
                 <!-- Редакция -->
                 <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{loc:Loc Updates.SelectEdition}"/>
@@ -128,36 +142,39 @@
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            Text="{loc:Loc Updates.SegmentHint}"/>
 
-                <!-- Типовые конфигурации / Определить версию в одну строку (issue #322); текущие
-                     свойства конфигурации базы — справа от кнопки определения версии. -->
-                <Grid Margin="0,12,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+                <!-- Типовые конфигурации / Определить версию — в одну строку (issue #322);
+                     название конфигурации в поле выше занимает всю ширину окна. Надпись о текущих
+                     свойствах базы — на отдельной строке под кнопками (не ужимает их и сама
+                     переносится по всей ширине). -->
+                <StackPanel Margin="0,12,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="ConfigTypesButton" Height="36" HorizontalAlignment="Left"
+                                Style="{StaticResource OutlineButtonStyle}" Click="OnOpenConfigTypesClick">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="FormatListBulleted" Width="16" Height="16"/>
+                                <TextBlock Text="{loc:Loc Updates.ManageList}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
 
-                    <Button x:Name="ConfigTypesButton" Height="36" Grid.Column="0" HorizontalAlignment="Left"
-                            Style="{StaticResource OutlineButtonStyle}" Click="OnOpenConfigTypesClick">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="FormatListBulleted" Width="16" Height="16"/>
-                            <TextBlock Text="{loc:Loc Updates.ManageList}" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
+                        <Button x:Name="DefineVersionButton" Height="36" Margin="10,0,0,0"
+                                HorizontalAlignment="Left" Style="{StaticResource OutlineButtonStyle}"
+                                ToolTip="{loc:Loc Updates.DefineVersionHint}"
+                                Click="OnDefineVersionClick">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="MagnifyScan" Width="16" Height="16"/>
+                                <TextBlock Text="{loc:Loc Updates.DefineVersion}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
 
-                    <Button x:Name="DefineVersionButton" Height="36" Grid.Column="1" Margin="10,0,0,0"
-                            HorizontalAlignment="Left" Style="{StaticResource OutlineButtonStyle}"
-                            Click="OnDefineVersionClick">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="MagnifyScan" Width="16" Height="16"/>
-                            <TextBlock Text="{loc:Loc Updates.DefineVersion}" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-
-                    <TextBlock x:Name="CurrentConfigText" Grid.Column="2" FontSize="12" Margin="12,0,0,0"
-                               VerticalAlignment="Center" HorizontalAlignment="Right" TextWrapping="Wrap"
+                    <TextBlock x:Name="CurrentConfigText" FontSize="12" Margin="0,8,0,0"
+                               HorizontalAlignment="Left" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextSecondaryBrush}"/>
-                </Grid>
+
+                    <TextBlock FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="{loc:Loc Updates.MatchCriteriaHint}"/>
+                </StackPanel>
 
                 <TextBlock x:Name="ResultText" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
                            Foreground="#16A34A"/>

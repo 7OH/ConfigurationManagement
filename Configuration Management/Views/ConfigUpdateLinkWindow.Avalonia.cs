@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -13,6 +14,7 @@ using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Configuration_Management.Themes;
+using Configuration_Management.ViewModels;
 
 namespace Configuration_Management
 {
@@ -37,6 +39,10 @@ namespace Configuration_Management
         private readonly Infobase _infobase;
         private readonly List<OneCConfigType> _configs = new();
 
+        /// <summary>Строки выпадающего списка «Конфигурация» (обёртки с пометкой происхождения,
+        /// issue #322) — рабочий список остаётся в <see cref="_configs"/>.</summary>
+        private readonly List<ConfigLinkItemViewModel> _configItems = new();
+
         private bool _initializing = true;
         private bool _definingVersion;
 
@@ -57,9 +63,9 @@ namespace Configuration_Management
             _infobase = infobase ?? throw new ArgumentNullException(nameof(infobase));
 
             Title = LocalizationManager.T("Updates.EditConfig");
-            Width = 620;
+            Width = 700;
             Height = 640;
-            MinWidth = 540;
+            MinWidth = 580;
             MinHeight = 560;
             FontSize = 13;
             CanResize = true;
@@ -73,7 +79,7 @@ namespace Configuration_Management
             Content = BuildRoot();
 
             LoadConfigs();
-            _configCombo.ItemsSource = _configs;
+            _configCombo.ItemsSource = _configItems;
             SelectInitialConfig();
             ApplyConfigSelection(rebuildUrl: false);
 
@@ -127,18 +133,24 @@ namespace Configuration_Management
                 _configs.Clear();
                 _configs.AddRange(BuiltInConfigTypes.All);
             }
+    
+            _configItems.Clear();
+            _configItems.AddRange(_configs.Select(c => new ConfigLinkItemViewModel(c)));
         }
 
         private void SelectInitialConfig()
         {
             var code = _infobase.UpdateConfigCode;
-            OneCConfigType? selected = null;
+            ConfigLinkItemViewModel? selected = null;
             if (!string.IsNullOrWhiteSpace(code))
-                selected = _configs.FirstOrDefault(c =>
-                    string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
+                selected = _configItems.FirstOrDefault(i =>
+                    string.Equals(i.Code, code, StringComparison.OrdinalIgnoreCase));
 
-            _configCombo.SelectedItem = selected ?? (_configs.Count > 0 ? _configs[0] : null);
+            _configCombo.SelectedItem = selected ?? (_configItems.Count > 0 ? _configItems[0] : null);
         }
+
+        /// <summary>Выбранная в списке типовая конфигурация (через обёртку строки списка).</summary>
+        private OneCConfigType? SelectedConfig => (_configCombo.SelectedItem as ConfigLinkItemViewModel)?.Model;
 
         private void OnConfigSelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
@@ -155,7 +167,7 @@ namespace Configuration_Management
         /// </summary>
         private void ApplyConfigSelection(bool rebuildUrl)
         {
-            var config = _configCombo.SelectedItem as OneCConfigType;
+            var config = SelectedConfig;
             var editions = config?.Editions ?? new List<OneCConfigEdition>();
 
             var previous = _editionCombo.SelectedItem;
@@ -200,7 +212,7 @@ namespace Configuration_Management
         /// </summary>
         private void UpdateSegmentControls()
         {
-            var config = _configCombo.SelectedItem as OneCConfigType;
+            var config = SelectedConfig;
             var personal = _infobase.UpdateUrlSegment;
             if (!string.IsNullOrWhiteSpace(personal))
             {
@@ -226,12 +238,12 @@ namespace Configuration_Management
             win.ShowSync(this);
 
             // После правки пользовательских конфигураций перечитываем список и обновляем выбор.
-            var code = (_configCombo.SelectedItem as OneCConfigType)?.Code;
+            var code = SelectedConfig?.Code;
             LoadConfigs();
-            _configCombo.ItemsSource = _configs;
-            var restored = _configs.FirstOrDefault(c =>
-                string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
-            _configCombo.SelectedItem = restored ?? (_configs.Count > 0 ? _configs[0] : null);
+            _configCombo.ItemsSource = _configItems;
+            var restored = _configItems.FirstOrDefault(i =>
+                string.Equals(i.Code, code, StringComparison.OrdinalIgnoreCase));
+            _configCombo.SelectedItem = restored ?? (_configItems.Count > 0 ? _configItems[0] : null);
             ApplyConfigSelection(rebuildUrl: true);
         }
 
@@ -243,7 +255,7 @@ namespace Configuration_Management
             if (_manualUrlRadio.IsChecked == true)
                 return;
 
-            var config = _configCombo.SelectedItem as OneCConfigType;
+            var config = SelectedConfig;
             var edition = _editionCombo.SelectedItem as OneCConfigEdition;
             var segment = _segmentBox.Text?.Trim() ?? string.Empty;
             _urlBox.Text = _updates.BuildUpdateUrl(config, edition, null, segment);
@@ -288,22 +300,32 @@ namespace Configuration_Management
         /// </summary>
         private void TryAutoMatchConfig(string configName, string version)
         {
-            var match = FindConfigByInfobaseName(configName);
-            if (match is null)
+            var result = FindConfigByInfobaseName(configName);
+            if (result is null)
             {
                 _resultText.Text = string.Format(T("Updates.ConfigNotMatched"), configName);
                 return;
             }
 
-            _configCombo.SelectedItem = match;
+            var match = result.Config;
+            _configCombo.SelectedItem = _configItems.FirstOrDefault(i => ReferenceEquals(i.Model, match));
             ApplyConfigSelection(rebuildUrl: true);
             TrySelectEditionByVersion(match, version);
 
-            _resultText.Text = string.Format(T("Updates.ConfigMatched"), match.Name);
+            // Поясняем, по какому полю найдена запись (issue #322): точное имя / сегмент адреса /
+            // вхождение имени — чтобы было видно, почему выбрана именно эта запись.
+            var reason = result.Kind switch
+            {
+                ConfigMatchKind.ExactUrlCode => T("Updates.ReasonUrlCode"),
+                ConfigMatchKind.NameContainedInBaseName => T("Updates.ReasonNameContains"),
+                ConfigMatchKind.BaseNameContainedInConfigName => T("Updates.ReasonBaseContains"),
+                _ => T("Updates.ReasonExactName"),
+            };
+            _resultText.Text = string.Format(T("Updates.ConfigMatchedReason"), match.Name, reason);
         }
 
-        private OneCConfigType? FindConfigByInfobaseName(string configName) =>
-            ConfigTypeMatcher.FindByInfobaseName(_configs, configName);
+        private ConfigMatchResult? FindConfigByInfobaseName(string configName) =>
+            ConfigTypeMatcher.FindMatch(_configs, configName);
 
         /// <summary>Выбирает редакцию по префиксу версии базы («3.0.142.32» → редакция «3.0»).</summary>
         private void TrySelectEditionByVersion(OneCConfigType config, string version)
@@ -333,7 +355,7 @@ namespace Configuration_Management
 
         private void OnSaveClick()
         {
-            var config = _configCombo.SelectedItem as OneCConfigType;
+            var config = SelectedConfig;
             if (config is null)
             {
                 _dialogs.ShowWarning(T("Updates.NoConfigSelected"), T("Updates.EditConfig"));
@@ -408,14 +430,31 @@ namespace Configuration_Management
 
             var form = new StackPanel { Margin = new Thickness(0, 4, 0, 0), Spacing = 4 };
 
-            // Типовая конфигурация.
+            // Типовая конфигурация: строка списка — имя + пометка происхождения (★ типовая /
+            // пользовательская / ✎★ пользовательская копия — перекрывает типовую, issue #322).
             form.Children.Add(MakeFieldLabel(T("Updates.Name")));
             _configCombo = new ComboBox
             {
-                ItemsSource = _configs,
+                ItemsSource = _configItems,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 MinHeight = 36
             };
+            _configCombo.ItemTemplate = new FuncDataTemplate<ConfigLinkItemViewModel>((item, _) =>
+            {
+                var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+                var name = new TextBlock { Text = item.Name, VerticalAlignment = VerticalAlignment.Center };
+                var badge = new TextBlock
+                {
+                    Text = item.OriginBadge,
+                    FontSize = 11,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Themes.ThemeBrushes.Bind(badge, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+                row.Children.Add(name);
+                row.Children.Add(badge);
+                ToolTip.SetTip(row, item.ToolTipText);
+                return row;
+            });
             _configCombo.SelectionChanged += OnConfigSelectionChanged;
             form.Children.Add(_configCombo);
 
@@ -472,12 +511,13 @@ namespace Configuration_Management
             Themes.ThemeBrushes.Bind(segmentHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
             form.Children.Add(segmentHint);
 
-            // «Список типовых конфигураций» + «Определить версию» в одну строку (issue #322);
-            // текущие свойства конфигурации базы — справа от кнопки определения версии.
-            var actionRow = new Grid { Margin = new Thickness(0, 12, 0, 0) };
-            actionRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            actionRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            actionRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            // «Список типовых конфигураций» + «Определить версию» — в одну строку (issue #322);
+            // название конфигурации в поле выше занимает всю ширину окна. Надпись о текущих
+            // свойствах базы — на отдельной строке под кнопками (не ужимает их и сама
+            // переносится по всей ширине), ниже — подсказка о критериях поиска.
+            var actionArea = new StackPanel { Margin = new Thickness(0, 12, 0, 0), Spacing = 6 };
+
+            var buttonsRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
 
             var configTypesButton = new Button
             {
@@ -487,31 +527,38 @@ namespace Configuration_Management
             };
             configTypesButton.Styled(ControlThemes.SecondaryButton);
             configTypesButton.Click += (_, _) => OnOpenConfigTypesClick();
-            Grid.SetColumn(configTypesButton, 0);
-            actionRow.Children.Add(configTypesButton);
+            buttonsRow.Children.Add(configTypesButton);
 
             _defineVersionButton = new Button
             {
                 Content = T("Updates.DefineVersion"),
                 Height = 36,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(10, 0, 0, 0)
+                HorizontalAlignment = HorizontalAlignment.Left
             };
             _defineVersionButton.Styled(ControlThemes.SecondaryButton);
             _defineVersionButton.Click += (_, _) => OnDefineVersionClick();
-            Grid.SetColumn(_defineVersionButton, 1);
-            actionRow.Children.Add(_defineVersionButton);
+            ToolTip.SetTip(_defineVersionButton, T("Updates.DefineVersionHint"));
+            buttonsRow.Children.Add(_defineVersionButton);
+
+            actionArea.Children.Add(buttonsRow);
 
             _currentConfigText.FontSize = 12;
             _currentConfigText.TextWrapping = TextWrapping.Wrap;
-            _currentConfigText.Margin = new Thickness(12, 0, 0, 0);
-            _currentConfigText.VerticalAlignment = VerticalAlignment.Center;
-            _currentConfigText.HorizontalAlignment = HorizontalAlignment.Right;
+            _currentConfigText.Margin = new Thickness(0, 2, 0, 0);
+            _currentConfigText.HorizontalAlignment = HorizontalAlignment.Left;
             Themes.ThemeBrushes.Bind(_currentConfigText, TextBlock.ForegroundProperty, "TextSecondaryBrush");
-            Grid.SetColumn(_currentConfigText, 2);
-            actionRow.Children.Add(_currentConfigText);
+            actionArea.Children.Add(_currentConfigText);
 
-            form.Children.Add(actionRow);
+            var matchHint = new TextBlock
+            {
+                Text = T("Updates.MatchCriteriaHint"),
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap
+            };
+            Themes.ThemeBrushes.Bind(matchHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            actionArea.Children.Add(matchHint);
+
+            form.Children.Add(actionArea);
 
             _resultText.FontSize = 12;
             _resultText.TextWrapping = TextWrapping.Wrap;
