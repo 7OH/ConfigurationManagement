@@ -172,8 +172,13 @@ namespace Configuration_Management.Controls
         /// <summary>
         /// Базы в видимом порядке строк дерева (сверху вниз, включая строки
         /// развёрнутых подгрупп) ТОЛЬКО в пределах одной секции. Используется
-        /// Shift-диапазоном мультивыделения (0.3.9.90) по тем же контейнерам,
-        /// что и навигация клавишами.
+        /// Shift-диапазоном мультивыделения (0.3.9.90). Порядок секции
+        /// «Закреплённые» строится по ДАННЫМ узла (BuildPinnedSectionVisibleOrder),
+        /// а не по контейнерам: при виртуализации контейнеры вне видимой области
+        /// могут отсутствовать, а строки узла несут обёртку PinnedInfobaseItem —
+        /// прежняя проверка «row.DataContext is Infobase» пропускала их, порядок
+        /// оставался пустым, и Shift-диапазон уходил в общий список (issue #326).
+        /// Порядок обычной секции строится по контейнерам (VisibleRows).
         /// </summary>
         /// <param name="pinnedSection">
         /// true — только строки узла «Закреплённые» (обёртки PinnedInfobaseItem,
@@ -183,6 +188,9 @@ namespace Configuration_Management.Controls
         /// </param>
         private List<Infobase> VisibleInfobasesInOrder(bool pinnedSection)
         {
+            if (pinnedSection && DataContext is MainViewModel pinnedVm)
+                return pinnedVm.BuildPinnedSectionVisibleOrder().ToList();
+
             var result = new List<Infobase>();
             foreach (var row in VisibleRows())
             {
@@ -195,7 +203,7 @@ namespace Configuration_Management.Controls
                 var isPinnedRow = BatchSelectionHelper.IsPinnedSection(row.DataContext);
                 if (isPinnedRow != pinnedSection)
                     continue;
-                if (row.DataContext is Infobase ib && !result.Contains(ib))
+                if (BatchSelectionHelper.Unwrap(row.DataContext) is { } ib && !result.Contains(ib))
                     result.Add(ib);
             }
             return result;

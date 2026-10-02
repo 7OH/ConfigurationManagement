@@ -1736,15 +1736,27 @@
                                                         <!-- Мультивыделение (0.3.9.90): строка, помеченная Ctrl/Shift-кликом,
                                                              получает вторичный фон «для выделенных». Основное выделение
                                                              (TreeViewItem.IsSelected) объявлено ПОЗЖЕ и перекрывает его.
-                                                             Строки узла «Закреплённые» пакетную подсветку НЕ получают
-                                                             (issue #314): их ContentControl-обёртка помечена Tag="pinned",
-                                                             второе условие (Tag == null) блокирует триггер — иначе
-                                                             закреплённая копия подсвечивалась бы вместе с реальной базой,
-                                                             легитимно попавшей в Shift-диапазон. -->
+                                                             Подсветка зависит от СЕКЦИИ набора (issue #326): обычная строка
+                                                             (Tag == null) светится только когда набор принадлежит обычному
+                                                             списку, закреплённая (Tag="pinned") — только когда набор собран
+                                                             в «Закреплённых». Раньше закреплённые строки не подсвечивались
+                                                             вовсе, и Ctrl/Shift-выбор в закреплениях «светил» копию базы
+                                                             в общем списке вместо самой закреплённой строки. -->
+                                                        <!-- Обычная строка: набор принадлежит обычному списку (не закреплениям). -->
                                                         <MultiDataTrigger>
                                                             <MultiDataTrigger.Conditions>
                                                                 <Condition Binding="{Binding IsBatchSelected}" Value="True"/>
                                                                 <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentControl}}" Value="{x:Null}"/>
+                                                                <Condition Binding="{Binding DataContext.BatchSelectionSectionIsPinned, RelativeSource={RelativeSource AncestorType=Window}}" Value="False"/>
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Background" Value="{DynamicResource ItemSelectedBrush}"/>
+                                                        </MultiDataTrigger>
+                                                        <!-- Закреплённая строка: набор собран в секции «Закреплённые». -->
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsBatchSelected}" Value="True"/>
+                                                                <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentControl}}" Value="pinned"/>
+                                                                <Condition Binding="{Binding DataContext.BatchSelectionSectionIsPinned, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
                                                             </MultiDataTrigger.Conditions>
                                                             <Setter Property="Background" Value="{DynamicResource ItemSelectedBrush}"/>
                                                         </MultiDataTrigger>
@@ -2234,10 +2246,11 @@
                                  Раньше в узел клался прямой экземпляр Infobase, и выбор
                                  строки подсвечивал её копию в «Закреплённых» (и наоборот).
                                  Tag="pinned" — маркер строки узла «Закреплённые»: пакетная
-                                 подсветка (MultiDataTrigger в InfobaseRowTemplate) требует
-                                 Tag == null у обёртки, поэтому закреплённая копия НЕ
-                                 подсвечивается вместе с реальной базой, попавшей
-                                 в Shift-диапазон (issue #314). -->
+                                 подсветка (MultiDataTrigger в InfobaseRowTemplate) теперь
+                                 требует Tag="pinned" И принадлежность набора секции
+                                 «Закреплённые» (issue #326): Ctrl/Shift в закреплениях
+                                 подсвечивает сами закреплённые строки, а копии выбранных
+                                 баз в общем списке при этом не светятся (и наоборот). -->
                             <DataTemplate DataType="{x:Type vm:PinnedInfobaseItem}">
                                 <ContentControl Content="{Binding Base}"
                                                 ContentTemplate="{StaticResource InfobaseRowTemplate}"

@@ -43,6 +43,17 @@ public partial class MainViewModel
     /// </summary>
     public event EventHandler? BatchSelectionChanged;
 
+    /// <summary>
+    /// Секция текущего набора «для выделенных» для подсветки строк (issue #326):
+    /// true — «Закреплённые», false — обычный список, null — набор пуст.
+    /// Строки дерева подсвечивают пакетный фон ТОЛЬКО когда набор принадлежит
+    /// их секции: закреплённая копия базы не «светит» при выделении в обычном
+    /// списке и наоборот (раньше закреплённые строки не подсвечивались вовсе,
+    /// и Ctrl/Shift в закреплениях подсвечивал копию базы в общем списке).
+    /// Меняется вместе с составом набора; UI подписывается на PropertyChanged.
+    /// </summary>
+    public bool? BatchSelectionSectionIsPinned => _batchSectionIsPinned;
+
     /// <summary>Идентификаторы баз в мультивыделении (для пакетных операций).</summary>
     public IReadOnlyCollection<string> BatchSelectedIds => _batchSelectedIds;
 
@@ -123,7 +134,15 @@ public partial class MainViewModel
 
         var order = visibleOrder;
         if (order is null || order.Count == 0)
-            order = Infobases.ToList();
+        {
+            // Правило секций (issue #326) никогда не нарушаем: для «Закреплённых»
+            // порядок строится по ДАННЫМ узла (контейнеры вне видимой области могут
+            // быть не реализованы виртуализацией), а НЕ по общему списку — иначе
+            // Shift-клик в закреплениях «выделял полсписка обычного». Для обычного
+            // списка оставляем прежний резерв (порядок модели); пустой результат
+            // закреплённой секции даёт выбор только цели (как при отсутствии якоря).
+            order = isPinnedSection ? BuildPinnedSectionVisibleOrder() : Infobases.ToList();
+        }
 
         var orderIds = order
             .Select(ib => ib.Id)
@@ -142,6 +161,21 @@ public partial class MainViewModel
         RaiseBatchSelectionChanged();
     }
 
+    /// <summary>
+    /// Видимый порядок строк секции «Закреплённые» по данным узла дерева
+    /// (issue #326). Не зависит от виртуализации: узел «Закреплённые» — плоский
+    /// список обёрток <see cref="PinnedInfobaseItem"/>, его порядок однозначен.
+    /// Пустой список, если узел отсутствует (например, нет закреплённых баз).
+    /// </summary>
+    public IReadOnlyList<Infobase> BuildPinnedSectionVisibleOrder()
+    {
+        var pinnedNode = GroupNodes.FirstOrDefault(n => n.Group is null
+            && string.Equals(n.Marker, GroupNodeViewModel.PinnedMarker, StringComparison.Ordinal));
+        return pinnedNode is null
+            ? Array.Empty<Infobase>()
+            : BatchSelectionHelper.BuildPinnedSectionOrder(pinnedNode.Items);
+    }
+
     /// <summary>Снимает мультивыделение со всех баз.</summary>
     public void ClearBatchSelection()
     {
@@ -149,21 +183,26 @@ public partial class MainViewModel
             return;
         _batchSelectedIds.Clear();
         _batchSectionIsPinned = null;
+        OnPropertyChanged(nameof(BatchSelectionSectionIsPinned));
         SyncBatchFlags();
         RaiseBatchSelectionChanged();
     }
 
     /// <summary>
     /// Применяет вычисленный хелпером набор к хранилищу идентификаторов и флагам
-    /// строк, запоминает секцию набора (issue #326).
+    /// строк, запоминает секцию набора (issue #326). Секция устанавливается ДО
+    /// синхронизации флагов строк: подсветка строки зависит и от флага, и от
+    /// секции набора, поэтому к моменту уведомлений об изменении флагов секция
+    /// уже должна быть актуальной (иначе строка прочитала бы секцию прошлого набора).
     /// </summary>
     private void ApplyBatchSet(IReadOnlyCollection<string> next, bool sectionIsPinned)
     {
         _batchSelectedIds.Clear();
         foreach (var id in next)
             _batchSelectedIds.Add(id);
-        SyncBatchFlags();
         _batchSectionIsPinned = next.Count > 0 ? sectionIsPinned : null;
+        OnPropertyChanged(nameof(BatchSelectionSectionIsPinned));
+        SyncBatchFlags();
     }
 
     /// <summary>Есть ли хотя бы одна база в мультивыделении.</summary>

@@ -49,9 +49,8 @@ namespace Configuration_Management
                 return BuildGroupRow(group);
             // Обёртка строки в узле «Закреплённые»: строим карточку по реальной базе,
             // вся логика строки (кнопки, подписки, команды) привязана к ней (issue #301).
-            // Пакетную подсветку (pinnedRow: true) НЕ вешаем: IsBatchSelected живёт
-            // на реальной базе, и её закреплённая копия не должна подсвечиваться
-            // вместе с диапазоном Shift-выделения (issue #314).
+            // Пакетная подсветка закреплённой строки включается только для набора
+            // секции «Закреплённые» (issue #326) — см. BuildInfobaseRow.
             if (item is PinnedInfobaseItem pinned)
                 return BuildInfobaseRow(pinned.Base, pinnedRow: true);
             if (item is Infobase ib)
@@ -215,10 +214,10 @@ namespace Configuration_Management
         }
 
         /// <param name="pinnedRow">
-        /// Строка узла «Закреплённые» (обёртка <see cref="PinnedInfobaseItem"/>): пакетную
-        /// подсветку не вешаем — флаг <see cref="Infobase.IsBatchSelected"/> живёт на
-        /// реальной базе, и закреплённая копия не должна подсвечиваться вместе с
-        /// диапазоном Shift-выделения (issue #314).
+        /// Строка узла «Закреплённые» (обёртка <see cref="PinnedInfobaseItem"/>): пакетная
+        /// подсветка действует только когда набор «для выделенных» принадлежит секции
+        /// «Закреплённые» (issue #326) — копия выбранной базы в общем списке при этом
+        /// не светится, как и закреплённая копия при выделении в обычном списке.
         /// </param>
         private Control BuildInfobaseRow(Infobase ib, bool pinnedRow = false)
         {
@@ -228,24 +227,43 @@ namespace Configuration_Management
             var card = new InfobaseRowCard();
 
             // Мультивыделение (0.3.9.90): флаг IsBatchSelected меняется Ctrl/Shift-кликом
-            // и живёт на модели, поэтому строка подписывается на его изменения и
-            // перекрашивает карточку без пересборки всего дерева. Для строки узла
-            // «Закреплённые» подписка не создаётся (issue #314).
-            if (!pinnedRow)
+            // и живёт на модели, секция набора — во вьюмодели (issue #326). Строка
+            // подсвечивается ТОЛЬКО когда набор принадлежит ЕЁ секции: обычная строка
+            // светится при выделении в общем списке, закреплённая — при выделении
+            // в «Закреплённых». Раньше закреплённые строки не подсвечивались вовсе,
+            // и Ctrl/Shift в закреплениях «светил» копию базы в общем списке.
+            card.AddSubscription(() =>
             {
-                card.AddSubscription(() =>
+                void ApplyBatchHighlight()
                 {
-                    void OnBatchChanged(object? _, System.ComponentModel.PropertyChangedEventArgs e)
-                    {
-                        if (e.PropertyName == nameof(Infobase.IsBatchSelected))
-                            card.SetBatchSelected(ib.IsBatchSelected);
-                    }
+                    var sectionPinned = _vm?.BatchSelectionSectionIsPinned;
+                    var inSection = pinnedRow ? sectionPinned == true : sectionPinned == false;
+                    card.SetBatchSelected(ib.IsBatchSelected && inSection);
+                }
 
-                    ib.PropertyChanged += OnBatchChanged;
-                    card.SetBatchSelected(ib.IsBatchSelected);
-                    return new ActionDisposable(() => ib.PropertyChanged -= OnBatchChanged);
+                void OnBatchChanged(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+                {
+                    if (e.PropertyName == nameof(Infobase.IsBatchSelected))
+                        ApplyBatchHighlight();
+                }
+
+                void OnVmChanged(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+                {
+                    if (e.PropertyName == nameof(MainViewModel.BatchSelectionSectionIsPinned))
+                        ApplyBatchHighlight();
+                }
+
+                ib.PropertyChanged += OnBatchChanged;
+                if (_vm is not null)
+                    _vm.PropertyChanged += OnVmChanged;
+                ApplyBatchHighlight();
+                return new ActionDisposable(() =>
+                {
+                    ib.PropertyChanged -= OnBatchChanged;
+                    if (_vm is not null)
+                        _vm.PropertyChanged -= OnVmChanged;
                 });
-            }
+            });
 
             var grid = new Grid();
             // Слева направо: звезда, булавка, иконка типа подключения, имя базы,

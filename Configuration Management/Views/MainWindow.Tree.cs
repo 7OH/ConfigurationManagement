@@ -73,9 +73,13 @@ namespace Configuration_Management
         /// <summary>
         /// Базы в видимом порядке строк дерева (сверху вниз, включая строки
         /// развёрнутых подгрупп) ТОЛЬКО в пределах одной секции. Используется
-        /// Shift-диапазоном мультивыделения (0.3.9.90): порядок строится по
-        /// контейнерам, как в навигации (GetVisibleTreeViewItems), а правило
-        /// секций (issue #326) не даёт смешать «Закреплённые» с обычным списком.
+        /// Shift-диапазоном мультивыделения (0.3.9.90): правило секций (issue #326)
+        /// не даёт смешать «Закреплённые» с обычным списком. Порядок секции
+        /// «Закреплённые» строится по ДАННЫМ узла (BuildPinnedSectionVisibleOrder),
+        /// а не по контейнерам: при виртуализации контейнеры вне видимой области
+        /// не реализованы, и обход вернул бы пустой/неполный порядок, из-за чего
+        /// Shift-диапазон уходил в общий список (issue #326). Порядок обычной
+        /// секции строится по контейнерам, как в навигации (GetVisibleTreeViewItems).
         /// </summary>
         /// <param name="pinnedSection">
         /// true — только строки узла «Закреплённые» (обёртки PinnedInfobaseItem,
@@ -84,6 +88,9 @@ namespace Configuration_Management
         /// </param>
         private List<Infobase> VisibleInfobasesInOrder(bool pinnedSection)
         {
+            if (pinnedSection)
+                return _viewModel.BuildPinnedSectionVisibleOrder().ToList();
+
             var result = new List<Infobase>();
             foreach (var item in GetVisibleTreeViewItems())
             {

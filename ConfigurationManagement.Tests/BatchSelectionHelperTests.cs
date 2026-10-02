@@ -1,4 +1,6 @@
+using Configuration_Management.Models;
 using Configuration_Management.Services;
+using Configuration_Management.ViewModels;
 using Xunit;
 
 namespace ConfigurationManagement.Tests;
@@ -293,6 +295,123 @@ public sealed class BatchSelectionHelperTests
         var rightClick = BatchSelectionHelper.BuildRightClickSet(set, rightClickedId: "b");
 
         Assert.Equal(new[] { "a", "b" }, rightClick.OrderBy(x => x));
+    }
+
+    // ======================= Issue #326: порядок закреплённой секции по данным узла =======================
+
+    [Fact]
+    public void BuildPinnedSectionOrder_FromWrappedItems_ReturnsBasesInNodeOrder()
+    {
+        // Узел «Закреплённые» несёт обёртки PinnedInfobaseItem (issue #314): порядок
+        // Shift-диапазона строится по данным узла, а не по контейнерам (виртуализация
+        // может не реализовать контейнеры вне видимой области — обход вернул бы пустой
+        // порядок, и диапазон уходил в общий список, issue #326).
+        var first = new Infobase { Id = "pinned-1", Name = "Первая" };
+        var second = new Infobase { Id = "pinned-2", Name = "Вторая" };
+        var third = new Infobase { Id = "pinned-3", Name = "Третья" };
+
+        var order = BatchSelectionHelper.BuildPinnedSectionOrder(new object[]
+        {
+            new PinnedInfobaseItem(first),
+            new PinnedInfobaseItem(second),
+            new PinnedInfobaseItem(third)
+        });
+
+        Assert.Equal(new[] { first, second, third }, order);
+        Assert.Equal(new[] { "pinned-1", "pinned-2", "pinned-3" }, order.Select(x => x.Id).ToArray());
+    }
+
+    [Fact]
+    public void BuildPinnedSectionOrder_MixedRawAndWrapped_DeduplicatesSameBase()
+    {
+        // Допустимый резерв: узел может содержать и обёртки, и голые базы; одна и та же
+        // база не должна повторяться в порядке секции.
+        var only = new Infobase { Id = "pinned-1" };
+        var other = new Infobase { Id = "pinned-2" };
+
+        var order = BatchSelectionHelper.BuildPinnedSectionOrder(new object[]
+        {
+            new PinnedInfobaseItem(only),
+            only, // дубль той же базы — пропускается
+            new PinnedInfobaseItem(other)
+        });
+
+        Assert.Equal(new[] { only, other }, order);
+    }
+
+    [Fact]
+    public void BuildPinnedSectionOrder_NullOrEmpty_ReturnsEmpty()
+    {
+        Assert.Empty(BatchSelectionHelper.BuildPinnedSectionOrder(null!));
+        Assert.Empty(BatchSelectionHelper.BuildPinnedSectionOrder(Array.Empty<object>()));
+    }
+
+    [Fact]
+    public void Unwrap_PinnedWrapper_ReturnsBase()
+    {
+        var ib = new Infobase { Id = "pinned-1" };
+        var wrapped = new PinnedInfobaseItem(ib);
+
+        Assert.Same(ib, BatchSelectionHelper.Unwrap(wrapped));
+        Assert.Same(ib, BatchSelectionHelper.Unwrap(ib));
+        Assert.Null(BatchSelectionHelper.Unwrap(null));
+        Assert.Null(BatchSelectionHelper.Unwrap("не база"));
+    }
+
+    [Fact]
+    public void ApplyModifiedClick_ShiftInPinnedSection_LongerRegularList_OnlyPinnedRange()
+    {
+        // Сценарий 7OH (issue #326): обычный список заметно длиннее закреплённого.
+        // Shift-клик от одной закреплённой базы до другой должен выделить ТОЛЬКО
+        // закреплённый диапазон, а не «полсписка обычного» (порядок передаётся уже
+        // в пределах секции — обычные строки в него не попадают).
+        var pinnedOrder = new[] { "pinned-1", "pinned-2", "pinned-3", "pinned-4" };
+
+        var result = BatchSelectionHelper.ApplyModifiedClick(
+            currentIds: Array.Empty<string>(),
+            currentSectionIsPinned: false,
+            targetId: "pinned-4",
+            targetSectionIsPinned: true,
+            modifier: "Shift",
+            visibleOrder: pinnedOrder,
+            anchorId: "pinned-2");
+
+        Assert.Equal(new[] { "pinned-2", "pinned-3", "pinned-4" }, result.OrderBy(x => x));
+        Assert.All(result, id => Assert.StartsWith("pinned-", id, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ApplyModifiedClick_ShiftInPinnedSection_EmptyOrder_SelectsOnlyTarget()
+    {
+        // Пустой порядок секции (например, узел «Закреплённые» отсутствует): Shift-клик
+        // НЕ должен проваливаться в резерв по общему списку — выбирается только цель (#326).
+        var result = BatchSelectionHelper.ApplyModifiedClick(
+            currentIds: Array.Empty<string>(),
+            currentSectionIsPinned: false,
+            targetId: "pinned-1",
+            targetSectionIsPinned: true,
+            modifier: "Shift",
+            visibleOrder: Array.Empty<string>(),
+            anchorId: "pinned-1");
+
+        Assert.Equal(new[] { "pinned-1" }, result.OrderBy(x => x));
+    }
+
+    [Fact]
+    public void ApplyModifiedClick_CtrlClicksInsidePinnedSection_DoNotTouchRegularList()
+    {
+        // Ctrl-клики по закреплённым строкам остаются в секции закреплений:
+        // обычные строки в набор не попадают ни первым кликом (текущая из той же
+        // секции добавляется вместе с целью — issue #313), ни последующими (#326).
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        set = BatchSelectionHelper.ApplyModifiedClick(
+            set, currentSectionIsPinned: false, "pinned-1", targetSectionIsPinned: true, "Ctrl",
+            includeId: "pinned-0", includeSectionIsPinned: true);
+        set = BatchSelectionHelper.ApplyModifiedClick(
+            set, currentSectionIsPinned: true, "pinned-2", targetSectionIsPinned: true, "Ctrl");
+
+        Assert.Equal(new[] { "pinned-0", "pinned-1", "pinned-2" }, set.OrderBy(x => x));
+        Assert.All(set, id => Assert.StartsWith("pinned-", id, StringComparison.Ordinal));
     }
 
     [Fact]

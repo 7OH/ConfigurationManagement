@@ -1,3 +1,4 @@
+using Configuration_Management.Models;
 using Configuration_Management.ViewModels;
 
 namespace Configuration_Management.Services;
@@ -17,6 +18,43 @@ public static class BatchSelectionHelper
     /// принадлежность строки к секции.
     /// </summary>
     public static bool IsPinnedSection(object? rowData) => rowData is PinnedInfobaseItem;
+
+    /// <summary>
+    /// Разворачивает данные строки дерева до реальной базы: строка узла
+    /// «Закреплённые» несёт обёртку <see cref="PinnedInfobaseItem"/> (issue #314),
+    /// обычная строка — саму модель <see cref="Infobase"/>. Единая точка
+    /// разворачивания для обеих платформ (порядок секций, issue #326).
+    /// </summary>
+    public static Infobase? Unwrap(object? rowData) => rowData switch
+    {
+        Infobase ib => ib,
+        PinnedInfobaseItem pinned => pinned.Base,
+        _ => null
+    };
+
+    /// <summary>
+    /// Видимый порядок строк секции «Закреплённые» по ДАННЫМ узла, а не по
+    /// контейнерам дерева (issue #326). Узел «Закреплённые» — плоский список
+    /// обёрток <see cref="PinnedInfobaseItem"/> (или баз), поэтому его порядок
+    /// однозначен и не зависит от виртуализации/развёрнутости групп — в отличие
+    /// от обхода контейнеров, который под WPF/Avalonia может вернуть пустой или
+    /// неполный список (контейнеры вне видимой области не реализованы). Пустой
+    /// вход даёт пустой результат; Shift-диапазон в этом случае выбирает только
+    /// цель (как при отсутствии порядка).
+    /// </summary>
+    /// <param name="pinnedItems">Элементы <c>Items</c> узла «Закреплённые».</param>
+    public static List<Infobase> BuildPinnedSectionOrder(IEnumerable<object?> pinnedItems)
+    {
+        var result = new List<Infobase>();
+        if (pinnedItems is null)
+            return result;
+        foreach (var item in pinnedItems)
+        {
+            if (Unwrap(item) is { } ib && !result.Contains(ib))
+                result.Add(ib);
+        }
+        return result;
+    }
 
     /// <summary>
     /// Применяет модифицированный (Ctrl/Shift) клик к набору мультивыделения с

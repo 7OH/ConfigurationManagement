@@ -9,6 +9,44 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.264] — 2026-10-02
+
+### Исправлено
+
+- **Мультивыделение в закреплениях: Shift/Ctrl-выбор «уходил» в общий список вместо
+  закреплённых строк (issue #326)** (обе платформы): при Shift-клике от одной
+  закреплённой базы до другой выделялся диапазон по обычному списку («полсписка
+  обычного»), а Ctrl/Shift-выбор закреплённой базы подсвечивал её копию в общем
+  списке, а не саму закреплённую строку;
+  - **причина**: (а) порядок секции «Закреплённые» для Shift-диапазона строился по
+    контейнерам дерева, а на Avalonia строка узла несёт обёртку
+    `PinnedInfobaseItem` — проверка «DataContext is Infobase» пропускала её, и
+    порядок оставался пустым; (б) при пустом порядке `SelectRange` падал в
+    `Infobases.ToList()` — весь общий список, нарушая правило секций; (в) пакетная
+    подсветка намеренно не вешалась на закреплённые строки (issue #314), поэтому
+    любой батч-выбор в закреплениях визуально «светил» копию базы в общем списке;
+  - **как исправлено**: порядок закреплённой секции строится по данным узла
+    (виртуализация-независимо) через новый чистый метод
+    [`BatchSelectionHelper.BuildPinnedSectionOrder`](Configuration%20Management/Services/BatchSelectionHelper.cs)
+    (+ общая точка разворачивания `Unwrap`), `SelectRange` больше никогда не смешивает
+    секции (для закреплений резерва по общему списку нет); подсветка строк стала
+    зависеть от секции набора — новое свойство
+    [`MainViewModel.BatchSelectionSectionIsPinned`](Configuration%20Management/ViewModels/MainViewModel.Batch.cs):
+    обычные строки светятся только для набора обычного списка, закреплённые —
+    только для набора «Закреплённых»;
+  - **файлы**: [`Services/BatchSelectionHelper.cs`](Configuration%20Management/Services/BatchSelectionHelper.cs),
+    [`ViewModels/MainViewModel.Batch.cs`](Configuration%20Management/ViewModels/MainViewModel.Batch.cs),
+    WPF [`Views/MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs)
+    и [`Views/MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml)
+    (два триггера подсветки — обычная/закреплённая строка + секция набора),
+    Avalonia [`Controls/LeveledTreeView.Avalonia.cs`](Configuration%20Management/Controls/LeveledTreeView.Avalonia.cs)
+    и [`Views/MainWindow.Avalonia.Tree.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Tree.cs);
+  - **тесты**: [`BatchSelectionHelperTests`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs) —
+    Shift-диапазон в закреплениях при более длинном обычном списке, порядок
+    закреплённой секции по данным узла (обёртки `PinnedInfobaseItem`), разворачивание
+    `Unwrap`, пустой порядок закреплений → только цель. Полный набор `dotnet test`
+    зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.263] — 2026-10-02
 
 ### Исправлено
