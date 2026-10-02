@@ -620,9 +620,13 @@ public partial class MainViewModel : ViewModelBase
             : LocalizationManager.T("Sync.Failed");
     }
 
-    /// <summary>Выгрузка списка баз в файл платформы с резервной копией.</summary>
+    /// <summary>Выгрузка списка баз в файл платформы с резервной копией. Полная
+    /// двусторонняя синхронизация удаляет из файла пустые группы, которых нет
+    /// в приложении (issue #327); режим Export группы файла не трогает.</summary>
     private bool ExportToIbases(string filePath)
-        => TryExportToIbases(filePath, backup: true, "Автосинхронизация: выгрузка", out _);
+        => TryExportToIbases(
+            filePath, backup: true, "Автосинхронизация: выгрузка", out _,
+            removeMissingGroups: _settings.IbasesSyncMode == IbasesSyncMode.Both);
 
     /// <summary>
     /// Выгрузка с текстом ошибки и своей записью в журнал: по ней отличают
@@ -637,7 +641,8 @@ public partial class MainViewModel : ViewModelBase
     /// состояние до выгрузки, то есть соседняя кнопка восстановления вернёт
     /// именно то, что было до ошибочного нажатия.
     /// </param>
-    private bool TryExportToIbases(string filePath, bool backup, string logPrefix, out string error)
+    private bool TryExportToIbases(string filePath, bool backup, string logPrefix, out string error,
+        bool removeMissingGroups = false)
     {
         error = string.Empty;
         try
@@ -648,7 +653,10 @@ public partial class MainViewModel : ViewModelBase
                 catch (Exception ex) { _logger.Error("Не удалось создать резервную копию ibases.v8i", ex); }
             }
 
-            _sync.Export(filePath, _allInfobases, _groups);
+            // Полная двусторонняя синхронизация удаляет из файла пустые группы,
+            // которых нет в приложении (issue #327); ручные выгрузки и режим Export
+            // группы файла не трогают (прежнее поведение).
+            _sync.Export(filePath, _allInfobases, _groups, removeMissingGroups);
             // Метка последней выгрузки обновляется только после успешного экспорта (issue #278).
             _settings.IbasesLastSyncExportUtc = DateTime.UtcNow;
             SaveSettingsSilently();

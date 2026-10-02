@@ -447,6 +447,7 @@
     "Sync.RemovedBases": "удалено баз: {0}",
     "Sync.Skipped": "пропущено: {0}",
     "Sync.GroupsCreated": "создано групп: {0}",
+    "Sync.RemovedGroups": "удалено групп: {0}",
 
     "Column.Name": "Название",
     "Column.Version": "Платформа",

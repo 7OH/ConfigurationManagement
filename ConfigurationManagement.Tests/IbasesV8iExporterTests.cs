@@ -1304,6 +1304,164 @@ public sealed class IbasesV8iExporterTests
         }
     }
 
+    [Fact]
+    public void Export_RemoveMissingGroups_RemovesEmptyForeignGroup()
+    {
+        // Сценарий issue #327: полная синхронизация удаляет из файла пустую секцию-группу,
+        // которой нет в группах приложения; группы приложения и базы сохраняются.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Orphan]
+                ID=orphan-id
+                Folder=/
+
+                [Keep]
+                ID=keep-group-id
+                Folder=/
+
+                [Base]
+                ID=base-id
+                Folder=/Keep
+                Connect=File="C:\base";
+                """, Encoding.Default);
+
+            var groups = new List<Group>
+            {
+                new() { Id = "keep-group-id", Name = "Keep" }
+            };
+            var infobases = new List<Infobase>
+            {
+                new()
+                {
+                    Id = "base-id",
+                    Name = "Base",
+                    Group = "Keep",
+                    Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\base" }
+                }
+            };
+
+            var result = IbasesV8iExporter.Export(filePath, infobases, groups, removeMissingGroups: true);
+
+            var text = File.ReadAllText(filePath, Encoding.Default);
+            Assert.DoesNotContain("[Orphan]", text);
+            Assert.Contains("[Keep]", text);
+            Assert.Contains("[Base]", text);
+            Assert.Equal(1, result.GroupsRemoved);
+            Assert.Equal(0, result.Removed);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_RemoveMissingGroups_RemovesNestedEmptyGroups()
+    {
+        // Сценарий issue #327: вложенные пустые группы удаляются обе — родительская
+        // становится пустой после удаления дочерней (повторный проход).
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Parent]
+                ID=parent-id
+                Folder=/
+
+                [Child]
+                ID=child-id
+                Folder=/Parent
+                """, Encoding.Default);
+
+            var result = IbasesV8iExporter.Export(
+                filePath, new List<Infobase>(), new List<Group>(), removeMissingGroups: true);
+
+            var text = File.ReadAllText(filePath, Encoding.Default);
+            Assert.DoesNotContain("[Parent]", text);
+            Assert.DoesNotContain("[Child]", text);
+            Assert.Equal(2, result.GroupsRemoved);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_RemoveMissingGroups_KeepsNonEmptyForeignGroup()
+    {
+        // Сценарий issue #327: группу-секцию, внутри которой остались записи базы
+        // (путь папки базы лежит внутри пути группы), не удаляем даже при true —
+        // иначе ломается иерархия 1С.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Foreign]
+                ID=foreign-id
+                Folder=/
+
+                [Base]
+                ID=base-id
+                Folder=/Foreign
+                Connect=File="C:\base";
+                """, Encoding.Default);
+
+            // База приложения лежит в несуществующей группе приложения «Foreign / Sub»
+            // (битая ссылка на группу): запись сохраняется, чужая группа остаётся непустой.
+            var groups = new List<Group>();
+            var infobases = new List<Infobase>
+            {
+                new()
+                {
+                    Id = "base-id",
+                    Name = "Base",
+                    Group = "Foreign / Sub",
+                    Connection = new ConnectionSettings { Type = ConnectionType.File, FilePath = @"C:\base" }
+                }
+            };
+
+            var result = IbasesV8iExporter.Export(filePath, infobases, groups, removeMissingGroups: true);
+
+            var text = File.ReadAllText(filePath, Encoding.Default);
+            Assert.Contains("[Foreign]", text);
+            Assert.Contains("[Base]", text);
+            Assert.Equal(0, result.GroupsRemoved);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void Export_RemoveMissingGroupsDefaultFalse_KeepsForeignGroups()
+    {
+        // Сценарий issue #327: по умолчанию (false) группы файла не трогаются —
+        // прежнее поведение; GroupsRemoved == 0.
+        var filePath = Path.Combine(Path.GetTempPath(), $"ibases-{Guid.NewGuid():N}.v8i");
+        try
+        {
+            File.WriteAllText(filePath, """
+                [Orphan]
+                ID=orphan-id
+                Folder=/
+                """, Encoding.Default);
+
+            var result = IbasesV8iExporter.Export(filePath, new List<Infobase>(), new List<Group>());
+
+            var text = File.ReadAllText(filePath, Encoding.Default);
+            Assert.Contains("[Orphan]", text);
+            Assert.Equal(0, result.GroupsRemoved);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
     private static string GetSection(string content, string name)
     {
         var marker = $"[{name}]";

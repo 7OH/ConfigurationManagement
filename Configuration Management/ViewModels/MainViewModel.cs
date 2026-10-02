@@ -1435,7 +1435,12 @@ public partial class MainViewModel : ViewModelBase
                     }
                 }
 
-                var result = _ibasesSync.Export(filePath, Infobases, Groups);
+                // Полная двусторонняя синхронизация удаляет из файла пустые группы,
+                // которых нет в приложении (issue #327); режим Export и ручные выгрузки
+                // группы файла не трогают (прежнее поведение).
+                var result = _ibasesSync.Export(
+                    filePath, Infobases, Groups,
+                    removeMissingGroups: _ibasesSyncMode == IbasesSyncMode.Both);
                 // Метка последней выгрузки обновляется только после успешного экспорта (issue #278).
                 _ibasesLastSyncExportUtc = DateTime.UtcNow;
                 SaveSettings();

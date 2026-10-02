@@ -447,6 +447,7 @@
     "Sync.RemovedBases": "removed infobases: {0}",
     "Sync.Skipped": "skipped: {0}",
     "Sync.GroupsCreated": "groups created: {0}",
+    "Sync.RemovedGroups": "groups removed: {0}",
 
     "Column.Name": "Name",
     "Column.Version": "Platform",

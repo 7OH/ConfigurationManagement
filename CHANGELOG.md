@@ -9,6 +9,31 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.257] — 2026-10-02
+
+### Исправлено
+
+- **Полная синхронизация удаляет удалённые группы из ibases.v8i (issue #327)** (обе платформы):
+  при двусторонней синхронизации в файле оставались секции-группы, которых больше нет
+  в приложении — «При полной синхронизации мы должны удалить в файле то, что было удалено у нас»;
+  - **экспортёр** ([`Services/IbasesV8iExporter.cs`](Configuration%20Management/Services/IbasesV8iExporter.cs)):
+    новый опциональный параметр `removeMissingGroups` (по умолчанию `false` — прежнее поведение,
+    группы файла не трогаются); при `true` из файла удаляются отсутствующие в приложении ПУСТЫЕ
+    секции-группы (вложенные — повторным проходом до стабилизации), непустые группы сохраняются,
+    чтобы не ломать иерархию 1С; результат дополнен счётчиком `IbasesExportResult.GroupsRemoved`;
+  - **сервис** ([`Services/IIbasesSyncService.cs`](Configuration%20Management/Services/IIbasesSyncService.cs)):
+    флаг проброшен через `IbasesSyncService.Export`;
+  - **точки вызова**: флаг включается только для режима `Both` в автосинхронизации
+    (WPF [`ViewModels/MainViewModel.cs`](Configuration%20Management/ViewModels/MainViewModel.cs)
+    и Avalonia [`ViewModels/MainViewModel.Avalonia.Sync.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.Sync.cs));
+    ручные выгрузки (`ExportToIbases`) и режим `Export` работают как раньше;
+  - **сводка**: сообщение синхронизации показывает «удалено групп: N» (новый ключ
+    `Sync.RemovedGroups`, ru/en).
+  - Тесты: удаление пустой чужой группы, удаление вложенных пустых групп (обе за проход),
+    непустая чужая группа сохраняется, `false` по умолчанию не трогает группы
+    ([`IbasesV8iExporterTests`](ConfigurationManagement.Tests/IbasesV8iExporterTests.cs));
+    полный набор `dotnet test` зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.256] — 2026-10-01
 
 ### Исправлено

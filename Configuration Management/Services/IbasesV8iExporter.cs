@@ -20,6 +20,10 @@ public class IbasesExportResult
 
     /// <summary>Количество удалённых из файла баз (есть в файле, нет в приложении).</summary>
     public int Removed { get; set; }
+
+    /// <summary>Количество удалённых из файла ПУСТЫХ групп-секций, отсутствующих в приложении
+    /// (полная двусторонняя синхронизация, issue #327). По умолчанию 0 — группы не удаляются.</summary>
+    public int GroupsRemoved { get; set; }
 }
 
 /// <summary>
@@ -31,13 +35,23 @@ public static class IbasesV8iExporter
     /// Выгружает базы приложения в файл ibases.v8i, добавляя новые записи и обновляя
     /// существующие (по совпадению имени базы). Группы приложения не создаются в файле
     /// как новые секции (чтобы не появлялись лишние папки); существующие секции-группы
-    /// только обновляются (имя и иерархия).
+    /// только обновляются (имя и иерархия). При <paramref name="removeMissingGroups"/> == true
+    /// из файла удаляются отсутствующие в приложении ПУСТЫЕ группы-секции (полная
+    /// двусторонняя синхронизация, issue #327); по умолчанию false — группы не удаляются.
     /// </summary>
     /// <param name="filePath">Путь к файлу ibases.v8i.</param>
     /// <param name="infobases">Список информационных баз приложения.</param>
     /// <param name="groups">Список групп приложения.</param>
+    /// <param name="removeMissingGroups">
+    /// Удалять ли из файла пустые секции-группы, которых нет в группах приложения.
+    /// По умолчанию false — прежнее поведение (группы файла не трогаются).
+    /// </param>
     /// <returns>Результат экспорта.</returns>
-    public static IbasesExportResult Export(string filePath, IEnumerable<Infobase> infobases, IEnumerable<Group> groups)
+    public static IbasesExportResult Export(
+        string filePath,
+        IEnumerable<Infobase> infobases,
+        IEnumerable<Group> groups,
+        bool removeMissingGroups = false)
     {
         var result = new IbasesExportResult();
 
@@ -143,6 +157,40 @@ public static class IbasesV8iExporter
         entries = NormalizeAndDedupeGroupSections(entries, groupList);
         var groupDupesRemoved = groupSectionsBefore - entries.Count(e => e.IsGroup);
 
+        // Удаление отсутствующих в приложении ПУСТЫХ групп-секций (issue #327):
+        // полная (двусторонняя) синхронизация переносит удаление групп приложения
+        // в файл ibases.v8i. Удаляется только секция-группа, которой нет в группах
+        // приложения и внутри которой не осталось ни одной записи базы; непустые
+        // группы (например, с чужими записями файла) НЕ трогаются, чтобы не ломать
+        // иерархию 1С. Вложенные пустые группы удаляются повторным проходом до
+        // стабилизации: родительская группа может стать пустой после удаления дочерней.
+        if (removeMissingGroups)
+        {
+            var appGroupPaths = new HashSet<string>(
+                groupList
+                    .Where(g => !string.IsNullOrWhiteSpace(g.Name))
+                    .Select(g => NormalizeGroupPath(GroupHierarchyHelper.GetFullPath(g, groupList))),
+                StringComparer.OrdinalIgnoreCase);
+
+            bool removedAny;
+            do
+            {
+                removedAny = false;
+                foreach (var entry in entries.Where(e => e.IsGroup).ToList())
+                {
+                    var path = BuildGroupPath(entry);
+                    if (string.IsNullOrWhiteSpace(path) || appGroupPaths.Contains(path))
+                        continue;
+                    if (HasBasesInside(entries, entry))
+                        continue;
+                    entries.Remove(entry);
+                    result.GroupsRemoved++;
+                    removedAny = true;
+                }
+            }
+            while (removedAny);
+        }
+
         // Лог экспорта (issue #165): количество записей, баз, групп и устранённых
         // дубликатов секций и секций-групп, а также канонические пути папок — по
         // журналу видно, на каком шаге возникало дублирование вложенных папок под
@@ -157,7 +205,7 @@ public static class IbasesV8iExporter
         LogInfo(
             $"Экспорт ibases.v8i: записей стало {entries.Count} " +
             $"(баз добавлено {result.Added}, обновлено {result.Updated}, удалено {result.Removed}, " +
-            $"групп создано {result.GroupsCreated}), " +
+            $"групп создано {result.GroupsCreated}, групп удалено {result.GroupsRemoved}), " +
             $"устранено дубликатов секций {entriesBeforeDedup - entries.Count}, " +
             $"устранено дубликатов групп-секций {groupDupesRemoved}, " +
             $"групп-секций в файле: [{string.Join("; ", canonicalGroupPaths)}]");
@@ -475,6 +523,31 @@ public static class IbasesV8iExporter
             || string.Equals(namePath, folderPath, StringComparison.OrdinalIgnoreCase))
             return namePath;
         return folderPath + GroupHierarchyHelper.PathSeparator + NormalizeGroupName(entry.Name);
+    }
+
+    /// <summary>
+    /// true — внутри пути группы-секции <paramref name="group"/> осталась хотя бы одна
+    /// запись базы (канонический путь её папки равен пути группы или начинается с него).
+    /// Используется при удалении отсутствующих групп (issue #327): непустые группы
+    /// не удаляются, чтобы не ломать иерархию 1С.
+    /// </summary>
+    private static bool HasBasesInside(List<IbaseEntry> entries, IbaseEntry group)
+    {
+        var groupPath = BuildGroupPath(group);
+        if (string.IsNullOrWhiteSpace(groupPath))
+            return true; // Группу без пути нельзя безопасно признать пустой.
+
+        foreach (var entry in entries)
+        {
+            if (entry.IsGroup || string.IsNullOrWhiteSpace(entry.Name))
+                continue;
+            var folderPath = NormalizeGroupPath(entry.Group);
+            if (string.Equals(folderPath, groupPath, StringComparison.OrdinalIgnoreCase)
+                || folderPath.StartsWith(groupPath + GroupHierarchyHelper.PathSeparator, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

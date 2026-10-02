@@ -42,6 +42,7 @@ public partial class MainViewModel : ViewModelBase
             if (export.Updated > 0) parts.Add(string.Format(LocalizationManager.T("Sync.UpdatedBases"), export.Updated));
             if (export.Removed > 0) parts.Add(string.Format(LocalizationManager.T("Sync.RemovedBases"), export.Removed));
             if (export.GroupsCreated > 0) parts.Add(string.Format(LocalizationManager.T("Sync.GroupsCreated"), export.GroupsCreated));
+            if (export.GroupsRemoved > 0) parts.Add(string.Format(LocalizationManager.T("Sync.RemovedGroups"), export.GroupsRemoved));
         }
 
         return parts.Count == 0 ? string.Empty : $"{prefix}: {string.Join(", ", parts)}";
