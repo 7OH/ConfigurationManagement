@@ -1035,7 +1035,7 @@ namespace Configuration_Management
 
         private Control BuildPlatformTab()
         {
-            var fields = FieldsGrid(3);
+            var fields = FieldsGrid(4);
 
             var version = Tb("PlatformVersion");
             version.Padding = new Thickness(8, 6);
@@ -1047,8 +1047,11 @@ namespace Configuration_Management
             // Поля конфигурации можно заполнять вручную (issue #164): на Linux COM-соединение
             // недоступно и автополучение имени/версии не всегда возможно, поэтому под полями
             // выводим подсказку о ручном вводе. Введённые значения сохраняются и не затираются.
-            var configStack = new StackPanel { Margin = new Thickness(0, 6, 0, 3) };
-            var configRow = new Grid { Margin = new Thickness(0) };
+            // Issue #325: подпись «Конфигурация» стоит напротив верхнего поля (имя конфигурации),
+            // как остальные подписи, поэтому сетка полей лежит в отдельной строке
+            // (labelAlignment: Center), а кнопка «Определить» и подсказка — в следующей строке
+            // без подписи (иначе Place центрировал бы подпись по всей высоте блока).
+            var configRow = new Grid { Margin = new Thickness(0, 6, 0, 0) };
             configRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(2, GridUnitType.Star)));
             configRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(8)));
             configRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
@@ -1064,7 +1067,7 @@ namespace Configuration_Management
             ToolTip.SetTip(configVersion, LocalizationManager.T("Connection.ConfigurationVersionTooltip"));
             Grid.SetColumn(configVersion, 2);
             configRow.Children.Add(configVersion);
-            configStack.Children.Add(configRow);
+            Place(fields, 1, "Connection.ConfigurationLabel", configRow);
 
             // Кнопка ручного определения имени/версии конфигурации (issue #174):
             // COM-коннектор на Windows, эвристика по файлу базы на Linux.
@@ -1073,7 +1076,6 @@ namespace Configuration_Management
             detectConfig.Padding = new Thickness(8, 3);
             detectConfig.Margin = new Thickness(0, 6, 0, 0);
             detectConfig.HorizontalAlignment = HorizontalAlignment.Left;
-            configStack.Children.Add(detectConfig);
 
             var configHint = new TextBlock
             {
@@ -1083,16 +1085,19 @@ namespace Configuration_Management
                 Margin = new Thickness(0, 4, 0, 0)
             };
             ThemeBrushes.Bind(configHint, TextBlock.ForegroundProperty, "TextSecondaryBrush");
-            configStack.Children.Add(configHint);
-            // Issue #325: подпись прижимаем к верхней линии полей конфигурации (по умолчанию
-            // Place центрирует по всей высоте блока, и «Конфигурация» оказывалась посередине).
-            Place(fields, 1, "Connection.ConfigurationLabel", configStack, labelAlignment: VerticalAlignment.Top);
+
+            var configActions = new StackPanel { Margin = new Thickness(0, 0, 0, 3) };
+            configActions.Children.Add(detectConfig);
+            configActions.Children.Add(configHint);
+            Grid.SetRow(configActions, 2);
+            Grid.SetColumn(configActions, 1);
+            fields.Children.Add(configActions);
 
             var parameters = Tb("LaunchParameters");
             parameters.Padding = new Thickness(8, 6);
             var pickParameters = SecondaryButton("IconTune", "Connection.Parameters", OnLaunchParameters_Click);
             pickParameters.Padding = new Thickness(8, 3);
-            Place(fields, 2, "Connection.ParametersLabel", WithButton(parameters, pickParameters));
+            Place(fields, 3, "Connection.ParametersLabel", WithButton(parameters, pickParameters));
 
             return Group("IconPackage", "Connection.GroupPlatform", fields);
         }

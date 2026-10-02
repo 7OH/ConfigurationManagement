@@ -1124,6 +1124,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Connection.VersionLabel}" VerticalAlignment="Center" Margin="0,3"/>
                         <Grid Grid.Row="0" Grid.Column="1" Margin="0,3">
@@ -1145,25 +1146,27 @@
                             </Button>
                         </Grid>
 
-                        <!-- Issue #325: подпись прижата к верхней линии полей конфигурации,
-                             чтобы было понятно, к чему относятся два поля (имя/№ релиза). -->
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Connection.ConfigurationLabel}" VerticalAlignment="Top" Margin="0,6,0,3"/>
-                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,6,0,3">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="2*"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0"
-                                         Text="{Binding ConfigurationName, UpdateSourceTrigger=PropertyChanged}"
-                                         Padding="8,6" VerticalContentAlignment="Center"
-                                         ToolTip="{loc:Loc Connection.ConfigurationNameTooltip}"/>
-                                <TextBox Grid.Column="2"
-                                         Text="{Binding ConfigurationVersion, UpdateSourceTrigger=PropertyChanged}"
-                                         Padding="8,6" VerticalContentAlignment="Center"
-                                         ToolTip="{loc:Loc Connection.ConfigurationVersionTooltip}"/>
-                            </Grid>
+                        <!-- Issue #325: подпись «Конфигурация» стоит напротив верхнего поля
+                             (имя конфигурации) и выровнена по центру, как остальные подписи;
+                             кнопка «Определить» и подсказка вынесены в отдельную строку. -->
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Connection.ConfigurationLabel}" VerticalAlignment="Center" Margin="0,6,0,3"/>
+                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding ConfigurationName, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8,6" VerticalContentAlignment="Center"
+                                     ToolTip="{loc:Loc Connection.ConfigurationNameTooltip}"/>
+                            <TextBox Grid.Column="2"
+                                     Text="{Binding ConfigurationVersion, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8,6" VerticalContentAlignment="Center"
+                                     ToolTip="{loc:Loc Connection.ConfigurationVersionTooltip}"/>
+                        </Grid>
+
+                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,3">
                             <Button HorizontalAlignment="Left" Margin="0,6,0,0" Padding="8,3"
                                     Style="{DynamicResource SecondaryButton}"
                                     Click="OnDetectConfiguration_Click"
@@ -1178,8 +1181,8 @@
                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
                         </StackPanel>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Loc Connection.ParametersLabel}" VerticalAlignment="Center" Margin="0,3"/>
-                        <Grid Grid.Row="2" Grid.Column="1" Margin="0,3">
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Loc Connection.ParametersLabel}" VerticalAlignment="Center" Margin="0,3"/>
+                        <Grid Grid.Row="3" Grid.Column="1" Margin="0,3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
