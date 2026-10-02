@@ -9,6 +9,39 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.270] — 2026-10-02
+
+### Исправлено
+
+- **Монитор «Серверы 1С» и «Импорт из кластера»: корректная работа с нестандартными
+  портами rac/RAS и понятные сообщения о портах (issue #324)** (обе платформы):
+  - **порт можно указать прямо в адресе как `host:порт`** (например `localhost:27545`, как
+    в командной строке `rac.exe localhost:27545 cluster list`) — раньше введённый порт из
+    адреса склеивался с полем «Порт» в невалидный токен `localhost:27545:1540`, и rac не
+    подключался; теперь порт из адреса имеет приоритет над полем «Порт»;
+  - **сообщение «кластеры не найдены» стало объясняющим**: «Подключение установлено, но
+    кластеры не найдены. Проверьте порт: указывайте порт агента (1540) или RAS (1545), а
+    не порт кластера (1541)» (ключи `ServerMonitor.Status.NoClusters`,
+    `ClusterImport.Status.NoClusters`); при пустом выводе `cluster list` (exit=0) в журнал
+    добавляется предупреждение с той же подсказкой;
+  - **подсказки обновлены** (`ServerMonitor.PortTooltip`, `ServerMonitor.Hint`,
+    `ClusterImport.Hint`): явно сказано, что 1545 — это RAS, порт кластера (1541) указывать
+    не нужно, а нестандартный порт можно ввести в поле «Порт» или прямо в адресе как
+    `host:порт`;
+  - **файлы**: новый чистый хелпер
+    [`Services/RacConnectionAddress.cs`](Configuration%20Management/Services/RacConnectionAddress.cs)
+    (разбор `host:port` с приоритетом порта из адреса), [`Services/RacClient.cs`](Configuration%20Management/Services/RacClient.cs)
+    (Warn-лог при пустом выводе `cluster list`), [`ViewModels/ClusterImportViewModel.cs`](Configuration%20Management/ViewModels/ClusterImportViewModel.cs)
+    и [`ViewModels/ServerMonitorViewModel.cs`](Configuration%20Management/ViewModels/ServerMonitorViewModel.cs)
+    (`BuildParams` через хелпер), локализация ru/en;
+  - **тесты**: новые `RacConnectionAddressTests` (разбор адреса: приоритет порта из адреса,
+    валидация границ, пустой адрес, IPv6), регрессионные тесты `ClusterImportViewModelTests`
+    и `ServerMonitorViewModelTests` (ввод `localhost:27545` при дефолтном поле «Порт» →
+    rac получает `Address=localhost, Port=27545`), `RacOutputParserTests` — сценарий
+    нестандартных портов (`cluster list` c портом кластера 27541); регрессия `dotnet test`
+    зелёная, кросс-сборка Linux без ошибок; ручная проверка — монитор/импорт с портом 1541 —
+    понятное сообщение, с корректным портом агента — кластер виден.
+
 ## [0.3.9.269] — 2026-10-02
 
 ### Исправлено

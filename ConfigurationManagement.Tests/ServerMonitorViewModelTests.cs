@@ -68,6 +68,26 @@ public sealed class ServerMonitorViewModelTests
     }
 
     [Fact]
+    public async Task ConnectAsync_HostPortInAddress_TakesPriorityOverPortField()
+    {
+        // Issue #324: нестандартный порт агента/RAS можно указать прямо в адресе «host:port»
+        // (как в командной строке rac.exe localhost:27545 cluster list) — порт из адреса
+        // приоритетнее значения поля «Порт», иначе rac получил бы «localhost:27545:1540».
+        var client = new FakeRacClient();
+        var vm = new ServerMonitorViewModel(client, new RecordingDialogs());
+        vm.ServerAddress = "localhost:27545";
+        vm.ServerPort = 1540;
+
+        await vm.ConnectAsync();
+
+        Assert.True(vm.HasConnected);
+        Assert.NotNull(client.LastParams);
+        Assert.Equal("localhost", client.LastParams.Address);
+        Assert.Equal(27545, client.LastParams.Port);
+        Assert.NotEmpty(vm.Clusters);
+    }
+
+    [Fact]
     public async Task LoadClusterDataAsync_FillsTabs_AndClusterInfo()
     {
         var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
@@ -583,6 +603,9 @@ public sealed class ServerMonitorViewModelTests
         /// <summary>Вызовы «connection disconnect»: (clusterId, connectionId).</summary>
         public List<(System.Guid clusterId, System.Guid connectionId)> DisconnectCalls { get; } = new();
 
+        /// <summary>Параметры последнего вызова «cluster list» (проверка нормализации host:port).</summary>
+        public RacConnectionParams? LastParams { get; private set; }
+
         /// <summary>Сколько раз запрошены рабочие процессы (для проверки флага занятости).</summary>
         public int ProcessCalls { get; private set; }
 
@@ -595,6 +618,7 @@ public sealed class ServerMonitorViewModelTests
         public Task<IReadOnlyList<RacCluster>> GetClustersAsync(
             RacConnectionParams parameters, CancellationToken cancellationToken = default)
         {
+            LastParams = parameters;
             if (_throwOnClusters)
                 throw new RacClientException("rac not found");
             return Task.FromResult<IReadOnlyList<RacCluster>>(new[]

@@ -99,6 +99,26 @@ public sealed class ClusterImportViewModelTests
     }
 
     [Fact]
+    public async Task Connect_HostPortInAddress_TakesPriorityOverPortField()
+    {
+        // Issue #324: пользователь указывает нестандартный порт прямо в адресе «host:port»
+        // (как в командной строке rac.exe localhost:27545 cluster list), а поле «Порт»
+        // остаётся дефолтным (1540). Без нормализации rac получил бы невалидный токен
+        // «localhost:27545:1540» и подключение бы не установилось.
+        var client = new FakeRacClient();
+        var vm = new ClusterImportViewModel(client, Array.Empty<Infobase>());
+        vm.ServerAddress = "localhost:27545";
+        vm.ServerPort = 1540;
+
+        await vm.ConnectAsync();
+
+        Assert.NotNull(client.LastParams);
+        Assert.Equal("localhost", client.LastParams.Address);
+        Assert.Equal(27545, client.LastParams.Port);
+        Assert.NotEmpty(vm.Clusters);
+    }
+
+    [Fact]
     public async Task ChangingCluster_ReloadsBases_AndClusterInfoIsCachedPerCluster()
     {
         var client = new FakeRacClient();
@@ -340,6 +360,9 @@ public sealed class ClusterImportViewModelTests
         /// <summary>Сколько раз запрошен список кластеров.</summary>
         public int ClustersCalls { get; private set; }
 
+        /// <summary>Параметры последнего вызова «cluster list» (проверка нормализации host:port).</summary>
+        public RacConnectionParams? LastParams { get; private set; }
+
         /// <summary>Сколько раз запрошена информация о кластере («cluster info»).</summary>
         public int ClusterInfoCalls { get; private set; }
 
@@ -353,6 +376,7 @@ public sealed class ClusterImportViewModelTests
             RacConnectionParams parameters, CancellationToken cancellationToken = default)
         {
             ClustersCalls++;
+            LastParams = parameters;
             if (_clusterDelay > TimeSpan.Zero)
                 await Task.Delay(_clusterDelay, cancellationToken).ConfigureAwait(false);
             if (_throwOnClusters)

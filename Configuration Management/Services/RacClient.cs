@@ -34,6 +34,18 @@ public sealed class RacClient : IRacClient
     {
         var output = await RunAsync(parameters, cancellationToken, "cluster", "list")
             .ConfigureAwait(false);
+
+        // rac завершился успешно (exit=0), но вывода нет: это либо пустой список кластеров,
+        // либо подключение ушло на RAS/неправильный порт и «рабочего» ответа нет. Предупреждение
+        // в журнале позволяет отличить такой случай от ошибки подключения (issue #324).
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            _logger.Warn(
+                "RAC: cluster list завершился с кодом 0, но вернул пустой вывод — " +
+                "кластеры не найдены. Проверьте порт: агент ragent (1540) или RAS (1545), " +
+                "а не порт кластера (1541).");
+        }
+
         return RacOutputParser.ToClusters(output);
     }
 

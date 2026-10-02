@@ -217,6 +217,24 @@ public sealed class RacOutputParserTests
         Assert.Equal(1541, cluster.Port);
     }
 
+    [Fact]
+    public void ToClusters_ParsesNonStandardPortsSample()
+    {
+        // Сценарий из обращения (issue #324): у пользователя нестандартные порты —
+        // агент ragent слушает 27545 (в приложение вводится он), кластер — 27541.
+        // Вывод «cluster list» с нестандартным портом кластера разбирается корректно:
+        // колонка port — это порт КЛАСТЕРА, а не точка подключения rac.
+        const string output =
+            "cluster                                name             port\n" +
+            "cbc95ef0-1234-5678-9abc-def012345678     Сервер бухгалтерии  27541\n";
+
+        var cluster = Assert.Single(RacOutputParser.ToClusters(output));
+
+        Assert.Equal(Guid.Parse("cbc95ef0-1234-5678-9abc-def012345678"), cluster.Id);
+        Assert.Equal("Сервер бухгалтерии", cluster.Name);
+        Assert.Equal(27541, cluster.Port);
+    }
+
     // ---------- ToProcesses ----------
 
     [Fact]

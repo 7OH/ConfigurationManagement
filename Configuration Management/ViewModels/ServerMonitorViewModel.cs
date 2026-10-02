@@ -75,7 +75,11 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
 
     // ===================== Подключение =====================
 
-    /// <summary>Адрес сервера 1С (host или IP).</summary>
+    /// <summary>
+    /// Адрес сервера 1С (host или IP). Нестандартный порт можно указать полем
+    /// <see cref="ServerPort"/> или прямо здесь как «host:port» (например «localhost:27545»,
+    /// как в командной строке rac) — порт из адреса имеет приоритет (issue #324).
+    /// </summary>
     public string ServerAddress
     {
         get => _serverAddress;
@@ -85,6 +89,7 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// Порт агента сервера 1С (ragent), по умолчанию 1540; для RAS — 1545.
     /// Некорректные значения (<see cref="IRacClient.DefaultPort"/> при ≤ 0).
+    /// Если порт указан в <see cref="ServerAddress"/> как «host:port» — приоритет у него.
     /// </summary>
     public int ServerPort
     {
@@ -619,13 +624,20 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
 
     // ===================== Внутреннее =====================
 
-    private RacConnectionParams BuildParams() => new()
+    private RacConnectionParams BuildParams()
     {
-        Address = string.IsNullOrWhiteSpace(ServerAddress) ? "localhost" : ServerAddress.Trim(),
-        Port = ServerPort > 0 ? ServerPort : IRacClient.DefaultPort,
-        User = UserName?.Trim() ?? string.Empty,
-        Password = Password ?? string.Empty
-    };
+        // Порт можно указать полем «Порт» или прямо в адресе как «host:port»
+        // (например «localhost:27545» — как в командной строке rac, issue #324):
+        // порт из адреса имеет приоритет над значением поля.
+        var (host, port) = RacConnectionAddress.Split(ServerAddress, ServerPort);
+        return new RacConnectionParams
+        {
+            Address = host,
+            Port = port,
+            User = UserName?.Trim() ?? string.Empty,
+            Password = Password ?? string.Empty
+        };
+    }
 
     private void ApplyClusters(IReadOnlyList<RacCluster> clusters)
     {
