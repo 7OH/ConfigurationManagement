@@ -9,6 +9,49 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.265] — 2026-10-02
+
+### Исправлено
+
+- **Окно «Типовые конфигурации»: правка встроенной записи создавала ДУБЛЬ строки,
+  добавленные редакции не были видны, окно редактора слишком низкое (issue #321, часть 1)**
+  (обе платформы): правка ЗУП/БП со звёздочкой после сохранения показывала две строки —
+  предопределённую (★) и копию без звезды; нажатие «Добавить» в редакторе не добавляло
+  видимых строк редакций («дважды добавленный релиз 3.0» появлялся только в копии строки
+  после сохранения); в окне «Изменить конфигурацию» было видно меньше 3–4 строк списка
+  редакций;
+  - **причина**: (а) окно списка строило строки как «все встроенные + все пользовательские»
+    без правила замены — [`RebuildRows`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml.cs)
+    не использовало единый загрузчик [`CustomConfigTypesStore.LoadAll`](Configuration%20Management/Services/CustomConfigTypesStore.cs),
+    который уже умеет заменять встроенную запись её пользовательской копией по коду;
+    (б) список редакций хранился в обычном `List` — `Add` не уведомлял UI, строки появлялись
+    только после переоткрытия/сохранения; (в) окно редактора `Height=580`/`MaxHeight=110`
+    у списка редакций;
+  - **как исправлено**: правило объединения вынесено в единый публичный метод
+    [`CustomConfigTypesStore.MergeAll`](Configuration%20Management/Services/CustomConfigTypesStore.cs)
+    (замена по коду, обычные пользовательские следом) — окно списка строит строки им же из
+    рабочего буфера (ссылки сохраняются для правки/удаления), дублей больше нет; копия
+    предопределённой помечается значком ✎★ (`IsOverride`) с подсказкой; список редакций —
+    `ObservableCollection` с автовыбором и прокруткой новой строки («Добавить» показывает
+    редакцию сразу); окно редактора увеличено (`Height=720`/`MinHeight=620`, список редакций
+    до 200 px) и подгоняется под экран через [`WindowSizeMath`](Configuration%20Management/Services/WindowSizeMath.cs)
+    (ClampHeight/FitTop), как в остальных окнах;
+  - **файлы**: [`Services/CustomConfigTypesStore.cs`](Configuration%20Management/Services/CustomConfigTypesStore.cs),
+    [`ViewModels/ConfigTypeItemViewModel.cs`](Configuration%20Management/ViewModels/ConfigTypeItemViewModel.cs),
+    WPF [`Views/ConfigTypesEditWindow.xaml`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml)
+    и [`Views/ConfigTypesEditWindow.xaml.cs`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml.cs),
+    WPF [`Views/ConfigTypeEditWindow.xaml`](Configuration%20Management/Views/ConfigTypeEditWindow.xaml)
+    и [`Views/ConfigTypeEditWindow.xaml.cs`](Configuration%20Management/Views/ConfigTypeEditWindow.xaml.cs),
+    Avalonia [`Views/ConfigTypesEditWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigTypesEditWindow.Avalonia.cs)
+    и [`Views/ConfigTypeEditWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigTypeEditWindow.Avalonia.cs),
+    локализация `ru.json`/`en.json` (ключ `Updates.OverrideHint`);
+  - **тесты**: [`CustomConfigTypesStoreTests`](ConfigurationManagement.Tests/CustomConfigTypesStoreTests.cs) —
+    дубли переопределений → одна строка в `LoadAll`, `MergeAll` возвращает те же ссылки
+    (правка/удаление по ссылке), порядок «встроенные с копиями → обычные пользовательские»;
+    новый [`ConfigTypeItemViewModelTests`](ConfigurationManagement.Tests/ConfigTypeItemViewModelTests.cs) —
+    `IsOverride`/`IsBuiltIn`, доступность удаления. Полный набор `dotnet test` зелёный,
+    кросс-сборка Linux без ошибок.
+
 ## [0.3.9.264] — 2026-10-02
 
 ### Исправлено

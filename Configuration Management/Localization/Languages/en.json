@@ -2543,6 +2543,7 @@
     "Updates.AddConfig": "Add configuration",
     "Updates.ConfirmDelete": "Delete configuration?",
     "Updates.Tracked": "Track",
+    "Updates.OverrideHint": "Custom copy of the built-in configuration (overrides it)",
     "Updates.Status": "Status",
     "Updates.SelectEdition": "Select edition",
     "Updates.Segment": "URL segment (nick)",

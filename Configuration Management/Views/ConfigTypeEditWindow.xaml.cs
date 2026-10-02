@@ -1,10 +1,12 @@
 #if WINDOWS
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
@@ -22,7 +24,9 @@ namespace Configuration_Management;
 public partial class ConfigTypeEditWindow : Window
 {
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
-    private readonly List<OneCConfigEdition> _editions = new();
+    // ObservableCollection: «Добавить» должно сразу показывать новую редакцию в списке
+    // (обычный List не уведомляет UI — issue #321).
+    private readonly ObservableCollection<OneCConfigEdition> _editions = new();
     private readonly string _originalCode;
     private readonly List<ViewModels.ItsAccountSelectionItem> _accountItems = new();
 
@@ -57,7 +61,10 @@ public partial class ConfigTypeEditWindow : Window
             _accountItems.Count - 1));
 
         if (model is not null)
-            _editions.AddRange(model.Editions);
+        {
+            foreach (var edition in model.Editions)
+                _editions.Add(edition);
+        }
         EditionsList.ItemsSource = _editions;
 
         // Фокус в поле «Наименование» (issue #299): отложенный вызов после показа окна —
@@ -72,6 +79,44 @@ public partial class ConfigTypeEditWindow : Window
                         NameBox.SelectAll();
                 }));
         };
+
+        // Высота окна (issue #321): выше, чтобы влезали 3–4 строки списка редакций, но не
+        // за рамки экрана — WindowSizeMath (ClampHeight/FitTop), как в остальных окнах.
+        Loaded += (_, _) =>
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, FitHeightToContent);
+        };
+    }
+
+    /// <summary>
+    /// Подгоняет высоту окна под содержимое (паттерн ScriptScenarioEditWindow, issue #308):
+    /// измеряет корневой контейнер при бесконечной высоте, клампит в [MinHeight, MaxHeight]
+    /// через <see cref="WindowSizeMath.ClampHeight"/> и поднимает окно, если низ уходит
+    /// за нижний край рабочей области (<see cref="WindowSizeMath.FitTop"/>).
+    /// </summary>
+    private void FitHeightToContent()
+    {
+        if (RootPanel is null || !IsLoaded || !IsVisible)
+            return;
+
+        var availableWidth = RootPanel.ActualWidth > 0 ? RootPanel.ActualWidth : Math.Max(400, Width);
+        RootPanel.Measure(new System.Windows.Size(availableWidth, double.PositiveInfinity));
+        var desired = RootPanel.DesiredSize.Height;
+        if (desired <= 0)
+            return;
+
+        // Хром (заголовок окна + рамки) — разница между полной высотой и клиентской областью.
+        var chrome = Math.Max(0, ActualHeight - (RootPanel.ActualHeight > 0 ? RootPanel.ActualHeight : desired));
+        var target = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
+        if (Math.Abs(target - Height) > 1)
+            Height = target;
+
+        // Окно стояло у нижнего края экрана и выросло — поднимаем его, чтобы нижняя
+        // часть не уходила за экран (issue #308).
+        var wa = SystemParameters.WorkArea;
+        var newTop = WindowSizeMath.FitTop(Top, Height, wa.Top, wa.Bottom);
+        if (Math.Abs(newTop - Top) > 1)
+            Top = newTop;
     }
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
@@ -122,7 +167,9 @@ public partial class ConfigTypeEditWindow : Window
         CommitEditionFields();
         var edition = new OneCConfigEdition { Name = LocalizationManager.T("Updates.Name") };
         _editions.Add(edition);
+        // Сразу показываем новую строку и переводим на неё ввод (issue #321).
         EditionsList.SelectedItem = edition;
+        EditionsList.ScrollIntoView(edition);
     }
 
     private void OnRemoveEditionClick(object sender, RoutedEventArgs e)

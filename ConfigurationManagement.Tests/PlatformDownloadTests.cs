@@ -128,9 +128,17 @@ public sealed class PlatformDownloadTests
             // ParallelDownloader выполняет: probe (Range 0-0) + по куску на каждую зону.
             Assert.True(handler.RequestCount >= 3, $"Ожидалось ≥3 запросов, фактически {handler.RequestCount}");
 
-            // Прогресс монотонно растёт и завершается на 1.
+            // Прогресс монотонно растёт и завершается на 1. Progress<T> в юнит-тесте постит
+            // отчёты в пул потоков (SynchronizationContext отсутствует), поэтому финальный
+            // отчёт «1.0» (ParallelDownloader.Publish синхронен) может прийти ПОСЛЕ возврата
+            // DownloadDistributionAsync — ждём его с таймаутом, чтобы проверка не зависела
+            // от таймингов планировщика (флак: последним успевал 0.5).
+            var deadline = DateTime.UtcNow.AddSeconds(5);
             lock (progressGate)
             {
+                while ((progressValues.Count == 0 || progressValues[^1] < 1.0) && DateTime.UtcNow < deadline)
+                    Monitor.Wait(progressGate, TimeSpan.FromMilliseconds(50));
+
                 Assert.NotEmpty(progressValues);
                 Assert.Equal(1.0, progressValues[^1]);
                 for (var i = 1; i < progressValues.Count; i++)

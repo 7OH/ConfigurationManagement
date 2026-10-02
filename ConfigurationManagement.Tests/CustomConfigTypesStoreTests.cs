@@ -369,4 +369,94 @@ public sealed class CustomConfigTypesStoreTests : IDisposable
         Assert.Equal(2, bp.Editions.Count); // 3.0 и 2.0 — исходный набор
         Assert.Contains(all, c => c.Code == "C_Моя конфигурация");
     }
+
+    // ---------- 0.3.9.265 (issue #321): единое правило объединения MergeAll ----------
+    // Окно списка строит строки тем же правилом, что и LoadAll(): пользовательская копия
+    // предопределённой заменяет встроенную с тем же кодом — дубля строки ЗУП/БП не бывает.
+
+    [Fact]
+    public void LoadAll_DuplicateOverrides_SingleRow()
+    {
+        var store = CreateStore();
+        // Две пользовательские копии ЗУП с одним кодом (могли остаться от старых версий окна,
+        // когда правка встроенной добавляла копию без замены): в общем списке — ровно одна
+        // строка ЗУП, встроенная заменена первой найденной копией.
+        store.Save(new[]
+        {
+            new OneCConfigType
+            {
+                Code = "ZUP", Name = "ЗУП копия 1", UrlCode = "zup-old",
+                OverridesBuiltIn = true,
+                Editions = { new OneCConfigEdition { Name = "3.0", Red = "3.0" } },
+            },
+            new OneCConfigType
+            {
+                Code = "ZUP", Name = "ЗУП копия 2", UrlCode = "zup-new",
+                OverridesBuiltIn = true,
+                Editions = { new OneCConfigEdition { Name = "3.1", Red = "3.1" } },
+            },
+        });
+
+        var all = store.LoadAll();
+        var zup = all.Where(c => c.Code == "ZUP").ToList();
+        Assert.Single(zup); // дубля нет
+        Assert.False(zup[0].IsBuiltIn);
+        Assert.True(zup[0].OverridesBuiltIn);
+        Assert.Equal("ЗУП копия 1", zup[0].Name); // первая в файле выигрывает у встроенной
+        Assert.Equal(BuiltInConfigTypes.All.Count, all.Count); // замена, а не добавление
+    }
+
+    [Fact]
+    public void MergeAll_ReusesCustomInstances_ForEditAndDeleteByReference()
+    {
+        var custom = new List<OneCConfigType>
+        {
+            new()
+            {
+                Code = "ZUP", Name = "ЗУП (правка)", UrlCode = "zup-edited",
+                OverridesBuiltIn = true,
+                Editions = { new OneCConfigEdition { Name = "3.0", Red = "3.0" } },
+            },
+            Sample("Моя конфигурация", "1.0"),
+        };
+
+        // Окно строит строки из рабочего буфера через MergeAll — возвращаются те же ссылки,
+        // поэтому правка на месте и удаление по ссылке (_customTypes.Remove(row.Model)) работают.
+        var merged = CustomConfigTypesStore.MergeAll(BuiltInConfigTypes.All, custom);
+
+        Assert.Equal(BuiltInConfigTypes.All.Count + 1, merged.Count); // ЗУП заменена + обычная пользовательская
+        Assert.Same(custom[0], merged.First(c => c.Code == "ZUP"));
+        Assert.Same(custom[1], merged.First(c => c.Code == "C_Моя конфигурация"));
+
+        // Удаление по ссылке из буфера (паттерн окна «Типовые конфигурации») — работает:
+        // MergeAll вернул те же ссылки, поэтому Remove(row.Model) находит запись.
+        custom.Remove(custom[0]);
+        Assert.Single(custom);
+    }
+
+    [Fact]
+    public void MergeAll_OverrideReplacesBuiltIn_PlainCustomFollows_InOrder()
+    {
+        var builtIn = new[]
+        {
+            new OneCConfigType { Code = "A", Name = "Альфа", IsBuiltIn = true },
+            new OneCConfigType { Code = "B", Name = "Бета", IsBuiltIn = true },
+        };
+        var custom = new[]
+        {
+            new OneCConfigType { Code = "X", Name = "Икс" },
+            new OneCConfigType { Code = "B", Name = "Бета (копия)", OverridesBuiltIn = true },
+        };
+
+        var merged = CustomConfigTypesStore.MergeAll(builtIn, custom);
+
+        // Порядок: встроенные (со своими копиями) → обычные пользовательские следом.
+        Assert.Equal(3, merged.Count);
+        Assert.Equal("Альфа", merged[0].Name);
+        Assert.True(merged[0].IsBuiltIn);
+        Assert.Equal("Бета (копия)", merged[1].Name); // заменила встроенную «Бета»
+        Assert.True(merged[1].OverridesBuiltIn);
+        Assert.False(merged[1].IsBuiltIn);
+        Assert.Equal("Икс", merged[2].Name);
+    }
 }

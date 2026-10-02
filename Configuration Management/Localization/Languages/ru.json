@@ -2542,6 +2542,7 @@
     "Updates.AddConfig": "Добавить конфигурацию",
     "Updates.ConfirmDelete": "Удалить конфигурацию?",
     "Updates.Tracked": "Отслеживать",
+    "Updates.OverrideHint": "Пользовательская копия предопределённой (перекрывает типовую)",
     "Updates.Status": "Статус",
     "Updates.SelectEdition": "Выберите редакцию",
     "Updates.Segment": "Сегмент адреса (ник)",

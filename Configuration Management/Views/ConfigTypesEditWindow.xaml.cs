@@ -81,13 +81,14 @@ public partial class ConfigTypesEditWindow : Window
         }
     }
 
-    /// <summary>Формирует строки таблицы: сначала предопределённые (только для чтения), затем пользовательские.</summary>
+    /// <summary>Формирует строки таблицы единым правилом
+    /// <see cref="CustomConfigTypesStore.MergeAll"/>: пользовательская копия предопределённой
+    /// заменяет встроенную с тем же кодом — дублей строк после правки встроенной не возникает
+    /// (issue #321); обычные пользовательские записи добавляются следом.</summary>
     private void RebuildRows()
     {
         _rows.Clear();
-        foreach (var ct in BuiltInConfigTypes.All)
-            AddRow(ct);
-        foreach (var ct in _customTypes)
+        foreach (var ct in CustomConfigTypesStore.MergeAll(BuiltInConfigTypes.All, _customTypes))
             AddRow(ct);
     }
 

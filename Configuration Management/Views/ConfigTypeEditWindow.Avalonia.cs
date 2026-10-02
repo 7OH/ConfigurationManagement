@@ -1,6 +1,7 @@
 #if LINUX
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -23,8 +24,11 @@ namespace Configuration_Management;
 public sealed class ConfigTypeEditWindow : ModalWindowBase
 {
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
-    private readonly List<OneCConfigEdition> _editions = new();
+    // ObservableCollection: «Добавить» должно сразу показывать новую редакцию в списке
+    // (обычный List не уведомляет UI — issue #321).
+    private readonly ObservableCollection<OneCConfigEdition> _editions = new();
     private readonly string _originalCode;
+    private StackPanel? _rootPanel;
 
     private readonly TextBox _codeBox = MakeTextBox(string.Empty);
     private readonly TextBox _nameBox = MakeTextBox(string.Empty);
@@ -50,10 +54,10 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         var isNew = model is null;
 
         Title = T(isNew ? "Updates.AddConfig" : "Updates.EditConfig");
-        Width = 680;
-        Height = 560;
-        MinWidth = 560;
-        MinHeight = 480;
+        Width = 700;
+        Height = 720;
+        MinWidth = 600;
+        MinHeight = 620;
         FontSize = 13;
         CanResize = true;
 
@@ -71,7 +75,10 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         _accountBox.SelectedIndex = accountIndex >= 0 ? accountIndex : 0;
 
         if (model is not null)
-            _editions.AddRange(model.Editions);
+        {
+            foreach (var edition in model.Editions)
+                _editions.Add(edition);
+        }
         if (_editions.Count > 0)
             _editionsList.SelectedIndex = 0;
         ClearEditionFields();
@@ -88,7 +95,45 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
                 if (isNew)
                     _nameBox.SelectAll();
             }, Avalonia.Threading.DispatcherPriority.Background);
+
+            // Высота окна (issue #321): выше, чтобы влезали 3–4 строки редакций, но не
+            // за рамки экрана — WindowSizeMath (ClampHeight/FitTop), как в остальных окнах.
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                FitHeightToContent, Avalonia.Threading.DispatcherPriority.Background);
         };
+    }
+
+    /// <summary>
+    /// Подгоняет высоту окна под содержимое (паттерн ScriptScenarioEditWindow, issue #308):
+    /// измеряет корневой контейнер при бесконечной высоте, клампит в [MinHeight, MaxHeight]
+    /// через <see cref="WindowSizeMath.ClampHeight"/> и поднимает окно, если низ уходит
+    /// за нижний край рабочей области (<see cref="WindowSizeMath.FitTop"/>).
+    /// </summary>
+    private void FitHeightToContent()
+    {
+        if (_rootPanel is null || !IsVisible)
+            return;
+
+        var availableWidth = _rootPanel.Bounds.Width > 0 ? _rootPanel.Bounds.Width : Math.Max(400, Width);
+        _rootPanel.Measure(new Avalonia.Size(availableWidth, double.PositiveInfinity));
+        var desired = _rootPanel.DesiredSize.Height;
+        if (desired <= 0)
+            return;
+
+        // Хром (заголовок + рамки/декор) — разница между полной высотой и клиентской областью.
+        var chrome = Math.Max(0, ClientSize.Height - (_rootPanel.Bounds.Height > 0 ? _rootPanel.Bounds.Height : desired));
+        Height = WindowSizeMath.ClampHeight(desired + chrome, MinHeight, MaxHeight);
+
+        // Окно стояло у нижнего края экрана и выросло — поднимаем его, чтобы нижняя
+        // часть не уходила за экран (issue #308). Координаты в физических пикселях.
+        if (Screens.ScreenFromWindow(this) is { } screen)
+        {
+            var wa = screen.WorkingArea;
+            var heightPx = (int)(Height * screen.Scaling);
+            var newTopPx = (int)WindowSizeMath.FitTop(Position.Y, heightPx, wa.Y, wa.Bottom);
+            if (newTopPx != Position.Y)
+                Position = new PixelPoint(Position.X, newTopPx);
+        }
     }
 
     /// <summary>Показывает окно модально (синхронно).</summary>
@@ -99,6 +144,7 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
     private Control BuildRoot()
     {
         var panel = new StackPanel { Margin = new Thickness(16), Spacing = 8 };
+        _rootPanel = panel;
 
         var title = new TextBlock
         {
@@ -114,10 +160,12 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         panel.Children.Add(MakeFieldRow(T("Updates.Nick"), _nickBox));
         panel.Children.Add(MakeFieldRow(T("ItsAccounts.AccountLabel"), _accountBox));
 
-        // Список редакций и поля выбранной редакции.
+        // Список редакций и поля выбранной редакции. MaxDropDownHeight (issue #321):
+        // в выпадающем списке видны 3–4 строки редакций.
         _editionsList.ItemsSource = _editions;
         _editionsList.HorizontalAlignment = HorizontalAlignment.Stretch;
         _editionsList.MinHeight = 34;
+        _editionsList.MaxDropDownHeight = 200;
         _editionsList.SelectionChanged += OnEditionSelectionChanged;
 
         var editionButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
@@ -215,7 +263,10 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         CommitEditionFields();
         var edition = new OneCConfigEdition { Name = T("Updates.Name") };
         _editions.Add(edition);
+        // Сразу показываем новую строку и переводим на неё ввод (issue #321).
         _editionsList.SelectedIndex = _editions.Count - 1;
+        _editionsList.SelectedItem = edition;
+        _editionsList.ScrollIntoView(edition);
     }
 
     private void OnRemoveEditionClick()

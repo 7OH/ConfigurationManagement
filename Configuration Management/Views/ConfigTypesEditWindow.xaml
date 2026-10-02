@@ -186,8 +186,9 @@
                                         Binding="{Binding AccountDisplay}"
                                         ElementStyle="{StaticResource CenteredCellText}"/>
 
-                    <!-- Признак предопределённой -->
-                    <DataGridTemplateColumn Width="40">
+                    <!-- Признак предопределённой; пользовательская копия предопределённой
+                         (правка встроенной строки, issue #321) помечается значком ✎★. -->
+                    <DataGridTemplateColumn Width="44">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="★" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -198,6 +199,11 @@
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
                                                     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsOverride}" Value="True">
+                                                    <Setter Property="Text" Value="✎★"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                                    <Setter Property="ToolTip" Value="{loc:Loc Updates.OverrideHint}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>

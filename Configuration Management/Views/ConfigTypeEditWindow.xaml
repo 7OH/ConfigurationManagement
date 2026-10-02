@@ -4,8 +4,8 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:loc="clr-namespace:Configuration_Management.Localization"
         Icon="{StaticResource AppIcon}"
-        Width="680" Height="580"
-        MinHeight="500" MinWidth="560"
+        Width="700" Height="720"
+        MinHeight="620" MinWidth="600"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
         FontFamily="Segoe UI"
@@ -75,7 +75,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="16">
+    <Grid x:Name="RootPanel" Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -121,7 +121,8 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <ListBox Grid.Row="0" Grid.ColumnSpan="4" x:Name="EditionsList" MaxHeight="110"
+                    <!-- Высота списка редакций (issue #321): видны 3–4 строки. -->
+                    <ListBox Grid.Row="0" Grid.ColumnSpan="4" x:Name="EditionsList" MaxHeight="200"
                              Margin="0,0,0,6" SelectionChanged="OnEditionSelectionChanged"
                              DisplayMemberPath="Name">
                     </ListBox>

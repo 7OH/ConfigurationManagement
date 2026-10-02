@@ -34,6 +34,10 @@ public class ConfigTypeItemViewModel : ViewModelBase
     /// <summary>Признак предопределённой конфигурации из встроенного набора.</summary>
     public bool IsBuiltIn => Model.IsBuiltIn;
 
+    /// <summary>Признак пользовательской копии предопределённой конфигурации (правка встроенной
+    /// строки, issue #321): строка заменяет встроенную с тем же кодом в общем списке.</summary>
+    public bool IsOverride => Model.OverridesBuiltIn;
+
     /// <summary>Краткая сводка редакций (имена через запятую).</summary>
     public string EditionsSummary =>
         Model.Editions.Count == 0
@@ -98,6 +102,7 @@ public class ConfigTypeItemViewModel : ViewModelBase
         OnPropertyChanged(nameof(Nick));
         OnPropertyChanged(nameof(EditionsSummary));
         OnPropertyChanged(nameof(AccountDisplay));
+        OnPropertyChanged(nameof(IsOverride));
         OnPropertyChanged(nameof(IsTracked));
     }
 }

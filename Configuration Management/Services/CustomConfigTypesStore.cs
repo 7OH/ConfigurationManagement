@@ -88,17 +88,29 @@ public sealed class CustomConfigTypesStore : ICustomConfigTypesStore
     /// <inheritdoc />
     public IReadOnlyList<OneCConfigType> LoadAll()
     {
-        var custom = Load();
-        var result = new List<OneCConfigType>(BuiltInConfigTypes.All.Count + custom.Count);
+        return MergeAll(BuiltInConfigTypes.All, Load());
+    }
 
-        // Пользовательская копия предопределённой конфигурации (правка встроенной строки в окне
-        // «Типовые конфигурации», issue #321) заменяет встроенную с тем же кодом; статические
-        // экземпляры BuiltInConfigTypes при этом не мутируются и не «расползаются» по окнам.
-        foreach (var builtIn in BuiltInConfigTypes.All)
+    /// <summary>
+    /// Единое правило построения списка типовых конфигураций (issue #321): пользовательская
+    /// копия предопределённой (<see cref="OneCConfigType.OverridesBuiltIn"/>) заменяет встроенную
+    /// с тем же кодом, остальные пользовательские записи добавляются следом. Статические
+    /// экземпляры <see cref="BuiltInConfigTypes"/> не мутируются. Используется и
+    /// <see cref="LoadAll"/>, и окном «Типовые конфигурации»: окно строит строки из своего
+    /// рабочего буфера (сохраняя ссылки на экземпляры для правки/удаления по ссылке),
+    /// но правило объединения — одно на всех — дублей строк после правки встроенной не бывает.
+    /// </summary>
+    public static IReadOnlyList<OneCConfigType> MergeAll(
+        IReadOnlyList<OneCConfigType> builtIn,
+        IReadOnlyList<OneCConfigType> custom)
+    {
+        var result = new List<OneCConfigType>(builtIn.Count + custom.Count);
+
+        foreach (var builtInType in builtIn)
         {
             var customCopy = custom.FirstOrDefault(c =>
-                c.OverridesBuiltIn && SameCode(c.Code, builtIn.Code));
-            result.Add(customCopy ?? builtIn);
+                c.OverridesBuiltIn && SameCode(c.Code, builtInType.Code));
+            result.Add(customCopy ?? builtInType);
         }
 
         // Обычные пользовательские конфигурации добавляются следом. Несколько записей одной
@@ -107,7 +119,7 @@ public sealed class CustomConfigTypesStore : ICustomConfigTypesStore
         foreach (var c in custom)
         {
             if (c.OverridesBuiltIn &&
-                BuiltInConfigTypes.All.Any(b => SameCode(b.Code, c.Code)))
+                builtIn.Any(b => SameCode(b.Code, c.Code)))
                 continue; // уже заменил встроенную выше
             result.Add(c);
         }

@@ -81,14 +81,16 @@ namespace Configuration_Management
             }
         }
 
-        /// <summary>Формирует строки таблицы: сначала предопределённые (только для чтения), затем пользовательские.</summary>
+        /// <summary>Формирует строки таблицы единым правилом
+        /// <see cref="Services.CustomConfigTypesStore.MergeAll"/>: пользовательская копия
+        /// предопределённой заменяет встроенную с тем же кодом — дублей строк после правки
+        /// встроенной не возникает (issue #321); обычные пользовательские записи добавляются
+        /// следом.</summary>
         private void RebuildRows()
         {
             _rows.Clear();
             _rowsPanel.Children.Clear();
-            foreach (var ct in BuiltInConfigTypes.All)
-                AddRow(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow, _itsAccounts));
-            foreach (var ct in _customTypes)
+            foreach (var ct in Services.CustomConfigTypesStore.MergeAll(BuiltInConfigTypes.All, _customTypes))
                 AddRow(new ConfigTypeItemViewModel(ct, OnEditRow, OnDeleteRow, _itsAccounts));
         }
 
@@ -136,13 +138,33 @@ namespace Configuration_Management
             {
                 Text = row.Name,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 8, 0)
+                VerticalAlignment = VerticalAlignment.Center
             };
             if (row.IsBuiltIn)
                 Themes.ThemeBrushes.Bind(name, TextBlock.ForegroundProperty, "TextSecondaryBrush");
-            Grid.SetColumn(name, 0);
-            grid.Children.Add(name);
+
+            // Пользовательская копия предопределённой (правка встроенной строки, issue #321)
+            // помечается значком ✎★ рядом с именем.
+            var namePanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(8, 0, 8, 0)
+            };
+            namePanel.Children.Add(name);
+            if (row.IsOverride)
+            {
+                var mark = new TextBlock
+                {
+                    Text = " ✎★",
+                    FontSize = 12,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                ToolTip.SetTip(mark, T("Updates.OverrideHint"));
+                Themes.ThemeBrushes.Bind(mark, TextBlock.ForegroundProperty, "AccentBrush");
+                namePanel.Children.Add(mark);
+            }
+            Grid.SetColumn(namePanel, 0);
+            grid.Children.Add(namePanel);
 
             var urlCode = new TextBlock
             {
