@@ -615,7 +615,9 @@ namespace Configuration_Management
         /// <summary>
         /// Выбор сервера 1С из списка (issue #305): строка «server:port» остаётся в поле
         /// целиком, как в окне правки свойств базы; при создании она разнесётся на сервер
-        /// и порт. Свободный ввод не затрагивается.
+        /// и порт. Свободный ввод не затрагивается: при IsTextSearchEnabled=false событие
+        /// приходит только от явного выбора элемента списка, а не от автоподбора по вводимому
+        /// тексту (0.3.9.262).
         /// </summary>
         private void OnServerBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {

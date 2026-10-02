@@ -9,6 +9,31 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.262] — 2026-10-02
+
+### Исправлено
+
+- **Создание серверной базы: выбор сервера из списка не подставлялся, ручной ввод
+  перебивался автоподбором (issue #305)** (обе платформы): поле «Сервер 1С»
+  (редактируемый ComboBox) — при выборе элемента из списка текст не переносился
+  в поле, а при наборе значения, совпадающего с началом элемента списка
+  («localhost»), первый символ «съедался» — вводилось только `ocalhost`;
+  - **причина**: включённый по умолчанию `TextSearch` у редактируемого ComboBox при
+    вводе первого символа автоматически выбирал первый совпадающий элемент —
+    срабатывал `SelectionChanged`, код подставлял полный текст элемента, а отложенный
+    сброс `SelectedItem = null` синхронизировал текст обратно и затирал ввод;
+  - **как исправлено**: автоподбор отключён — `IsTextSearchEnabled="False"` в
+    [`Views/CreateInfobaseWindow.xaml`](Configuration%20Management/Views/CreateInfobaseWindow.xaml)
+    (WPF) и `IsTextSearchEnabled = false` у `_serverBox`
+    ([`Views/CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs),
+    Linux/Avalonia). Событие выбора теперь приходит только от явного выбора элемента
+    списка: строка «server:port» подставляется в поле целиком, а ручной ввод
+    (в т.ч. «localhost») идёт без вмешательства; при создании используется текущий
+    текст поля (`ParseServerPort`, как раньше);
+  - **тесты**: регрессия парсинга «server:port»
+    ([`CreateInfobaseDbServerStringTests`](ConfigurationManagement.Tests/CreateInfobaseDbServerStringTests.cs)).
+    Полный набор `dotnet test` зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.261] — 2026-10-02
 
 ### Исправлено

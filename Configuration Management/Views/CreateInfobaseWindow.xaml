@@ -75,8 +75,12 @@
                         <TextBlock Text="{loc:Loc CreateInfobase.ServerLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <!-- Сервер 1С выбирается одним полем «server:port», как в окне правки
                              свойств базы (issue #305): выбор из списка + свободный ввод,
-                             отдельное поле порта не нужно — порт копируется вместе с сервером. -->
+                             отдельное поле порта не нужно — порт копируется вместе с сервером.
+                             IsTextSearchEnabled=False (issue #305, 0.3.9.262): автоподбор WPF при
+                             наборе текста выбирал первый совпадающий элемент и через SelectionChanged
+                             перезаписывал ручной ввод — «буква L съедалась», вводилось ocalhost. -->
                         <ComboBox x:Name="ServerBox" IsEditable="True" Margin="0,0,0,10"
+                                  IsTextSearchEnabled="False"
                                   SelectionChanged="OnServerBox_SelectionChanged"/>
                         <TextBlock Text="{loc:Loc CreateInfobase.RefLabel}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <TextBox x:Name="RefBox" Style="{DynamicResource ModernTextBox}" Margin="0,0,0,10"/>

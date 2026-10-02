@@ -49,7 +49,10 @@ namespace Configuration_Management
         private readonly StackPanel _serverPanel = new() { Spacing = 8 };
         // Редактируемый ComboBox: выбор из списка известных серверов 1С + свободный ввод (issue #305).
         // Сервер выбирается одним полем «server:port», как в окне правки свойств базы.
-        private readonly ComboBox _serverBox = new() { IsEditable = true };
+        // IsTextSearchEnabled=false (issue #305, 0.3.9.262): автоподбор при наборе текста выбирал
+        // первый совпадающий элемент и через SelectionChanged перезаписывал ручной ввод —
+        // «буква L съедалась», вводилось только ocalhost.
+        private readonly ComboBox _serverBox = new() { IsEditable = true, IsTextSearchEnabled = false };
         private readonly TextBox _refBox = new TextBox().Styled(ControlThemes.ModernTextBox);
         private readonly ComboBox _dbmsBox = new() { IsEditable = true };
         private readonly TextBox _dbServerBox = new TextBox().Styled(ControlThemes.ModernTextBox);
@@ -914,7 +917,9 @@ namespace Configuration_Management
         /// <summary>
         /// Выбор сервера 1С из списка (issue #305): строка «server:port» остаётся в поле
         /// целиком, как в окне правки свойств базы; при создании она разнесётся
-        /// на сервер и порт.
+        /// на сервер и порт. Свободный ввод не затрагивается: при IsTextSearchEnabled=false
+        /// событие приходит только от явного выбора элемента списка, а не от автоподбора
+        /// по вводимому тексту (0.3.9.262).
         /// </summary>
         private void SplitSelectedServer()
         {
