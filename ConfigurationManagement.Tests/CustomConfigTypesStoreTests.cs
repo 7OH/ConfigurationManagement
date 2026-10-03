@@ -400,6 +400,39 @@ public sealed class CustomConfigTypesStoreTests : IDisposable
         Assert.Contains(all, c => c.Code == "C_Моя конфигурация");
     }
 
+    [Fact]
+    public void RestoreDefaults_BuiltInNicksAndEditionsIntact()
+    {
+        // Issue #321: после «Восстановить типовые» поставляемые конфигурации возвращаются
+        // к исходному набору с заполненными никами и редакциями — колонка «НИК» не пустая,
+        // сводка редакций не пустая (жалоба «после восстановления везде пусто»).
+        var store = CreateStore();
+        // Пользователь «попортил» БП пустой копией-переопределением.
+        store.Save(new[]
+        {
+            new OneCConfigType
+            {
+                Code = "BP",
+                Name = "Бухгалтерия предприятия",
+                OverridesBuiltIn = true,
+                Editions = { new OneCConfigEdition { Name = "", Red = "" } },
+            },
+        });
+
+        store.RestoreDefaults();
+
+        var all = store.LoadAll();
+        Assert.All(all, c =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(c.Nick), $"Nick пуст у {c.Code}");
+            Assert.NotEmpty(c.Editions);
+        });
+
+        // Редакции БП сохраняют собственные каталоги (UrlOverride) — адрес проверки корректен.
+        var bp = all.First(c => c.Code == "BP");
+        Assert.Contains(bp.Editions, e => e.UrlOverride.EndsWith("/project/Accounting30"));
+    }
+
     // ---------- 0.3.9.265 (issue #321): единое правило объединения MergeAll ----------
     // Окно списка строит строки тем же правилом, что и LoadAll(): пользовательская копия
     // предопределённой заменяет встроенную с тем же кодом — дубля строки ЗУП/БП не бывает.

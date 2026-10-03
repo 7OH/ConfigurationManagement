@@ -89,4 +89,28 @@ public sealed class SettingsWindowXamlResourcesTests
         var localKeys = CollectDefinedKeys(xaml);
         Assert.Contains("OutlineButtonStyle", localKeys);
     }
+
+    [Fact]
+    public void ItsAccountCombos_DisplayMemberPath_Name_OnBothPlatforms()
+    {
+        // Страховка issue #333: в окне «Общие настройки» и в редакторе типовой конфигурации
+        // ComboBox учётной записи ИТС обязан показывать ИМЯ записи, а не идентификатор/тип.
+        // WPF: SettingsWindow.xaml (ItsAccountsCombo) и ConfigTypeEditWindow.xaml (AccountCombo).
+        var settingsXaml = ReadProjectFile(Path.Combine("Configuration Management", "Views", "SettingsWindow.xaml"));
+        Assert.Matches(
+            @"x:Name=""ItsAccountsCombo""[^>]*DisplayMemberPath=""Name""",
+            settingsXaml);
+
+        var editorXaml = ReadProjectFile(Path.Combine("Configuration Management", "Views", "ConfigTypeEditWindow.xaml"));
+        Assert.Matches(
+            @"x:Name=""AccountCombo""[^>]*DisplayMemberPath=""Name""",
+            editorXaml);
+
+        // Avalonia: файлы *.Avalonia.cs задают DisplayMemberBinding на свойство Name пункта.
+        var avaloniaSettings = ReadProjectFile(Path.Combine("Configuration Management", "Views", "SettingsWindow.Avalonia.cs"));
+        Assert.Contains("nameof(ViewModels.ItsAccountSelectionItem.Name)", avaloniaSettings);
+
+        var avaloniaEditor = ReadProjectFile(Path.Combine("Configuration Management", "Views", "ConfigTypeEditWindow.Avalonia.cs"));
+        Assert.Contains("nameof(ViewModels.ItsAccountSelectionItem.Name)", avaloniaEditor);
+    }
 }

@@ -102,13 +102,6 @@
                 <TextBox x:Name="ConfigNameBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"
                          ToolTip="{loc:Loc Updates.ConfigNameHint}"/>
 
-                <!-- Сегмент адреса каталога релизов (issue #321, часть 2): ToolTip поясняет,
-                     как значение используется при построении адреса на releases.1c.ru. -->
-                <TextBlock Text="{loc:Loc Updates.UrlCode}" FontWeight="SemiBold" Margin="0,12,0,4"
-                           ToolTip="{loc:Loc Updates.UrlCodeHint}"/>
-                <TextBox x:Name="UrlCodeBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"
-                         ToolTip="{loc:Loc Updates.UrlCodeHint}"/>
-
                 <TextBlock Text="{loc:Loc Updates.Nick}" FontWeight="SemiBold" Margin="0,12,0,4"/>
                 <TextBox x:Name="NickBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
 
@@ -124,38 +117,37 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
 
-                    <!-- Высота списка редакций (issue #321): видны 3–4 строки. -->
-                    <ListBox Grid.Row="0" Grid.ColumnSpan="4" x:Name="EditionsList" MaxHeight="200"
-                             Margin="0,0,0,6" SelectionChanged="OnEditionSelectionChanged"
-                             DisplayMemberPath="Name">
-                    </ListBox>
+                    <!-- Таблица редакций из 4 колонок (issue #321): имя, «Ред», «Подред» и
+                         переопределённая ссылка. Строки правятся отдельным модальным диалогом
+                         (EditionEditWindow) — инлайн-поля под таблицей убраны. -->
+                    <DataGrid Grid.Row="0" x:Name="EditionsGrid" MaxHeight="220" Margin="0,0,0,6"
+                              AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                              CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False"
+                              RowHeaderWidth="0" SelectionMode="Single" SelectionUnit="FullRow"
+                              GridLinesVisibility="Horizontal" RowHeight="32" AlternationCount="2">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="*" Header="{loc:Loc Updates.Name}" Binding="{Binding Name}"/>
+                            <DataGridTextColumn Width="*" Header="{loc:Loc Updates.EditionRed}" Binding="{Binding Red}"/>
+                            <DataGridTextColumn Width="*" Header="{loc:Loc Updates.EditionSubRed}" Binding="{Binding SubRed}"/>
+                            <DataGridTextColumn Width="1.5*" Header="{loc:Loc Updates.UrlOverride}" Binding="{Binding UrlOverride}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
 
-                    <!-- Подписи (водяные знаки) четырёх полей редакции (issue #321): раньше поля
-                         были без подписей, и сохранялось только первое из них. -->
-                    <TextBox Grid.Row="1" Grid.Column="0" x:Name="EditionNameBox" Margin="0,0,6,0" Padding="6,5"
-                             materialDesign:HintAssist.Hint="{loc:Loc Updates.Name}"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="EditionRedBox" Margin="0,0,6,0" Padding="6,5"
-                             materialDesign:HintAssist.Hint="{loc:Loc Updates.EditionRed}"/>
-                    <TextBox Grid.Row="1" Grid.Column="2" x:Name="EditionSubRedBox" Margin="0,0,6,0" Padding="6,5"
-                             materialDesign:HintAssist.Hint="{loc:Loc Updates.EditionSubRed}"/>
-                    <TextBox Grid.Row="1" Grid.Column="3" x:Name="EditionUrlOverrideBox" Padding="6,5"
-                             materialDesign:HintAssist.Hint="{loc:Loc Updates.UrlOverride}"/>
-
-                    <StackPanel Grid.Row="2" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,6,0,0">
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,0">
                         <Button x:Name="AddEditionButton" Height="30" Style="{StaticResource OutlineButtonStyle}"
                                 Margin="0,0,8,0" Click="OnAddEditionClick">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon Kind="Plus" Width="16" Height="16"/>
-                                <TextBlock Text="{loc:Loc Updates.Add}" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc Updates.AddEdition}" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="EditEditionButton" Height="30" Style="{StaticResource OutlineButtonStyle}"
+                                Margin="0,0,8,0" Click="OnEditEditionClick">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="PencilOutline" Width="16" Height="16"/>
+                                <TextBlock Text="{loc:Loc Updates.EditEdition}" Margin="4,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="RemoveEditionButton" Height="30" Style="{StaticResource OutlineButtonStyle}"

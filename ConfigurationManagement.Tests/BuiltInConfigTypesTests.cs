@@ -50,9 +50,19 @@ public sealed class BuiltInConfigTypesTests
         }
     }
 
+    [Fact]
+    public void AllBuiltInConfigs_HaveNonEmptyNick()
+    {
+        // Ники из списка 7OH (issue #321): у каждой поставляемой конфигурации задан
+        // каталог на releases.1c.ru (после «Восстановить типовые» колонка «НИК» не пустая).
+        foreach (var config in BuiltInConfigTypes.All)
+            Assert.False(string.IsNullOrWhiteSpace(config.Nick),
+                $"Nick пуст у конфигурации {config.Code}");
+    }
+
     [Theory]
     [InlineData("UT", new[] { "11", "10.3" })]
-    [InlineData("KA", new[] { "2.5", "2.0", "1.1", "1.0" })]
+    [InlineData("KA", new[] { "2.0", "1.1", "1.0" })]
     [InlineData("Retail", new[] { "3.0", "2.3" })]
     public void Editions_IncludeUserList(string code, string[] editions)
     {
@@ -60,6 +70,21 @@ public sealed class BuiltInConfigTypesTests
         var config = GetByCode(code);
         foreach (var edition in editions)
             Assert.Contains(config.Editions, e => e.Red == edition);
+    }
+
+    [Theory]
+    [InlineData("BP", "3.0", "https://releases.1c.ru/project/Accounting30")]
+    [InlineData("BP", "2.0", "https://releases.1c.ru/project/Accounting20_82")]
+    [InlineData("UT", "11", "https://releases.1c.ru/project/Trade110")]
+    [InlineData("Retail", "2.3", "https://releases.1c.ru/project/Retail23")]
+    public void Editions_WithSeparateCatalog_HaveUrlOverride(string code, string name, string expectedUrl)
+    {
+        // Редакция с собственным каталогом релизов (ник из списка 7OH, issue #321):
+        // адрес строится из UrlOverride, а не из ника конфигурации.
+        var config = GetByCode(code);
+        var edition = config.Editions.FirstOrDefault(e => e.Name == name);
+        Assert.NotNull(edition);
+        Assert.Equal(expectedUrl, edition!.UrlOverride);
     }
 
     private static OneCConfigType GetByCode(string code)

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Configuration_Management.Localization;
@@ -39,7 +41,7 @@ public sealed class PlatformDownloadViewModelTests
         };
 
     private static PlatformDownloadViewModel CreateVm(
-        FakeCatalogService? service = null,
+        IPlatformUpdateService? service = null,
         ItsAccount? account = null,
         Func<string, string, IProgress<double>?, CancellationToken, Task<string?>>? download = null,
         Action<string>? onRunInstaller = null,
@@ -86,6 +88,32 @@ public sealed class PlatformDownloadViewModelTests
         Assert.NotNull(vm.PickedFile);
         Assert.Equal("8.3.27.2214_x64.zip", vm.PickedFile!.FileName);
         Assert.Contains("8.3.27.2214", vm.PickedFile.FileName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LoadCatalogAsync_AfterCasLogin_PopulatesReleases()
+    {
+        // #330/#334: полная цепочка окна «Скачивание версии платформы» — каталог
+        // Platform83 через реальный PlatformUpdateService → OneCUpdatesService.GetPageTextAsync
+        // с fake-CAS: первый запрос каталога → 302 на login.1c.ru?service=…, вход кредами
+        // из справочника ИТС (issue #333), POST → 302 на security_check?ticket=… → GET
+        // security_check (сессионная cookie) → повтор каталога → HTML с версиями.
+        var dir = Path.Combine(Path.GetTempPath(), "cm_platformdl_login_" + Guid.NewGuid().ToString("N"));
+        var repo = new MemRepo();
+        var accounts = new ItsAccountsStore(repository: repo, profileService: null, directoryOverride: dir);
+        accounts.Upsert(new ItsAccount { Name = "Основная", Login = "store-user", Password = "store-pwd" });
+
+        var handler = new CasLoginHandler();
+        var updates = new OneCUpdatesService(repo, new NoOpLogger(), handler, accounts);
+        var service = new PlatformUpdateService(updates, new NoOpLogger());
+        var vm = CreateVm(service, account: new ItsAccount { Name = "Основная", Login = "store-user", Password = "store-pwd" });
+
+        await vm.LoadCatalogAsync();
+
+        Assert.True(
+            vm.Releases.Count > 0,
+            $"Releases={vm.Releases.Count}, requests=[{string.Join(" | ", handler.Log)}]");
+        Assert.Equal("8.3.27.2214", vm.Releases[0].Version);
     }
 
     [Fact]
@@ -290,6 +318,109 @@ public sealed class PlatformDownloadViewModelTests
 
         Assert.Contains(nameof(PlatformDownloadViewModel.LogText), notifications);
         Assert.Contains("Фоновая строка журнала", vm.LogText);
+    }
+
+    // ---------- Интеграция с порталом 1С (вход CAS) ----------
+
+    /// <summary>Логгер-заглушка.</summary>
+    private sealed class NoOpLogger : IAppLogger
+    {
+        public void Info(string message) { }
+        public void Warn(string message) { }
+        public void Error(string message, Exception? exception = null) { }
+    }
+
+    /// <summary>Репозиторий в памяти: настройки пусты, старые поля авторизации не заданы
+    /// (креды должны прийти из справочника ИТС — issue #333/#334).</summary>
+    private sealed class MemRepo : IInfobaseRepository
+    {
+        public AppSettings Settings { get; set; } = new();
+
+        public List<Infobase> Load() => new();
+        public void Save(List<Infobase> infobases) { }
+        public Task SaveAsync(List<Infobase> infobases, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+        public List<Group> LoadGroups() => new();
+        public void SaveGroups(List<Group> groups) { }
+        public Task SaveGroupsAsync(List<Group> groups, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+        public AppSettings LoadSettings() => Settings;
+        public void SaveSettings(AppSettings settings) => Settings = settings;
+        public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
+        {
+            Settings = settings;
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>Fake-CAS: каталог Platform83 → 302 на login.1c.ru?service=… → форма с токеном
+    /// execution → POST логина → 302 на releases.1c.ru/public/security_check?ticket=… → GET
+    /// security_check (cookie) → повтор каталога → HTML с версиями. Маршрутизация по пути
+    /// (без query), т.к. service= формы содержит /public/security_check.</summary>
+    private sealed class CasLoginHandler : HttpMessageHandler
+    {
+        private int _projectRequests;
+
+        public System.Collections.Generic.List<string> Log { get; } = new();
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            Log.Add($"{request.Method} {request.RequestUri}");
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                _projectRequests++;
+                response = _projectRequests == 1
+                    ? Redirect(new Uri("https://login.1c.ru/login?service=https://releases.1c.ru/public/security_check"))
+                    : Ok(VersionsTableHtml);
+            }
+            else if (path.Contains("/public/security_check", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok("<html>session established</html>");
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post && request.Content is not null)
+                {
+                    response = Redirect(new Uri("https://releases.1c.ru/public/security_check?ticket=ST-123"));
+                }
+                else
+                {
+                    response = Ok("<form><input type=\"hidden\" name=\"execution\" value=\"e1s2\"/></form>");
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return response;
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        private static HttpResponseMessage Redirect(Uri location)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Found);
+            response.Headers.Location = location;
+            return response;
+        }
+
+        private const string VersionsTableHtml = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td><a href="/version_files?nick=Platform83&ver=8.3.27.2214">8.3.27.2214</a></td></tr>
+              <tr><td><a href="/version_files?nick=Platform83&ver=8.3.27.1688">8.3.27.1688</a></td></tr>
+            </table>
+            </body></html>
+            """;
     }
 
     // ---------- Fake-сервис ----------

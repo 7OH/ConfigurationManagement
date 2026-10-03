@@ -76,10 +76,24 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// чтения настроек (выбор учётной записи ИТС) на каждый сетевой запрос;
     /// <paramref name="logger"/> — для диагностики сетевых ошибок проверки обновлений.
     /// Учётные данные берутся из справочника <see cref="IItsAccountsStore"/> (issue #333):
-    /// выбранная в настройках запись или «Основная».
+    /// выбранная в настройках запись или «Основная». Без хранилища (конструктор без
+    /// параметра) используются только устаревшие поля настроек
+    /// <see cref="AppSettings.UpdatesLogin"/>/<see cref="AppSettings.UpdatesPassword"/> —
+    /// обратная совместимость для прямых созданий в тестах.
     /// </summary>
     public OneCUpdatesService(IInfobaseRepository repository, IAppLogger logger)
         : this(repository, logger, handler: null, itsAccounts: null)
+    {
+    }
+
+    /// <summary>
+    /// Основной конструктор для DI: помимо репозитория и журнала внедряет хранилище
+    /// учётных записей ИТС <see cref="IItsAccountsStore"/> (issue #333). Без него креды
+    /// из справочника <c>its_accounts.json</c> не доходили бы до <see cref="GetCredentials"/>
+    /// (вход на portal.1c.ru сообщал «не задан логин» — issue #334).
+    /// </summary>
+    public OneCUpdatesService(IInfobaseRepository repository, IAppLogger logger, IItsAccountsStore itsAccounts)
+        : this(repository, logger, handler: null, itsAccounts: itsAccounts)
     {
     }
 
@@ -881,7 +895,9 @@ public class OneCUpdatesService : IOneCUpdatesService
             if (needsLogin && !_portalLoginAttempted)
             {
                 _portalLoginAttempted = true;
-                var loggedIn = await TryLoginPortalAsync(ct).ConfigureAwait(false);
+                // Передаём полный URL редиректа (login.1c.ru/login?service=...): форма входа
+                // получит service= исходного каталога, и CAS после входа вернёт верный адрес.
+                var loggedIn = await TryLoginPortalAsync(response.Headers.Location?.ToString(), ct).ConfigureAwait(false);
                 if (loggedIn)
                 {
                     response.Dispose();
@@ -911,7 +927,8 @@ public class OneCUpdatesService : IOneCUpdatesService
             if (selfRedirect && !_portalLoginAttempted)
             {
                 _portalLoginAttempted = true;
-                var loggedIn = await TryLoginPortalAsync(ct).ConfigureAwait(false);
+                // Location отсутствует (302 без заголовка) — форма входа по базовому адресу.
+                var loggedIn = await TryLoginPortalAsync(null, ct).ConfigureAwait(false);
                 if (loggedIn)
                 {
                     response.Dispose();
@@ -990,13 +1007,19 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <summary>
-    /// Программный вход на portal.1c.ru (гибридная авторизация). Точные адрес формы входа и имена
-    /// полей неизвестны наверняка, поэтому перебираются несколько типовых комбинаций; поток подлежит
-    /// корректировке после реального теста. Сессионные cookie сохраняются в <see cref="CookieContainer"/>
-    /// общего <see cref="HttpClient"/>, поэтому последующие запросы проходят авторизацию автоматически.
-    /// Возвращает true, если хотя бы один вариант завершился успешно (2xx или редирект вне страницы входа).
+    /// Программный вход на portal.1c.ru (гибридная авторизация, Spring Security CAS).
+    /// Поток (issue #323/#334): GET формы входа (по URL редиректа сервера, если он известен —
+    /// так форма получает <c>service=</c> исходного каталога), извлечение скрытого токена
+    /// <c>execution</c>, POST логина и доведение до конца цепочки редиректов после входа
+    /// (обычно 302 на <c>releases.1c.ru/public/security_check?ticket=ST-…</c> — сессионная
+    /// cookie TGC/JSESSIONID выставляется именно при обращении по этому адресу). Cookie
+    /// сохраняются в общем <see cref="CookieContainer"/>, поэтому последующие запросы
+    /// проходят авторизацию автоматически.
+    /// Возвращает true, если вход завершился успешно (финальный ответ вне страницы входа).
     /// </summary>
-    private async Task<bool> TryLoginPortalAsync(CancellationToken ct)
+    /// <param name="loginUrl">Полный URL редиректа с сервера (<c>login.1c.ru/login?service=…</c>)
+    /// или null — тогда используется базовый <see cref="PortalLoginUrl"/>.</param>
+    private async Task<bool> TryLoginPortalAsync(string? loginUrl, CancellationToken ct)
     {
         var (login, password) = GetCredentials();
         if (string.IsNullOrEmpty(login))
@@ -1007,9 +1030,11 @@ public class OneCUpdatesService : IOneCUpdatesService
 
         try
         {
+            var formUrl = ResolveLoginFormUrl(loginUrl);
+            _logger.Info($"[Updates] Вход на portal.1c.ru: учётная запись '{ResolveAccountName()}', форма: {formUrl}");
+
             // Шаг 1: GET формы входа — получаем HTML и скрытый токен Spring Security CAS «execution».
-            _logger.Info($"[Updates] Запрашиваю форму входа: {PortalLoginUrl}");
-            using (var formRequest = new HttpRequestMessage(HttpMethod.Get, PortalLoginUrl))
+            using (var formRequest = new HttpRequestMessage(HttpMethod.Get, formUrl))
             using (var formResponse =
                    await _httpClient.SendAsync(formRequest, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false))
             {
@@ -1021,9 +1046,9 @@ public class OneCUpdatesService : IOneCUpdatesService
                     return false;
                 }
 
-                // Шаг 2: POST /login с логином/паролем и токеном. Поля соответствуют реальной
-                // форме login.1c.ru (username, password, execution, _eventId=submit, rememberMe,
-                // anotherComputer, geolocation, inviteCode, inviteType).
+                // Шаг 2: POST на тот же адрес формы (с тем же query service) — поля соответствуют
+                // реальной форме login.1c.ru (username, password, execution, _eventId=submit,
+                // rememberMe, anotherComputer, geolocation, inviteCode, inviteType).
                 var form = new Dictionary<string, string>
                 {
                     ["username"] = login,
@@ -1037,7 +1062,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                     ["inviteType"] = string.Empty,
                 };
 
-                using var postRequest = new HttpRequestMessage(HttpMethod.Post, PortalLoginUrl);
+                using var postRequest = new HttpRequestMessage(HttpMethod.Post, formUrl);
                 postRequest.Content = new FormUrlEncodedContent(form);
                 postRequest.Content.Headers.ContentType =
                     new MediaTypeHeaderValue("application/x-www-form-urlencoded");
@@ -1046,20 +1071,33 @@ public class OneCUpdatesService : IOneCUpdatesService
                     await _httpClient.SendAsync(postRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
 
                 var postStatus = (int)postResponse.StatusCode;
-                var location = postResponse.Headers.Location?.ToString() ?? string.Empty;
 
-                // Успех: 2xx, либо редирект вне страницы входа. При неудачном логине форма обычно
-                // возвращается снова (200/302 обратно на login) и сессионных cookie нет.
-                var success = postResponse.IsSuccessStatusCode ||
-                              (postStatus is >= 300 and < 400 && !location.Contains("login", StringComparison.OrdinalIgnoreCase));
-
-                if (success)
+                // Шаг 3: доводим CAS-цепочку до конца. После успешного входа сервер отвечает
+                // 302 на releases.1c.ru/public/security_check?ticket=ST-…; сессионная cookie
+                // устанавливается при обращении по этому адресу. Без этого шага повторный
+                // запрос каталога снова уходил бы в 302 (issue #323/#334).
+                if (postStatus is >= 300 and < 400 && postResponse.Headers.Location is not null)
                 {
-                    _logger.Info($"[Updates] Вход на portal.1c.ru выполнен (status={postStatus}, location='{location}').");
+                    var completed = await FollowLoginRedirectsAsync(
+                        postResponse.Headers.Location, ct).ConfigureAwait(false);
+                    if (completed)
+                    {
+                        _logger.Info("[Updates] Вход на portal.1c.ru выполнен (цепочка редиректов пройдена).");
+                        return true;
+                    }
+
+                    _logger.Warn("[Updates] Вход на portal.1c.ru не подтверждён: цепочка редиректов завершилась на странице входа.");
+                    return false;
+                }
+
+                // Успех без редиректа: 2xx. (Неудачный логин обычно возвращает форму входа снова.)
+                if (postResponse.IsSuccessStatusCode)
+                {
+                    _logger.Info($"[Updates] Вход на portal.1c.ru выполнен (status={postStatus}).");
                     return true;
                 }
 
-                _logger.Warn($"[Updates] Вход на portal.1c.ru не подтверждён (status={postStatus}, location='{location}').");
+                _logger.Warn($"[Updates] Вход на portal.1c.ru не подтверждён (status={postStatus}).");
                 return false;
             }
         }
@@ -1070,16 +1108,95 @@ public class OneCUpdatesService : IOneCUpdatesService
         }
     }
 
+    /// <summary>
+    /// Выбирает адрес формы входа: полный URL редиректа сервера (<c>login.1c.ru/login?service=…</c>),
+    /// если он валиден и ведёт на login.1c.ru, иначе базовый <see cref="PortalLoginUrl"/>.
+    /// </summary>
+    private static string ResolveLoginFormUrl(string? loginUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(loginUrl) &&
+            Uri.TryCreate(loginUrl, UriKind.Absolute, out var uri) &&
+            uri.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase))
+        {
+            return uri.AbsoluteUri;
+        }
+
+        return PortalLoginUrl;
+    }
+
+    /// <summary>
+    /// Следует за цепочкой редиректов после POST входа (GET по Location), пока не будет получен
+    /// финальный ответ вне страницы входа. Каждый шаг журналируется (единая диагностика issue #323).
+    /// Cookie из ответов накапливаются в общем <see cref="CookieContainer"/>.
+    /// Возвращает true, если цепочка завершилась успешно (вход подтверждён).
+    /// </summary>
+    private async Task<bool> FollowLoginRedirectsAsync(Uri location, CancellationToken ct)
+    {
+        var current = location;
+        for (var i = 0; i < MaxRedirects; i++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, current);
+            using var response =
+                await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            var status = (int)response.StatusCode;
+            var next = response.Headers.Location;
+
+            if (status is >= 300 and < 400 && next is not null)
+            {
+                _logger.Info($"[Updates] Редирект входа (шаг {i + 1}): {status} '{next}' для '{current}'");
+                current = next.IsAbsoluteUri ? next : new Uri(current, next);
+                continue;
+            }
+
+            // Конец цепочки: успех — финальный ответ вне страницы входа.
+            var finalHost = response.RequestMessage?.RequestUri?.Host ?? current.Host;
+            if (status < 400 && !finalHost.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            _logger.Warn($"[Updates] Цепочка входа завершилась на странице входа (status={status}, host='{finalHost}').");
+            return false;
+        }
+
+        _logger.Warn("[Updates] Слишком много перенаправлений после входа на portal.1c.ru.");
+        return false;
+    }
+
+    /// <summary>Отображаемое имя учётной записи для журнала входа (без пароля):
+    /// имя записи справочника, иначе логин, иначе «не задана».</summary>
+    private string ResolveAccountName()
+    {
+        var settings = _repository.LoadSettings();
+        var account = _itsAccounts?.Resolve(settings.ItsAccountId);
+        if (account is not null)
+        {
+            return string.IsNullOrWhiteSpace(account.Name)
+                ? (account.Login ?? string.Empty)
+                : account.Name!;
+        }
+
+        return string.IsNullOrWhiteSpace(settings.UpdatesLogin)
+            ? "не задана"
+            : settings.UpdatesLogin!;
+    }
+
     /// <summary>Извлекает значение скрытого поля <c>execution</c> из HTML-формы входа
-    /// Spring Security CAS. При отсутствии поля возвращает пустую строку.</summary>
+    /// Spring Security CAS. Устойчиво к порядку атрибутов и кавычкам ('…' / "…").
+    /// При отсутствии поля возвращает пустую строку.</summary>
     private static string ExtractFormExecution(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
 
-        var m = Regex.Match(html,
-            @"name=[""']execution[""'][^>]*value=[""'](?<value>[^""']*)[""']",
+        // Токен: <input type="hidden" name="execution" value="..."/>.
+        var input = Regex.Match(html,
+            @"<input[^>]*name\s*=\s*[""']execution[""'][^>]*>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        return m.Success ? m.Groups["value"].Value : string.Empty;
+        if (!input.Success)
+            return string.Empty;
+
+        var value = Regex.Match(input.Value,
+            @"value\s*=\s*[""'](?<value>[^""']*)[""']",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        return value.Success ? value.Groups["value"].Value : string.Empty;
     }
 }

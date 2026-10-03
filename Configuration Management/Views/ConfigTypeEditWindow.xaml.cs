@@ -49,7 +49,8 @@ public partial class ConfigTypeEditWindow : Window
         CodeBox.Text = model?.Code ?? string.Empty;
         NameBox.Text = model?.Name ?? string.Empty;
         ConfigNameBox.Text = model?.ConfigName ?? string.Empty;
-        UrlCodeBox.Text = model?.UrlCode ?? string.Empty;
+        // Поле «Сегмент адреса» (UrlCode) из UI удалено (issue #321): адрес обновлений
+        // строится только из ника (releases.1c.ru/project/<nick>), UrlCode не нужен.
         NickBox.Text = model?.Nick ?? string.Empty;
 
         // Учётная запись ИТС (issue #333): записи справочника; виртуальный пункт «Основная»
@@ -66,16 +67,7 @@ public partial class ConfigTypeEditWindow : Window
             foreach (var edition in model.Editions)
                 _editions.Add(edition);
         }
-        EditionsList.ItemsSource = _editions;
-
-        // Поля редакции пишут значения в выбранную строку СРАЗУ при вводе (issue #321,
-        // часть 2): раньше они переносились только при смене выделения или нажатии ОК —
-        // если выделение слетало, введённые строки терялись и после сохранения оставалась
-        // одна редакция.
-        EditionNameBox.TextChanged += (_, _) => CommitEditionFields();
-        EditionRedBox.TextChanged += (_, _) => CommitEditionFields();
-        EditionSubRedBox.TextChanged += (_, _) => CommitEditionFields();
-        EditionUrlOverrideBox.TextChanged += (_, _) => CommitEditionFields();
+        EditionsGrid.ItemsSource = _editions;
 
         // Фокус в поле «Наименование» (issue #299): отложенный вызов после показа окна —
         // иначе при ShowDialog() фокус «съедается» до активации окна.
@@ -131,8 +123,6 @@ public partial class ConfigTypeEditWindow : Window
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
-        CommitEditionFields();
-
         var name = NameBox.Text?.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -157,7 +147,6 @@ public partial class ConfigTypeEditWindow : Window
             Code = code,
             Name = name,
             ConfigName = ConfigNameBox.Text?.Trim() ?? string.Empty,
-            UrlCode = UrlCodeBox.Text?.Trim() ?? string.Empty,
             Nick = NickBox.Text?.Trim() ?? string.Empty,
             // Учётная запись ИТС: пусто — «Основная» (либо выбранная в настройках).
             AccountId = selectedAccount?.Id ?? string.Empty,
@@ -173,67 +162,58 @@ public partial class ConfigTypeEditWindow : Window
         Close();
     }
 
+    /// <summary>
+    /// «Добавить…» (issue #321): отдельный модальный диалог с полями новой редакции вместо
+    /// инлайн-полей под таблицей. Диалог работает на копии; строка добавляется по ОК.
+    /// </summary>
     private void OnAddEditionClick(object sender, RoutedEventArgs e)
     {
-        CommitEditionFields();
-        var edition = new OneCConfigEdition { Name = LocalizationManager.T("Updates.Name") };
+        var dialog = new EditionEditWindow { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.Result is not { } edition)
+            return;
+
         _editions.Add(edition);
-        // Сразу показываем новую строку и переводим на неё ввод (issue #321).
-        EditionsList.SelectedItem = edition;
-        EditionsList.ScrollIntoView(edition);
-        // Новая строка — пустая: поля освобождаем, чтобы ввод не перезаписал значения
-        // предыдущей строки (поля самокоммитятся по TextChanged).
-        EditionNameBox.Text = string.Empty;
-        EditionRedBox.Text = string.Empty;
-        EditionSubRedBox.Text = string.Empty;
-        EditionUrlOverrideBox.Text = string.Empty;
+        EditionsGrid.SelectedItem = edition;
+        EditionsGrid.ScrollIntoView(edition);
     }
 
+    /// <summary>«Изменить…»: модальный диалог правки выбранной редакции (копия → замена).</summary>
+    private void OnEditEditionClick(object sender, RoutedEventArgs e)
+    {
+        if (EditionsGrid.SelectedItem is not OneCConfigEdition edition)
+        {
+            _dialogs.ShowInfo(LocalizationManager.T("Updates.SelectEditionFirst"),
+                LocalizationManager.T("Updates.EditEdition"));
+            return;
+        }
+
+        var dialog = new EditionEditWindow(new OneCConfigEdition
+        {
+            Name = edition.Name,
+            Red = edition.Red,
+            SubRed = edition.SubRed,
+            UrlOverride = edition.UrlOverride,
+        })
+        {
+            Owner = this,
+        };
+        if (dialog.ShowDialog() != true || dialog.Result is not { } updated)
+            return;
+
+        var index = _editions.IndexOf(edition);
+        _editions[index] = updated;
+        EditionsGrid.SelectedItem = updated;
+    }
+
+    /// <summary>«Удалить»: удаляет выбранную редакцию из списка.</summary>
     private void OnRemoveEditionClick(object sender, RoutedEventArgs e)
     {
-        if (EditionsList.SelectedItem is not OneCConfigEdition edition)
+        if (EditionsGrid.SelectedItem is not OneCConfigEdition edition)
             return;
         var index = _editions.IndexOf(edition);
         _editions.Remove(edition);
-        EditionNameBox.Text = string.Empty;
-        EditionRedBox.Text = string.Empty;
-        EditionSubRedBox.Text = string.Empty;
-        EditionUrlOverrideBox.Text = string.Empty;
         if (_editions.Count > 0)
-            EditionsList.SelectedIndex = Math.Min(index, _editions.Count - 1);
-    }
-
-    private void OnEditionSelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        CommitEditionFields();
-        if (EditionsList.SelectedItem is OneCConfigEdition edition)
-            LoadEditionFields(edition);
-        else
-        {
-            EditionNameBox.Text = string.Empty;
-            EditionRedBox.Text = string.Empty;
-            EditionSubRedBox.Text = string.Empty;
-            EditionUrlOverrideBox.Text = string.Empty;
-        }
-    }
-
-    /// <summary>Переносит значения полей редактора в выбранную редакцию.</summary>
-    private void CommitEditionFields()
-    {
-        if (EditionsList.SelectedItem is not OneCConfigEdition edition)
-            return;
-        edition.Name = EditionNameBox.Text?.Trim() ?? string.Empty;
-        edition.Red = EditionRedBox.Text?.Trim() ?? string.Empty;
-        edition.SubRed = EditionSubRedBox.Text?.Trim() ?? string.Empty;
-        edition.UrlOverride = EditionUrlOverrideBox.Text?.Trim() ?? string.Empty;
-    }
-
-    private void LoadEditionFields(OneCConfigEdition edition)
-    {
-        EditionNameBox.Text = edition.Name;
-        EditionRedBox.Text = edition.Red;
-        EditionSubRedBox.Text = edition.SubRed;
-        EditionUrlOverrideBox.Text = edition.UrlOverride;
+            EditionsGrid.SelectedIndex = Math.Min(index, _editions.Count - 1);
     }
 
     /// <summary>Генерирует стабильный код из наименования (латиница/цифры/подчёркивания).</summary>

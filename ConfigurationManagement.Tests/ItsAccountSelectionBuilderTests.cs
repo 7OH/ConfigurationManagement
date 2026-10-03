@@ -203,4 +203,16 @@ public sealed class ItsAccountSelectionBuilderTests : IDisposable
         Assert.Equal(4, items.Count); // «Основная» (виртуальная) + 3 записи
         Assert.All(items, i => Assert.False(string.IsNullOrWhiteSpace(i.Name)));
     }
+
+    [Fact]
+    public void SelectionItem_ToString_ReturnsDisplayName()
+    {
+        // Страховка отображения (issue #333): даже если в конкретном ComboBox пропущен
+        // DisplayMemberPath, показывается имя пункта, а не тип/идентификатор.
+        var named = new ItsAccountSelectionItem("acc-1", "Бухгалтерия");
+        Assert.Equal("Бухгалтерия", named.ToString());
+
+        var primary = new ItsAccountSelectionItem(null, "Основная");
+        Assert.Equal("Основная", primary.ToString());
+    }
 }

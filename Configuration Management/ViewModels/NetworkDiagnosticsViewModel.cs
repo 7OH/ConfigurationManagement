@@ -211,7 +211,7 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
         RunCoreAsync(new[]
         {
             OneCPorts.Agent, OneCPorts.Cluster, OneCPorts.Repository, OneCPorts.Ras
-        });
+        }, ServiceKeys);
 
     /// <summary>
     /// Начальная карта портов для диалога (issue #335): сохранённые для текущего сервера
@@ -236,13 +236,15 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
     public async Task ApplyEditedPortsAndCheckAsync(ServerPortsSettings ports)
     {
         RememberPorts(_ => SanitizePorts(ports));
+        // Явные ключи сервисов (issue #335): для нестандартных портов карты
+        // GetServiceKey вернул бы «порт» — имена передаём по позициям карты.
         await RunCoreAsync(new[]
         {
             EffectivePortOr(ports.Agent, OneCPorts.Agent),
             EffectivePortOr(ports.Cluster, OneCPorts.Cluster),
             EffectivePortOr(ports.Repository, OneCPorts.Repository),
             EffectivePortOr(ports.Ras, OneCPorts.Ras),
-        }).ConfigureAwait(false);
+        }, ServiceKeys).ConfigureAwait(false);
     }
 
     /// <summary>Возвращает порт, если он задан, иначе порт по умолчанию.</summary>
@@ -315,8 +317,17 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Ключи локализации имён сервисов стандартной карты портов 1С (issue #335):
+    /// агент / кластер / хранилище / RAS — по позициям карты.</summary>
+    private static readonly string[] ServiceKeys =
+    {
+        "Diagnostics.PortAgent", "Diagnostics.PortCluster",
+        "Diagnostics.PortRepository", "Diagnostics.PortRas",
+    };
+
     private async Task RunCoreAsync(
         IReadOnlyList<int> ports,
+        IReadOnlyList<string>? serviceKeys = null,
         Func<ServerPortsSettings, ServerPortsSettings>? remember = null)
     {
         if (Interlocked.Exchange(ref _busy, 1) == 1)
@@ -334,7 +345,7 @@ public sealed class NetworkDiagnosticsViewModel : ViewModelBase
             NetworkDiagnosticsResult result;
             try
             {
-                result = await _service.RunAsync(Host, ports).ConfigureAwait(false);
+                result = await _service.RunAsync(Host, ports, serviceKeys: serviceKeys).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

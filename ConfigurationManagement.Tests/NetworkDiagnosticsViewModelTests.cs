@@ -69,15 +69,18 @@ public sealed class NetworkDiagnosticsViewModelTests
         public TaskCompletionSource? Gate { get; set; }
         public string? LastAddress { get; private set; }
         public IReadOnlyList<int>? LastPorts { get; private set; }
+        public IReadOnlyList<string>? LastServiceKeys { get; private set; }
         public int CallCount { get; private set; }
 
         public async Task<NetworkDiagnosticsResult> RunAsync(
             string address, IReadOnlyList<int> ports,
-            int timeoutMs = 3000, CancellationToken cancellationToken = default)
+            int timeoutMs = 3000, CancellationToken cancellationToken = default,
+            IReadOnlyList<string>? serviceKeys = null)
         {
             CallCount++;
             LastAddress = address;
             LastPorts = ports;
+            LastServiceKeys = serviceKeys;
             if (Gate is not null)
                 await Gate.Task.WaitAsync(cancellationToken);
             if (Throw is not null)
@@ -224,6 +227,38 @@ public sealed class NetworkDiagnosticsViewModelTests
         Assert.Equal(2540, saved.Agent);
         Assert.Equal(2542, saved.Repository);
         Assert.Equal(2545, saved.Ras);
+    }
+
+    [Fact]
+    public async Task CheckPortsAsync_PassesExplicitServiceKeys()
+    {
+        // Имена сервисов передаются по позициям карты (issue #335): у нестандартных
+        // портов колонка «Сервис» показывает агент/кластер/хранилище/RAS, а не «порт».
+        var service = new FakeDiagnosticsService();
+        var vm = new NetworkDiagnosticsViewModel(service, Target("srv", 1541));
+
+        await vm.CheckPortsAsync();
+
+        Assert.Equal(new[]
+        {
+            "Diagnostics.PortAgent", "Diagnostics.PortCluster",
+            "Diagnostics.PortRepository", "Diagnostics.PortRas",
+        }, service.LastServiceKeys);
+    }
+
+    [Fact]
+    public async Task ApplyEditedPortsAndCheckAsync_PassesExplicitServiceKeys()
+    {
+        var service = new FakeDiagnosticsService();
+        var vm = new NetworkDiagnosticsViewModel(service, Target("srv", 1541));
+
+        await vm.ApplyEditedPortsAndCheckAsync(new ServerPortsSettings(27541, 27540, 27542, 27545));
+
+        Assert.Equal(new[]
+        {
+            "Diagnostics.PortAgent", "Diagnostics.PortCluster",
+            "Diagnostics.PortRepository", "Diagnostics.PortRas",
+        }, service.LastServiceKeys);
     }
 
     // ===================== Пустой список серверов (issue #335) =====================

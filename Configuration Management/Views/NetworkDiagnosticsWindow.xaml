@@ -41,14 +41,16 @@
              на второй, чтобы при узком окне кнопки не обрезались (0.3.9.269). -->
         <StackPanel Grid.Row="0" Margin="0,0,0,10">
             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                <TextBlock Text="{loc:Loc Diagnostics.Host}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBox Width="200" Style="{StaticResource ModernTextBox}" Padding="6,3"
-                         VerticalContentAlignment="Center"
-                         Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"/>
-                <TextBlock Text="{loc:Loc Diagnostics.ServerLabel}" VerticalAlignment="Center" Margin="10,0,6,0"/>
-                <ComboBox Width="150" VerticalAlignment="Center" Padding="6,3"
+                <!-- Одно поле «Сервер:» (issue #335): редактируемый список — можно ввести адрес
+                     вручную или выбрать известный сервер из выпадающего списка (Host/SelectedServer
+                     синхронизированы ViewModel: выбор подставляет адрес и сохранённый порт). -->
+                <TextBlock Text="{loc:Loc Diagnostics.ServerLabel}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <ComboBox Width="220" Style="{StaticResource ModernComboBox}" IsEditable="True"
+                          IsTextSearchEnabled="False" Padding="6,3"
+                          VerticalContentAlignment="Center"
                           ItemsSource="{Binding AvailableServers}"
-                          SelectedItem="{Binding SelectedServer, Mode=TwoWay}"/>
+                          SelectedItem="{Binding SelectedServer, Mode=TwoWay}"
+                          Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 <TextBlock Text="{loc:Loc Diagnostics.Port}" VerticalAlignment="Center" Margin="10,0,6,0"/>
                 <TextBox Width="64" Style="{StaticResource ModernTextBox}" Padding="6,3"
                          VerticalContentAlignment="Center"

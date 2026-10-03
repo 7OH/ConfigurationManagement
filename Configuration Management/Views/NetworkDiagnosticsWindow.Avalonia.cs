@@ -39,25 +39,19 @@ namespace Configuration_Management
             FontSize = 13;
             CanResize = true;
 
-            var hostBox = new TextBox
-            {
-                Width = 200,
-                Padding = new Thickness(6, 3),
-                VerticalContentAlignment = VerticalAlignment.Center
-            };
-            hostBox.Styled(ControlThemes.ModernTextBox);
-            hostBox.Bind(TextBox.TextProperty, new Binding("Host", BindingMode.TwoWay));
-
-            // Выбор сервера с портом (issue #335): список известных серверов 1С +
-            // отдельное поле порта (сохранённый порт подставляется при смене сервера).
+            // Одно поле «Сервер:» (issue #335): редактируемый список — можно ввести адрес
+            // вручную (Text → Host) или выбрать известный сервер (SelectedItem → SelectedServer,
+            // который подставляет адрес и сохранённый порт).
             var serverCombo = new ComboBox
             {
-                Width = 150,
+                Width = 220,
+                IsEditable = true,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left
             };
             serverCombo.Bind(ComboBox.ItemsSourceProperty, new Binding("AvailableServers"));
             serverCombo.Bind(ComboBox.SelectedItemProperty, new Binding("SelectedServer", BindingMode.TwoWay));
+            serverCombo.Bind(ComboBox.TextProperty, new Binding("Host", BindingMode.TwoWay));
             serverCombo.Styles.Add(new Style(x => x.OfType<ComboBoxItem>())
             {
                 Setters = { new Setter(ComboBoxItem.VerticalContentAlignmentProperty, VerticalAlignment.Center) }
@@ -93,8 +87,6 @@ namespace Configuration_Management
                 Spacing = 8,
                 Children =
                 {
-                    Label(LocalizationManager.T("Diagnostics.Host")),
-                    hostBox,
                     Label(LocalizationManager.T("Diagnostics.ServerLabel")),
                     serverCombo,
                     Label(LocalizationManager.T("Diagnostics.Port")),

@@ -9,6 +9,107 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.297] — 2026-10-03
+
+### Исправлено
+
+- **Автообновление платформы, проверка обновлений и скачивание версий
+  (issues #334, #323, #330 — общий корень: обработка редиректа 302 и CAS-входа
+  на portal.1c.ru)**:
+  - **учётные данные ИТС берутся из справочника `its_accounts.json`**:
+    в `OneCUpdatesService` через DI внедрён `IItsAccountsStore` (публичная перегрузка
+    конструктора, выбор по максимальному числу разрешимых параметров) — логин/пароль
+    для входа на сайт 1С читаются из справочника учёток, устаревшие поля настроек
+    (`UpdatesLogin`/`UpdatesPassword`) остались только фолбэком
+    ([`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs));
+  - **программный вход доведён до конца**: GET формы входа
+    `login.1c.ru/login?service=…` с извлечением токена `execution` (regex расширен
+    на одинарные кавычки и порядок атрибутов), POST учётных данных, ручное следование
+    за цепочкой редиректов после входа (`releases.1c.ru/public/security_check?ticket=…`)
+    с накоплением сессионных cookie (TGC/JSESSIONID) и лимитом шагов — повторный запрос
+    каталога больше не возвращается на форму входа;
+  - **понятная ошибка при редиректе без `Location`** вместо «молчаливого» результата
+    (вход не подтверждён — `Updates.AuthRequired`);
+  - **пошаговая диагностика в журнале**: каждый шаг входа логируется
+    (`[Updates] Редирект входа {status} (шаг N): '<Location>'`,
+    `[Updates] Вход на portal.1c.ru выполнен (шагов: N)`), перед входом — имя учётной
+    записи через новый helper `ResolveAccountName()` (`[Updates] Вход на portal.1c.ru:
+    учётная запись '<имя>'`, без пароля), в `SendWithAuthAsync` — причина входа
+    (401/403 или 302 на login.1c.ru);
+  - **каталоги релизов типовых** (`AccountingCorp30`, `HRM30` и др.) и **каталог версий
+    платформы** (`Platform83`) загружаются после успешной авторизации — затронутые окна:
+    «Проверка обновлений», «Актуальные релизы», «Обновление платформы 1С», «Скачивание
+    версии платформы»;
+  - **тесты**: CAS-цепочка с fake-handler'ом
+    (`CheckForUpdatesAsync_302ToLoginHost_CredentialsFromItsAccountsStore_Succeeds`,
+    `TryLogin_FollowsPostRedirectToSecurityCheck_ThenCatalogSucceeds` — счётчики GET/POST),
+    `GetCredentials_UsesItsAccountsStore_WhenStoreProvided` /
+    `GetCredentials_FallsBackToLegacySettings_WhenStoreEmpty`, отсутствие учётки →
+    `AuthRequired`, интеграция `LoadCatalogAsync_AfterCasLogin_PopulatesReleases`
+    ([`UpdateCheckCatalogTests.cs`](ConfigurationManagement.Tests/UpdateCheckCatalogTests.cs),
+    [`PlatformDownloadViewModelTests.cs`](ConfigurationManagement.Tests/PlatformDownloadViewModelTests.cs)).
+
+- **Диагностика подключения (issue #335)**:
+  - **поле «Сервер:» со списком известных серверов**: поля «СерверЫ» и Host объединены
+    в одно редактируемое поле с выпадающим списком известных серверов (editable ComboBox,
+    `IsEditable`, обе платформы); выбор подставляет адрес и сохранённый порт
+    ([`NetworkDiagnosticsWindow.xaml`](Configuration%20Management/Views/NetworkDiagnosticsWindow.xaml),
+    [`NetworkDiagnosticsWindow.Avalonia.cs`](Configuration%20Management/Views/NetworkDiagnosticsWindow.Avalonia.cs),
+    локализация `Diagnostics.ServerLabel`: «Сервер:» / «Server:»);
+  - **догадка портов от ближайшего стандартного порта**
+    ([`ServerPortsGuesser.cs`](Configuration%20Management/Services/ServerPortsGuesser.cs)):
+    введённый порт интерпретируется как порт ближайшего стандартного сервиса
+    (агент 1540 / кластер 1541 / хранилище 1542 / RAS 1545), вся карта сдвигается на одно
+    смещение без «+4» — 27545 → 27540/27541/27542/27545; границы 1..65535, вне диапазона —
+    стандартная карта;
+  - **колонка «Сервис» в окне портов показывает имена сервисов** (агент сервера /
+    кластер / хранилище конфигураций / RAS), а не «Порт» — явные ключи сервисов
+    передаются из карты догадки в проверку портов и в подсказки
+    ([`NetworkDiagnosticsService.cs`](Configuration%20Management/Services/NetworkDiagnosticsService.cs),
+    [`NetworkDiagnosticsViewModel.cs`](Configuration%20Management/ViewModels/NetworkDiagnosticsViewModel.cs));
+  - **тесты**: `Guess_RasLikePort27545_ShiftsAllServices` и карты для агент-/хранилище-подобных
+    портов, подсказки используют переданное имя сервиса (порт 27540 → «агент сервера»)
+    ([`ServerPortsGuesserTests.cs`](ConfigurationManagement.Tests/ServerPortsGuesserTests.cs),
+    [`NetworkDiagnosticsHintsTests.cs`](ConfigurationManagement.Tests/NetworkDiagnosticsHintsTests.cs)).
+
+- **Учётные записи ИТС: имя вместо идентификатора (issue #333)**:
+  - `ItsAccountSelectionItem.ToString()` → `Name`: учётка отображается наименованием
+    («Основная» — для виртуального пункта) в общих настройках и в окне
+    «Изменить типовую конфигурацию» на обеих платформах — защита от регрессии, даже если
+    где-то не сработает `DisplayMemberPath`
+    ([`ItsAccountsViewModel.cs`](Configuration%20Management/ViewModels/ItsAccountsViewModel.cs));
+  - **тесты-страховки привязок** `DisplayMemberPath`/`DisplayMemberBinding` во всех четырёх
+    местах (WPF XAML и Avalonia) и маппинг выбора по имени в `AccountId` (пустой Id —
+    «Основная»)
+    ([`ItsAccountsViewModelTests.cs`](ConfigurationManagement.Tests/ItsAccountsViewModelTests.cs),
+    [`SettingsWindowXamlResourcesTests.cs`](ConfigurationManagement.Tests/SettingsWindowXamlResourcesTests.cs)).
+
+- **Окно «Типовые конфигурации» (issue #321)**:
+  - **удалён бесполезный «Сегмент адреса»** из редактора (адрес обновлений строится
+    только из НИК); модель `UrlCode` сохранена для обратной совместимости JSON-файлов
+    ([`ConfigTypeEditWindow.xaml`](Configuration%20Management/Views/ConfigTypeEditWindow.xaml),
+    [`ConfigTypeEditWindow.Avalonia.cs`](Configuration%20Management/Views/ConfigTypeEditWindow.Avalonia.cs),
+    комментарий deprecated в [`OneCConfigType.cs`](Configuration%20Management/Models/OneCConfigType.cs));
+  - **редакции — таблица из 4 колонок** (Имя / Ред / Подред / URL) с кнопками
+    «Добавить…», «Изменить…», «Удалить» вместо инлайн-полей; добавление/правка — новые
+    **модальные диалоги** `EditionEditWindow` (WPF + Avalonia); устранён баг затирания
+    строки при добавлении (старые значения писались в новую строку через
+    `SelectionChanged`/`TextChanged`)
+    ([`EditionEditWindow.xaml`](Configuration%20Management/Views/EditionEditWindow.xaml),
+    [`EditionEditWindow.Avalonia.cs`](Configuration%20Management/Views/EditionEditWindow.Avalonia.cs));
+  - **заполнены ники типовых конфигураций**: БП → `Accounting`, ЗУП → `HRM30`,
+    УТ → `Trade`, КА → `ARAutomation`, Розница → `Retail`, ERP → `EnterpriseERP20`,
+    БГУ → `StateAccounting20`, редакции дополнены `UrlOverride`
+    (`Accounting30`/`Accounting20_82`, `Trade110`/`Trade103`, `ARAutomation20/11/10`,
+    `Retail30`/`Retail23`) — после «Восстановить типовые» колонки «НИК» и «Редакции»
+    заполняются
+    ([`BuiltInConfigTypes.cs`](Configuration%20Management/Services/BuiltInConfigTypes.cs));
+  - **тесты**: `AllBuiltInConfigs_HaveEditions`, `BuiltInConfigs_WithKnownNicks_HaveNonEmptyNick`,
+    `RestoreDefaults_ReturnsBuiltInWithNicksAndEditions`, сохранение нескольких редакций
+    с 4 полями (сериализация/десериализация), отображение `Red` при пустом `Name`
+    ([`BuiltInConfigTypesTests.cs`](ConfigurationManagement.Tests/BuiltInConfigTypesTests.cs),
+    [`CustomConfigTypesStoreTests.cs`](ConfigurationManagement.Tests/CustomConfigTypesStoreTests.cs)).
+
 ## [0.3.9.296] — 2026-10-02
 
 ### Исправлено

@@ -19,19 +19,29 @@ public static class BuiltInConfigTypes
         var list = new List<OneCConfigType>
         {
             // Бухгалтерия предприятия — наиболее распространённая типовая конфигурация.
+            // Ники конфигураций/редакций — по списку 7OH (issue #321, комментарий 5952509522):
+            // база каталога Accounting; редакции 2.0/3.0 имеют собственные каталоги
+            // Accounting20_82/Accounting30 (UrlOverride — releases.1c.ru/project/<ник>).
             new OneCConfigType
             {
                 Code = "BP",
                 Name = "Бухгалтерия предприятия",
-                // Имя конфигурации в метаданных 1С (issue #321): «БухгалтерияПредприятия».
                 ConfigName = "БухгалтерияПредприятия",
                 UrlCode = "Бухгалтерия предприятия",
-                Nick = "AccountingCorp30",
+                Nick = "Accounting",
                 IsBuiltIn = true,
                 Editions =
                 {
-                    new OneCConfigEdition { Name = "3.0", Red = "3.0" },
-                    new OneCConfigEdition { Name = "2.0", Red = "2.0" },
+                    new OneCConfigEdition
+                    {
+                        Name = "3.0", Red = "3",
+                        UrlOverride = "https://releases.1c.ru/project/Accounting30",
+                    },
+                    new OneCConfigEdition
+                    {
+                        Name = "2.0", Red = "2",
+                        UrlOverride = "https://releases.1c.ru/project/Accounting20_82",
+                    },
                 },
             },
             // Зарплата и управление персоналом.
@@ -39,85 +49,101 @@ public static class BuiltInConfigTypes
             {
                 Code = "ZUP",
                 Name = "Зарплата и управление персоналом",
-                // Имя конфигурации в метаданных 1С: «ЗарплатаИУправлениеПерсоналом» (issue #321).
                 ConfigName = "ЗарплатаИУправлениеПерсоналом",
                 UrlCode = "Зарплата и управление персоналом",
-                // Точный ник для ЗУП 3.1 на releases.1c.ru не подтверждён — остаётся пустым,
-                // чтобы не выдавать ложный результат проверки (будет заполнен после уточнения).
-                Nick = string.Empty,
+                Nick = "HRM30",
                 IsBuiltIn = true,
                 Editions =
                 {
                     new OneCConfigEdition { Name = "3.1", Red = "3.1" },
                 },
             },
-            // Управление торговлей.
+            // Управление торговлей: каталог Trade, редакции 10.3/11.х — Trade103/Trade110.
             new OneCConfigType
             {
                 Code = "UT",
                 Name = "Управление торговлей",
-                // Имя конфигурации в метаданных 1С: «УправлениеТорговлей» (issue #321).
                 ConfigName = "УправлениеТорговлей",
                 UrlCode = "Управление торговлей",
-                // Точный ник для УТ 11 на releases.1c.ru не подтверждён — остаётся пустым.
-                Nick = string.Empty,
+                Nick = "Trade",
                 IsBuiltIn = true,
                 Editions =
                 {
-                    new OneCConfigEdition { Name = "11", Red = "11" },
-                    new OneCConfigEdition { Name = "10.3", Red = "10.3" },
+                    new OneCConfigEdition
+                    {
+                        Name = "11", Red = "11",
+                        UrlOverride = "https://releases.1c.ru/project/Trade110",
+                    },
+                    new OneCConfigEdition
+                    {
+                        Name = "10.3", Red = "10.3",
+                        UrlOverride = "https://releases.1c.ru/project/Trade103",
+                    },
                 },
             },
-            // Комплексная автоматизация.
+            // Комплексная автоматизация: каталог ARAutomation, редакции 1.0/1.1/2.0.
             new OneCConfigType
             {
                 Code = "KA",
                 Name = "Комплексная автоматизация",
-                // Имя конфигурации в метаданных 1С: «КомплекснаяАвтоматизация» (issue #321).
                 ConfigName = "КомплекснаяАвтоматизация",
                 UrlCode = "Комплексная автоматизация",
-                // Точный ник для КА 2.5 на releases.1c.ru не подтверждён — остаётся пустым.
-                Nick = string.Empty,
+                Nick = "ARAutomation",
                 IsBuiltIn = true,
                 Editions =
                 {
-                    new OneCConfigEdition { Name = "2.5", Red = "2.5" },
-                    new OneCConfigEdition { Name = "2.0", Red = "2.0" },
-                    new OneCConfigEdition { Name = "1.1", Red = "1.1" },
-                    new OneCConfigEdition { Name = "1.0", Red = "1.0" },
+                    new OneCConfigEdition
+                    {
+                        Name = "2.0", Red = "2.0",
+                        UrlOverride = "https://releases.1c.ru/project/ARAutomation20",
+                    },
+                    new OneCConfigEdition
+                    {
+                        Name = "1.1", Red = "1.1",
+                        UrlOverride = "https://releases.1c.ru/project/ARAutomation11",
+                    },
+                    new OneCConfigEdition
+                    {
+                        Name = "1.0", Red = "1.0",
+                        UrlOverride = "https://releases.1c.ru/project/ARAutomation10",
+                    },
                 },
             },
-            // ERP Управление холдингом.
+            // 1С:ERP Управление предприятием.
             new OneCConfigType
             {
                 Code = "ERP",
                 Name = "ERP Управление холдингом",
-                // Имя конфигурации в метаданных 1С: «УправлениеПредприятием» (issue #321).
                 ConfigName = "УправлениеПредприятием",
                 UrlCode = "ERP Управление холдингом",
-                // Точный ник для ERP 2.5 неизвестен — остаётся пустым (будет скорректировано).
-                Nick = string.Empty,
+                Nick = "EnterpriseERP20",
                 IsBuiltIn = true,
                 Editions =
                 {
                     new OneCConfigEdition { Name = "2.5", Red = "2.5" },
                 },
             },
-            // Розница.
+            // Розница: каталог Retail, редакции 2.3/3.0 — Retail23/Retail30.
             new OneCConfigType
             {
                 Code = "Retail",
                 Name = "Розница",
-                // Имя конфигурации в метаданных 1С: «Retail» (issue #321, по списку 7OH).
                 ConfigName = "Retail",
                 UrlCode = "Розница",
-                // Точный ник для Розницы на releases.1c.ru не подтверждён — остаётся пустым.
-                Nick = string.Empty,
+                Nick = "Retail",
                 IsBuiltIn = true,
                 Editions =
                 {
-                    new OneCConfigEdition { Name = "3.0", Red = "3.0" },
-                    new OneCConfigEdition { Name = "2.3", Red = "2.3" },
+                    new OneCConfigEdition
+                    {
+                        Name = "3.0", Red = "3.0",
+                        UrlOverride = "https://releases.1c.ru/project/Retail30",
+                    },
+                    new OneCConfigEdition
+                    {
+                        Name = "2.3", Red = "2.3",
+                        UrlOverride = "https://releases.1c.ru/project/Retail23",
+                    },
                 },
             },
             // Бухгалтерия государственного учреждения.
@@ -125,11 +151,9 @@ public static class BuiltInConfigTypes
             {
                 Code = "BGU",
                 Name = "Бухгалтерия государственного учреждения",
-                // Имя конфигурации в метаданных 1С: «БухгалтерияГосударственногоУчреждения» (issue #321).
                 ConfigName = "БухгалтерияГосударственногоУчреждения",
                 UrlCode = "Бухгалтерия государственного учреждения",
-                // Точный ник для БГУ неизвестен — остаётся пустым (будет скорректировано).
-                Nick = string.Empty,
+                Nick = "StateAccounting20",
                 IsBuiltIn = true,
                 Editions =
                 {

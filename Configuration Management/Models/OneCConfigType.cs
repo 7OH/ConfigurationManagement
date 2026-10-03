@@ -27,8 +27,10 @@ public class OneCConfigType
     /// </summary>
     public string ConfigName { get; set; } = string.Empty;
 
-    /// <summary>Сегмент web-адреса <c><Конфигурация></c> по правилу 1С. Если пуст —
-    /// при формировании URL используется <see cref="Name"/>.</summary>
+    /// <summary>Устаревшее поле (deprecated, issue #321): сегмент web-адреса
+    /// <c><Конфигурация></c> по прежнему правилу 1С. Адрес обновлений строится ТОЛЬКО
+    /// из <see cref="Nick"/> (<c>releases.1c.ru/project/<nick></c>), поле из UI удалено
+    /// и не заполняется для новых записей. Оставлено для обратной совместимости JSON-файлов.</summary>
     public string UrlCode { get; set; } = string.Empty;
 
     /// <summary>Ник конфигурации на ресурсе обновлений 1С

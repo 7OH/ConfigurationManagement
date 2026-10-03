@@ -24,6 +24,10 @@ public sealed class ItsAccountSelectionItem
         Id = id;
         Name = name;
     }
+
+    /// <summary>Страховка отображения (issue #333): даже если в конкретном ComboBox пропущен
+    /// DisplayMemberPath/DisplayMemberBinding, показывается имя пункта, а не тип/идентификатор.</summary>
+    public override string ToString() => Name;
 }
 
 /// <summary>

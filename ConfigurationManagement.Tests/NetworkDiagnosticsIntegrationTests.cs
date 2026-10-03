@@ -18,7 +18,8 @@ public sealed class NetworkDiagnosticsIntegrationTests
 
         public Task<NetworkDiagnosticsResult> RunAsync(
             string address, IReadOnlyList<int> ports,
-            int timeoutMs = 3000, CancellationToken cancellationToken = default)
+            int timeoutMs = 3000, CancellationToken cancellationToken = default,
+            IReadOnlyList<string>? serviceKeys = null)
         {
             CallCount++;
             return Task.FromResult(new NetworkDiagnosticsResult

@@ -34,11 +34,17 @@ public interface INetworkDiagnosticsService
     /// не используется для проверок — только хост (порты передаются списком).</param>
     /// <param name="ports">Порты для TCP-проверки; пустой список — только DNS+ICMP.</param>
     /// <param name="timeoutMs">Таймаут ICMP и каждого TCP-зонда, мс.</param>
+    /// <param name="cancellationToken">Токен отмены.</param>
+    /// <param name="serviceKeys">Ключи локализации имён сервисов (по одному на порт,
+    /// issue #335); null — имя по значению порта через <see cref="OneCPorts.GetServiceKey"/>.
+    /// Для наборов из карты портов 1С (агент/кластер/хранилище/RAS) ключи передаются
+    /// явно, иначе в колонке «Сервис» у нестандартных портов показывался бы «порт».</param>
     Task<NetworkDiagnosticsResult> RunAsync(
         string address,
         IReadOnlyList<int> ports,
         int timeoutMs = 3000,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? serviceKeys = null);
 }
 
 /// <inheritdoc cref="INetworkDiagnosticsService"/>
@@ -66,7 +72,8 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnosticsService
         string address,
         IReadOnlyList<int> ports,
         int timeoutMs = 3000,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? serviceKeys = null)
     {
         var parsed = ParseAddress(address);
         if (parsed is null)
@@ -122,8 +129,9 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnosticsService
         var portProbes = new List<NetworkPortProbe>(ports.Count);
         if (dnsOk && ports.Count > 0)
         {
-            var probes = await Task.WhenAll(ports.Select(port =>
-                    ProbePortAsync(parsed.Host, port, timeoutMs, cancellationToken)))
+            var probes = await Task.WhenAll(ports.Select((port, index) =>
+                    ProbePortAsync(parsed.Host, port, ServiceKeyAt(serviceKeys, index, port),
+                        timeoutMs, cancellationToken)))
                 .ConfigureAwait(false);
             portProbes.AddRange(probes);
         }
@@ -131,8 +139,8 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnosticsService
         {
             // Без адреса TCP-проверка бессмысленна — порты помечаются как не проверенные
             // с причиной DNS-ошибки (для построения подсказок).
-            foreach (var port in ports)
-                portProbes.Add(new NetworkPortProbe(port, OneCPorts.GetServiceKey(port),
+            for (var i = 0; i < ports.Count; i++)
+                portProbes.Add(new NetworkPortProbe(ports[i], ServiceKeyAt(serviceKeys, i),
                     DiagnosticPortState.NotChecked, null, "dns_error"));
         }
 
@@ -307,7 +315,7 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnosticsService
     }
 
     private async Task<NetworkPortProbe> ProbePortAsync(
-        string host, int port, int timeoutMs, CancellationToken cancellationToken)
+        string host, int port, string? serviceKey, int timeoutMs, CancellationToken cancellationToken)
     {
         var result = await _tcpProbe(host, port, timeoutMs, cancellationToken)
             .ConfigureAwait(false);
@@ -318,8 +326,19 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnosticsService
                 ? DiagnosticPortState.Timeout
                 : DiagnosticPortState.Closed;
 
-        return new NetworkPortProbe(port, OneCPorts.GetServiceKey(port), state,
-            result.RttMs, result.ErrorCode);
+        // Явный ключ сервиса (набор из карты портов 1С) приоритетнее имени по значению порта.
+        return new NetworkPortProbe(port,
+            string.IsNullOrWhiteSpace(serviceKey) ? OneCPorts.GetServiceKey(port) : serviceKey!,
+            state, result.RttMs, result.ErrorCode);
+    }
+
+    /// <summary>Возвращает явный ключ сервиса для индекса порта (issue #335) либо
+    /// имя по значению порта через <see cref="OneCPorts.GetServiceKey"/>.</summary>
+    private static string ServiceKeyAt(IReadOnlyList<string>? keys, int index, int port = 0)
+    {
+        if (keys is not null && index >= 0 && index < keys.Count && !string.IsNullOrWhiteSpace(keys[index]))
+            return keys[index]!;
+        return OneCPorts.GetServiceKey(port);
     }
 
     private static bool IsPermissionError(Exception? exception)

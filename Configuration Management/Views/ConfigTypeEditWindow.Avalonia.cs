@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Configuration_Management.Localization;
@@ -33,17 +34,12 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
     private readonly TextBox _codeBox = MakeTextBox(string.Empty);
     private readonly TextBox _nameBox = MakeTextBox(string.Empty);
     private readonly TextBox _configNameBox = MakeTextBox(string.Empty);
-    private readonly TextBox _urlCodeBox = MakeTextBox(string.Empty);
     private readonly TextBox _nickBox = MakeTextBox(string.Empty);
     private readonly ComboBox _accountBox = new() { Height = 32, DisplayMemberBinding = new Avalonia.Data.Binding(nameof(ViewModels.ItsAccountSelectionItem.Name)) };
     private readonly List<ViewModels.ItsAccountSelectionItem> _accountItems = new();
-    private readonly ComboBox _editionsList = new();
-    private readonly TextBox _editionNameBox = MakeTextBox(string.Empty);
-    private readonly TextBox _editionRedBox = MakeTextBox(string.Empty);
-    private readonly TextBox _editionSubRedBox = MakeTextBox(string.Empty);
-    private readonly TextBox _editionUrlOverrideBox = MakeTextBox(string.Empty);
-
-    private bool _editionSyncing;
+    // Таблица редакций (issue #321): ListBox с 4 колонками (имя/Ред/Подред/URL);
+    // строки правятся отдельным модальным диалогом EditionEditWindow.
+    private readonly ListBox _editionsList = new();
 
     /// <summary>Готовая конфигурация при подтверждении, иначе <c>null</c>.</summary>
     public OneCConfigType? Result { get; private set; }
@@ -65,7 +61,8 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         _codeBox.Text = model?.Code ?? string.Empty;
         _nameBox.Text = model?.Name ?? string.Empty;
         _configNameBox.Text = model?.ConfigName ?? string.Empty;
-        _urlCodeBox.Text = model?.UrlCode ?? string.Empty;
+        // Поле «Сегмент адреса» (UrlCode) из UI удалено (issue #321): адрес обновлений
+        // строится только из ника (releases.1c.ru/project/<nick>), UrlCode не нужен.
         _nickBox.Text = model?.Nick ?? string.Empty;
 
         // Учётная запись ИТС (issue #333): записи справочника; виртуальный пункт «Основная»
@@ -83,7 +80,6 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         }
         if (_editions.Count > 0)
             _editionsList.SelectedIndex = 0;
-        ClearEditionFields();
 
         Content = BuildRoot();
 
@@ -162,55 +158,56 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         // о конфигурации, в адрес обновлений не попадает.
         ToolTip.SetTip(_configNameBox, T("Updates.ConfigNameHint"));
         panel.Children.Add(MakeFieldRow(T("Updates.ConfigName"), _configNameBox));
-        // Сегмент адреса каталога релизов (issue #321, часть 2): ToolTip поясняет,
-        // как значение используется при построении адреса каталога релизов на releases.1c.ru.
-        ToolTip.SetTip(_urlCodeBox, T("Updates.UrlCodeHint"));
-        panel.Children.Add(MakeFieldRow(T("Updates.UrlCode"), _urlCodeBox));
+        // Поле «Сегмент адреса» (UrlCode) из UI удалено (issue #321): адрес обновлений
+        // строится только из ника (releases.1c.ru/project/<nick>), UrlCode не нужен.
         panel.Children.Add(MakeFieldRow(T("Updates.Nick"), _nickBox));
         panel.Children.Add(MakeFieldRow(T("ItsAccounts.AccountLabel"), _accountBox));
 
-        // Список редакций и поля выбранной редакции. MaxDropDownHeight (issue #321):
-        // в выпадающем списке видны 3–4 строки редакций.
+        // Таблица редакций из 4 колонок (issue #321): имя, «Ред», «Подред» и переопределённая
+        // ссылка. Строки правятся отдельным модальным диалогом EditionEditWindow —
+        // инлайн-поля под списком убраны (раньше видна была только первая колонка).
+        var editionsHeader = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(new GridLength(1, GridUnitType.Star)),
+                new ColumnDefinition(new GridLength(1, GridUnitType.Star)),
+                new ColumnDefinition(new GridLength(1, GridUnitType.Star)),
+                new ColumnDefinition(new GridLength(1.5, GridUnitType.Star)),
+            },
+            Margin = new Thickness(0, 6, 0, 2)
+        };
+        editionsHeader.Children.Add(MakeHeaderText(T("Updates.Name"), 0));
+        editionsHeader.Children.Add(MakeHeaderText(T("Updates.EditionRed"), 1));
+        editionsHeader.Children.Add(MakeHeaderText(T("Updates.EditionSubRed"), 2));
+        editionsHeader.Children.Add(MakeHeaderText(T("Updates.UrlOverride"), 3));
+
         _editionsList.ItemsSource = _editions;
         _editionsList.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _editionsList.MinHeight = 34;
-        _editionsList.MaxDropDownHeight = 200;
-        _editionsList.SelectionChanged += OnEditionSelectionChanged;
+        _editionsList.MinHeight = 80;
+        _editionsList.MaxHeight = 200;
+        _editionsList.ItemTemplate = new FuncDataTemplate<OneCConfigEdition>((edition, _) => BuildEditionRow(edition));
 
-        // Поля редакции пишут значения в выбранную строку СРАЗУ при вводе (issue #321,
-        // часть 2): раньше перенос происходил только при смене выделения или нажатии ОК —
-        // если выделение слетало, введённые строки терялись и оставалась одна редакция.
-        _editionNameBox.TextChanged += (_, _) => CommitEditionFields();
-        _editionRedBox.TextChanged += (_, _) => CommitEditionFields();
-        _editionSubRedBox.TextChanged += (_, _) => CommitEditionFields();
-        _editionUrlOverrideBox.TextChanged += (_, _) => CommitEditionFields();
+        var editionsColumn = new StackPanel { Spacing = 6 };
+        editionsColumn.Children.Add(editionsHeader);
+        editionsColumn.Children.Add(_editionsList);
 
         var editionButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var addEd = new Button { Content = T("Updates.Add"), Height = 30 };
+        var addEd = new Button { Content = T("Updates.AddEdition"), Height = 30 };
         addEd.Styled(ControlThemes.SelectAllButton);
         addEd.Click += (_, _) => OnAddEditionClick();
+        var editEd = new Button { Content = T("Updates.EditEdition"), Height = 30 };
+        editEd.Styled(ControlThemes.SelectAllButton);
+        editEd.Click += (_, _) => OnEditEditionClick();
         var removeEd = new Button { Content = T("Updates.Delete"), Height = 30 };
         removeEd.Styled(ControlThemes.SelectAllButton);
         removeEd.Click += (_, _) => OnRemoveEditionClick();
         editionButtons.Children.Add(addEd);
+        editionButtons.Children.Add(editEd);
         editionButtons.Children.Add(removeEd);
+        editionsColumn.Children.Add(editionButtons);
 
-        var editionRow = new Grid();
-        editionRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-        editionRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        Grid.SetColumn(_editionsList, 0);
-        editionRow.Children.Add(_editionsList);
-        Grid.SetColumn(editionButtons, 1);
-        editionButtons.Margin = new Thickness(8, 0, 0, 0);
-        editionRow.Children.Add(editionButtons);
-        panel.Children.Add(MakeFieldRow(T("Updates.Editions"), editionRow));
-
-        // Поля редакции одним рядом: имя, «Ред», «Подред» и переопределённый URL.
-        _editionNameBox.Watermark = T("Updates.Name");
-        _editionRedBox.Watermark = T("Updates.EditionRed");
-        _editionSubRedBox.Watermark = T("Updates.EditionSubRed");
-        _editionUrlOverrideBox.Watermark = T("Updates.UrlOverride");
-        panel.Children.Add(BuildEditionFieldsRow());
+        panel.Children.Add(MakeFieldRow(T("Updates.Editions"), editionsColumn));
 
         // Кнопки: Сохранить / Отмена.
         var buttons = new StackPanel
@@ -234,8 +231,6 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
 
     private void OnSaveClick()
     {
-        CommitEditionFields();
-
         var name = _nameBox.Text?.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -259,7 +254,6 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
             Code = code,
             Name = name,
             ConfigName = _configNameBox.Text?.Trim() ?? string.Empty,
-            UrlCode = _urlCodeBox.Text?.Trim() ?? string.Empty,
             Nick = _nickBox.Text?.Trim() ?? string.Empty,
             // Учётная запись ИТС: пусто — «Основная» (либо выбранная в настройках).
             AccountId = selectedAccount?.Id ?? string.Empty,
@@ -276,83 +270,54 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         Close();
     }
 
+    /// <summary>
+    /// «Добавить…» (issue #321): отдельный модальный диалог с полями новой редакции вместо
+    /// инлайн-полей под таблицей. Диалог работает на копии; строка добавляется по ОК.
+    /// </summary>
     private void OnAddEditionClick()
     {
-        CommitEditionFields();
-        var edition = new OneCConfigEdition { Name = T("Updates.Name") };
+        var dialog = new EditionEditWindow();
+        if (!dialog.ShowSync(this) || dialog.Result is not { } edition)
+            return;
+
         _editions.Add(edition);
-        // Сразу показываем новую строку и переводим на неё ввод (issue #321).
-        _editionsList.SelectedIndex = _editions.Count - 1;
         _editionsList.SelectedItem = edition;
         _editionsList.ScrollIntoView(edition);
-        // Новая строка — пустая: поля освобождаем, чтобы ввод не перезаписал значения
-        // предыдущей строки (поля самокоммитятся по TextChanged).
-        ClearEditionFields();
     }
 
+    /// <summary>«Изменить…»: модальный диалог правки выбранной редакции (копия → замена).</summary>
+    private void OnEditEditionClick()
+    {
+        if (_editionsList.SelectedItem is not OneCConfigEdition edition)
+        {
+            _dialogs.ShowInfo(T("Updates.SelectEditionFirst"), T("Updates.EditEdition"));
+            return;
+        }
+
+        var dialog = new EditionEditWindow(new OneCConfigEdition
+        {
+            Name = edition.Name,
+            Red = edition.Red,
+            SubRed = edition.SubRed,
+            UrlOverride = edition.UrlOverride,
+        });
+        if (!dialog.ShowSync(this) || dialog.Result is not { } updated)
+            return;
+
+        var index = _editions.IndexOf(edition);
+        _editions[index] = updated;
+        _editionsList.SelectedItem = updated;
+    }
+
+    /// <summary>«Удалить»: удаляет выбранную редакцию из списка.</summary>
     private void OnRemoveEditionClick()
     {
         if (_editionsList.SelectedItem is not OneCConfigEdition edition)
             return;
         var index = _editions.IndexOf(edition);
         _editions.Remove(edition);
-        ClearEditionFields();
         if (_editions.Count > 0)
             _editionsList.SelectedIndex = Math.Min(index, _editions.Count - 1);
-    }
-
-    private void OnEditionSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_editionSyncing)
-            return;
-        CommitEditionFields();
-        if (_editionsList.SelectedItem is OneCConfigEdition edition)
-            LoadEditionFields(edition);
-        else
-            ClearEditionFields();
-    }
-
-    /// <summary>Переносит значения полей редактора в выбранную редакцию.</summary>
-    private void CommitEditionFields()
-    {
-        if (_editionsList.SelectedItem is not OneCConfigEdition edition)
-            return;
-        edition.Name = _editionNameBox.Text?.Trim() ?? string.Empty;
-        edition.Red = _editionRedBox.Text?.Trim() ?? string.Empty;
-        edition.SubRed = _editionSubRedBox.Text?.Trim() ?? string.Empty;
-        edition.UrlOverride = _editionUrlOverrideBox.Text?.Trim() ?? string.Empty;
-    }
-
-    private void LoadEditionFields(OneCConfigEdition edition)
-    {
-        _editionSyncing = true;
-        try
-        {
-            _editionNameBox.Text = edition.Name;
-            _editionRedBox.Text = edition.Red;
-            _editionSubRedBox.Text = edition.SubRed;
-            _editionUrlOverrideBox.Text = edition.UrlOverride;
-        }
-        finally
-        {
-            _editionSyncing = false;
-        }
-    }
-
-    private void ClearEditionFields()
-    {
-        _editionSyncing = true;
-        try
-        {
-            _editionNameBox.Text = string.Empty;
-            _editionRedBox.Text = string.Empty;
-            _editionSubRedBox.Text = string.Empty;
-            _editionUrlOverrideBox.Text = string.Empty;
-        }
-        finally
-        {
-            _editionSyncing = false;
-        }
     }
 
     private static TextBox MakeTextBox(string watermark)
@@ -387,21 +352,53 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
         return grid;
     }
 
-    /// <summary>Ряд из четырёх полей редакции: имя, «Ред», «Подред» и переопределённый URL.</summary>
-    private Grid BuildEditionFieldsRow()
+    /// <summary>Заголовок колонки таблицы редакций.</summary>
+    private static TextBlock MakeHeaderText(string text, int column)
     {
-        var grid = new Grid { Margin = new Thickness(0, 3) };
-        for (var i = 0; i < 4; i++)
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-
-        var fields = new[] { _editionNameBox, _editionRedBox, _editionSubRedBox, _editionUrlOverrideBox };
-        for (var i = 0; i < fields.Length; i++)
+        var block = new TextBlock
         {
-            fields[i].Margin = i < fields.Length - 1 ? new Thickness(0, 0, 6, 0) : new Thickness(0);
-            Grid.SetColumn(fields[i], i);
-            grid.Children.Add(fields[i]);
-        }
+            Text = text,
+            FontSize = 12,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0),
+            Opacity = 0.65
+        };
+        Grid.SetColumn(block, column);
+        return block;
+    }
+
+    /// <summary>Строка таблицы редакций: 4 колонки (имя/Ред/Подред/URL) — issue #321.</summary>
+    private static Control BuildEditionRow(OneCConfigEdition edition)
+    {
+        var grid = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(new GridLength(1, GridUnitType.Star)),
+                new ColumnDefinition(new GridLength(1, GridUnitType.Star)),
+                new ColumnDefinition(new GridLength(1, GridUnitType.Star)),
+                new ColumnDefinition(new GridLength(1.5, GridUnitType.Star)),
+            }
+        };
+        grid.Children.Add(EditionCellText(edition.Name, 0));
+        grid.Children.Add(EditionCellText(edition.Red, 1));
+        grid.Children.Add(EditionCellText(edition.SubRed, 2));
+        grid.Children.Add(EditionCellText(edition.UrlOverride, 3));
         return grid;
+    }
+
+    private static TextBlock EditionCellText(string text, int column)
+    {
+        var block = new TextBlock
+        {
+            Text = text,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(8, 0)
+        };
+        Grid.SetColumn(block, column);
+        return block;
     }
 
     /// <summary>Генерирует стабильный код из наименования (латиница/цифры/подчёркивания).</summary>
