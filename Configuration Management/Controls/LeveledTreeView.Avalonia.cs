@@ -108,6 +108,27 @@ namespace Configuration_Management.Controls
                 return;
             }
 
+            // Ctrl+ЛЕВЫЙ щелчок по шеврону («плюсику») строки ГРУППЫ — то же, что и
+            // по названию: переключается ВСЯ ветка, текущая строка и выделение не
+            // меняются (issue #341). Шеврон — ToggleButton PART_ExpandCollapseChevron
+            // из шаблона строки (LeveledTreeViewItem.RowTheme): его штатное
+            // переключение через TwoWay-привязку IsChecked↔IsExpanded свернуло бы
+            // только сам узел. Перехватываем клик в tunnel-фазе и гасим событие,
+            // чтобы ToggleButton не переключился дополнительно, — команда ветки
+            // применяется ровно один раз. Обычный (без Ctrl) клик по плюсику
+            // работает как раньше.
+            if (row.DataContext is GroupNodeViewModel chevronGroup && chevronGroup.Group is not null &&
+                point.Properties.IsLeftButtonPressed &&
+                (e.KeyModifiers & KeyModifiers.Control) == KeyModifiers.Control &&
+                (e.KeyModifiers & KeyModifiers.Shift) != KeyModifiers.Shift &&
+                source.FindAncestorOfType<ToggleButton>(includeSelf: true) is { Name: "PART_ExpandCollapseChevron" })
+            {
+                if (DataContext is MainViewModel chevronVm)
+                    chevronVm.ToggleGroupBranch(chevronGroup);
+                e.Handled = true;
+                return;
+            }
+
             // Ctrl+ЛЕВЫЙ щелчок по группе — развернуть/свернуть ветку (сама группа + все
             // подгруппы рекурсивно), НЕ меняя текущую строку и выделение (issue #341).
             // Зеркало WPF-ветки (MainWindow.Events.cs, case GroupNodeViewModel when

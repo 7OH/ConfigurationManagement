@@ -257,4 +257,35 @@ public sealed class GroupNodeViewModelTests
         Assert.True(sibling.IsExpanded);   // сосед не тронут
         Assert.True(root.IsExpanded);      // родитель не тронут
     }
+
+    [Fact]
+    public void ToggleBranch_ToggleTwice_RestoresSubtreeAndLeavesNeighbors()
+    {
+        // Повторный toggle ветки (issue #341): свернуть развёрнутую ветку целиком,
+        // затем снова развернуть — состояние поддерева возвращается в исходное,
+        // а соседние ветки и родитель не затронуты ни на одном шаге. Это контракт
+        // повторных Ctrl+кликов по группе/плюсику: каждый toggle применяется к
+        // всей ветке рекурсивно, без «половинчатых» состояний.
+        var (root, child, grandchild, sibling) = BuildDepthThreeTree();
+        root.IsExpanded = true;
+        child.IsExpanded = true;
+        grandchild.IsExpanded = true;
+        sibling.IsExpanded = true;
+
+        // Toggle 1: развёрнутая ветка — сворачивается целиком.
+        child.IsExpanded = false;
+        SetExpandedDeep(child.Children, expanded: false);
+        Assert.False(child.IsExpanded);
+        Assert.False(grandchild.IsExpanded);
+        Assert.True(sibling.IsExpanded);   // сосед не тронут
+        Assert.True(root.IsExpanded);      // родитель не тронут
+
+        // Toggle 2: свёрнутая ветка — снова разворачивается целиком.
+        child.IsExpanded = true;
+        SetExpandedDeep(child.Children, expanded: true);
+        Assert.True(child.IsExpanded);
+        Assert.True(grandchild.IsExpanded);
+        Assert.True(sibling.IsExpanded);   // сосед не тронут
+        Assert.True(root.IsExpanded);      // родитель не тронут
+    }
 }

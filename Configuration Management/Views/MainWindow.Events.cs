@@ -631,6 +631,28 @@ namespace Configuration_Management
                 return;
             }
 
+            // Ctrl+щелчок по кнопке разворота («плюсику») строки ГРУППЫ — то же,
+            // что и Ctrl+щелчок по названию: сворачивается/разворачивается ВСЯ
+            // ветка, текущая строка и выделение не меняются (issue #341). Кнопка
+            // разворота в шаблоне строки — Button с именем «Expander»
+            // (MainWindow.xaml): без перехвата ранняя проверка интерактивных
+            // элементов ниже вышла бы раньше, а штатная команда
+            // ToggleGroupExpandedCommand переключила бы только сам узел.
+            // e.Handled гасит и Click кнопки, и остальные ветки обработчика —
+            // команда ветки применяется ровно один раз. Обычный (без Ctrl) клик
+            // по плюсику работает как раньше.
+            if (FindAncestor<Button>(source) is { Name: "Expander" } &&
+                (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control &&
+                (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift &&
+                FindAncestor<TreeViewItem>(source)?.DataContext is GroupNodeViewModel expanderGroup &&
+                expanderGroup.Group is not null)
+            {
+                _draggedData = null;
+                _viewModel.ToggleGroupBranchCommand.Execute(expanderGroup);
+                e.Handled = true;
+                return;
+            }
+
             // Если клик пришёлся по интерактивному элементу (кнопка, поле ввода,
             // редактируемый список), не вмешиваемся и не начинаем drag. Стрелка
             // списка — ToggleButton из шаблона ComboBox (не Button), поэтому
