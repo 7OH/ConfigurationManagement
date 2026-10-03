@@ -1379,7 +1379,8 @@
                               RequestBringIntoView="OnMainTree_RequestBringIntoView"
                               PreviewMouseDoubleClick="OnInfobaseTree_PreviewMouseDoubleClick"
                               PreviewMouseRightButtonDown="OnInfobaseTree_PreviewMouseRightButtonDown"
-                              PreviewMouseLeftButtonDown="OnInfobaseTree_PreviewMouseLeftButtonDown">
+                              PreviewMouseLeftButtonDown="OnInfobaseTree_PreviewMouseLeftButtonDown"
+                              PreviewMouseLeftButtonUp="OnInfobaseTree_PreviewMouseLeftButtonUp">
 
                         <!-- Виртуализация панели: при большом числе баз создаются только видимые строки. -->
                         <controls:LeveledTreeView.ItemsPanel>

@@ -170,6 +170,48 @@ public static class BatchSelectionHelper
         return new HashSet<string>(batchIds ?? Array.Empty<string>(), StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// Решение «что делать с выбором после закрытия контекстного меню кликом по строке
+    /// дерева» (issue #340). Чистая логика, опирается на состояние МОДЕЛИ (текущая база
+    /// <see cref="MainViewModel.SelectedInfobase"/> и наличие мультивыделения), а не на
+    /// состояние контейнера <c>TreeViewItem</c>: контейнеры переиспользуются виртуализацией,
+    /// и его <c>IsSelected</c> к моменту отложенного применения может уже не относиться
+    /// к строке, по которой кликнули.
+    /// </summary>
+    public enum TreeMenuCloseClickAction
+    {
+        /// <summary>Цель уже является единственной текущей строкой, набор снят — ничего делать не нужно.</summary>
+        None,
+
+        /// <summary>Цель уже текущая, но мультивыделение ещё висит — снять только набор.</summary>
+        ClearBatchOnly,
+
+        /// <summary>Цель не является текущей — снять набор и выбрать цель.</summary>
+        SelectTargetAndClearBatch,
+    }
+
+    /// <summary>
+    /// Определяет действие после закрытия контекстного меню кликом по строке дерева
+    /// (issue #340). Повторное применение клика «через мгновение» ломало выделение:
+    /// строка под курсором выбиралась, а затем текущая строка пропадала. Правило:
+    /// если штатная обработка уже применила клик (цель — текущая база), выбор не
+    /// трогаем — при висящем наборе снимаем только его; иначе применяем клик сами:
+    /// цель становится единственной текущей строкой, набор снимается.
+    /// </summary>
+    /// <param name="isTargetRowCurrent">
+    /// true, если цель клика уже является текущей базой (<see cref="MainViewModel.SelectedInfobase"/>).
+    /// </param>
+    /// <param name="hasBatchSelection">true, если есть хотя бы одна база в мультивыделении.</param>
+    public static TreeMenuCloseClickAction DecideAfterMenuCloseClick(
+        bool isTargetRowCurrent, bool hasBatchSelection)
+    {
+        if (isTargetRowCurrent)
+            return hasBatchSelection
+                ? TreeMenuCloseClickAction.ClearBatchOnly
+                : TreeMenuCloseClickAction.None;
+        return TreeMenuCloseClickAction.SelectTargetAndClearBatch;
+    }
+
     private static int IndexOf(IReadOnlyList<string> list, string value)
     {
         for (var i = 0; i < list.Count; i++)

@@ -680,6 +680,23 @@ namespace Configuration_Management
         /// <summary>Открытые контекстные меню главного окна (issue #261).</summary>
         private readonly HashSet<ContextMenu> _openContextMenus = new();
 
+        /// <summary>
+        /// Подавление «хвоста» клика, которым закрыли контекстное меню дерева (issue #340).
+        /// Попап меню держал захват мыши: оригинальный MouseDown ушёл в попап, а выбор
+        /// строки применяет отложенно TryApplyTreeClickAfterMenuClosed. После освобождения
+        /// захвата WPF может повторно доставить тот же клик в дерево — до первого
+        /// отпускания кнопки (<see cref="OnInfobaseTree_PreviewMouseLeftButtonUp"/>) он
+        /// считается частью того же физического нажатия и гасится в
+        /// OnInfobaseTree_PreviewMouseLeftButtonDown.
+        /// </summary>
+        private bool _suppressTreeClickTail;
+
+        /// <summary>Крайний срок подавления «хвоста» клика после закрытия меню (issue #340).</summary>
+        private DateTime _suppressTreeClickTailUntilUtc;
+
+        /// <summary>Окно подавления «хвоста» клика после закрытия контекстного меню (issue #340), мс.</summary>
+        private const int TreeMenuCloseClickTailSuppressionMs = 500;
+
         private void OnContextMenuOpened(object sender, RoutedEventArgs e)
         {
             if (sender is ContextMenu menu)
@@ -704,7 +721,17 @@ namespace Configuration_Management
         /// по строке уходит в попап и только закрывает меню — ни выбор строки, ни снятие
         /// мультивыделения (OnInfobaseTree_PreviewMouseLeftButtonDown) при этом не
         /// выполняются. Здесь, после фактического закрытия меню, определяем строку под
-        /// курсором и повторяем обычную логику клика: снять мультивыделение и выбрать базу.
+        /// курсором и отложенно повторяем обычную логику клика.
+        /// <para>
+        /// Повторное применение клика применялось ДВАЖДЫ (регресс фикса 0.3.9.277): сначала
+        /// штатной обработкой «хвоста» того же клика, затем отложенным применением — и
+        /// «перевыбор» ломал выделение (строка выбиралась, но «через мгновение» текущая
+        /// строка пропадала). Поэтому решение принимается по состоянию МОДЕЛИ
+        /// (<see cref="MainViewModel.SelectedInfobase"/>), а не контейнера (контейнеры
+        /// переиспользуются виртуализацией), и применяется только то, чего штатный путь
+        /// ещё не сделал. Хвост того же клика дополнительно гасится в
+        /// OnInfobaseTree_PreviewMouseLeftButtonDown, чтобы он не перебил выбор.
+        /// </para>
         /// </summary>
         private void TryApplyTreeClickAfterMenuClosed(ContextMenu menu)
         {
@@ -730,35 +757,57 @@ namespace Configuration_Management
             if (treeViewItem?.DataContext is not Infobase and not PinnedInfobaseItem)
                 return;
             var infobase = UnwrapInfobase(treeViewItem.DataContext);
-            if (infobase is null)
+            if (infobase is null || infobase.Id is not { Length: > 0 })
                 return;
 
             // Захват мыши попапом освобождается асинхронно — применяем выбор отложенно,
-            // чтобы не наложиться на остатки событий закрытия меню.
-            var item = treeViewItem;
+            // чтобы не наложиться на остатки событий закрытия меню. До первого отпускания
+            // кнопки хвост того же клика подавляется в OnInfobaseTree_PreviewMouseLeftButtonDown.
+            _suppressTreeClickTail = true;
+            _suppressTreeClickTailUntilUtc = DateTime.UtcNow.AddMilliseconds(TreeMenuCloseClickTailSuppressionMs);
+
+            var clickedContainer = treeViewItem;
+            var target = infobase;
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (_viewModel is null || !IsVisible || item is null)
+                if (_viewModel is null || !IsVisible || target is null)
                     return;
 
-                // issue #340 (регресс фикса 0.3.9.277): к моменту отложенного применения
-                // клик мог быть обработан штатным путём — TreeView сам выбрал строку после
-                // закрытия попапа (или основной обработчик PreviewMouseLeftButtonDown уже
-                // применил выбор). Повторный ApplySelection «перевыбирал» строку и ломал
-                // выделение: строка выбиралась, но через секунду (после BeginInvoke)
-                // текущая строка пропадала из выбора. Применяем только то, чего штатный
-                // путь ещё не сделал: строка не выбрана — выбор + снятие набора; строка
-                // уже выбрана, но мультивыделение висит — только снять набор.
-                if (!item.IsSelected)
+                // Решение по МОДЕЛИ, а не по контейнеру (issue #340): к моменту отложенного
+                // применения клик мог быть обработан штатным путём — «хвост» того же клика
+                // дошёл до дерева, и TreeView сам выбрал строку. Применяем только то, чего
+                // штатный путь ещё не сделал; цель уже текущая, но мультивыделение висит —
+                // снимаем только набор.
+                var isTargetCurrent = SameInfobase(_viewModel.SelectedInfobase, target);
+                switch (BatchSelectionHelper.DecideAfterMenuCloseClick(
+                    isTargetCurrent, _viewModel.BatchSelectedCount > 0))
                 {
-                    _viewModel.ClearBatchSelection();
-                    ApplySelection(item, infobase);
-                }
-                else if (_viewModel.BatchSelectedCount > 0)
-                {
-                    _viewModel.ClearBatchSelection();
+                    case BatchSelectionHelper.TreeMenuCloseClickAction.None:
+                        return;
+                    case BatchSelectionHelper.TreeMenuCloseClickAction.ClearBatchOnly:
+                        _viewModel.ClearBatchSelection();
+                        return;
+                    default:
+                        _viewModel.ClearBatchSelection();
+                        SelectTreeRowByData(target, clickedContainer);
+                        break;
                 }
             }), System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        /// <summary>
+        /// Сравнивает две базы по идентификатору (issue #340): контейнеры дерева
+        /// переиспользуются виртуализацией, поэтому сравнение ссылок на модель между
+        /// событиями ненадёжно, а идентификатор стабилен для всех копий строки
+        /// (закреплённая база дублируется обёрткой <see cref="PinnedInfobaseItem"/>).
+        /// </summary>
+        private static bool SameInfobase(Infobase? a, Infobase? b)
+        {
+            if (ReferenceEquals(a, b))
+                return true;
+            if (a is null || b is null || a.Id is not { Length: > 0 })
+                return false;
+            return string.Equals(a.Id, b.Id, StringComparison.Ordinal);
         }
 
         /// <summary>

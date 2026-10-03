@@ -433,4 +433,50 @@ public sealed class BatchSelectionHelperTests
 
         Assert.Equal(new[] { "a", "b", "c" }, rightClick.OrderBy(x => x));
     }
+
+    // ======================= Issue #340: клик, закрывший контекстное меню =======================
+
+    [Fact]
+    public void DecideAfterMenuCloseClick_TargetAlreadyCurrentBatchEmpty_DoesNothing()
+    {
+        // Штатная обработка уже применила клик: цель — текущая база, набор снят.
+        // Повторное применение только «перевыбрало» бы строку — ничего не делаем.
+        var action = BatchSelectionHelper.DecideAfterMenuCloseClick(
+            isTargetRowCurrent: true, hasBatchSelection: false);
+
+        Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.None, action);
+    }
+
+    [Fact]
+    public void DecideAfterMenuCloseClick_TargetAlreadyCurrentBatchHangs_ClearsBatchOnly()
+    {
+        // Цель уже текущая, но мультивыделение ещё висит (клик дошёл до дерева,
+        // а снятие набора — нет): снимаем только набор, выбор не трогаем.
+        var action = BatchSelectionHelper.DecideAfterMenuCloseClick(
+            isTargetRowCurrent: true, hasBatchSelection: true);
+
+        Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.ClearBatchOnly, action);
+    }
+
+    [Fact]
+    public void DecideAfterMenuCloseClick_TargetNotCurrentWithBatch_SelectsTargetAndClearsBatch()
+    {
+        // Клик по строке «мимо» мультивыделения: строка под курсором становится
+        // ЕДИНСТВЕННОЙ текущей, набор снимается (основной сценарий issue #340).
+        var action = BatchSelectionHelper.DecideAfterMenuCloseClick(
+            isTargetRowCurrent: false, hasBatchSelection: true);
+
+        Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.SelectTargetAndClearBatch, action);
+    }
+
+    [Fact]
+    public void DecideAfterMenuCloseClick_TargetNotCurrentWithoutBatch_SelectsTarget()
+    {
+        // Мультивыделения нет, но штатная обработка клика не выполнилась (клик съеден
+        // попапом): применяем выбор цели сами.
+        var action = BatchSelectionHelper.DecideAfterMenuCloseClick(
+            isTargetRowCurrent: false, hasBatchSelection: false);
+
+        Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.SelectTargetAndClearBatch, action);
+    }
 }

@@ -794,6 +794,35 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Выбирает строку дерева по ДАННЫМ базы (issue #340). Контейнер, зафиксированный
+        /// в момент клика, мог быть переиспользован виртуализацией (Recycling) и к моменту
+        /// отложенного применения показывать другую строку, поэтому используется только
+        /// если всё ещё показывает ту же базу; иначе контейнер ищется заново по данным
+        /// (<see cref="FindTreeViewItemForData"/>). Резерв: строка не реализована (вне
+        /// видимой области) — выбор ставится на модели, подсветка синхронизируется при
+        /// появлении строки в видимой области.
+        /// </summary>
+        private void SelectTreeRowByData(Infobase target, TreeViewItem? clickedContainer)
+        {
+            // Захваченный контейнер корректен только пока показывает ту же базу.
+            if (clickedContainer is not null &&
+                ReferenceEquals(UnwrapInfobase(clickedContainer.DataContext), target))
+            {
+                ApplySelection(clickedContainer, target);
+                return;
+            }
+
+            var item = FindTreeViewItemForData(target);
+            if (item is not null)
+            {
+                ApplySelection(item, target);
+                return;
+            }
+
+            _viewModel.SelectedInfobase = target;
+        }
+
+        /// <summary>
         /// Ищет предка заданного типа в визуальном дереве.
         /// </summary>
         private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
