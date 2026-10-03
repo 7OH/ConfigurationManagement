@@ -149,11 +149,14 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
         // Если суффикс не указан — новая база наследует режим «Разрядности по
         // умолчанию» из настроек, а не жёстко 32-битную приоритетную (issue #305:
         // при дефолте X64 база создавалась с разрядностью х86).
-        PlatformVersionService.ParseVariant(platform, out var cleanPlatform, out var platformArch);
-        var storedPlatform = string.IsNullOrWhiteSpace(cleanPlatform) ? platform : cleanPlatform;
-        var storedArchitecture = platformArch == "32" || platformArch == "64"
-            ? platformArch
-            : PriorityArchitectureFromDefault(_repository.LoadSettings().DefaultArchitecture);
+        // ВАЖНО: ParseVariant БЕЗ суффикса возвращает architecture="32" по умолчанию,
+        // и прежнее условие трактовало бы его как ЯВНО выбранную разрядность — в базу
+        // записывалось «8.3.27 [x86]» при фактическом запуске x64 (issue #305).
+        // ResolveStoredArchitecture использует ParseVariantOptionalArch: null без
+        // суффикса → приоритет по настройке (см. комментарий к helper ниже).
+        var storedPlatform = ResolveCleanPlatform(platform);
+        var storedArchitecture = ResolveStoredArchitecture(
+            platform, _repository.LoadSettings().DefaultArchitecture);
 
         var created = new Infobase
         {
@@ -261,6 +264,8 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
     /// сервере базу, версия платформы которой отличается от выбранной по первым двум числам
     /// (major.minor). Возвращает версию такой базы или null, если расхождений нет.
     /// Ошибки чтения списка баз не блокируют создание — возвращаем null.
+    /// Версия определяется по ЛОКАЛЬНОМУ списку баз приложения (не с сервера): «версия на
+    /// сервере» — это версии баз из вашего списка на том же сервере (issue #305).
     /// </summary>
     private string? GetIncompatibleExistingVersion(string platform, string server)
     {
@@ -276,13 +281,14 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             return null;
         }
 
-        var targetServer = (server ?? "").Trim();
         foreach (var ib in infobases)
         {
             var conn = ib.Connection;
             if (conn == null || conn.Type != ConnectionType.ClientServer)
                 continue;
-            if (!string.Equals((conn.Server ?? "").Trim(), targetServer, StringComparison.OrdinalIgnoreCase))
+            // Сравнение серверов устойчивое (issue #305): порт («srv:1541») и регистр
+            // не мешают — база в списке может быть задана с портом, а поле окна без него.
+            if (!SameServer(conn.Server, server))
                 continue;
             if (string.IsNullOrWhiteSpace(ib.PlatformVersion))
                 continue;
@@ -293,6 +299,27 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Сравнивает два адреса сервера 1С без учёта порта и регистра (issue #305):
+    /// «localhost:1541» ≡ «localhost», «SRV» ≡ «srv». Внутренний — для юнит-тестов.
+    /// </summary>
+    internal static bool SameServer(string? a, string? b)
+    {
+        var na = NormalizeServerHost(a);
+        var nb = NormalizeServerHost(b);
+        return na.Length > 0 && string.Equals(na, nb, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Снимает порт с адреса сервера («srv:1541» → «srv»); без порта — как есть.</summary>
+    private static string NormalizeServerHost(string? server)
+    {
+        var s = (server ?? string.Empty).Trim();
+        var colon = s.LastIndexOf(':');
+        if (colon > 0 && colon < s.Length - 1 && int.TryParse(s[(colon + 1)..], out _))
+            return s[..colon].Trim();
+        return s;
     }
 
     /// <summary>
@@ -327,6 +354,32 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
         string.Equals(defaultArchitecture, "X64", StringComparison.OrdinalIgnoreCase)
             ? "64-priority"
             : "32-priority";
+
+    /// <summary>
+    /// Чистая версия платформы без суффикса разрядности («8.3.27 (64)» → «8.3.27»).
+    /// </summary>
+    internal static string ResolveCleanPlatform(string platform)
+    {
+        PlatformVersionService.ParseVariantOptionalArch(platform, out var clean, out _);
+        return string.IsNullOrWhiteSpace(clean) ? platform : clean;
+    }
+
+    /// <summary>
+    /// Разрядность новой базы для поля Architecture (issue #305): явный суффикс
+    /// версии «(32)/(64)» сохраняется как есть; БЕЗ суффикса — приоритетный режим
+    /// из настройки «Разрядности по умолчанию». ВАЖНО: <see cref="PlatformVersionService.ParseVariant"/>
+    /// без суффикса возвращает «32» по умолчанию, поэтому здесь используется
+    /// <see cref="PlatformVersionService.ParseVariantOptionalArch"/> — иначе при дефолте X64
+    /// в базу записывалась бы разрядность «32» («8.3.27 [x86]») при фактическом запуске x64.
+    /// Internal — для юнит-тестов.
+    /// </summary>
+    internal static string ResolveStoredArchitecture(string platform, string? defaultArchitecture)
+    {
+        PlatformVersionService.ParseVariantOptionalArch(platform, out _, out var arch);
+        return arch is "32" or "64"
+            ? arch
+            : PriorityArchitectureFromDefault(defaultArchitecture);
+    }
 
     /// <summary>
     /// Запоминает последний успешно использованный сервер СУБД и его порт (issue #305):

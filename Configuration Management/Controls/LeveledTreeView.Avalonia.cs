@@ -108,6 +108,22 @@ namespace Configuration_Management.Controls
                 return;
             }
 
+            // Ctrl+ЛЕВЫЙ щелчок по группе — развернуть/свернуть ветку (сама группа + все
+            // подгруппы рекурсивно), НЕ меняя текущую строку и выделение (issue #341).
+            // Зеркало WPF-ветки (MainWindow.Events.cs, case GroupNodeViewModel when
+            // group.Group is not null): служебные узлы («Закреплённые», «Без группы»)
+            // ветку не сворачивают.
+            if (row.DataContext is GroupNodeViewModel groupNode && groupNode.Group is not null &&
+                point.Properties.IsLeftButtonPressed &&
+                (e.KeyModifiers & KeyModifiers.Control) == KeyModifiers.Control &&
+                (e.KeyModifiers & KeyModifiers.Shift) != KeyModifiers.Shift)
+            {
+                if (DataContext is MainViewModel vm)
+                    vm.ToggleGroupBranch(groupNode);
+                e.Handled = true;
+                return;
+            }
+
             // Мультивыделение (0.3.9.90): Ctrl+ЛЕВЫЙ щелчок — точечное переключение,
             // Shift+левый — диапазон от «якоря» до цели по видимому порядку.
             // Обычный ЛЕВЫЙ клик снимает мультивыделение (как в WPF-версии).

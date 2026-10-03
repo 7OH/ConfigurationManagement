@@ -311,8 +311,16 @@ public sealed class RacClient : IRacClient
             {
                 // Ненулевой код выхода rac: ошибка подключения, отсутствие прав либо
                 // неподдерживаемая команда (например lock list на старых платформах).
+                // В сообщение включаем точку подключения (адрес:порт), к которой шла
+                // команда: пользователь должен видеть, куда именно «ушёл» запрос —
+                // при повторных нажатиях тексты ошибок rac могут отличаться (issue #324).
                 var detail = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
-                var message = $"rac завершился с кодом {process.ExitCode}.";
+                var token = parameters.Port > 0
+                    ? $"{parameters.Address}:{parameters.Port}"
+                    : parameters.Address;
+                var message = string.IsNullOrWhiteSpace(token)
+                    ? $"rac завершился с кодом {process.ExitCode}."
+                    : $"rac ({token}) завершился с кодом {process.ExitCode}.";
                 if (!string.IsNullOrWhiteSpace(detail))
                     message += " " + detail.Trim();
 

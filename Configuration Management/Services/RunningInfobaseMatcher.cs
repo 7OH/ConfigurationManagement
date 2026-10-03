@@ -23,8 +23,10 @@ public static class RunningInfobaseMatcher
         return infobase.Connection.Type switch
         {
             ConnectionType.File => MatchesValue(commandLine, "F", infobase.Connection.FilePath ?? ""),
-            ConnectionType.ClientServer => MatchesValue(commandLine, "S",
-                $"{infobase.Connection.Server}\\{infobase.Connection.DatabaseName}"),
+            ConnectionType.ClientServer => MatchesServerValue(
+                commandLine,
+                infobase.Connection.Server ?? "",
+                infobase.Connection.DatabaseName ?? ""),
             _ => false
         };
     }
@@ -41,6 +43,50 @@ public static class RunningInfobaseMatcher
         if (value.Length == 0)
             return false;
 
+        return TryExtractValue(commandLine, key, out var actual) && PathsEqual(actual, value);
+    }
+
+    /// <summary>
+    /// Сопоставляет клиент-серверную базу с командной строкой процесса (ключ «/S сервер\база»).
+    /// Сравнение устойчивое (issue #342 — «инспектор процессов показывает неизвестную базу»):
+    /// <list type="bullet">
+    /// <item>порт, указанный в адресе сервера базы («srv:1541»), игнорируется — в командной
+    /// строке процесса порт, как правило, отсутствует («/S srv\БД»);</item>
+    /// <item>хост и имя базы сравниваются без учёта регистра;</item>
+    /// <item>имя базы берётся последним сегментом после «\» — кавычки и пробелы внутри
+    /// имени не ломают разбор.</item>
+    /// </list>
+    /// </summary>
+    internal static bool MatchesServerValue(string commandLine, string expectedServer, string expectedDbName)
+    {
+        var server = (expectedServer ?? "").Trim();
+        var dbName = (expectedDbName ?? "").Trim();
+        if (server.Length == 0 || dbName.Length == 0)
+            return false;
+
+        if (!TryExtractValue(commandLine, "S", out var raw))
+            return false;
+
+        var (cmdServer, cmdDb) = SplitServerValue(raw);
+        if (cmdDb.Length == 0)
+            return false;
+
+        return string.Equals(cmdDb, dbName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                NormalizeServerHost(cmdServer),
+                NormalizeServerHost(server),
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Извлекает значение ключа «/буква» (или «-буква») из командной строки:
+    /// остаток строки до следующего ключа «/...»/«-...», без обрамляющих кавычек.
+    /// Ключ должен стоять отдельным токеном, чтобы не поймать «/S» внутри «/SD…»
+    /// или «/Out». Возвращает false, если ключ отсутствует или значение пусто.
+    /// </summary>
+    internal static bool TryExtractValue(string commandLine, string key, out string value)
+    {
+        value = string.Empty;
         var line = commandLine ?? "";
         var search = "/" + key;
 
@@ -71,12 +117,34 @@ public static class RunningInfobaseMatcher
             }
 
             var actual = rest[..end].Trim().TrimEnd('"').Trim();
-
-            if (PathsEqual(actual, value))
+            if (actual.Length > 0)
+            {
+                value = actual;
                 return true;
+            }
         }
 
         return false;
+    }
+
+    /// <summary>Разделяет строку подключения «сервер\база» на хост и имя базы (по последней «\»).</summary>
+    private static (string Server, string DbName) SplitServerValue(string value)
+    {
+        var v = (value ?? "").Trim();
+        var slash = v.LastIndexOf('\\');
+        if (slash < 0)
+            return (string.Empty, v);
+        return (v[..slash].Trim(), v[(slash + 1)..].Trim());
+    }
+
+    /// <summary>Снимает порт с адреса сервера («srv:1541» → «srv»); без порта — как есть.</summary>
+    private static string NormalizeServerHost(string server)
+    {
+        var s = (server ?? "").Trim();
+        var colon = s.LastIndexOf(':');
+        if (colon > 0 && colon < s.Length - 1 && int.TryParse(s[(colon + 1)..], out _))
+            return s[..colon].Trim();
+        return s;
     }
 
     /// <summary>Сравнение путей/строк подключения без регистра и хвостовых разделителей.</summary>

@@ -396,6 +396,31 @@ namespace Configuration_Management
                 return;
             }
 
+            // Ctrl+Alt++ / Ctrl+Alt+- — развернуть/свернуть ВЕТКУ под курсором (issue #341).
+            // Проверяем РАНЬШЕ ветки Ctrl+Shift: физическое нажатие «+» на основной
+            // клавиатуре требует Shift (реальные модификаторы Ctrl+Alt+Shift+OemPlus),
+            // и такая комбинация должна трактоваться как Ctrl+Alt+«+» (ветка), а не как
+            // Ctrl+Shift+«+» («развернуть всё»). Явный разбор на этапе Preview, как и для
+            // Ctrl+Shift ниже: KeyBinding/KeyGesture на части раскладок и при разном
+            // состоянии фокуса срабатывают не всегда, а прямой вызов команды детерминирован.
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control &&
+                (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt)
+            {
+                if (key is Key.OemPlus or Key.Add)
+                {
+                    _viewModel.ExpandBranchCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+
+                if (key is Key.OemMinus or Key.Subtract)
+                {
+                    _viewModel.CollapseBranchCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             // Ctrl+Shift++ / Ctrl+Shift+- — «развернуть все» / «свернуть все» (issue #160).
             // Обрабатываем на этапе Preview (туннелирование): событие доходит сюда раньше,
             // чем до вложенных элементов и чем оцениваются InputBindings (фаза всплытия),
@@ -404,8 +429,11 @@ namespace Configuration_Management
             // что и у кнопок верхней панели (ExpandAllGroupsCommand/CollapseAllGroupsCommand),
             // которые, по отзывам, работают сразу. Установка e.Handled = true отменяет
             // всплытие KeyDown, так что дублирующие InputBindings не сработают повторно.
+            // Alt исключается: Ctrl+Alt+Shift+OemPlus («Ctrl+Alt+плюс» физически) уже
+            // обработан выше как ветка (issue #341).
             if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control &&
-                (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift &&
+                (Keyboard.Modifiers & ModifierKeys.Alt) != ModifierKeys.Alt)
             {
                 if (key is Key.OemPlus or Key.Add)
                 {
@@ -710,10 +738,26 @@ namespace Configuration_Management
             var item = treeViewItem;
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (_viewModel is null || !IsVisible)
+                if (_viewModel is null || !IsVisible || item is null)
                     return;
-                _viewModel.ClearBatchSelection();
-                ApplySelection(item, infobase);
+
+                // issue #340 (регресс фикса 0.3.9.277): к моменту отложенного применения
+                // клик мог быть обработан штатным путём — TreeView сам выбрал строку после
+                // закрытия попапа (или основной обработчик PreviewMouseLeftButtonDown уже
+                // применил выбор). Повторный ApplySelection «перевыбирал» строку и ломал
+                // выделение: строка выбиралась, но через секунду (после BeginInvoke)
+                // текущая строка пропадала из выбора. Применяем только то, чего штатный
+                // путь ещё не сделал: строка не выбрана — выбор + снятие набора; строка
+                // уже выбрана, но мультивыделение висит — только снять набор.
+                if (!item.IsSelected)
+                {
+                    _viewModel.ClearBatchSelection();
+                    ApplySelection(item, infobase);
+                }
+                else if (_viewModel.BatchSelectedCount > 0)
+                {
+                    _viewModel.ClearBatchSelection();
+                }
             }), System.Windows.Threading.DispatcherPriority.Input);
         }
 

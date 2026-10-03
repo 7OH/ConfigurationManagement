@@ -299,4 +299,40 @@ public sealed class CreateInfobaseDbServerStringTests
         // «Разрядности по умолчанию» из настроек: X64 → 64-priority, остальное — как раньше.
         Assert.Equal(expected, CreateInfobaseService.PriorityArchitectureFromDefault(mode));
     }
+
+    [Theory]
+    [InlineData("8.3.27", "X64", "64-priority")]          // нет суффикса → приоритет по настройке (не «32»!)
+    [InlineData("8.3.27", "X86", "32-priority")]
+    [InlineData("8.3.27 (64)", "X86", "64")]              // явный суффикс побеждает настройку
+    [InlineData("8.3.27 (32)", "X64", "32")]
+    [InlineData("8.5.1.123 (x64)", "X86", "64")]
+    public void ResolveStoredArchitecture_ExplicitSuffixWins_OtherwiseDefault(
+        string platform, string defaultArch, string expected)
+    {
+        // issue #305: ParseVariant без суффикса возвращает «32» по умолчанию — прежняя
+        // логика записывала бы в базу «8.3.27 [x86]» при дефолте X64. Проверяем, что
+        // без суффикса берётся приоритетный режим из настроек.
+        Assert.Equal(expected, CreateInfobaseService.ResolveStoredArchitecture(platform, defaultArch));
+    }
+
+    [Theory]
+    [InlineData("8.3.27 (64)", "8.3.27")]
+    [InlineData("8.5.1.123 (x86)", "8.5.1.123")]
+    [InlineData("8.3.27", "8.3.27")]
+    public void ResolveCleanPlatform_StripsOnlyArchSuffix(string platform, string expected)
+    {
+        Assert.Equal(expected, CreateInfobaseService.ResolveCleanPlatform(platform));
+    }
+
+    [Theory]
+    [InlineData("localhost:1541", "localhost", true)]   // порт не мешает
+    [InlineData("SRV", "srv", true)]                    // регистр не мешает
+    [InlineData("server1", "server2", false)]
+    [InlineData("127.0.0.1", "localhost", false)]       // разные хосты
+    public void SameServer_IgnoresPortAndCase(string a, string b, bool expected)
+    {
+        // issue #305: эвристика предупреждения о версии сравнивает серверы из списка баз
+        // и поля окна; база может быть задана с портом, поле — без него.
+        Assert.Equal(expected, CreateInfobaseService.SameServer(a, b));
+    }
 }

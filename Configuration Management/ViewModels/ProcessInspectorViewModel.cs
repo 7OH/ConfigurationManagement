@@ -118,9 +118,14 @@ public sealed class ProcessInspectorViewModel : ViewModelBase, IDisposable
         var killed = _killer.Kill(row.Pid, string.IsNullOrEmpty(row.StartTimeToken) ? null : row.StartTimeToken);
         if (!killed)
         {
-            _dialogs.ShowWarning(
-                string.Format(LocalizationManager.T("ProcessInspector.KillFailedFormat"), row.Pid),
-                LocalizationManager.T("ProcessInspector.KillProcess"));
+            // Причина отказа берётся из киллера (Windows: текст исключения — «Отказано
+            // в доступе» и т.п.); если причина недоступна — стандартное объяснение
+            // (issue #342: кнопка «Завершить процесс» не работала без пояснения).
+            var reason = _killer.LastError;
+            var message = string.IsNullOrWhiteSpace(reason)
+                ? string.Format(LocalizationManager.T("ProcessInspector.KillFailedFormat"), row.Pid)
+                : string.Format(LocalizationManager.T("ProcessInspector.KillFailedDetailFormat"), row.Pid, reason);
+            _dialogs.ShowWarning(message, LocalizationManager.T("ProcessInspector.KillProcess"));
         }
 
         Refresh();

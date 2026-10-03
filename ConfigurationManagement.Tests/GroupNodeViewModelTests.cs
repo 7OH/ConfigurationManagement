@@ -228,4 +228,33 @@ public sealed class GroupNodeViewModelTests
         Assert.False(sibling.IsExpanded);  // соседняя ветка не тронута
         Assert.False(root.IsExpanded);     // родитель не тронут
     }
+
+    [Fact]
+    public void ToggleBranch_ExpandsCollapsedGroupThenCollapsesBack()
+    {
+        // Контракт Ctrl+клика по группе / Ctrl+Alt++- (issue #341): «свёрнутая группа →
+        // toggle разворачивает ВЕТКУ (рекурсивно всех потомков)», «развёрнутая → toggle
+        // сворачивает всю ветку». Соседние ветки и родитель не меняются ни в одну сторону.
+        var (root, child, grandchild, sibling) = BuildDepthThreeTree();
+        root.IsExpanded = true;
+        child.IsExpanded = false;
+        grandchild.IsExpanded = false;
+        sibling.IsExpanded = true;
+
+        // Расширение свёрнутой группы — рекурсивно разворачиваются дети.
+        child.IsExpanded = true;
+        SetExpandedDeep(child.Children, expanded: true);
+        Assert.True(child.IsExpanded);
+        Assert.True(grandchild.IsExpanded);
+        Assert.True(sibling.IsExpanded);   // сосед не тронут
+        Assert.True(root.IsExpanded);      // родитель не тронут
+
+        // Обратный toggle развёрнутой группы — сворачивается вся ветка.
+        child.IsExpanded = false;
+        SetExpandedDeep(child.Children, expanded: false);
+        Assert.False(child.IsExpanded);
+        Assert.False(grandchild.IsExpanded);
+        Assert.True(sibling.IsExpanded);   // сосед не тронут
+        Assert.True(root.IsExpanded);      // родитель не тронут
+    }
 }

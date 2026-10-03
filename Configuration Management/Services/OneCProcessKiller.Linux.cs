@@ -10,6 +10,10 @@ namespace Configuration_Management.Services;
 /// </summary>
 public sealed class OneCProcessKiller : IOneCProcessKiller
 {
+    // Конкретная причина отказа на Linux недоступна (LinuxProc игнорирует детали) —
+    // оставляем null, и ViewModel покажет стандартное объяснение «нет прав / PID изменился».
+    public string? LastError { get; } = null;
+
     public bool Kill(int pid, string? startTimeToken) => LinuxProc.KillOne(pid, startTimeToken);
 }
 #endif

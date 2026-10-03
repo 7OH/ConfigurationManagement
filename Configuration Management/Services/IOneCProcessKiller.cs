@@ -20,4 +20,12 @@ public interface IOneCProcessKiller
     /// </param>
     /// <returns>True — процесс завершён (или уже отсутствует); false — не удалось.</returns>
     bool Kill(int pid, string? startTimeToken);
+
+    /// <summary>
+    /// Текст причины последнего неудачного завершения (для сообщения пользователю, issue #342):
+    /// на Windows — текст исключения (Win32Exception: «Отказано в доступе» и т.п.);
+    /// на Linux — пустая строка (конкретная причина недоступна). После успешного Kill
+    /// очищается. Может быть null, если реализация причину не предоставляет.
+    /// </summary>
+    string? LastError { get; }
 }

@@ -938,7 +938,14 @@ namespace Configuration_Management
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 if (box.SelectedItem is not null)
+                {
+                    // Страховка (issue #305, 0.3.9.295): если сброс выделения всё же
+                    // перезаписал поле пустой/старой строкой — восстанавливаем подставленную.
+                    var keep = box.Text;
                     box.SelectedItem = null;
+                    if (!string.Equals(box.Text, item, StringComparison.Ordinal))
+                        box.Text = string.IsNullOrWhiteSpace(box.Text) ? keep : box.Text;
+                }
             });
         }
 

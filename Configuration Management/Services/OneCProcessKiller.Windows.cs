@@ -11,6 +11,8 @@ namespace Configuration_Management.Services;
 /// </summary>
 public sealed class OneCProcessKiller : IOneCProcessKiller
 {
+    public string? LastError { get; private set; }
+
     public bool Kill(int pid, string? startTimeToken)
     {
         try
@@ -21,16 +23,21 @@ public sealed class OneCProcessKiller : IOneCProcessKiller
 
             p.Kill(entireProcessTree: true);
             p.WaitForExit(3000);
+            LastError = null;
             return true;
         }
         catch (ArgumentException)
         {
             // Процесс с таким PID уже отсутствует — цель достигнута.
+            LastError = null;
             return true;
         }
-        catch
+        catch (Exception ex)
         {
-            // Нет прав на завершение / доступ к процессу.
+            // Нет прав на завершение / доступ к процессу (например, процесс запущен от
+            // имени другого пользователя или с повышенными правами). Причину сохраняем,
+            // чтобы показать её пользователю (issue #342), а не глушить в «не удалось».
+            LastError = ex.Message;
             return false;
         }
     }

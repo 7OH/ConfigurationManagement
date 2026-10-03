@@ -337,7 +337,14 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             HasConnected = false;
-            ErrorMessage = BuildErrorMessage(ex);
+            // issue #324: в сообщении об ошибке указываем ЦЕЛЕВОЙ адрес:порт, к которому
+            // шло подключение (поля могли быть заполнены сохранёнными значениями, и
+            // пользователю должно быть видно, куда именно «ушёл» запрос), а не только
+            // текст rac, который при повторном нажатии может отличаться.
+            var (host, port) = RacConnectionAddress.Split(ServerAddress, ServerPort);
+            ErrorMessage = string.Format(
+                LocalizationManager.T("ServerMonitor.Status.ConnectFailedDetail"),
+                host, port, BuildErrorMessage(ex));
             StatusText = LocalizationManager.T("ServerMonitor.Status.ConnectFailed");
             // Без подключения таймер автообновления не работает.
             StopAutoRefresh();

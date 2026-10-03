@@ -53,6 +53,22 @@ public sealed class RunningInfobaseMatcherTests
         Assert.Equal(expected, RunningInfobaseMatcher.MatchesCommandLine(ServerBase("server1", "trade"), commandLine));
     }
 
+    [Theory]
+    [InlineData(@"""1cv8c.exe"" ENTERPRISE /S ""server1\trade"" /N Иван", true)]
+    [InlineData(@"""1cv8c.exe"" ENTERPRISE /S server1\TRADE", true)]                 // регистр имени базы
+    [InlineData(@"""1cv8c.exe"" ENTERPRISE /S ""server1\База с пробелами""", true)]  // кавычки и пробелы в имени
+    [InlineData(@"""1cv8c.exe"" ENTERPRISE /S ""server2\trade""", false)]            // другой сервер
+    [InlineData(@"""1cv8c.exe"" ENTERPRISE /S ""server1\other""", false)]            // другая база
+    [InlineData(@"""1cv8c.exe"" ENTERPRISE", false)]                                 // нет ключа /S
+    public void ServerBase_WithPortInAddress_MatchesSlashS(string commandLine, bool expected)
+    {
+        // issue #342: у базы в списке адрес сервера с портом («server1:1541»), а командная
+        // строка процесса содержит «/S server1\БД» без порта — раньше это не сопоставлялось.
+        Assert.Equal(expected, RunningInfobaseMatcher.MatchesCommandLine(
+            ServerBase("server1:1541", commandLine.Contains("База с пробелами") ? "База с пробелами" : "trade"),
+            commandLine));
+    }
+
     [Fact]
     public void WebBase_NeverMatches()
     {

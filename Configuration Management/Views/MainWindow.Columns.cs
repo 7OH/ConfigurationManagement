@@ -830,6 +830,20 @@ namespace Configuration_Management
             var viewportNow = scrollViewerNow?.ViewportWidth ?? MainTree.ActualWidth;
             var effective = headerSumNow > viewportNow + 1 ? Math.Max(total, headerSumNow) : total;
 
+            // Эксперимент B (issue #309, 10-я попытка): последние колонки могут быть
+            // недостижимыми, потому что их правый край уходит ПОД вертикальный скроллбар
+            // внутреннего ScrollViewer дерева (в логе пользователя hdrRight ≈ 1102,8 при
+            // viewport ≈ 1094,4). Когда вертикальная прокрутка активна и сумма колонок
+            // вместе со скроллбаром не помещается во вьюпорт — расширяем минимум на ширину
+            // полосы (+2 px запаса), чтобы прокрутка дотягивала до конца последней колонки.
+            // Полоса не добавляется, когда контент помещается с запасом (анти-регресс #255).
+            if (scrollViewerNow?.ComputedVerticalScrollBarVisibility == System.Windows.Visibility.Visible)
+            {
+                var sbw = SystemParameters.VerticalScrollBarWidth;
+                if (sbw > 0 && headerSumNow + sbw > viewportNow + 1)
+                    effective = Math.Max(effective, headerSumNow + sbw);
+            }
+
             // Минимум задаём КОНТЕНТУ прокрутки (внутреннему ScrollContentPresenter дерева),
             // а не самому MainTree: у дерева собственный внутренний ScrollViewer, и MinWidth
             // на контроле лишь растянул бы область просмотра, а не заставил бы контент
@@ -959,6 +973,7 @@ namespace Configuration_Management
                 var viewport = treeScroll?.ViewportWidth ?? 0;
                 var extent = treeScroll?.ExtentWidth ?? 0;
                 var scrollable = treeScroll?.ScrollableWidth ?? 0;
+                var vSb = treeScroll?.ComputedVerticalScrollBarVisibility ?? System.Windows.Visibility.Collapsed;
                 var dpi = VisualTreeHelper.GetDpi(this);
 
                 // Девятая попытка (issue #309): фактические ширины колонок заголовка.
@@ -994,7 +1009,7 @@ namespace Configuration_Management
                 AppServices.GetRequiredService<IAppLogger>().Info(
                     $"CM_COLUMNS: total={total:F1}, sumActualHeader={sumActual:F1}, " +
                     $"content={_treeMinWidthContent:F1}, presenterMin={presenter?.MinWidth ?? 0:F1}, " +
-                    $"viewport={viewport:F1}, extent={extent:F1}, scrollable={scrollable:F1}, " +
+                    $"viewport={viewport:F1}, extent={extent:F1}, scrollable={scrollable:F1}, vSb={vSb}, " +
                     $"panel={(_treeUsePlainStackPanel ? "StackPanel" : "VirtualizingStackPanel")}, " +
                     $"dpiScale={dpi.DpiScaleX:F2}, win={winW:F1}x{winH:F1}, treeW={treeW:F1}, " +
                     $"headerW={headerW:F1}, sbw={sbw:F1}, viewportSbw={viewport + sbw:F1}, " +

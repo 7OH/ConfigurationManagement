@@ -63,6 +63,10 @@ namespace Configuration_Management
             // ---- Панель подключения: адрес, порт, логин, пароль, кнопки. ----
             var addressBox = Tb("ServerAddress", 150);
             var portBox = Tb("ServerPort", 60);
+
+            // Поля префиллятся из настроек последнего успешного подключения (issue #324):
+            // подсказка объясняет источник значения, чтобы оно не выглядело «подменой ввода».
+            ToolTip.SetTip(addressBox, LocalizationManager.T("ServerMonitor.SavedConnectionTooltip"));
             var userBox = Tb("UserName", 120);
             var passwordBox = new PasswordBox().Styled(ControlThemes.ModernPasswordBox);
 

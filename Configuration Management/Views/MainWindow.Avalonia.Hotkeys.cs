@@ -268,34 +268,13 @@ namespace Configuration_Management
                 return;
             }
 
-            // Ctrl+Shift++ / Ctrl+Shift+- — «развернуть все» / «свернуть все» (issue #160).
-            // Дублируем назначенные в RegisterHotkeys KeyBindings надёжным явным разбором:
-            // KeyBinding/KeyGesture на части раскладок и при разном состоянии фокуса
-            // срабатывают только со второго нажатия. Прямой вызов тех же команд, что и у
-            // кнопок верхней панели, делает хоткей детерминированным с первого нажатия.
-            // Если привязка уже обработала жест (e.Handled == true), сюда не доходим —
-            // повторного срабатывания нет.
-            if ((e.KeyModifiers & KeyModifiers.Control) != 0 &&
-                (e.KeyModifiers & KeyModifiers.Shift) != 0)
-            {
-                if (e.Key is Key.OemPlus or Key.Add)
-                {
-                    _vm.ExpandAllGroupsCommand.Execute(null);
-                    e.Handled = true;
-                    return;
-                }
-
-                if (e.Key is Key.OemMinus or Key.Subtract)
-                {
-                    _vm.CollapseAllGroupsCommand.Execute(null);
-                    e.Handled = true;
-                    return;
-                }
-            }
-
             // Ctrl+Alt++ / Ctrl+Alt+- — развернуть/свернуть ветку под курсором (issue #341):
-            // явный разбор как и для «всех групп» выше (KeyBinding на части раскладок
-            // срабатывает не всегда, а прямой вызов команды детерминирован).
+            // явный разбор как и для «всех групп» ниже (KeyBinding на части раскладок
+            // срабатывает не всегда, а прямой вызов команды детерминирован). Проверяем
+            // РАНЬШЕ ветки Ctrl+Shift: физическое нажатие «+» на основной клавиатуре
+            // требует Shift (реальные модификаторы Control|Alt|Shift+OemPlus), и такая
+            // комбинация должна трактоваться как Ctrl+Alt+«+» (ветка), а не как
+            // Ctrl+Shift+«+» («развернуть всё», issue #341).
             if ((e.KeyModifiers & KeyModifiers.Control) != 0 &&
                 (e.KeyModifiers & KeyModifiers.Alt) != 0)
             {
@@ -309,6 +288,33 @@ namespace Configuration_Management
                 if (e.Key is Key.OemMinus or Key.Subtract)
                 {
                     _vm.CollapseBranchCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Ctrl+Shift++ / Ctrl+Shift+- — «развернуть все» / «свернуть все» (issue #160).
+            // Дублируем назначенные в RegisterHotkeys KeyBindings надёжным явным разбором:
+            // KeyBinding/KeyGesture на части раскладок и при разном состоянии фокуса
+            // срабатывают только со второго нажатия. Прямой вызов тех же команд, что и у
+            // кнопок верхней панели, делает хоткей детерминированным с первого нажатия.
+            // Если привязка уже обработала жест (e.Handled == true), сюда не доходим —
+            // повторного срабатывания нет. Alt исключается: Control|Alt|Shift+OemPlus
+            // («Ctrl+Alt+плюс» физически) уже обработан выше как ветка (issue #341).
+            if ((e.KeyModifiers & KeyModifiers.Control) != 0 &&
+                (e.KeyModifiers & KeyModifiers.Shift) != 0 &&
+                (e.KeyModifiers & KeyModifiers.Alt) == 0)
+            {
+                if (e.Key is Key.OemPlus or Key.Add)
+                {
+                    _vm.ExpandAllGroupsCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+
+                if (e.Key is Key.OemMinus or Key.Subtract)
+                {
+                    _vm.CollapseAllGroupsCommand.Execute(null);
                     e.Handled = true;
                     return;
                 }

@@ -48,6 +48,7 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="{loc:Loc ServerMonitor.Address}" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox Width="140" Style="{StaticResource ModernTextBox}" Padding="6,3"
+                     ToolTip="{loc:Loc ServerMonitor.SavedConnectionTooltip}"
                      Text="{Binding ServerAddress, UpdateSourceTrigger=PropertyChanged}"/>
             <TextBlock Text="{loc:Loc ServerMonitor.Port}" VerticalAlignment="Center" Margin="10,0,6,0"/>
             <!-- Подсказка про порт (issue #324): rac подключается к АГЕНТУ сервера (1540),
