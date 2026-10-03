@@ -9,6 +9,38 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.299] — 2026-10-03
+
+### Исправлено
+
+- **Свертка групп (issue #341)**: Ctrl+клик по «плюсику» группы теперь, как и по
+  названию, сворачивает/разворачивает всю ветку на обеих платформах (WPF/Avalonia);
+  команда ветки применяется ровно один раз (без конфликта с обычным кликом по
+  кнопке), текущая строка и выделение не меняются; добавлен тест
+  `ToggleBranch_ToggleTwice_RestoresSubtreeAndLeavesNeighbors`
+  ([`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs),
+  [`GroupNodeViewModelTests.cs`](ConfigurationManagement.Tests/GroupNodeViewModelTests.cs)).
+
+- **Снятие выделения после мультивыделения (issue #340)**: после мультивыделения,
+  правого клика (контекстное меню) и левого клика по другой строке выбор строки
+  больше не пропадает через мгновение: решение принимается по данным (текущая
+  строка и наличие мультивыделения), а не по переиспользуемому контейнеру при
+  `VirtualizationMode=Recycling`, повторная доставка того же `MouseDown` после
+  освобождения захвата попапа подавляется. Чистый helper
+  `BatchSelectionHelper.DecideAfterMenuCloseClick`
+  ([`BatchSelectionHelper.cs`](Configuration%20Management/Services/BatchSelectionHelper.cs),
+  [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs)).
+
+- **Горизонтальный скрол (issue #309)**: горизонтальная прокрутка списка баз
+  вынесена во внешний общий ScrollViewer (`DbListScroll`) — заголовок и дерево
+  прокручиваются синхронно; вертикальная полоса — отдельным столбцом вне
+  горизонтали (полоса целиком видна, горизонталь докручивается до последних
+  колонок); внутренние полосы дерева скрыты, виртуализация сохранена;
+  анти-регрессы #255/#343 сохранены; диагностика `CM_COLUMNS` адаптирована
+  ([`MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs),
+  [`MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs)).
+
 ## [0.3.9.298] — 2026-10-03
 
 ### Исправлено
