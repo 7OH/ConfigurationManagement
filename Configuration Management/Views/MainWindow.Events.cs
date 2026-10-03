@@ -270,6 +270,9 @@ namespace Configuration_Management
         private void OnWindowLoaded(object sender, RoutedEventArgs e)
         {
             AttachTreeScrollHandler();
+            // Внешний общий ScrollViewer и вынесенная вертикальная полоса (issue #309):
+            // подписки на изменение вьюпорта/значения и отступ полосы под заголовком.
+            AttachListScrollHandler();
             if (MainTree is not null)
             {
                 MainTree.Loaded += (_, __) => AttachTreeScrollHandler();

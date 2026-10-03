@@ -231,16 +231,10 @@ namespace Configuration_Management
                         UpdateTreeMinWidthContent();
                         UpdateTreeMinWidth();
                         QueueHeaderAlign();
-                        // Дерево построено (issue #343): с этого момента можно переключать
-                        // стратегию панели списка (гистерезис, см. ApplyTreePanelStrategy) —
-                        // до этого CountVisibleTreeItems ненадёжен и ранний переход на обычный
-                        // StackPanel материализовал бы всё дерево при старте («виснет при старте»).
-                        _treeBuildCompleted = true;
                         // Стартовый дамп диагностики колонок (issue #309): одна строка
                         // CM_COLUMNS после завершения компоновки — для сверки фактических
                         // значений; дальше лог не пишется (см. LogColumnsDiagnostics).
-                        LogColumnsDiagnostics(_treeMinWidthTotal, GetTreeScrollContentPresenter(),
-                            allowStartupDump: true);
+                        LogColumnsDiagnostics(_treeMinWidthTotal, allowStartupDump: true);
                     }
                     catch { /* не блокируем запуск из-за восстановления выделения */ }
                 }), System.Windows.Threading.DispatcherPriority.Loaded);

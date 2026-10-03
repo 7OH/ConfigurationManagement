@@ -382,10 +382,12 @@ namespace Configuration_Management
             {
                 try
                 {
-                    var treeScroll = GetTreeScrollViewer();
-                    if (treeScroll is null || treeScroll.ScrollableWidth <= 1)
+                    // Горизонтальную прокрутку ведёт внешний общий ScrollViewer (issue #309) —
+                    // докручиваем именно его, а не внутреннюю прокрутку дерева.
+                    var listScroll = DbListScroll;
+                    if (listScroll is null || listScroll.ScrollableWidth <= 1)
                         return;
-                    treeScroll.ScrollToHorizontalOffset(treeScroll.ExtentWidth);
+                    listScroll.ScrollToHorizontalOffset(listScroll.ExtentWidth);
                 }
                 catch
                 {
@@ -627,39 +629,21 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Выравнивает ширину сетки заголовка с контентом списка, чтобы горизонтальная
-        /// прокрутка «до конца» не разъезжала колонки заголовка и строк.
-        /// Важно: ширина заголовка не должна включать ширину вертикальной полосы прокрутки
-        /// (sbw), иначе гибкая колонка «Название» в заголовке растянется шире, чем в данных,
-        /// и фиксированные колонки данных окажутся смещёнными влево относительно заголовков.
+        /// Обновляет минимальную ширину контента списка (issue #309). Заголовок колонок
+        /// лежит в том же контейнере, что и дерево (ListContentGrid внутри внешнего общего
+        /// ScrollViewer), поэтому его ширина автоматически равна ширине строк — отдельная
+        /// синхронизация ширины заголовка больше не нужна. Пересчёт минимума держится здесь,
+        /// потому что метод вызывается из всех точек, где менялись колонки или раскладка.
         /// </summary>
         private void SyncHeaderWidthWithList()
         {
             if (HeaderGrid is null || MainTree is null)
                 return;
 
-            // Жёсткий минимум области списка = сумма ширин всех колонок (как в Linux).
+            // Жёсткий минимум области списка = сумма ширин всех колонок (как в Linux/Avalonia).
             // Благодаря точной границе горизонтальная полоса появляется только когда
-            // колонки реально не помещаются, а не «на волосок» раньше (issue про последнюю
-            // пустую колонку). Пересчитывается при каждой синхронизации ширины заголовка.
+            // колонки реально не помещаются, а не «на волосок» раньше (анти-регресс #255).
             UpdateTreeMinWidth();
-
-            var treeScroll = GetTreeScrollViewer();
-            double viewport = treeScroll?.ViewportWidth ?? MainTree.ActualWidth;
-
-            // Ширину заголовка берём от РАСЧЁТНОЙ суммы колонок (_treeMinWidthTotal)
-            // и вьюпорта, а не от живого ExtentWidth внутреннего ScrollViewer (issue #343):
-            // extent зависит от presenter.MinWidth, который зависит от суммы колонок
-            // заголовка, — связка «extent → ширина заголовка → сумма → presenterMin →
-            // extent» и была петлёй бесконечного layout-цикла на границе
-            // viewport ≈ сумма колонок ± ширина скроллбара.
-            var totalMin = _treeMinWidthTotal > 0 ? _treeMinWidthTotal : MainTree.ActualWidth;
-
-            // Не добавляем sbw: заголовок и данные должны иметь одинаковую общую ширину,
-            // чтобы колонки данных совпадали с колонками заголовка.
-            double target = Math.Max(totalMin, viewport);
-            if (target > 0)
-                HeaderGrid.Width = target;
         }
 
         /// <summary>
@@ -741,78 +725,21 @@ namespace Configuration_Management
         private bool _treeMinWidthQueued;
 
         /// <summary>
-        /// Последняя установленная минимальная ширина контента (issue #309). Обход
-        /// материализованных строк для дублирования MinWidth выполняется только при
-        /// фактическом изменении значения, а не на каждый ScrollChanged.
+        /// Последняя установленная минимальная ширина контента списка (issue #309).
+        /// MinWidth контента внешнего ScrollViewer присваивается только при фактическом
+        /// изменении значения, а не на каждый ScrollChanged (анти-регресс #343).
         /// </summary>
         private double _lastTreeMinWidth = -1;
 
         /// <summary>
-        /// Последнее значение <c>MinWidth</c> презентера контента внутреннего ScrollViewer
-        /// дерева (issue #343). Безусловная запись на каждый <c>ExtentWidthChange</c>
-        /// инвалидировала measure даже при том же значении и продлевала layout-цикл
-        /// <c>presenterMin → extent → ScrollChanged → presenterMin</c>.
-        /// </summary>
-        private double _lastPresenterMinWidth = -1;
-
-        /// <summary>
         /// Кэш расчётной суммы минимальной ширины списка без побочных эффектов (issue #343).
-        /// Обновляется в <see cref="UpdateTreeMinWidth"/>; используется
-        /// <see cref="SyncHeaderWidthWithList"/> для ширины заголовка вместо живого
-        /// <c>ExtentWidth</c> внутреннего ScrollViewer — живой extent зависел от
-        /// <c>presenter.MinWidth</c>, и связка «extent → ширина заголовка → сумма колонок →
-        /// presenterMin → extent» давала бесконечный цикл на границе
-        /// <c>viewport ≈ сумма колонок ± ширина скроллбара</c>.
+        /// Обновляется в <see cref="UpdateTreeMinWidth"/> и используется для решения
+        /// о необходимости горизонтальной полосы и в диагностике CM_COLUMNS.
         /// </summary>
         private double _treeMinWidthTotal;
 
         /// <summary>Данные верхней видимой строки при последнем замере <see cref="_treeMinWidthContent"/>.</summary>
         private object? _treeMinWidthAnchorData;
-
-        /// <summary>
-        /// Используется ли обычный StackPanel вместо VirtualizingStackPanel (issue #309).
-        /// VirtualizingStackPanel при CanContentScroll=True меряет детей вьюпортной шириной
-        /// и «срезает» горизонтальный экстент — ExtentWidth не дотягивает до суммы колонок,
-        /// полоса короткая, последние колонки недостижимы. Обычный StackPanel не реализует
-        /// IScrollInfo, и ScrollViewer прокручивает контент по фактическому DesiredSize,
-        /// поэтому горизонтальная полоса становится честной. Цена — потеря виртуализации
-        /// на время, пока полоса реально нужна (колонки не помещаются).
-        /// </summary>
-        private bool _treeUsePlainStackPanel;
-
-        /// <summary>
-        /// Максимальное число строк, при котором допустим обычный StackPanel: на очень
-        /// больших списках (тысячи баз) потеря виртуализации дороже горизонтальной
-        /// прокрутки, и мы остаёмся на виртуализирующей панели (известное ограничение).
-        /// </summary>
-        private const int MaxRowsForPlainStackPanel = 4000;
-
-        /// <summary>
-        /// Запас гистерезиса решения о панели списка (issue #343): на границе
-        /// «колонки не помещаются» сумма (total) и viewport осциллируют на ширину
-        /// вертикального скроллбара (~17 px), и единый порог с запасом 1 px флипал
-        /// ItemsPanel между VirtualizingStackPanel и StackPanel на каждый ScrollChanged.
-        /// Включаем обычную панель только при превышении больше этого запаса,
-        /// возвращаемся к виртуализации только при появлении запаса того же размера.
-        /// </summary>
-        private const double PanelSwitchMargin = 32;
-
-        /// <summary>Минимальный интервал между фактическими переключениями панели списка (issue #343).</summary>
-        private const int TreePanelSwitchMinIntervalMs = 500;
-
-        /// <summary>Таймер дебаунса пересмотра стратегии панели списка (issue #343).</summary>
-        private System.Windows.Threading.DispatcherTimer? _treePanelSwitchTimer;
-
-        /// <summary>Момент последнего фактического переключения панели списка (issue #343).</summary>
-        private DateTime _lastTreePanelSwitchUtc;
-
-        /// <summary>
-        /// Дерево построено (флаг выставляется после StartupInitializationCompleted).
-        /// До этого момента стратегию панели не меняем: CountVisibleTreeItems ненадёжен,
-        /// а ранний переход на обычный StackPanel при старте материализует всё дерево
-        /// и «вешает» приложение на загрузке избранного (issue #343).
-        /// </summary>
-        private bool _treeBuildCompleted;
 
         /// <summary>
         /// Постоянная диагностика колонок (issue #309/#343): по умолчанию выключена.
@@ -832,17 +759,25 @@ namespace Configuration_Management
         private const double ActionsColumnMinWidth = 120;
 
         /// <summary>
-        /// Задаёт списку точную минимальную ширину, равную сумме ширин всех колонок
+        /// Задаёт контенту списка точную минимальную ширину, равную сумме ширин всех колонок
         /// заголовка (гибкое «Название» — по своему минимуму) вместе с ведущими отступами
         /// (колонки кнопок групп, компенсатор сдвига дерева, избранное, закрепление).
         /// Аналог <c>UpdateListMinWidth</c> из Linux/Avalonia: благодаря жёсткой границе
         /// горизонтальная прокрутка появляется ровно тогда, когда колонки реально не
         /// помещаются по ширине, а не «на волосок» раньше из-за округления последней
         /// (пустой) колонки «Конфигурация».
+        /// <para>
+        /// Минимум задаётся КОНТЕНТУ внешнего общего ScrollViewer (ListContentGrid,
+        /// issue #309): внешний ScrollViewer меряет контент с бесконечной шириной,
+        /// и MinWidth определяет его DesiredSize, а значит и горизонтальный extent
+        /// полосы. Внутренняя прокрутка дерева при этом НЕ растягивается (именно она
+        /// в прежней раскладке уводила правый край полосы за край окна) — дерево
+        /// просто заполняет контент, а строки тянутся по вьюпорту, равному ширине
+        /// контента.
         /// </summary>
         private void UpdateTreeMinWidth()
         {
-            if (MainTree is null || HeaderGrid is null)
+            if (MainTree is null || HeaderGrid is null || ListContentGrid is null)
                 return;
 
             var defs = HeaderGrid.ColumnDefinitions;
@@ -876,228 +811,48 @@ namespace Configuration_Management
             var total = ListMinWidthCalculator.Compute(
                 nameWidth, NameColumnMinWidth, leading, 0, values, _treeMinWidthContent);
             // Кэш расчётной суммы без побочных эффектов (issue #343): используется
-            // SyncHeaderWidthWithList для ширины заголовка вместо живого ExtentWidth —
-            // живой extent зависел от presenter.MinWidth, что замыкало layout-цикл.
+            // для решения о необходимости полосы и в диагностике CM_COLUMNS.
             _treeMinWidthTotal = total;
 
-            // Девятая попытка (issue #309): расчётная сумма (total) не учитывает фактическую
-            // ширину звёздной колонки «Название» (для гибкой колонки nameWidth=0), поэтому
-            // при растянутой «Название» последние колонки выталкиваются за правый край, а
-            // минимум контента остаётся короче фактической ширины строк — полоса есть
-            // (scrollable ~3 px в логе пользователя), но до конца колонок не дотягивает.
-            // Берём фактическую сумму колонок заголовка, когда заголовок реально не
-            // помещается; иначе полоса появлялась бы «на волосок» из-за округления.
+            // Фактическая сумма колонок заголовка может отличаться от расчётной из-за
+            // округления: когда заголовок реально не помещается (headerSumNow > viewport),
+            // берём максимум из расчётной и фактической суммы, чтобы полоса гарантированно
+            // дотягивала до последней колонки (issue #309). Когда колонки помещаются —
+            // остаётся расчётная сумма (анти-регресс #255).
             var headerSumNow = defs.Sum(d => d.ActualWidth);
-            var scrollViewerNow = GetTreeScrollViewer();
-            var viewportNow = scrollViewerNow?.ViewportWidth ?? MainTree.ActualWidth;
+            var viewportNow = DbListScroll?.ViewportWidth ?? MainTree.ActualWidth;
             var effective = headerSumNow > viewportNow + 1 ? Math.Max(total, headerSumNow) : total;
 
-            // Эксперимент B (issue #309, 10-я попытка): последние колонки могут быть
-            // недостижимыми, потому что их правый край уходит ПОД вертикальный скроллбар
-            // внутреннего ScrollViewer дерева (в логе пользователя hdrRight ≈ 1102,8 при
-            // viewport ≈ 1094,4). Когда вертикальная прокрутка активна и сумма колонок
-            // вместе со скроллбаром не помещается во вьюпорт — расширяем минимум на ширину
-            // полосы (+2 px запаса), чтобы прокрутка дотягивала до конца последней колонки.
-            // Полоса не добавляется, когда контент помещается с запасом (анти-регресс #255).
-            if (scrollViewerNow?.ComputedVerticalScrollBarVisibility == System.Windows.Visibility.Visible)
-            {
-                var sbw = SystemParameters.VerticalScrollBarWidth;
-                if (sbw > 0 && headerSumNow + sbw > viewportNow + 1)
-                    effective = Math.Max(effective, headerSumNow + sbw);
-            }
-
-            // Минимум задаём КОНТЕНТУ прокрутки (внутреннему ScrollContentPresenter дерева),
-            // а не самому MainTree: у дерева собственный внутренний ScrollViewer, и MinWidth
-            // на контроле лишь растянул бы область просмотра, а не заставил бы контент
-            // переполняться. Задание минимума контенту даёт жёсткую границу (как в Linux):
-            // горизонтальная полоса появляется ровно тогда, когда сумма колонок превышает
-            // доступную ширину, а не «на волосок» раньше из-за округления последней
-            // (пустой) колонки «Конфигурация».
-            var presenter = GetTreeScrollContentPresenter();
+            // Вертикальный скроллбар вынесен отдельным столбцом вне горизонтальной прокрутки
+            // (ListVerticalBar) и ширину контента не съедает, поэтому прежняя компенсация
+            // «+ширина полосы» (эксперимент B, issue #309) не нужна.
+            //
             // Защита от повторной раскладки без изменения (issue #343): ExtentWidthChange
             // зовёт UpdateTreeMinWidth на каждый ScrollChanged, и безусловная запись
             // MinWidth инвалидировала measure даже при том же значении, продлевая цикл
-            // presenterMin → extent → ScrollChanged → presenterMin.
-            if (presenter is not null && Math.Abs(effective - _lastPresenterMinWidth) > 0.5)
-            {
-                _lastPresenterMinWidth = effective;
-                presenter.MinWidth = effective;
-            }
-
-            // Внутренний ScrollViewer TreeView работает с CanContentScroll=True и пиксельной
-            // виртуализацией (MainWindow.xaml): виртуализирующая панель меряется ВЬЮПОРТНОЙ
-            // шириной, поэтому MinWidth одного ScrollContentPresenter может не расширять
-            // ExtentWidth — горизонтальная полоса остаётся короче суммы колонок, и последние
-            // колонки («Конфигурация»/«№ релиза») недостижимы (issue #309, седьмая попытка).
-            // Поэтому жёсткий минимум дублируется на корневые Grid материализованных строк:
-            // DesiredSize панели становится >= effective, ExtentWidth дотягивает до конца колонок.
-            // Обход выполняется только при фактическом изменении значения (не на каждый
-            // ScrollChanged) — при пиксельной виртуализации новые строки перекрываются
-            // ближайшим пересчётом (ExtentWidthChange обновляет минимум в OnTreeScroll).
+            // listMin → extent → ScrollChanged → listMin.
             if (Math.Abs(effective - _lastTreeMinWidth) > 0.5)
             {
                 _lastTreeMinWidth = effective;
-                foreach (var row in GetVisibleTreeViewItems())
-                {
-                    var rowGrid = FindGridByMarker(row, RowGridMarker)
-                                  ?? FindGridByMarker(row, GroupGridMarker);
-                    if (rowGrid is not null)
-                        rowGrid.MinWidth = effective;
-                }
+                ListContentGrid.MinWidth = effective;
 
                 // Инструментальный лог (issue #309): фактические значения в журнале приложения,
                 // чтобы следующая итерация правки опиралась на данные, а не на предположения.
-                LogColumnsDiagnostics(effective, presenter);
-            }
-
-            // Восьмая попытка (issue #309): VirtualizingStackPanel при CanContentScroll=True
-            // измеряет строки вьюпортной шириной, и ExtentWidth не растёт до суммы колонок —
-            // даже с MinWidth на строках полоса остаётся короткой (подтверждается логом
-            // CM_COLUMNS: extent < total). Переключаем ItemsPanel на обычный StackPanel,
-            // как только колонки реально не помещаются: ScrollViewer начинает вести
-            // прокрутку по фактической ширине контента (DesiredSize), и последние колонки
-            // становятся достижимыми. Обратное переключение — когда полоса не нужна.
-            ApplyTreePanelStrategy(effective);
-        }
-
-        /// <summary>
-        /// Выбирает панель списка: обычный <see cref="System.Windows.Controls.StackPanel"/>
-        /// при необходимости горизонтальной прокрутки (честный ExtentWidth), иначе
-        /// <see cref="VirtualizingStackPanel"/> (виртуализация). Повторная установка
-        /// ItemsPanelTemplate каждый раз пересоздавала бы контейнеры — применяем только
-        /// при фактической смене стратегии (issue #309, восьмая попытка). Смена защищена
-        /// гистерезисом и дебаунсом (issue #343): на границе «колонки не помещаются»
-        /// total и viewport осциллируют на ширину скроллбара, и без запаса панель
-        /// флипала на каждый ScrollChanged, вызывая InvalidateMeasure всего дерева.
-        /// </summary>
-        private void ApplyTreePanelStrategy(double total)
-        {
-            if (MainTree is null)
-                return;
-
-            var treeScroll = GetTreeScrollViewer();
-            double viewport = treeScroll?.ViewportWidth ?? MainTree.ActualWidth;
-
-            // Гистерезис (issue #343): решение принимается по двум разным порогам.
-            // Возврат на виртуализацию требует реального запаса, включение обычной
-            // панели — реального превышения, поэтому осцилляция на границе
-            // (viewport ≈ total ± sbw) не приводит к флипу ItemsPanel.
-            bool wantPlain;
-            if (_treeUsePlainStackPanel)
-            {
-                wantPlain = total > viewport - PanelSwitchMargin;
-            }
-            else
-            {
-                // На очень больших списках жертвовать виртуализацией нельзя —
-                // остаёмся на VirtualizingStackPanel (колонки могут быть недостижимы).
-                wantPlain = total > viewport + PanelSwitchMargin
-                            && CountVisibleTreeItems() <= MaxRowsForPlainStackPanel;
-            }
-            if (wantPlain == _treeUsePlainStackPanel)
-                return;
-
-            // Панель не переключаем, пока дерево ещё строится (загрузка избранного,
-            // rows=0): CountVisibleTreeItems ненадёжен на старте, а потеря виртуализации
-            // на большом списке в этот момент — причина «виснет при старте» (issue #343).
-            if (!CanSwitchTreePanel())
-                return;
-
-            // Дебаунс (issue #343): между фактическими переключениями должно пройти не
-            // меньше TreePanelSwitchMinIntervalMs. Пока интервал не истёк, пересматриваем
-            // стратегию таймером (одна проверка на тик — без спина диспетчера); как только
-            // условие стабильно и интервал прошёл — выполняем само переключение.
-            if ((DateTime.UtcNow - _lastTreePanelSwitchUtc).TotalMilliseconds < TreePanelSwitchMinIntervalMs)
-            {
-                if (_treePanelSwitchTimer is null)
-                {
-                    _treePanelSwitchTimer = new System.Windows.Threading.DispatcherTimer(
-                        System.Windows.Threading.DispatcherPriority.Background)
-                    {
-                        Interval = TimeSpan.FromMilliseconds(200)
-                    };
-                    _treePanelSwitchTimer.Tick += (_, _) =>
-                    {
-                        _treePanelSwitchTimer!.Stop();
-                        // Пересчёт обновляет effective и повторно входит в ApplyTreePanelStrategy.
-                        UpdateTreeMinWidth();
-                    };
-                }
-                _treePanelSwitchTimer.Stop();
-                _treePanelSwitchTimer.Start();
-                return;
-            }
-
-            try
-            {
-                var template = new ItemsPanelTemplate(new FrameworkElementFactory(
-                    wantPlain ? typeof(System.Windows.Controls.StackPanel) : typeof(VirtualizingStackPanel)));
-                MainTree.ItemsPanel = template;
-                _treeUsePlainStackPanel = wantPlain;
-                _lastTreePanelSwitchUtc = DateTime.UtcNow;
-
-                // У виртуализирующей панели возвращаем режимы из разметки
-                // (MainWindow.xaml:1362-1364): Recycling + пиксельный скролл.
-                if (!wantPlain)
-                {
-                    VirtualizingPanel.SetIsVirtualizing(MainTree, true);
-                    VirtualizingPanel.SetVirtualizationMode(MainTree, VirtualizationMode.Recycling);
-                    VirtualizingPanel.SetScrollUnit(MainTree, ScrollUnit.Pixel);
-                }
-
-                MainTree.InvalidateMeasure();
-                LogColumnsDiagnostics(total, GetTreeScrollContentPresenter());
-            }
-            catch
-            {
-                // Сбой переключения не должен ломать раскладку: остаёмся на прежней панели.
+                LogColumnsDiagnostics(effective);
             }
         }
 
-        /// <summary>
-        /// Разрешено ли сейчас менять стратегию панели списка (issue #343): после
-        /// завершения стартовой инициализации дерева, либо раньше, если строки уже
-        /// материализовались (например, запуск с пустым деревом, где события
-        /// инициализации может не быть).
-        /// </summary>
-        private bool CanSwitchTreePanel()
-        {
-            if (_treeBuildCompleted)
-                return true;
-            return MainTree is not null && FindFirstInfobaseItem(MainTree) is not null;
-        }
-
-        /// <summary>Число строк дерева (группы + базы), приблизительно — по корням.</summary>
-        private int CountVisibleTreeItems()
-        {
-            if (_viewModel is null)
-                return 0;
-            try
-            {
-                var count = 0;
-                foreach (var root in _viewModel.GroupNodes)
-                {
-                    count++;
-                    count += root.TotalInfobaseCount;
-                }
-                return count;
-            }
-            catch
-            {
-                return 0;
-            }
-        }
 
         /// <summary>
         /// Пишет в журнал приложения фактические значения расчёта минимальной ширины
-        /// (issue #309): сумму колонок заголовка, замер контента строк, MinWidth
-        /// презентера, viewport/extent внутреннего ScrollViewer дерева и DPI окна.
-        /// По умолчанию запись ограничена одной строкой на сессию (стартовый дамп,
+        /// (issue #309): сумму колонок заголовка, замер контента строк, MinWidth контента
+        /// внешнего общего ScrollViewer, его viewport/extent и DPI окна. По умолчанию
+        /// запись ограничена одной строкой на сессию (стартовый дамп,
         /// <paramref name="allowStartupDump"/>=true); постоянный лог включается только
         /// env-переменной <c>CM_COLUMNS_TRACE=1</c> (issue #343 — циклический вызов
         /// этой диагностики раздувал журнал до сотен мегабайт за полминуты).
         /// </summary>
-        private void LogColumnsDiagnostics(double total, ScrollContentPresenter? presenter, bool allowStartupDump = false)
+        private void LogColumnsDiagnostics(double total, bool allowStartupDump = false)
         {
             if (!_columnsTraceEnabled)
             {
@@ -1107,19 +862,22 @@ namespace Configuration_Management
             }
             try
             {
-                var treeScroll = GetTreeScrollViewer();
+                var listScroll = DbListScroll;
                 var defs = HeaderGrid?.ColumnDefinitions;
                 var sumActual = defs is null ? 0 : defs.Sum(d => d.ActualWidth);
-                var viewport = treeScroll?.ViewportWidth ?? 0;
-                var extent = treeScroll?.ExtentWidth ?? 0;
-                var scrollable = treeScroll?.ScrollableWidth ?? 0;
-                var vSb = treeScroll?.ComputedVerticalScrollBarVisibility ?? System.Windows.Visibility.Collapsed;
+                // Вьюпорт/экстент внешнего общего ScrollViewer (issue #309): именно его
+                // полосу видит пользователь, и она никогда не уходит за край окна.
+                var viewport = listScroll?.ViewportWidth ?? 0;
+                var extent = listScroll?.ExtentWidth ?? 0;
+                var scrollable = listScroll?.ScrollableWidth ?? 0;
+                // Вертикальная полоса вынесена отдельным столбцом вне горизонтальной прокрутки.
+                var vSb = ListVerticalBar?.Visibility ?? System.Windows.Visibility.Collapsed;
                 var dpi = VisualTreeHelper.GetDpi(this);
 
-                // Девятая попытка (issue #309): фактические ширины колонок заголовка.
-                // Растянутая звёздная «Название» может выталкивать последние колонки за
-                // правый край, и сумма колонок (sumActualHeader) оказывается больше
-                // расчётной (total) — это прямое объяснение обрезания при scrollable ~0.
+                // Фактические ширины колонок заголовка: растянутая звёздная «Название»
+                // может выталкивать последние колонки за правый край, и сумма колонок
+                // (sumActualHeader) оказывается больше расчётной (total) — это прямое
+                // объяснение обрезания при scrollable ~0.
                 var headerCols = defs is null ? string.Empty
                     : string.Join(",", defs.Select((d, i) => $"{i}:{d.ActualWidth:F1}"));
                 var headerOrigin = 0d;
@@ -1130,16 +888,11 @@ namespace Configuration_Management
                     headerRight = headerOrigin + sumActual;
                 }
 
-                // Эксперимент A: сравнение фактической ширины строк с заголовком — разные
-                // сетки могут дать разный остаток звёздной «Название», и правая граница
-                // строки уходит дальше правой границы заголовка (колонки данных обрезаются
-                // заголовком или наоборот).
+                // Сравнение фактической ширины строк с заголовком: разные сетки могут дать
+                // разный остаток звёздной «Название», и правая граница строки уходит дальше
+                // правой границы заголовка (колонки данных обрезаются заголовком или наоборот).
                 var (rowSum, rowOrigin, rowRight, rowCols, rowCount) = MeasureFirstRowDiagnostics();
 
-                // Эксперимент B: ширина окна и вертикального скроллбара — вьюпорт
-                // внутреннего ScrollViewer дерева может быть меньше доступной ширины
-                // списка на ширину вертикальной полосы (последняя колонка «не влезает»
-                // именно из-за неё, а не из-за ширины заголовка).
                 var sbw = SystemParameters.VerticalScrollBarWidth;
                 var winW = ActualWidth;
                 var winH = ActualHeight;
@@ -1148,11 +901,10 @@ namespace Configuration_Management
 
                 AppServices.GetRequiredService<IAppLogger>().Info(
                     $"CM_COLUMNS: total={total:F1}, sumActualHeader={sumActual:F1}, " +
-                    $"content={_treeMinWidthContent:F1}, presenterMin={presenter?.MinWidth ?? 0:F1}, " +
+                    $"content={_treeMinWidthContent:F1}, listMin={ListContentGrid?.MinWidth ?? 0:F1}, " +
                     $"viewport={viewport:F1}, extent={extent:F1}, scrollable={scrollable:F1}, vSb={vSb}, " +
-                    $"panel={(_treeUsePlainStackPanel ? "StackPanel" : "VirtualizingStackPanel")}, " +
-                    $"dpiScale={dpi.DpiScaleX:F2}, win={winW:F1}x{winH:F1}, treeW={treeW:F1}, " +
-                    $"headerW={headerW:F1}, sbw={sbw:F1}, viewportSbw={viewport + sbw:F1}, " +
+                    $"panel=VirtualizingStackPanel, dpiScale={dpi.DpiScaleX:F2}, win={winW:F1}x{winH:F1}, " +
+                    $"treeW={treeW:F1}, headerW={headerW:F1}, sbw={sbw:F1}, viewportSbw={viewport + sbw:F1}, " +
                     $"hdrOrigin={headerOrigin:F1}, hdrRight={headerRight:F1}, " +
                     $"rows={rowCount}, rowSum={rowSum:F1}, rowOrigin={rowOrigin:F1}, rowRight={rowRight:F1}, " +
                     $"cols=[{headerCols}], rowCols=[{rowCols}]");
@@ -1275,24 +1027,6 @@ namespace Configuration_Management
                 d.Width.IsAbsolute ? d.Width.Value : d.MinWidth,
                 d.Width.IsAbsolute && d.Width.Value > 0);
 
-        /// <summary>
-        /// Внутренний ScrollContentPresenter шаблона TreeView — контент его ScrollViewer.
-        /// </summary>
-        private ScrollContentPresenter? GetTreeScrollContentPresenter()
-        {
-            // Кэш презентера рядом с _treeScrollViewer (issue #255): полный обход визуального
-            // дерева FindVisualChild на каждый вызов при прокрутке добавлял лишнюю нагрузку.
-            // Презентер находится во вложенном шаблоне внутреннего ScrollViewer дерева, поэтому
-            // захват в OnApplyTemplate самого TreeView (GetTemplateChild) его не достаёт — кэшируем
-            // здесь, в главном окне, и сбрасываем при Unloaded вместе с _treeScrollViewer.
-            if (_treeScrollContentPresenter is not null)
-                return _treeScrollContentPresenter;
-            var treeScroll = GetTreeScrollViewer();
-            _treeScrollContentPresenter = treeScroll is null
-                ? null
-                : FindVisualChild<ScrollContentPresenter>(treeScroll);
-            return _treeScrollContentPresenter;
-        }
 
         /// <summary>
         /// Определяет колонку, ширину которой меняет данный разделитель.

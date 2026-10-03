@@ -29,12 +29,6 @@ namespace Configuration_Management
 
         /// <summary>Кэш внутреннего <see cref="ScrollViewer"/> дерева (issue #252).</summary>
         private ScrollViewer? _treeScrollViewer;
-        /// <summary>
-        /// Кэш внутреннего <see cref="ScrollContentPresenter"/> дерева (issue #255): полный обход
-        /// визуального дерева на каждый вызов при прокрутке добавлял лишнюю нагрузку. Сбрасывается
-        /// вместе с <see cref="_treeScrollViewer"/> при отсоединении дерева (Unloaded).
-        /// </summary>
-        private ScrollContentPresenter? _treeScrollContentPresenter;
         private bool _treeScrollHookAttached;
 
         /// <summary>Позиция вертикальной прокрутки, запомненная до пересборки дерева (issue #252).</summary>
@@ -47,6 +41,17 @@ namespace Configuration_Management
         // осталась в той же группе и видимой, позицию восстанавливаем точным offset, а не
         // BringIntoView — иначе список «съезжает» после правки свойств без смены группы.
         private string? _treeScrollAnchorGroup;
+
+        /// <summary>
+        /// Защита от рекурсии между вынесенной вертикальной полосой (<see cref="ListVerticalBar"/>)
+        /// и внутренней прокруткой дерева (issue #309): полоса пишет в ScrollViewer, ScrollViewer
+        /// отвечает синхронизацией полосы — флаг разрывает цикл (аналог _syncingScrollBar
+        /// в Linux/Avalonia, MainWindow.Avalonia.Scroll.cs).
+        /// </summary>
+        private bool _syncingVerticalBar;
+
+        /// <summary>Обработчики внешней прокрутки списка и вынесенной полосы уже подписаны (issue #309).</summary>
+        private bool _listScrollHooked;
 
         /// <summary>
         /// Возвращает данные верхней видимой строки дерева. Виртуализация реализует только
@@ -139,9 +144,10 @@ namespace Configuration_Management
                     treeScroll.ScrollToVerticalOffset(_treeScrollOffset);
                 }
 
-                // Горизонтальная прокрутка дерева не используется (синхронизацию ведёт внешний
-                // заголовок): сбрасываем горизонталь, чтобы восстановление не создавало лишний
-                // горизонтальный скрол (issue #255).
+                // Горизонтальная прокрутка дерева не используется — её ведёт внешний общий
+                // ScrollViewer (DbListScroll, issue #309): сбрасываем горизонталь внутренней
+                // прокрутки, чтобы восстановление не создавало лишний горизонтальный скрол
+                // (анти-регресс #255).
                 if (treeScroll.HorizontalOffset != 0)
                     treeScroll.ScrollToHorizontalOffset(0);
 
@@ -203,11 +209,12 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Внутренний ScrollViewer шаблона TreeView (отвечает за вертикальную и горизонтальную прокрутку).
-        /// Найденный экземпляр кэшируется: без кэша каждый вызов делает <c>ApplyTemplate()</c> и полный
-        /// обход визуального дерева, что при частой прокрутке/материализации строк добавляет нагрузку и
-        /// «прыжки» списка. Кэш сбрасывается при отсоединении дерева (Unloaded), чтобы не оставаться
-        /// с устаревшей ссылкой после пересборки/пересоздания контейнера.
+        /// Внутренний ScrollViewer шаблона TreeView (отвечает за вертикальную прокрутку
+        /// и виртуализацию). Найденный экземпляр кэшируется: без кэша каждый вызов делает
+        /// <c>ApplyTemplate()</c> и полный обход визуального дерева, что при частой прокрутке
+        /// или материализации строк добавляет нагрузку и «прыжки» списка. Кэш сбрасывается
+        /// при отсоединении дерева (Unloaded), чтобы не оставаться с устаревшей ссылкой
+        /// после пересборки/пересоздания контейнера.
         /// </summary>
         private ScrollViewer? GetTreeScrollViewer()
         {
@@ -220,7 +227,6 @@ namespace Configuration_Management
                 MainTree.Unloaded += (_, _) =>
                 {
                     _treeScrollViewer = null;
-                    _treeScrollContentPresenter = null;
                 };
             }
             if (_treeScrollViewer is not null)
@@ -233,7 +239,8 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Подписывается на ScrollChanged внутреннего ScrollViewer дерева (синхронизация заголовка).
+        /// Подписывается на ScrollChanged внутреннего ScrollViewer дерева (синхронизация
+        /// вынесенной вертикальной полосы и обновление минимальной ширины контента).
         /// </summary>
         private void AttachTreeScrollHandler()
         {
@@ -242,64 +249,170 @@ namespace Configuration_Management
                 return;
             treeScroll.ScrollChanged -= OnTreeScroll_ScrollChanged;
             treeScroll.ScrollChanged += OnTreeScroll_ScrollChanged;
+            // Вертикальная полоса вынесена отдельным столбцом — сразу приводим её геометрию.
+            SyncVerticalScrollBar(treeScroll);
+        }
+
+        /// <summary>
+        /// Подписывает обработчики внешнего общего ScrollViewer списка (DbListScroll) и вынесенной
+        /// вертикальной полосы (issue #309): изменение вьюпорта пересматривает минимальную ширину
+        /// контента, полоса прокручивает дерево, а колесо над ней обрабатывается штатно
+        /// (Shift+колесо — горизонталь). Вызывается из OnWindowLoaded.
+        /// </summary>
+        private void AttachListScrollHandler()
+        {
+            if (_listScrollHooked)
+                return;
+            _listScrollHooked = true;
+            if (DbListScroll is not null)
+            {
+                DbListScroll.ScrollChanged -= OnListScroll_ScrollChanged;
+                DbListScroll.ScrollChanged += OnListScroll_ScrollChanged;
+            }
+            if (ListVerticalBar is not null)
+            {
+                ListVerticalBar.ValueChanged -= OnListVerticalBar_ValueChanged;
+                ListVerticalBar.ValueChanged += OnListVerticalBar_ValueChanged;
+                ListVerticalBar.PreviewMouseWheel -= OnListVerticalBar_PreviewMouseWheel;
+                ListVerticalBar.PreviewMouseWheel += OnListVerticalBar_PreviewMouseWheel;
+            }
+            // Полоса начинается под заголовком колонок; высота заголовка меняется компактным
+            // режимом и темой — обновляем отступ при каждом изменении размера.
+            if (DbHeaderBorder is not null)
+            {
+                DbHeaderBorder.SizeChanged -= OnDbHeader_SizeChanged;
+                DbHeaderBorder.SizeChanged += OnDbHeader_SizeChanged;
+            }
+            UpdateVerticalBarMargin();
+        }
+
+        private void OnListScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            // Ширина вьюпорта внешней прокрутки влияет на решение о горизонтальной полосе
+            // (анти-регресс #255): при помещающихся колонках минимум контента не должен
+            // превышать вьюпорт. Пересчёт дёшев — при неизменном значении MinWidth ставится
+            // на то же значение и не инвалидирует раскладку (анти-регресс #343).
+            if (e.ViewportWidthChange != 0)
+                UpdateTreeMinWidth();
         }
 
         private void OnTreeScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            if (DbHeaderScroll is null)
+            if (sender is not ScrollViewer treeScroll)
                 return;
 
-            // Горизонтальная прокрутка дерева (issue #309): её ведёт сам список (полоса Auto),
-            // а заголовок синхронно прокручивается следом, чтобы колонки шапки совпадали
-            // со значениями строк. Принудительного сброса горизонтали больше нет: раньше
-            // (issue #255) он гасил ложный скролл при Disabled, теперь полоса появляется
-            // ровно когда сумма ширин колонок превышает ширину области (UpdateTreeMinWidth).
-            if (Math.Abs(DbHeaderScroll.HorizontalOffset - e.HorizontalOffset) > 0.01)
-                DbHeaderScroll.ScrollToHorizontalOffset(e.HorizontalOffset);
+            // Горизонтальная прокрутка ведётся внешним общим ScrollViewer (DbListScroll,
+            // issue #309): внутреннюю горизонталь дерева держим на нуле, иначе её ненулевой
+            // offset при старте или пересборке давал бы необоснованную горизонтальную полосу
+            // (анти-регресс #255).
+            if (treeScroll.HorizontalOffset != 0)
+                treeScroll.ScrollToHorizontalOffset(0);
 
-            // Синхронизируем ширину заголовка с данными только при изменении размеров вьюпорта,
-            // а не при изменении ExtentWidth. При пиксельной виртуализации ExtentWidth определяется
-            // максимумом по РЕАЛИЗОВАННЫМ детям и меняется на каждом шаге прокрутки; реакция на него
-            // каждый раз пересчитывала ширину и запускала повторную раскладку, из-за чего полоса
-            // прокрутки меняла размер и список «прыгал» (issue #255).
-            if (e.ViewportWidthChange != 0 || e.ViewportHeightChange != 0)
-                SyncHeaderWidthWithList();
+            // Вертикальная полоса вынесена отдельным столбцом — синхронизируем её геометрию.
+            SyncVerticalScrollBar(treeScroll);
 
-            // Изменение ExtentWidth пересчитываем ТОЛЬКО минимальную ширину контента
-            // (UpdateTreeMinWidth), а не ширину заголовка: колонки могли сменить ширину
-            // binding'ом (загрузка настроек, скрытие/показ, применение ширин из окна
-            // настроек), и без этого минимум оставался бы прежним — горизонтальная
-            // полоса не дотягивала до последней (новой) колонки (issue #309). Сам по
-            // себе вызов дёшев: при неизменной сумме MinWidth устанавливается на то же
-            // значение и не инвалидирует раскладку.
-            if (e.ExtentWidthChange != 0)
+            // Фактическая ширина контента зависит от верхней видимой строки: при вертикальной
+            // прокрутке наверх приходит строка с другим названием, и замер _treeMinWidthContent,
+            // выполненный по прежней строке, может не дотягивать до реальной ширины (issue #309).
+            // Пересчитываем замер только когда полоса реально есть (минимум больше вьюпорта)
+            // и верхняя строка сменилась — при помещающихся колонках замер не нужен вовсе.
+            if (e.ExtentWidthChange != 0
+                && _treeMinWidthTotal > (DbListScroll?.ViewportWidth ?? 0))
             {
-                UpdateTreeMinWidth();
-
-                // Фактическая ширина контента зависит от верхней видимой строки: при
-                // вертикальной прокрутке наверх приходит строка с другим названием, и
-                // кэш _treeMinWidthContent, замеренный по прежней строке, может не
-                // дотягивать до её реальной ширины (issue #309). Пересчитываем замер
-                // только когда полоса реально есть (минимум больше вьюпорта) и верхняя
-                // строка сменилась — при помещающихся колонках замер не нужен вовсе,
-                // а при горизонтальной прокрутке верхняя строка не меняется.
-                if (e.HorizontalChange == 0 && _treeMinWidthContent > 0)
+                var top = GetTopVisibleRowData();
+                if (!ReferenceEquals(top, _treeMinWidthAnchorData))
                 {
-                    var presenter = GetTreeScrollContentPresenter();
-                    if (presenter is not null
-                        && sender is ScrollViewer treeScroll
-                        && presenter.MinWidth > treeScroll.ViewportWidth + 0.5)
-                    {
-                        var top = GetTopVisibleRowData();
-                        if (!ReferenceEquals(top, _treeMinWidthAnchorData))
-                        {
-                            _treeMinWidthAnchorData = top;
-                            UpdateTreeMinWidthContent();
-                            UpdateTreeMinWidth();
-                        }
-                    }
+                    _treeMinWidthAnchorData = top;
+                    UpdateTreeMinWidthContent();
+                    UpdateTreeMinWidth();
                 }
             }
+        }
+
+        /// <summary>
+        /// Обновляет геометрию вынесенной вертикальной полосы по внутренней прокрутке дерева
+        /// (issue #309): максимум, размер вьюпорта, шаги и значение. Полоса стоит отдельным
+        /// столбцом вне горизонтальной прокрутки, поэтому остаётся у правого края видимой
+        /// области и не перекрывает последнюю колонку.
+        /// </summary>
+        private void SyncVerticalScrollBar(ScrollViewer treeScroll)
+        {
+            if (ListVerticalBar is null)
+                return;
+            try
+            {
+                var scrollable = Math.Max(0, treeScroll.ScrollableHeight);
+                var visible = scrollable > 0.5 && treeScroll.ViewportHeight > 0.5;
+                var wantedVisibility = visible ? Visibility.Visible : Visibility.Collapsed;
+                if (ListVerticalBar.Visibility != wantedVisibility)
+                    ListVerticalBar.Visibility = wantedVisibility;
+
+                if (Math.Abs(ListVerticalBar.Maximum - scrollable) > 0.01)
+                    ListVerticalBar.Maximum = scrollable;
+                if (Math.Abs(ListVerticalBar.ViewportSize - treeScroll.ViewportHeight) > 0.01)
+                    ListVerticalBar.ViewportSize = treeScroll.ViewportHeight;
+
+                // Шаги кликов по дорожке/стрелкам: страница ≈ вьюпорт, строка ≈ вьюпорт/30
+                // (примерно высота видимой строки; точные шаги сама прокрутка дерева ведёт
+                // по своему содержимому).
+                var large = Math.Max(10, treeScroll.ViewportHeight - 1);
+                if (Math.Abs(ListVerticalBar.LargeChange - large) > 0.01)
+                    ListVerticalBar.LargeChange = large;
+                var small = Math.Max(1, treeScroll.ViewportHeight / 30.0);
+                if (Math.Abs(ListVerticalBar.SmallChange - small) > 0.01)
+                    ListVerticalBar.SmallChange = small;
+
+                if (_syncingVerticalBar)
+                    return;
+                var offset = Math.Min(treeScroll.VerticalOffset, scrollable);
+                if (Math.Abs(ListVerticalBar.Value - offset) > 0.01)
+                {
+                    _syncingVerticalBar = true;
+                    try { ListVerticalBar.Value = offset; }
+                    finally { _syncingVerticalBar = false; }
+                }
+            }
+            catch
+            {
+                // Синхронизация полосы не должна ломать раскладку.
+            }
+        }
+
+        /// <summary>Пользователь потянул вынесенную вертикальную полосу — прокручиваем дерево.</summary>
+        private void OnListVerticalBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_syncingVerticalBar || sender is not ScrollBar bar)
+                return;
+            var treeScroll = GetTreeScrollViewer();
+            if (treeScroll is null)
+                return;
+            var maxOffset = Math.Max(0, treeScroll.ScrollableHeight);
+            treeScroll.ScrollToVerticalOffset(Math.Min(bar.Value, maxOffset));
+        }
+
+        private void OnListVerticalBar_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            ScrollListByWheel(e);
+        }
+
+        private void OnDbHeader_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateVerticalBarMargin();
+        }
+
+        /// <summary>
+        /// Вынесенная вертикальная полоса начинается под заголовком колонок: высота заголовка
+        /// меняется компактным режимом и темой, поэтому отступ пересчитывается при изменении
+        /// размера (OnDbHeader_SizeChanged) и при инициализации.
+        /// </summary>
+        private void UpdateVerticalBarMargin()
+        {
+            if (ListVerticalBar is null)
+                return;
+            var top = Math.Max(0, DbHeaderBorder?.ActualHeight ?? 0);
+            var margin = new Thickness(0, top, 0, 0);
+            if (ListVerticalBar.Margin != margin)
+                ListVerticalBar.Margin = margin;
         }
 
         private void OnMainTree_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -330,26 +443,27 @@ namespace Configuration_Management
                 return;
             }
 
-            var treeScroll = GetTreeScrollViewer();
-            if (treeScroll is null)
-            {
-                // Повторная попытка после загрузки шаблона.
-                AttachTreeScrollHandler();
-                treeScroll = GetTreeScrollViewer();
-            }
-
-            if (treeScroll is null)
-                return;
-
             // e.Delta обычно ±120; делим для плавности.
             var offset = -e.Delta / 3.0;
 
             if (Keyboard.Modifiers == ModifierKeys.Shift)
             {
-                treeScroll.ScrollToHorizontalOffset(treeScroll.HorizontalOffset + offset);
+                // Горизонтальная прокрутка — внешний общий ScrollViewer (заголовок + дерево,
+                // issue #309); внутренняя горизонталь дерева не используется (держится на нуле).
+                if (DbListScroll is { } listScroll)
+                    listScroll.ScrollToHorizontalOffset(listScroll.HorizontalOffset + offset);
             }
             else
             {
+                var treeScroll = GetTreeScrollViewer();
+                if (treeScroll is null)
+                {
+                    // Повторная попытка после загрузки шаблона.
+                    AttachTreeScrollHandler();
+                    treeScroll = GetTreeScrollViewer();
+                }
+                if (treeScroll is null)
+                    return;
                 treeScroll.ScrollToVerticalOffset(treeScroll.VerticalOffset + offset);
             }
 

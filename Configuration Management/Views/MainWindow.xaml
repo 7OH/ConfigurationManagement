@@ -890,34 +890,44 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Область списка: общий горизонтальный ScrollViewer, чтобы заголовки колонок
-                         прокручивались синхронно с содержимым дерева -->
-                    <!-- Внешний ScrollViewer управляет прокруткой по обеим осям. Прокрутка дерева
-                         вынесена сюда (а не на внутренний ScrollViewer TreeView), чтобы избежать
-                         циклической привязки высоты, из-за которой полоса прокрутки пропадала при
-                         сжатии окна. Контент (заголовки + дерево) прокручивается синхронно
-                         по горизонтали и вертикали. -->
-                    <!-- Правый отступ -10 компенсирует правый отступ 8 внешней сетки (Margin="12,12,8,12")
-                         плюс оставшиеся ~2px у рамки панели: без этого между вертикальной полосой
-                         прокрутки дерева и правой границей панели оставалась пустота ~13px (8 внешних
-                         + 4 здесь + ~1px рамки). Отрицательный отступ выводит полосу вплотную к краю.
-                         Верхняя панель и теги при этом сохраняют свой отступ. -->
+                    <!-- Область списка (issue #309): горизонтальную прокрутку ведёт ВНЕШНИЙ общий
+                         ScrollViewer (DbListScroll), внутри которого лежат заголовок колонок и дерево
+                         строк — шапка и значения едут по горизонтали синхронно, а правая граница
+                         полосы всегда остаётся в видимой области (в прежней раскладке её рисовал
+                         внутренний ScrollViewer дерева, который растягивался по MinWidth контента,
+                         и правый конец полосы уходил за край окна). Вертикальную прокрутку и
+                         виртуализацию сохраняет внутренний ScrollViewer дерева; его полосы скрыты
+                         (Hidden), а вертикальная полоса вынесена отдельным столбцом справа — вне
+                         горизонтальной прокрутки (эталон — MainWindow.Avalonia.Scroll.cs).
+                         Правый отступ -10 компенсирует правый отступ 8 внешней сетки (Margin="12,12,8,12")
+                         плюс оставшиеся ~2px у рамки панели, чтобы вертикальная полоса стояла вплотную
+                         к правому краю панели. Верхняя панель и теги при этом сохраняют свой отступ. -->
                     <Grid Grid.Row="3" Margin="4,0,-10,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                        <!-- Фиксированный заголовок таблицы: прокручивается только горизонтально,
-                             синхронно со списком баз. При вертикальной прокрутке остаётся на месте. -->
-                        <ScrollViewer x:Name="DbHeaderScroll" Grid.Row="0"
-                                      HorizontalScrollBarVisibility="Hidden"
+                        <!-- Внешний общий ScrollViewer: ведёт горизонтальную прокрутку всего контента
+                             (заголовок + дерево) и рисует полосу у нижнего края видимой области — её
+                             правый конец не уходит за край окна. Вертикаль отключена (Disabled), иначе
+                             контент мерялся бы бесконечной высотой и ломал виртуализацию дерева. -->
+                        <ScrollViewer x:Name="DbListScroll" Grid.Column="0"
+                                      HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Disabled"
                                       PreviewMouseWheel="OnDbHeader_PreviewMouseWheel">
-                            <!-- Правый отступ компенсирует ширину вертикальной полосы прокрутки списка,
-                                 чтобы правый край колонки (*) заголовка совпадал с данными. -->
-                            <Border BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="0,0,0,1"
-                                    Padding="0,2,0,2" MinHeight="36" Opacity="0.95">
+                            <Grid x:Name="ListContentGrid">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Фиксированный заголовок таблицы: лежит внутри общего ScrollViewer,
+                                     поэтому прокручивается по горизонтали синхронно со строками,
+                                     а при вертикальной прокрутке остаётся на месте. -->
+                                <Border x:Name="DbHeaderBorder" Grid.Row="0"
+                                        BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="0,0,0,1"
+                                        Padding="0,2,0,2" MinHeight="36" Opacity="0.95">
                             <Grid x:Name="HeaderGrid" MinWidth="{Binding ActualWidth, ElementName=MainTree}">
                                 <!-- Единственная star-строка: растягивается на высоту Border (MinHeight=36),
                                      чтобы заголовки колонок (VerticalAlignment="Center") были отцентрированы
@@ -1346,14 +1356,14 @@
                                 </Border>
                             </Grid>
                             </Border>
-                        </ScrollViewer>
 
-                    <!-- Прокручиваемая область списка баз. Прокручивается по вертикали и
-                         по горизонтали (полоса у дерева, заголовок синхронизируется через
-                         OnTreeScroll_ScrollChanged), сам заголовок при вертикальной прокрутке
-                         остаётся на месте. Полоса появляется ровно тогда, когда сумма ширин
-                         колонок превышает ширину области (минимум контента задаёт
-                         UpdateTreeMinWidth). -->
+                    <!-- Строки списка баз лежат во внутреннем ScrollViewer самого дерева: он ведёт
+                         вертикальную прокрутку и виртуализацию (CanContentScroll=True, ScrollUnit=Pixel),
+                         а его полосы скрыты (Hidden) — контенту разрешено быть шире области, но полосы
+                         не рисуются, т.к. горизонталь ведёт внешний DbListScroll, а вертикаль — вынесенная
+                         справа полоса ListVerticalBar (issue #309). Появление горизонтальной полосы
+                         управляется минимальной шириной контента (UpdateTreeMinWidth): ровно когда
+                         сумма ширин колонок превышает ширину области. -->
                     <!-- Список баз в виде дерева «группа в группе» -->
                     <controls:LeveledTreeView x:Name="MainTree"
                               Grid.Row="1"
@@ -1369,8 +1379,8 @@
                               Padding="0"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
-                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                              ScrollViewer.VerticalScrollBarVisibility="Hidden"
                               ScrollViewer.CanContentScroll="True"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
@@ -2644,6 +2654,17 @@
                             </ContextMenu>
                         </controls:LeveledTreeView.ContextMenu>
                         </controls:LeveledTreeView>
+                        </Grid>
+                        </ScrollViewer>
+
+                        <!-- Вертикальная полоса прокрутки дерева стоит отдельным столбцом вне
+                             горизонтальной прокрутки (эталон — MainWindow.Avalonia.Scroll.cs): она
+                             остаётся у правого края видимой области и не перекрывает последнюю
+                             колонку, даже когда список докручен до конца вправо (issue #309).
+                             Геометрию полосы ведёт MainWindow.Scroll.cs (SyncVerticalScrollBar). -->
+                        <ScrollBar x:Name="ListVerticalBar" Grid.Column="1" Orientation="Vertical"
+                                   Minimum="0" Maximum="0" ViewportSize="0"
+                                   SmallChange="24" LargeChange="100" Visibility="Collapsed"/>
                     
                 </Grid>
                 </Grid>
