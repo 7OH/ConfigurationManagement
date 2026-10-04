@@ -135,8 +135,9 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
                     ErrorMessage = error
                 };
 
-            // Создание прошло успешно — запоминаем сервер СУБД и порт для подстановки (issue #305).
-            SaveLastDbServer(dbServer, dbPort);
+            // Создание прошло успешно — запоминаем сервер СУБД, порт и тип для подстановки (issue #305).
+            // Ветка выполняется только для клиент-серверного режима.
+            SaveLastDbServer(dbServer, dbPort, isClientServer: true);
 
             connection = new ConnectionSettings
             {
@@ -435,18 +436,23 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
     }
 
     /// <summary>
-    /// Запоминает последний использованный сервер СУБД и его порт (issue #305): они
-    /// подставляются по умолчанию при следующем открытии окна создания ИБ. Вызывается как
+    /// Запоминает последний использованный сервер СУБД, его порт и тип базы (issue #305):
+    /// они подставляются по умолчанию при следующем открытии окна создания ИБ. Вызывается как
     /// после успешного создания, так и при закрытии окна (сохранение по факту ввода).
-    /// Ошибки сохранения не должны ломать создание ИБ.
+    /// В файловом режиме (<paramref name="isClientServer"/>=false) сохраняется только тип —
+    /// ранее сохранённый сервер/порт не затираются. Ошибки сохранения не должны ломать создание ИБ.
     /// </summary>
-    public void SaveLastDbServer(string dbServer, string dbPort)
+    public void SaveLastDbServer(string dbServer, string dbPort, bool isClientServer)
     {
         try
         {
             var settings = _repository.LoadSettings();
-            settings.LastCreateDbServer = dbServer;
-            settings.LastCreateDbPort = dbPort;
+            if (isClientServer)
+            {
+                settings.LastCreateDbServer = dbServer;
+                settings.LastCreateDbPort = dbPort;
+            }
+            settings.LastCreateDbType = isClientServer ? "ClientServer" : "File";
             _repository.SaveSettings(settings);
         }
         catch

@@ -66,6 +66,49 @@ public sealed class OneCUpdatesLoginFlowTests
         Assert.Empty(OneCUpdatesService.ExtractFormFields("<html>нет формы</html>"));
     }
 
+    // ---------- Атрибут action формы (issue #323/#330/#334, третья итерация) ----------
+
+    [Fact]
+    public void ExtractFormAction_QuotedAction_ReturnsValue()
+    {
+        var action = OneCUpdatesService.ExtractFormAction(
+            """<form id="fm1" action="/login/cas?service=https%3A%2F%2Freleases.1c.ru" method="post">""");
+
+        Assert.Equal("/login/cas?service=https%3A%2F%2Freleases.1c.ru", action);
+    }
+
+    [Fact]
+    public void ExtractFormAction_SingleQuotedAndUnquoted_Parsed()
+    {
+        Assert.Equal("/cas",
+            OneCUpdatesService.ExtractFormAction("""<form action='/cas'>"""));
+        Assert.Equal("https://login.1c.ru/auth",
+            OneCUpdatesService.ExtractFormAction("""<form action=https://login.1c.ru/auth>"""));
+    }
+
+    [Fact]
+    public void ExtractFormAction_NoActionOrHash_ReturnsNull()
+    {
+        Assert.Null(OneCUpdatesService.ExtractFormAction("""<form id="fm1" method="post">"""));
+        Assert.Null(OneCUpdatesService.ExtractFormAction("""<form action="#">"""));
+        Assert.Null(OneCUpdatesService.ExtractFormAction(null!));
+        Assert.Null(OneCUpdatesService.ExtractFormAction(string.Empty));
+    }
+
+    [Fact]
+    public void LooksLikeOAuthOrChallenge_DetectsChangedFormMarkers()
+    {
+        // Форма без execution/lt, но с признаками OAuth/JS-челленджа — автоматический вход
+        // невозможен (issue #323/#330/#334).
+        Assert.True(OneCUpdatesService.LooksLikeOAuthOrChallenge(
+            """<html><script src="/oauth/authorize?client_id=app"></script><div>challenge</div></html>"""));
+        Assert.True(OneCUpdatesService.LooksLikeOAuthOrChallenge(
+            """<html>csrf protection required</html>"""));
+        Assert.False(OneCUpdatesService.LooksLikeOAuthOrChallenge(
+            """<form><input type="hidden" name="execution" value="e1"/></form>"""));
+        Assert.False(OneCUpdatesService.LooksLikeOAuthOrChallenge(null!));
+    }
+
     [Fact]
     public void ExtractFormFields_SingleQuotedValues_Parsed()
     {
@@ -93,6 +136,82 @@ public sealed class OneCUpdatesLoginFlowTests
         Assert.Contains("execution=e1s2t3", handler.LastPostBody!);
         Assert.Contains("lt=LT-123-abc", handler.LastPostBody!);
         Assert.Contains("_eventId=submit", handler.LastPostBody!);
+    }
+
+    [Fact]
+    public async Task LoginPost_UsesFormActionUrl()
+    {
+        // Третья итерация CAS (issue #323/#330/#334): POST формы должен идти на атрибут
+        // action формы, а не на URL GET-формы (Spring Security CAS часто указывает отдельный
+        // action «/login/cas?service=…»). GET-форма отдана по /login?service=…; action = «/cas».
+        const string formWithAction = """
+            <html><body>
+            <form id="fm1" action="/cas?service=https%3A%2F%2Freleases.1c.ru" method="post">
+              <input type="hidden" name="execution" value="e1s2t3" />
+            </form>
+            </body></html>
+            """;
+        var handler = new LoginCaptureHandler(formWithAction, postStatus: HttpStatusCode.Found,
+            location: new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.NotNull(handler.LastPostUri);
+        Assert.Equal("https://login.1c.ru/cas", handler.LastPostUri!.GetLeftPart(System.UriPartial.Path));
+        Assert.Contains("service=https%3A%2F%2Freleases.1c.ru", handler.LastPostUri!.Query);
+    }
+
+    [Fact]
+    public async Task LoginPost_NoFormAction_PostsToFormUrl()
+    {
+        // Регресс: форма без action — POST остаётся на адресе GET-формы (прежнее поведение).
+        var handler = new LoginCaptureHandler(SimpleForm, postStatus: HttpStatusCode.Found,
+            location: new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.NotNull(handler.LastPostUri);
+        Assert.Contains("/login", handler.LastPostUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task LoginForm_NoExecution_FormUnavailableWithMarker()
+    {
+        // Форма без execution/lt, но с маркерами OAuth/JS-челленджа: программный вход
+        // невозможен — результат FormUnavailable, в журнале маркер изменённой формы
+        // (issue #323/#330/#334).
+        var handler = new OAuthChallengeHandler();
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.FormUnavailable, result.Status);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("OAuth/JS-челленджа", joined);
+        Assert.DoesNotContain("secret", joined);
+    }
+
+    [Fact]
+    public async Task SendWithAuthAsync_LogsReasonForLogin()
+    {
+        // Диагностика входа (issue #323/#330/#334): журнал фиксирует причину запуска входа
+        // (redirect-login/self-redirect/http-401) и результат TryLoginPortalAsync.
+        var handler = new StaticLoginHandler(postStatus: HttpStatusCode.Unauthorized,
+            postBody: "<html><body>Неверный логин</body></html>");
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "sup3r-secret");
+
+        await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("Вход запущен: reason=", joined);
+        Assert.Contains("результат=AuthFailed", joined);
+        Assert.DoesNotContain("sup3r-secret", joined);
     }
 
     // ---------- 401 → AuthFailed, без секретов в журнале ----------
@@ -380,6 +499,9 @@ public sealed class OneCUpdatesLoginFlowTests
         public int PostLoginCount { get; private set; }
         public string? LastPostBody { get; private set; }
 
+        /// <summary>URL последнего POST формы входа (для проверки атрибута action, issue #323/#330/#334).</summary>
+        public Uri? LastPostUri { get; private set; }
+
         public LoginCaptureHandler(string formHtml, HttpStatusCode postStatus, Uri? location = null, string postBody = "")
         {
             _formHtml = formHtml;
@@ -405,11 +527,15 @@ public sealed class OneCUpdatesLoginFlowTests
                 _loginSucceeded = true;
                 response = Ok("<html>session established</html>");
             }
-            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            // Форма входа: GET — на /login, POST — на атрибут action формы (может быть /cas,
+            // issue #323/#330/#334); маршрутизируем обе ветки.
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase)
+                     || path.Contains("/cas", StringComparison.OrdinalIgnoreCase))
             {
                 if (request.Method == HttpMethod.Post && request.Content is not null)
                 {
                     PostLoginCount++;
+                    LastPostUri = request.RequestUri;
                     LastPostBody = await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                     response = _postLocation is not null
                         ? Found(_postLocation)
@@ -661,6 +787,39 @@ public sealed class OneCUpdatesLoginFlowTests
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var response = Ok(_body);
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик: каталог редиректит на login.1c.ru, GET формы входа возвращает HTML
+    /// БЕЗ execution/lt, но с маркерами OAuth/JS-челленджа — программный вход невозможен
+    /// (issue #323/#330/#334, третья итерация).</summary>
+    private sealed class OAuthChallengeHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Found(new Uri("https://login.1c.ru/login?service=x"));
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                // Форма изменилась радикально: нет классических токенов CAS, есть OAuth/JS-маркеры.
+                response = Ok("""
+                    <html><head><script src="/oauth/authorize?client_id=portal"></script></head>
+                    <body><h2>JavaScript challenge</h2></body></html>
+                    """);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
             response.RequestMessage = request;
             return Task.FromResult(response);
         }

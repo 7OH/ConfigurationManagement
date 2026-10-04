@@ -24,6 +24,7 @@ public partial class UpdateCheckWindow : Window
     private readonly IOneCUpdatesService _updates = AppServices.GetRequiredService<IOneCUpdatesService>();
     private readonly IInfobaseRepository _repository = AppServices.GetRequiredService<IInfobaseRepository>();
     private readonly ICustomConfigTypesStore _store = AppServices.GetRequiredService<ICustomConfigTypesStore>();
+    private readonly IItsAccountsStore _itsAccounts = AppServices.GetRequiredService<IItsAccountsStore>();
     private readonly IAppLogger _logger = AppServices.GetRequiredService<IAppLogger>();
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -156,6 +157,47 @@ public partial class UpdateCheckWindow : Window
         // Error может быть ключом локализации (Updates.*) либо свободным текстом («HTTP 500»):
         // ключ переводим, свободный текст LocalizationManager.T() вернёт как есть.
         ErrorText.Text = _row.Status == ConfigUpdateStatus.Failed ? LocalizeError(_row.Error) : string.Empty;
+
+        // При ошибке авторизации показываем панель действий: имя учётной записи ИТС,
+        // «Открыть login.1c.ru в браузере», «Учётные данные ИТС…» (issue #323/#330/#334).
+        ShowAuthActions(_row.Status == ConfigUpdateStatus.Failed && IsAuthErrorKey(_row.Error));
+    }
+
+    /// <summary>Показывает/скрывает панель действий при ошибке авторизации и заполняет имя
+    /// используемой учётной записи ИТС (анонимизированно — без логина, issue #323/#330/#334).</summary>
+    private void ShowAuthActions(bool visible)
+    {
+        AuthActionsPanel.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (!visible)
+            return;
+
+        var settings = _repository.LoadSettings();
+        var account = _itsAccounts.Resolve(settings.ItsAccountId);
+        var accountName = account is not null && !string.IsNullOrWhiteSpace(account.Name)
+            ? account.Name!
+            : LocalizationManager.T("Updates.AccountPrimary");
+        AuthAccountText.Text = string.Format(LocalizationManager.T("Updates.AccountUsed"), accountName);
+    }
+
+    /// <summary>True — ключ ошибки относится к авторизации на portal.1c.ru (для панели действий).</summary>
+    private static bool IsAuthErrorKey(string error)
+        => error is "Updates.AuthRequired" or "Updates.AuthFailed"
+            or "Updates.FormUnavailable" or "Updates.LoginLimitReached";
+
+    /// <summary>Открывает login.1c.ru в браузере (issue #323/#330/#334): пользователь выполняет
+    /// вход вручную, после чего возвращается в окно и повторяет проверку.</summary>
+    private void OnOpenLoginClick(object sender, RoutedEventArgs e)
+    {
+        if (!OneCLauncher.OpenUrl("https://login.1c.ru/login"))
+            ErrorText.Text = LocalizationManager.T("Settings.About.LinkOpenFailed");
+    }
+
+    /// <summary>Открывает справочник учётных записей ИТС (issue #323/#330/#334): после правки
+    /// данных повторный вход использует обновлённую запись.</summary>
+    private void OnItsAccountsClick(object sender, RoutedEventArgs e)
+    {
+        var win = new ItsAccountsWindow { Owner = this };
+        win.ShowDialog();
     }
 
     /// <summary>Обновляет ссылку каталога релизов: текст, активность и вид (issue #323).

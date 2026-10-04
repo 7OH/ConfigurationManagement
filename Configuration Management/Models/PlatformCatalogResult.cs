@@ -25,6 +25,12 @@ public enum PortalFetchStatus
     /// (issue #334/#330/#323).</summary>
     LoginLimitReached,
 
+    /// <summary>Форма входа на portal.1c.ru недоступна для программного входа: не получен HTML,
+    /// отсутствуют классические токены CAS (execution/lt) либо форма изменилась радикально
+    /// (OAuth/JS-челлендж — маркеры oauth/client_id/challenge/csrf, issue #323/#330/#334).
+    /// Автоматический вход невозможен; пользователю нужен браузер (или импорт cookie в будущем).</summary>
+    FormUnavailable,
+
     /// <summary>Запрошенный ресурс не найден (HTTP 404 — страница-маркер «404 Not Found»).</summary>
     NotFound,
 

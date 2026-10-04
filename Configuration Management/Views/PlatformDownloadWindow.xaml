@@ -268,6 +268,16 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
+                    <!-- Действия при проблемах авторизации (issue #323/#330/#334): открыть
+                         login.1c.ru в браузере, справочник учётных данных ИТС. -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="{loc:Loc Updates.OpenLoginPage}"
+                                Click="OnOpenLoginClick" Style="{StaticResource OutlineButtonStyle}"
+                                Padding="12,6"/>
+                        <Button Content="{loc:Loc Updates.OpenItsAccounts}"
+                                Click="OnItsAccountsClick" Style="{StaticResource OutlineButtonStyle}"
+                                Margin="8,0,0,0" Padding="12,6"/>
+                    </StackPanel>
                     <Button Grid.Column="1" Content="{loc:Loc PlatformDownload.RefreshCatalog}"
                             Command="{Binding LoadCatalogCommand}" Style="{StaticResource OutlineButtonStyle}"
                             Margin="0,0,8,0"/>

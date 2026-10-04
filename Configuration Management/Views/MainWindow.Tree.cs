@@ -830,18 +830,21 @@ namespace Configuration_Management
 
         /// <summary>
         /// Кратковременная «конвергентная» стабилизация выделения после клика, которым закрыли
-        /// контекстное меню (issue #340, новая стратегия). Выбор применяется ШТАТНЫМ путём
+        /// контекстное меню (issue #340, седьмая попытка). Выбор применяется ШТАТНЫМ путём
         /// (повторная доставка клика по живому контейнеру), но после закрытия попапа идёт
         /// дополнительная переработка контейнеров (VirtualizingStackPanel, VirtualizationMode=
         /// Recycling): у переиспользуемых контейнеров IsSelected может «уехать», а двусторонней
-        /// привязки IsSelected к модели нет (см. OnMainTree_SelectedItemChanged). Здесь короткая
-        /// одноразовая подписка на LayoutUpdated (максимум 3 срабатывания или ~200 мс) проверяет
-        /// соответствие модели и контейнера и восстанавливает выбор по данным.
+        /// привязки IsSelected к модели нет (см. OnMainTree_SelectedItemChanged). Здесь
+        /// одноразовая подписка на LayoutUpdated держится ДО СХОДИМОСТИ (до 10 срабатываний
+        /// или ~1000 мс, F2): проверяет соответствие модели и контейнера и восстанавливает
+        /// выбор по данным. Подписка дольше прежних 3 проходов/~200 мс, потому что отложенная
+        /// переработка контейнеров (Recycling) после закрытия попапа может произойти позже.
         /// <para>
         /// Метод НИКОГДА не вызывает ClearBatchSelection/ToggleBatchSelection — не вмешивается
         /// в мультивыделение; вызывается только для безусловного левого клика без модификаторов.
         /// Защита от рекурсии: восстановление выполняется только при фактическом расхождении
-        /// (SelectionMatchesTarget), счётчик проходов ограничивает работу.
+        /// (SelectionMatchesTarget), счётчик проходов ограничивает работу. С новым кликом
+        /// пользователя проверка ReferenceEquals(SelectedInfobase, target) прекращает работу.
         /// </para>
         /// </summary>
         /// <param name="target">База, выбранная кликом, которым закрыли меню.</param>
@@ -852,9 +855,9 @@ namespace Configuration_Management
                 return;
 
             var passes = 0;
-            const int maxPasses = 3;
+            const int maxPasses = 10;
             var startTick = Environment.TickCount;
-            const int timeoutMs = 200;
+            const int timeoutMs = 1000;
 
             EventHandler onLayoutUpdated = null!;
             onLayoutUpdated = (_, _) =>
@@ -863,6 +866,7 @@ namespace Configuration_Management
                 if (passes > maxPasses || Environment.TickCount - startTick >= timeoutMs)
                 {
                     MainTree.LayoutUpdated -= onLayoutUpdated;
+                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, done=true");
                     return;
                 }
 
@@ -871,24 +875,35 @@ namespace Configuration_Management
                 if (!ReferenceEquals(_viewModel.SelectedInfobase, target))
                 {
                     MainTree.LayoutUpdated -= onLayoutUpdated;
+                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, userReselected=true");
                     return;
                 }
 
+                var matches = SelectionMatchesTarget(target, isPinnedSection);
+                var containerRealized = isPinnedSection
+                    ? FindPinnedTreeViewItemForData(target) is not null
+                    : FindRegularTreeViewItemForData(target) is not null;
                 // Восстановление только при фактическом расхождении (защита от рекурсии):
-                // контейнер строки потерял IsSelected или SelectedItem дерева «уехал».
-                if (!SelectionMatchesTarget(target, isPinnedSection))
+                // контейнер строки потерял IsSelected или SelectedItem дерева «уехал», либо
+                // контейнер ещё не реализован виртуализацией (F2 — видимая-но-нереализованная
+                // строка НЕ считается согласованной; повторный SelectTreeRowByData идемпотентен
+                // и «догонит» выбор, когда контейнер появится).
+                if (!matches)
                     SelectTreeRowByData(target, null, isPinnedSection);
+                MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, matches={matches}, " +
+                                   $"containerRealized={containerRealized}, action={(matches ? "skip" : "restored")}");
             };
 
             MainTree.LayoutUpdated += onLayoutUpdated;
         }
 
         /// <summary>
-        /// Соответствует ли фактическое выделение дерева целевой базе (issue #340):
-        /// SelectedItem дерева разворачивается до той же базы И контейнер строки (если
-        /// реализован виртуализацией) подсвечен. Строка вне видимой области (контейнер
-        /// не реализован) считается согласованной по модели — восстановление произойдёт
-        /// при появлении строки в видимой области.
+        /// Соответствует ли фактическое выделение дерева целевой базе (issue #340, F2):
+        /// SelectedItem дерева разворачивается до той же базы И контейнер строки РЕАЛИЗОВАН
+        /// и подсвечен. Видимая-но-нереализованная строка (контейнер ещё перерабатывается
+        /// виртуализацией Recycling после закрытия попапа) согласованной НЕ считается —
+        /// стабилизация восстановит выбор по данным (SelectTreeRowByData идемпотентен) и
+        /// продолжит подписку до сходимости (см. <see cref="EnsureSelectionStable"/>).
         /// </summary>
         private bool SelectionMatchesTarget(Infobase target, bool isPinnedSection)
         {
@@ -898,7 +913,7 @@ namespace Configuration_Management
             var item = isPinnedSection
                 ? FindPinnedTreeViewItemForData(target)
                 : FindRegularTreeViewItemForData(target);
-            return item is null || item.IsSelected;
+            return item is not null && item.IsSelected;
         }
 
         /// <summary>

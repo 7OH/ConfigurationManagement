@@ -241,6 +241,25 @@ public sealed class UpdateCheckCatalogTests : IDisposable
     }
 
     [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_FormUnavailable_ReturnsFormUnavailableKey()
+    {
+        // Третья итерация CAS (issue #323/#330/#334): форма входа изменилась радикально
+        // (OAuth/JS-челлендж, нет execution/lt) — проверка завершается ключом
+        // Updates.FormUnavailable, а НЕ вводящим в заблуждение NetworkError/AuthRequired.
+        var handler = new OAuthFormHandler();
+        var repo = CreateRepo();
+        repo.Settings.UpdatesLogin = "its-user";
+        repo.Settings.UpdatesPassword = "secret";
+        var service = new OneCUpdatesService(repo, new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/AccountingCorp30");
+
+        Assert.Equal(ConfigUpdateStatus.Failed, result.Status);
+        Assert.Equal("Updates.FormUnavailable", result.Error);
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task CheckForUpdatesAsync_302WithoutLocation_LoginThenRetry_Succeeds()
     {
         // Сценарий #323/#334 с настроенными учётными данными: первый запрос каталога получает
@@ -553,5 +572,47 @@ public sealed class UpdateCheckCatalogTests : IDisposable
             </table>
             </body></html>
             """;
+    }
+
+    /// <summary>Обработчик «форма входа изменилась» (issue #323/#330/#334): каталог редиректит
+    /// на login.1c.ru, GET формы возвращает HTML БЕЗ execution/lt, но с маркерами OAuth/JS-челленджа —
+    /// программный вход невозможен (FormUnavailable).</summary>
+    private sealed class OAuthFormHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/AccountingCorp30", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Redirect(new Uri("https://login.1c.ru/login?service=x"));
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok(
+                    """<html><script src="/oauth/authorize?client_id=portal"></script><body>challenge</body></html>""");
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        private static HttpResponseMessage Redirect(Uri location)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Found);
+            response.Headers.Location = location;
+            return response;
+        }
     }
 }

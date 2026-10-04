@@ -133,6 +133,24 @@
                     <TextBlock x:Name="ErrorText" FontSize="12" Margin="0,12,0,0" TextWrapping="Wrap"
                                Foreground="#EF4444"/>
 
+                    <!-- Панель действий при ошибке авторизации (issue #323/#330/#334): имя
+                         используемой учётной записи ИТС, открыть login.1c.ru в браузере,
+                         справочник учётных данных ИТС. Видимость управляется в коде. -->
+                    <StackPanel x:Name="AuthActionsPanel" Visibility="Collapsed" Margin="0,10,0,0">
+                        <TextBlock x:Name="AuthAccountText" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button x:Name="OpenLoginButton" MinWidth="150" Height="32" Margin="0,0,8,0"
+                                    Style="{StaticResource OutlineButtonStyle}" Click="OnOpenLoginClick">
+                                <TextBlock Text="{loc:Loc Updates.OpenLoginPage}" VerticalAlignment="Center"/>
+                            </Button>
+                            <Button x:Name="ItsAccountsButton" MinWidth="150" Height="32"
+                                    Style="{StaticResource OutlineButtonStyle}" Click="OnItsAccountsClick">
+                                <TextBlock Text="{loc:Loc Updates.OpenItsAccounts}" VerticalAlignment="Center"/>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+
                     <!-- Пояснение пользователю: откуда берётся адрес каталога и где задать логин/пароль (issue #323). -->
                     <TextBlock x:Name="HelpText" FontSize="12" Margin="0,12,0,0" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextSecondaryBrush}"

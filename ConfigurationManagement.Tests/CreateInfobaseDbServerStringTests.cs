@@ -442,7 +442,7 @@ public sealed class CreateInfobaseDbServerStringTests
         Assert.Equal(string.Empty, CreateInfobaseService.BuildBaseServerAddress(new ConnectionSettings()));
     }
 
-    // ============ Сохранение «Сервера СУБД» при закрытии окна (issue #305) ============
+    // ============ Сохранение «Сервера СУБД» и типа при создании/закрытии окна (issue #305) ============
 
     [Fact]
     public void SaveLastDbServer_PersistsForNextOpen()
@@ -450,10 +450,106 @@ public sealed class CreateInfobaseDbServerStringTests
         var repo = new FakeRepository();
         var service = new CreateInfobaseService(repo);
 
-        service.SaveLastDbServer("localhost", "5433");
+        service.SaveLastDbServer("localhost", "5433", isClientServer: true);
 
         Assert.Equal("localhost", repo.Settings.LastCreateDbServer);
         Assert.Equal("5433", repo.Settings.LastCreateDbPort);
+        Assert.Equal("ClientServer", repo.Settings.LastCreateDbType);
+    }
+
+    [Fact]
+    public void SaveLastDbServer_ClientServer_SavesTypeAndServer()
+    {
+        var repo = new FakeRepository();
+        var service = new CreateInfobaseService(repo);
+
+        service.SaveLastDbServer("dbhost", "5432", isClientServer: true);
+
+        Assert.Equal("dbhost", repo.Settings.LastCreateDbServer);
+        Assert.Equal("5432", repo.Settings.LastCreateDbPort);
+        Assert.Equal("ClientServer", repo.Settings.LastCreateDbType);
+    }
+
+    [Fact]
+    public void SaveLastDbServer_FileMode_SavesTypeOnly()
+    {
+        // Файловый режим не должен затирать ранее сохранённый сервер СУБД:
+        // он относится только к клиент-серверному созданию (issue #305).
+        var repo = new FakeRepository();
+        repo.Settings.LastCreateDbServer = "dbhost";
+        repo.Settings.LastCreateDbPort = "5432";
+        var service = new CreateInfobaseService(repo);
+
+        service.SaveLastDbServer("", "", isClientServer: false);
+
+        Assert.Equal("File", repo.Settings.LastCreateDbType);
+        Assert.Equal("dbhost", repo.Settings.LastCreateDbServer);
+        Assert.Equal("5432", repo.Settings.LastCreateDbPort);
+    }
+
+    [Fact]
+    public void SaveLastDbServer_EmptyClientServer_SavesTypeOnly()
+    {
+        // Клиент-серверный режим с пустым сервером: тип сохраняется, сервер остаётся как был.
+        var repo = new FakeRepository();
+        repo.Settings.LastCreateDbServer = "oldhost";
+        var service = new CreateInfobaseService(repo);
+
+        service.SaveLastDbServer("", "", isClientServer: true);
+
+        Assert.Equal("ClientServer", repo.Settings.LastCreateDbType);
+        Assert.Equal(string.Empty, repo.Settings.LastCreateDbServer);
+        Assert.Equal(string.Empty, repo.Settings.LastCreateDbPort);
+    }
+
+    [Fact]
+    public void SaveLastDbServer_InvalidRepo_DoesNotThrow()
+    {
+        // Ошибка сохранения не должна прерывать создание ИБ / закрытие окна (issue #305).
+        var service = new CreateInfobaseService(new ThrowingRepository());
+
+        var ex = Record.Exception(() =>
+            service.SaveLastDbServer("localhost", "5433", isClientServer: true));
+
+        Assert.Null(ex);
+    }
+
+    // ============ AppSettings round-trip (issue #305) ============
+
+    [Fact]
+    public void AppSettings_RoundTrip_PreservesLastCreateDbFields()
+    {
+        // Моделирует сценарий #305: запись «мутацией» загруженного объекта сохраняет
+        // поля внешних писателей (последний сервер СУБД/порт/тип) через сериализацию.
+        var settings = new AppSettings
+        {
+            Theme = "Dark",
+            LastCreateDbServer = "dbhost",
+            LastCreateDbPort = "5432",
+            LastCreateDbType = "ClientServer"
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(settings);
+        var loaded = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json)!;
+
+        Assert.Equal("dbhost", loaded.LastCreateDbServer);
+        Assert.Equal("5432", loaded.LastCreateDbPort);
+        Assert.Equal("ClientServer", loaded.LastCreateDbType);
+        Assert.Equal("Dark", loaded.Theme);
+    }
+
+    [Fact]
+    public void AppSettings_LastCreateDbType_DefaultsToFile()
+    {
+        // Обратная совместимость: у новых/старых файлов настроек без поля тип = "File".
+        var settings = new AppSettings();
+
+        Assert.Equal("File", settings.LastCreateDbType);
+
+        var json = System.Text.Json.JsonSerializer.Serialize(new AppSettings());
+        var loaded = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json)!;
+
+        Assert.Equal("File", loaded.LastCreateDbType);
     }
 
     /// <summary>Репозиторий в памяти: настройки живут в объекте (образец PlatformDownloadTests).</summary>
@@ -488,5 +584,37 @@ public sealed class CreateInfobaseDbServerStringTests
             Settings = settings;
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>Репозиторий, у которого сохранение настроек всегда бросает исключение.</summary>
+    private sealed class ThrowingRepository : IInfobaseRepository
+    {
+        public AppSettings Settings { get; set; } = new();
+
+        public List<Infobase> Load() => new();
+
+        public void Save(List<Infobase> infobases)
+        {
+        }
+
+        public Task SaveAsync(List<Infobase> infobases, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public List<Group> LoadGroups() => new();
+
+        public void SaveGroups(List<Group> groups)
+        {
+        }
+
+        public Task SaveGroupsAsync(List<Group> groups, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public AppSettings LoadSettings() => Settings;
+
+        public void SaveSettings(AppSettings settings)
+            => throw new InvalidOperationException("save failed");
+
+        public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("save failed");
     }
 }

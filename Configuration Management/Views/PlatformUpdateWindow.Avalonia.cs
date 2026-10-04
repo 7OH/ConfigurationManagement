@@ -494,6 +494,18 @@ namespace Configuration_Management
             bottom.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            // Действия при проблемах авторизации (issue #323/#330/#334): открыть login.1c.ru
+            // в браузере, справочник учётных данных ИТС.
+            var openLogin = new Button { Content = T("Updates.OpenLoginPage"), Height = 36 };
+            openLogin.Styled(ControlThemes.SecondaryButton);
+            openLogin.Click += (_, _) => OpenLogin();
+            buttons.Children.Add(openLogin);
+
+            var itsAccounts = new Button { Content = T("Updates.OpenItsAccounts"), Height = 36 };
+            itsAccounts.Styled(ControlThemes.SecondaryButton);
+            itsAccounts.Click += (_, _) => OpenItsAccounts();
+            buttons.Children.Add(itsAccounts);
+
             buttons.Children.Add(MakeCommandButton(T("PlatformUpdate.Check"), _viewModel.CheckCommand, primary: true));
             buttons.Children.Add(MakeCommandButton(T("PlatformUpdate.DownloadInstall"), _viewModel.DownloadAndInstallCommand));
             buttons.Children.Add(MakeCommandButton(T("PlatformUpdate.DownloadOnly"), _viewModel.DownloadOnlyCommand));
@@ -524,6 +536,24 @@ namespace Configuration_Management
             };
             button.Styled(primary ? ControlThemes.DialogConfirmButton : ControlThemes.SecondaryButton);
             return button;
+        }
+
+        /// <summary>Открывает login.1c.ru в браузере (issue #323/#330/#334): пользователь выполняет
+        /// вход вручную, после чего возвращается в окно и повторяет проверку.</summary>
+        private void OpenLogin()
+        {
+            if (!OneCLauncher.OpenUrl("https://login.1c.ru/login"))
+            {
+                _viewModel.AppendLog(LocalizationManager.T("Settings.About.LinkOpenFailed"));
+            }
+        }
+
+        /// <summary>Открывает справочник учётных записей ИТС (issue #323/#330/#334): после правки
+        /// данных повторный вход использует обновлённую запись.</summary>
+        private void OpenItsAccounts()
+        {
+            var win = new ItsAccountsWindow();
+            win.ShowSync(this);
         }
     }
 }

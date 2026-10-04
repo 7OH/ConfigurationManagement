@@ -365,6 +365,14 @@ namespace Configuration_Management
             buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
+            // Действия при проблемах авторизации (issue #323/#330/#334): открыть login.1c.ru
+            // в браузере, справочник учётных данных ИТС.
+            var authActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+            authActions.Children.Add(MakeButton(T("Updates.OpenLoginPage"), OpenLogin, secondary: true));
+            authActions.Children.Add(MakeButton(T("Updates.OpenItsAccounts"), OpenItsAccounts, secondary: true));
+            Grid.SetColumn(authActions, 0);
+            buttons.Children.Add(authActions);
+
             var refresh = MakeButton(T("PlatformDownload.RefreshCatalog"), () => _ = _viewModel.LoadCatalogAsync(), secondary: true);
             Grid.SetColumn(refresh, 1);
             buttons.Children.Add(refresh);
@@ -383,6 +391,24 @@ namespace Configuration_Management
             body.Children.Add(bottom);
 
             return grid;
+        }
+
+        /// <summary>Открывает login.1c.ru в браузере (issue #323/#330/#334): пользователь выполняет
+        /// вход вручную, после чего возвращается в окно и повторяет проверку.</summary>
+        private void OpenLogin()
+        {
+            if (!OneCLauncher.OpenUrl("https://login.1c.ru/login"))
+            {
+                _viewModel.AppendLog(LocalizationManager.T("Settings.About.LinkOpenFailed"));
+            }
+        }
+
+        /// <summary>Открывает справочник учётных записей ИТС (issue #323/#330/#334): после правки
+        /// данных повторный вход использует обновлённую запись.</summary>
+        private void OpenItsAccounts()
+        {
+            var win = new ItsAccountsWindow();
+            win.ShowSync(this);
         }
 
         private static TextBlock MakeLabel(string text, bool secondary = false)

@@ -203,6 +203,26 @@ public sealed class PlatformUpdateServiceTests
     }
 
     [Fact]
+    public async Task GetAvailableReleasesAsync_FormUnavailable_PortalReturnsFormUnavailableKey()
+    {
+        // Третья итерация CAS (issue #323/#330/#334): форма входа изменилась радикально
+        // (OAuth/JS-челлендж) — маппинг в отдельный ключ FormUnavailable с понятным текстом,
+        // а НЕ вводящий в заблуждение NetworkError/AuthRequired.
+        var handler = new PortalOAuthChallengeHandler();
+        var repo = new MemRepoSettings();
+        repo.Settings.UpdatesLogin = "its-user";
+        repo.Settings.UpdatesPassword = "secret";
+        var logger = new StubLogger();
+        var updates = new OneCUpdatesService(repo, logger, handler);
+        var service = new PlatformUpdateService(updates, logger);
+
+        var result = await service.GetAvailableReleasesAsync();
+
+        Assert.Equal(PortalFetchStatus.FormUnavailable, result.Status);
+        Assert.Equal(PlatformUpdateService.ErrorAuthFormUnavailable, result.ErrorKey);
+    }
+
+    [Fact]
     public async Task LoadReleaseFilesAsync_FillsFilesAndSavesAbsoluteVersionFilesUrl()
     {
         var release = new PlatformRelease { Version = "8.3.27.2214", VersionFilesUrl = "/version_files?nick=Platform83&ver=8.3.27.2214" };
@@ -346,6 +366,47 @@ public sealed class PlatformUpdateServiceTests
                 response = request.Method == HttpMethod.Post
                     ? new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("<html>нет</html>") }
                     : Ok("<form><input type=\"hidden\" name=\"execution\" value=\"e1s2\"/></form>");
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        private static HttpResponseMessage Redirect(Uri location)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Found);
+            response.Headers.Location = location;
+            return response;
+        }
+    }
+
+    /// <summary>Обработчик: каталог → 302 на login.1c.ru, GET формы возвращает HTML БЕЗ execution/lt,
+    /// но с маркерами OAuth/JS-челленджа — программный вход невозможен (issue #323/#330/#334).</summary>
+    private sealed class PortalOAuthChallengeHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Redirect(new Uri("https://login.1c.ru/login?service=x"));
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok(
+                    """<html><script src="/oauth/authorize?client_id=portal"></script><body>challenge</body></html>""");
             }
             else
             {

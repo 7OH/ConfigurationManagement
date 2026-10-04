@@ -793,6 +793,9 @@ namespace Configuration_Management
             _menuCloseTarget = infobase;
             _menuCloseTargetIsPinnedSection = BatchSelectionHelper.IsPinnedSection(treeViewItem.DataContext);
 
+            MenuCloseTrace.Log($"TryApply: snapshot=(Left,t={Environment.TickCount},x={pos.X:0.#},y={pos.Y:0.#}), " +
+                               $"target={infobase.Id}, pending=true, pinned={_menuCloseTargetIsPinnedSection}");
+
             // Fallback срабатывает на приоритете Input ПОСЛЕ возможной повторной доставки
             // клика: если штатный PreviewMouseLeftButtonDown уже обработал клик, он снял
             // _menuClosePendingApply, и fallback ничего не делает (идемпотентность). Если
@@ -801,6 +804,23 @@ namespace Configuration_Management
             Dispatcher.BeginInvoke(
                 System.Windows.Threading.DispatcherPriority.Input,
                 new Action(ApplyMenuCloseFallback));
+
+            // Контрольный дамп через 500 мс после клика (issue #340, диагностика): итоговое
+            // состояние выделения — SelectedItem дерева, модель SelectedInfobase, подсветка
+            // контейнера и размер набора мультивыделения. Позволяет точно определить, какое
+            // звено рвётся, если баг сохраняется.
+            var dumpTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            dumpTimer.Tick += (_, _) =>
+            {
+                dumpTimer.Stop();
+                var selectedItem = UnwrapInfobase(MainTree?.SelectedItem);
+                var selectedModel = _viewModel.SelectedInfobase;
+                MenuCloseTrace.Log(
+                    $"Dump500ms: target={infobase.Id}, SelectedItem={(selectedItem?.Id ?? "null")}, " +
+                    $"SelectedInfobase={(selectedModel?.Id ?? "null")}, " +
+                    $"container.IsSelected={treeViewItem.IsSelected}, batch.Count={_viewModel.BatchSelectedCount}");
+            };
+            dumpTimer.Start();
         }
 
         /// <summary>
@@ -816,7 +836,10 @@ namespace Configuration_Management
         private void ApplyMenuCloseFallback()
         {
             if (!_menuClosePendingApply)
+            {
+                MenuCloseTrace.Log("Fallback: ran=false (флаг уже снят штатной доставкой)");
                 return;
+            }
             _menuClosePendingApply = false;
 
             var target = _menuCloseTarget;
@@ -828,12 +851,20 @@ namespace Configuration_Management
 
             // Пользователь успел перевыбрать другую строку — не вмешиваемся.
             if (_viewModel.SelectedInfobase is { } current && !ReferenceEquals(current, target))
+            {
+                MenuCloseTrace.Log($"Fallback: ran=true, target={target.Id}, userReselected=true");
                 return;
+            }
 
             // Клик был без модификаторов — семантика обычного клика: единственный выбор
             // (мультивыделение снимается, выбирается целевая строка).
+            var containerFound = isPinnedSection
+                ? FindPinnedTreeViewItemForData(target) is not null
+                : FindRegularTreeViewItemForData(target) is not null;
             _viewModel.ClearBatchSelection();
             SelectTreeRowByData(target, null, isPinnedSection);
+            MenuCloseTrace.Log($"Fallback: ran=true, target={target.Id}, containerFound={containerFound}, " +
+                               $"selectedByData=true, pinned={isPinnedSection}");
             EnsureSelectionStable(target, isPinnedSection);
         }
 

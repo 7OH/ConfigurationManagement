@@ -177,6 +177,24 @@ public partial class PlatformUpdateWindow : Window
         return (result.Success, result.ErrorKey, result.ExitCode);
     }
 
+    /// <summary>Открывает login.1c.ru в браузере (issue #323/#330/#334): пользователь выполняет
+    /// вход вручную, после чего возвращается в окно и повторяет проверку.</summary>
+    private void OnOpenLoginClick(object sender, RoutedEventArgs e)
+    {
+        if (!OneCLauncher.OpenUrl("https://login.1c.ru/login"))
+        {
+            _viewModel.AppendLog(LocalizationManager.T("Settings.About.LinkOpenFailed"));
+        }
+    }
+
+    /// <summary>Открывает справочник учётных записей ИТС (issue #323/#330/#334): после правки
+    /// данных повторный вход использует обновлённую запись.</summary>
+    private void OnItsAccountsClick(object sender, RoutedEventArgs e)
+    {
+        var win = new ItsAccountsWindow { Owner = this };
+        win.ShowDialog();
+    }
+
     private void OnClose_Click(object sender, RoutedEventArgs e)
     {
         Close();

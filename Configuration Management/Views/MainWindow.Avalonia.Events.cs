@@ -165,13 +165,20 @@ namespace Configuration_Management
 
             var pos = e.GetPosition(_tree);
 
+            // Снимок присутствовал в момент клика (F1): стабилизация выполняется не только
+            // при совпавшей повторной доставке (путь A), но и когда снимок был сброшен до
+            // доставки (путь C) — это тот же клик, закрывший меню.
+            var menuCloseSnapshotPresent = _menuCloseClickSnapshot is not null;
+
             // Повторная доставка клика, которым закрыли контекстное меню (issue #340, новая
             // стратегия): гасить событие НЕЛЬЗЯ — выбор должна применить штатная логика
             // контрола (OnRowPointerPressed), работающая с живым контейнером. Здесь только
             // снимаем флаг fallback и даём событию дойти до контрола.
+            var isMenuCloseRedelivery = false;
             if (_menuCloseClickSnapshot is { } snapshot)
             {
-                if (BatchSelectionHelper.IsSameClick(snapshot, "Left", Environment.TickCount, pos.X, pos.Y))
+                isMenuCloseRedelivery = BatchSelectionHelper.IsSameClick(snapshot, "Left", Environment.TickCount, pos.X, pos.Y);
+                if (isMenuCloseRedelivery)
                 {
                     _menuClosePendingApply = false;
                     _menuCloseTarget = null;
@@ -180,6 +187,12 @@ namespace Configuration_Management
                 // Снимок устарел (прошло больше допуска) или клик в другом месте — это новое
                 // действие пользователя: просто сбрасываем снимок, обработка штатная.
                 _menuCloseClickSnapshot = null;
+            }
+
+            if (menuCloseSnapshotPresent)
+            {
+                MenuCloseTrace.Log($"PointerPressed: snapshotPresent=true, matched={isMenuCloseRedelivery}, " +
+                                   $"path={(isMenuCloseRedelivery ? "A" : "C")}, pos=({pos.X:0.#},{pos.Y:0.#})");
             }
 
             // Первичный клик по строке базы при ОТКРЫТОМ контекстном меню: меню закрывается
@@ -205,10 +218,30 @@ namespace Configuration_Management
                 _menuCloseTarget = clickedBase;
                 _menuCloseTargetIsPinnedSection = BatchSelectionHelper.IsPinnedSection(rowItem.DataContext);
 
+                MenuCloseTrace.Log($"TryApply: snapshot=(Left,t={Environment.TickCount},x={pos.X:0.#},y={pos.Y:0.#}), " +
+                                   $"target={clickedBase.Id}, pending=true, pinned={_menuCloseTargetIsPinnedSection}");
+
                 // Fallback: если повторная доставка клика не придёт (или контрол не применит
                 // выбор), выбор ставится по данным; идемпотентен — сработает только пока
                 // _menuClosePendingApply взведён и пользователь не перевыбрал строку.
                 Avalonia.Threading.Dispatcher.UIThread.Post(ApplyMenuCloseFallback);
+
+                // Контрольный дамп через 500 мс после клика (issue #340, диагностика):
+                // итоговое состояние выделения — SelectedItem дерева, модель SelectedInfobase,
+                // подсветка контейнера и размер набора мультивыделения.
+                var row = _tree.FindRowForData(clickedBase, _menuCloseTargetIsPinnedSection);
+                var dumpTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                dumpTimer.Tick += (_, _) =>
+                {
+                    dumpTimer.Stop();
+                    var selectedItem = BatchSelectionHelper.Unwrap(_tree.SelectedItem);
+                    var selectedModel = _vm?.SelectedInfobase;
+                    MenuCloseTrace.Log(
+                        $"Dump500ms: target={clickedBase.Id}, SelectedItem={(selectedItem?.Id ?? "null")}, " +
+                        $"SelectedInfobase={(selectedModel?.Id ?? "null")}, " +
+                        $"row.IsSelected={row?.IsSelected}, batch.Count={_vm?.BatchSelectedCount ?? 0}");
+                };
+                dumpTimer.Start();
             }
         }
 
@@ -216,7 +249,11 @@ namespace Configuration_Management
         {
             // Снимок сбрасывается; флаг _menuClosePendingApply намеренно НЕ трогаем — если
             // повторная доставка не пришла, выбор применит fallback (ApplyMenuCloseFallback).
-            _menuCloseClickSnapshot = null;
+            if (_menuCloseClickSnapshot is not null)
+            {
+                _menuCloseClickSnapshot = null;
+                MenuCloseTrace.Log("PointerReleased: snapshotCleared=true");
+            }
         }
 
         /// <summary>
@@ -230,7 +267,10 @@ namespace Configuration_Management
         private void ApplyMenuCloseFallback()
         {
             if (!_menuClosePendingApply)
+            {
+                MenuCloseTrace.Log("Fallback: ran=false (флаг уже снят штатной доставкой)");
                 return;
+            }
             _menuClosePendingApply = false;
 
             var target = _menuCloseTarget;
@@ -242,11 +282,17 @@ namespace Configuration_Management
 
             // Пользователь успел перевыбрать другую строку — не вмешиваемся.
             if (_vm.SelectedInfobase is { } current && !ReferenceEquals(current, target))
+            {
+                MenuCloseTrace.Log($"Fallback: ran=true, target={target.Id}, userReselected=true");
                 return;
+            }
 
             // Клик был без модификаторов — семантика обычного клика: единственный выбор.
+            var containerFound = _tree.FindRowForData(target, isPinnedSection) is not null;
             _vm.ClearBatchSelection();
             SelectRowByData(target, isPinnedSection);
+            MenuCloseTrace.Log($"Fallback: ran=true, target={target.Id}, containerFound={containerFound}, " +
+                               $"selectedByData=true, pinned={isPinnedSection}");
             EnsureSelectionStable(target, isPinnedSection);
         }
 
@@ -267,9 +313,11 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Кратковременная стабилизация выделения после клика, которым закрыли контекстное
-        /// меню (issue #340, новая стратегия, Avalonia): одноразовая подписка на LayoutUpdated
-        /// (до 3 срабатываний или ~200 мс) проверяет соответствие модели и контейнера и
+        /// Кратковременная «конвергентная» стабилизация выделения после клика, которым закрыли
+        /// контекстное меню (issue #340, седьмая попытка, Avalonia): одноразовая подписка на
+        /// LayoutUpdated держится ДО СХОДИМОСТИ (до 10 срабатываний или ~1000 мс, F2) —
+        /// отложенная переработка контейнеров после закрытия попапа может произойти позже
+        /// прежних 3 проходов/~200 мс. Проверяет соответствие модели и контейнера и
         /// восстанавливает выбор по данным. Мультивыделение не затрагивается; защита от
         /// рекурсии — восстановление только при фактическом расхождении.
         /// </summary>
@@ -279,9 +327,9 @@ namespace Configuration_Management
                 return;
 
             var passes = 0;
-            const int maxPasses = 3;
+            const int maxPasses = 10;
             var startTick = Environment.TickCount;
-            const int timeoutMs = 200;
+            const int timeoutMs = 1000;
 
             EventHandler onLayoutUpdated = null!;
             onLayoutUpdated = (_, _) =>
@@ -290,6 +338,7 @@ namespace Configuration_Management
                 if (passes > maxPasses || Environment.TickCount - startTick >= timeoutMs)
                 {
                     _tree.LayoutUpdated -= onLayoutUpdated;
+                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, done=true");
                     return;
                 }
 
@@ -297,20 +346,28 @@ namespace Configuration_Management
                 if (!ReferenceEquals(_vm.SelectedInfobase, target))
                 {
                     _tree.LayoutUpdated -= onLayoutUpdated;
+                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, userReselected=true");
                     return;
                 }
 
-                if (!SelectionMatchesTarget(target, isPinnedSection))
+                var matches = SelectionMatchesTarget(target, isPinnedSection);
+                var containerRealized = _tree.FindRowForData(target, isPinnedSection) is not null;
+                if (!matches)
                     SelectRowByData(target, isPinnedSection);
+                MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, matches={matches}, " +
+                                   $"containerRealized={containerRealized}, action={(matches ? "skip" : "restored")}");
             };
 
             _tree.LayoutUpdated += onLayoutUpdated;
         }
 
         /// <summary>
-        /// Соответствует ли фактическое выделение дерева целевой базе (issue #340, Avalonia):
-        /// SelectedItem дерева разворачивается до той же базы И контейнер строки (если
-        /// реализован) подсвечен. Строка вне видимой области считается согласованной.
+        /// Соответствует ли фактическое выделение дерева целевой базе (issue #340, F2, Avalonia):
+        /// SelectedItem дерева разворачивается до той же базы И контейнер строки РЕАЛИЗОВАН
+        /// и подсвечен. Видимая-но-нереализованная строка (контейнер ещё перерабатывается)
+        /// согласованной НЕ считается — стабилизация восстановит выбор по данным
+        /// (SelectRowByData идемпотентен) и продолжит подписку до сходимости
+        /// (см. <see cref="EnsureSelectionStable"/>).
         /// </summary>
         private bool SelectionMatchesTarget(Infobase target, bool isPinnedSection)
         {
@@ -318,7 +375,7 @@ namespace Configuration_Management
                 return false;
 
             var row = _tree.FindRowForData(target, isPinnedSection);
-            return row is null || row.IsSelected;
+            return row is not null && row.IsSelected;
         }
 
         /// <summary>

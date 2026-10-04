@@ -86,10 +86,15 @@ public interface ICreateInfobaseService
     CreateInfobaseResult TryCreate(CreateInfobaseRequest request, bool confirmVersionMismatch);
 
     /// <summary>
-    /// Запоминает последний использованный сервер СУБД и его порт (issue #305): они
-    /// подставляются по умолчанию при следующем открытии окна создания ИБ. Вызывается
+    /// Запоминает последний использованный сервер СУБД, его порт и тип базы (issue #305):
+    /// они подставляются по умолчанию при следующем открытии окна создания ИБ. Вызывается
     /// и после успешного создания, и при закрытии окна (сохранение по факту ввода).
-    /// Ошибки сохранения не должны ломать создание/закрытие окна.
+    /// В файловом режиме сохраняется только тип (<paramref name="isClientServer"/>=false),
+    /// ранее сохранённый сервер СУБД не затирается. Ошибки сохранения не должны ломать
+    /// создание/закрытие окна.
     /// </summary>
-    void SaveLastDbServer(string dbServer, string dbPort);
+    /// <param name="dbServer">Сервер СУБД (учитывается только для клиент-серверного режима).</param>
+    /// <param name="dbPort">Порт сервера СУБД (учитывается только для клиент-серверного режима).</param>
+    /// <param name="isClientServer">true — клиент-серверный режим; false — файловый.</param>
+    void SaveLastDbServer(string dbServer, string dbPort, bool isClientServer);
 }

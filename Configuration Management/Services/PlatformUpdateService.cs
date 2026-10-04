@@ -30,6 +30,11 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
     /// (анти-брутфорс; повторить можно позже или после смены учётных данных ИТС).</summary>
     public const string ErrorLoginLimit = "PlatformUpdate.Error.LoginLimit";
 
+    /// <summary>Ключ локализации: форма входа на portal.1c.ru недоступна для программного
+    /// входа (изменилась радикально — OAuth/JS-челлендж, либо не получен HTML). Пользователю
+    /// предлагается открыть login.1c.ru в браузере (issue #323/#330/#334).</summary>
+    public const string ErrorAuthFormUnavailable = "PlatformUpdate.Error.FormUnavailable";
+
     /// <summary>Ключ локализации: каталог/версия не найдены (404).</summary>
     public const string ErrorNotFound = "PlatformUpdate.Error.NotFound";
 
@@ -288,6 +293,9 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
             PortalFetchStatus.AuthRequired => ErrorAuthRequired,
             PortalFetchStatus.AuthFailed => ErrorAuthFailed,
             PortalFetchStatus.LoginLimitReached => ErrorLoginLimit,
+            // Форма входа изменилась/недоступна (OAuth/JS-челлендж) — отдельное понятное
+            // сообщение с советом открыть login.1c.ru в браузере (issue #323/#330/#334).
+            PortalFetchStatus.FormUnavailable => ErrorAuthFormUnavailable,
             PortalFetchStatus.NotFound => ErrorNotFound,
             PortalFetchStatus.Cancelled => ErrorCancelled,
             _ => ErrorNetwork,

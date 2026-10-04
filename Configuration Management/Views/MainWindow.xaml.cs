@@ -79,14 +79,25 @@ namespace Configuration_Management
             Deactivated += (_, _) =>
             {
                 _isActive = false;
-                // issue #340: окно потеряло активность — снимок клика, которым закрыли
-                // контекстное меню, больше не актуален (повторная доставка в дерево
-                // невозможна); сбрасываем его и флаг pending-применения, чтобы следующий
-                // клик после возврата в окно обрабатывался штатно.
-                _menuCloseClickSnapshot = null;
-                _menuClosePendingApply = false;
-                _menuCloseTarget = null;
-                _menuCloseTargetIsPinnedSection = false;
+                // issue #340 (F3): окно потеряло активность. Открытие/закрытие попапа
+                // контекстного меню может кратковременно деактивировать окно; НЕМЕДЛЕННЫЙ
+                // сброс снимка и флага pending-применения отменял бы fallback, а повторная
+                // доставка клика трактовалась бы как новый клик (гипотеза S4). Сброс
+                // ОТЛОЖЕН и выполняется только когда контекстные меню гарантированно
+                // закрыты (попап освободил захват) — к этому моменту повторная доставка
+                // либо уже обработала клик (флаг снят), либо fallback уже не нужен.
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_openContextMenus.Count == 0)
+                    {
+                        if (_menuClosePendingApply || _menuCloseClickSnapshot is not null)
+                            MenuCloseTrace.Log($"Deactivated: отложенный сброс, openMenus={_openContextMenus.Count}");
+                        _menuCloseClickSnapshot = null;
+                        _menuClosePendingApply = false;
+                        _menuCloseTarget = null;
+                        _menuCloseTargetIsPinnedSection = false;
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Background);
                 UpdateTitleBarAppearance(false);
                 // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное
                 // меню: при клике в другое окно/приложение открытый тултип исчезает,

@@ -210,6 +210,24 @@ public partial class PlatformDownloadWindow : Window
         var downloads = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return Path.Combine(downloads, "1CPlatform");
     }
+
+    /// <summary>Открывает login.1c.ru в браузере (issue #323/#330/#334): пользователь выполняет
+    /// вход вручную, после чего возвращается в окно и повторяет проверку.</summary>
+    private void OnOpenLoginClick(object sender, RoutedEventArgs e)
+    {
+        if (!OneCLauncher.OpenUrl("https://login.1c.ru/login"))
+        {
+            _viewModel.AppendLog(LocalizationManager.T("Settings.About.LinkOpenFailed"));
+        }
+    }
+
+    /// <summary>Открывает справочник учётных записей ИТС (issue #323/#330/#334): после правки
+    /// данных повторный вход использует обновлённую запись.</summary>
+    private void OnItsAccountsClick(object sender, RoutedEventArgs e)
+    {
+        var win = new ItsAccountsWindow { Owner = this };
+        win.ShowDialog();
+    }
 }
 
 /// <summary>Преобразует тип дистрибутива в локализованный текст для комбобокса.</summary>

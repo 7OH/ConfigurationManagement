@@ -393,8 +393,8 @@ namespace Configuration_Management
             _dbServerHint.PointerPressed += (_, _) => ApplyDbServerHintExample();
             ToolTip.SetTip(_dbServerHint, LocalizationManager.T("CreateInfobase.DbServerHintClick"));
 
-            // Последний сервер СУБД и порт из настроек подставляются по умолчанию (issue #305).
-            RestoreLastDbServer();
+            // Последний тип базы, сервер СУБД и порт из настроек подставляются по умолчанию (issue #305).
+            RestoreLastCreateState();
             UpdateDbServerHint();
 
             // «Сервер СУБД» запоминается и при закрытии окна (issue #305): пользователь мог
@@ -912,11 +912,19 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Восстанавливает последний сервер СУБД и порт из настроек (issue #305).
+        /// Восстанавливает последний тип базы, сервер СУБД и порт из настроек (issue #305).
+        /// Тип выставляется первым (чтобы клиент-серверные поля были видны), затем —
+        /// сервер/порт. Вызывается после построения полей, поэтому <see cref="_typeBox"/>
+        /// уже существует; переключение типа на этом шаге не затирает подставляемые поля.
         /// </summary>
-        private void RestoreLastDbServer()
+        private void RestoreLastCreateState()
         {
             var settings = _repository.LoadSettings();
+            _typeBox.SelectedIndex =
+                string.Equals(settings.LastCreateDbType, "ClientServer", StringComparison.OrdinalIgnoreCase)
+                    ? 1
+                    : 0;
+
             if (!string.IsNullOrWhiteSpace(settings.LastCreateDbServer))
                 _dbServerBox.Text = settings.LastCreateDbServer;
             if (!string.IsNullOrWhiteSpace(settings.LastCreateDbPort))
@@ -924,20 +932,20 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Закрытие окна: запоминает «Сервер СУБД» и порт (issue #305). Сохранение только
-        /// после успешного создания не покрывало сценарий «ввёл значение и закрыл окно без
-        /// создания». Сохраняем только в клиент-серверном режиме и при непустом сервере.
+        /// Закрытие окна: запоминает «Сервер СУБД», порт и тип базы (issue #305). Сохранение
+        /// только после успешного создания не покрывало сценарий «ввёл значение и закрыл окно
+        /// без создания». Сервер/порт сохраняются только в клиент-серверном режиме; тип —
+        /// всегда (файловый режим не затирает ранее сохранённый сервер СУБД).
         /// </summary>
         private void OnWindowClosed(object? sender, EventArgs e)
         {
             try
             {
-                if (_typeBox.SelectedIndex != 1)
-                    return; // файловая база — поля СУБД не заполнялись
-                var dbServer = _dbServerBox.Text?.Trim() ?? "";
-                if (string.IsNullOrWhiteSpace(dbServer))
-                    return;
-                _createService.SaveLastDbServer(dbServer, _dbPortBox.Text?.Trim() ?? "");
+                var isClientServer = _typeBox.SelectedIndex == 1;
+                _createService.SaveLastDbServer(
+                    isClientServer ? _dbServerBox.Text?.Trim() ?? "" : "",
+                    isClientServer ? _dbPortBox.Text?.Trim() ?? "" : "",
+                    isClientServer);
             }
             catch
             {

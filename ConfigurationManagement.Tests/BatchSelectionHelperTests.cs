@@ -596,4 +596,47 @@ public sealed class BatchSelectionHelperTests
         // «Хвост» с малым дрейфом в пределах допуска — тоже тот же клик.
         Assert.True(BatchSelectionHelper.IsSameClick(snapshot, "Left", T0 + 120, 104, 198));
     }
+
+    // ============ Стабилизация при нереализованном контейнере (issue #340, F2) ============
+
+    [Fact]
+    public void DecideSelectionRestore_UnrealizedContainer_ReturnsSelectByData()
+    {
+        // F2: видимая-но-нереализованная строка (контейнер ещё не создан/переработан
+        // виртуализацией после закрытия попапа) НЕ считается согласованной — выбор
+        // восстанавливается по данным (SelectTreeRowByData идемпотентен и «догонит»
+        // подсветку, когда контейнер появится).
+        var target = new Infobase { Id = "b1", Name = "База" };
+
+        // Модель совпадает (fallback уже поставил SelectedInfobase), контейнера нет —
+        // восстановление требуется.
+        Assert.Equal(
+            BatchSelectionHelper.SelectionRestoreAction.SelectByData,
+            BatchSelectionHelper.DecideSelectionRestore(target, target, containerIsSelected: false));
+    }
+
+    [Fact]
+    public void DecideSelectionRestore_UserReselected_ReturnsNone_EvenWhenContainerUnrealized()
+    {
+        // Пользователь успел перевыбрать ДРУГУЮ строку — стабилизация не вмешивается,
+        // даже если контейнер целевой строки ещё не реализован (F2 не должен «воевать»
+        // с новым действием пользователя).
+        var target = new Infobase { Id = "b1", Name = "База" };
+        var other = new Infobase { Id = "b2", Name = "Другая" };
+
+        Assert.Equal(
+            BatchSelectionHelper.SelectionRestoreAction.None,
+            BatchSelectionHelper.DecideSelectionRestore(other, target, containerIsSelected: false));
+    }
+
+    [Fact]
+    public void DecideSelectionRestore_NullSelection_UnrealizedContainer_RequiresRestore()
+    {
+        // Ничего не выбрано, контейнер не реализован — восстановление по данным (fallback).
+        var target = new Infobase { Id = "b1", Name = "База" };
+
+        Assert.Equal(
+            BatchSelectionHelper.SelectionRestoreAction.SelectByData,
+            BatchSelectionHelper.DecideSelectionRestore(null, target, containerIsSelected: false));
+    }
 }

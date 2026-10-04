@@ -572,166 +572,169 @@ public partial class MainViewModel : ViewModelBase
 
     public void SaveSettings()
     {
-        _repository.SaveSettings(new AppSettings
-        {
-            // Актуальный язык интерфейса сохраняется всегда, чтобы выбор
-            // пользователя не затирался при закрытии окна (OnClosing).
-            Language = Configuration_Management.Localization.LocalizationManager.Instance.CurrentLanguage,
-            ShowFavoritesOnly = _showFavoritesOnly,
-            // Отбор «Только запущенные» (issue #339).
-            ShowRunningOnly = _showRunningOnly,
-            GroupByGroup = _groupByGroup,
-            ShowEmptyGroups = _showEmptyGroups,
-            Theme = _savedTheme,
-            ActiveColorScheme = _activeColorScheme,
-            // Устаревшие раздельные слоты больше не ведутся.
-            LightColorScheme = null,
-            DarkColorScheme = null,
-            CollapsedGroups = _collapsedGroups.ToList(),
-            InstalledPlatformVersions = _installedPlatformVersions,
-            AdditionalPlatformSearchPaths = _additionalPlatformSearchPaths,
-            NameColumnWidth = _nameColumnWidth,
-            VersionColumnWidth = _versionColumnWidth,
-            LaunchModeColumnWidth = _launchModeColumnWidth,
-            ServerColumnWidth = _serverColumnWidth,
-            LastLaunchColumnWidth = _lastLaunchColumnWidth,
-            ShowFavoritesButton = _showFavoritesButton,
-            ShowPinnedButton = _showPinnedButton,
-            ShowTags = _showTags,
-            ShowTagFilterPanel = _showTagFilterPanel,
-            AllowMultipleInstances = _allowMultipleInstances,
-            CheckForUpdatesOnStartup = _checkForUpdatesOnStartup,
-            AutoUpdateEnabled = _autoUpdateEnabled,
-            ComConnectorNameTemplate = _comConnectorNameTemplate,
-            ComDetectTimeoutMs = _comDetectTimeoutMs,
-            AvailabilityTcpPrecheckEnabled = _tcpPrecheckEnabled,
-            MaxLaunchHistoryPerBase = _maxLaunchHistoryPerBase,
-            ShowVersionColumn = _showVersionColumn,
-            ShowConfigurationColumn = _showConfigurationColumn,
-            ShowConfigurationVersionColumn = _showConfigurationVersionColumn,
-            ConfigurationColumnWidth = _configurationColumnWidth,
-            ConfigurationVersionColumnWidth = _configurationVersionColumnWidth,
-            ActionsColumnWidth = _actionsColumnWidth,
-            ShowRightPanelDetails = _showRightPanelDetails,
-            ShowSessionLaunchPanel = _showSessionLaunchPanel,
-            SessionClientMode = _sessionClientMode.ToString(),
-            SessionArchitecture = _sessionArchitecture.ToString(),
-            DefaultArchitecture = _defaultArchitecture,
-            StatusShowConnectionPath = _statusShowConnectionPath,
-            StatusShowArchitecture = _statusShowArchitecture,
-            StatusShowLaunchMode = _statusShowLaunchMode,
-            StatusShowPort = _statusShowPort,
-            StatusShowPlatformVersion = _statusShowPlatformVersion,
-            StatusShowClientType = _statusShowClientType,
-            StatusShowConnectionType = _statusShowConnectionType,
-            StatusShowUser = _statusShowUser,
-            StatusShowId = _statusShowId,
-            ShowLaunchModeColumn = _showLaunchModeColumn,
-            ShowServerColumn = _showServerColumn,
-            ShowLastLaunchColumn = _showLastLaunchColumn,
-            ShowSizeColumn = _showSizeColumn,
-            ShowActionsColumn = _showActionsColumn,
-            SizeColumnWidth = _sizeColumnWidth,
-            ShowModifiedColumn = _showModifiedColumn,
-            ModifiedColumnWidth = _modifiedColumnWidth,
-            ShowLastBackupColumn = _showLastBackupColumn,
-            LastBackupColumnWidth = _lastBackupColumnWidth,
-            ColumnOrder = _columnOrder.ToList(),
-            WindowWidth = _windowWidth,
-            WindowHeight = _windowHeight,
-            WindowLeft = _windowLeft,
-            WindowTop = _windowTop,
-            WindowState = _windowState,
-            RememberWindowLayout = _rememberWindowLayout,
-            IbasesSyncMode = _ibasesSyncMode,
-            IbasesSyncFilePath = _ibasesSyncFilePath,
-            IbasesSyncTrigger = _ibasesSyncTrigger,
-            IbasesSyncIntervalMinutes = _ibasesSyncIntervalMinutes,
-            IbasesSyncScheduleTime = _ibasesSyncScheduleTime,
-            IbasesBackupEnabled = _ibasesBackupEnabled,
-            IbasesBackupKeepCount = _ibasesBackupKeepCount,
-            IbasesLastSyncExportUtc = _ibasesLastSyncExportUtc,
-            AddTimestampToExportFileName = _addTimestampToExportFileName,
-            ExportTimestampFormat = _exportTimestampFormat,
-            CloseToTray = _closeToTray,
-            AfterLaunchAction = _afterLaunchAction,
-            ShowTrayIcon = _showTrayIcon,
-            ShowSystemNotifications = _showSystemNotifications,
-            CatchUpMissedTasks = _catchUpMissedTasks,
-            MaintenanceFreeSpaceWarningGb = _maintenanceFreeSpaceWarningGb,
-            EscapeToTray = _escapeToTray,
-            ConfirmCustomActions = _confirmCustomActions,
-            CompactMode = _compactMode,
-            ExplorerIntegrationEnabled = _explorerIntegrationEnabled,
-            // Автозапуск при старте ОС (функция №31) и копия экрана (функция №30, Этап 8).
-            AutoStartEnabled = _autoStartEnabled,
-            ScreenshotHotkey = _screenshotHotkey,
-            ScreenshotSaveDirectory = _screenshotSaveDirectory,
-            TemplateCatalogPaths = _templateCatalogPaths.ToList(),
-            HotkeyEnterprise = _hotkeyEnterprise,
-            HotkeyConfigurator = _hotkeyConfigurator,
-            HotkeyFavorite = _hotkeyFavorite,
-            HotkeyEdit = _hotkeyEdit,
-            HotkeyDelete = _hotkeyDelete,
-            HotkeyClearCache = _hotkeyClearCache,
-            HotkeyAdd = _hotkeyAdd,
-            HotkeyPin = _hotkeyPin,
-            HotkeyShowAll = _hotkeyShowAll,
-            HotkeyShowFavorites = _hotkeyShowFavorites,
-            HotkeyShowRecent = _hotkeyShowRecent,
-            HotkeyShowRunning = _hotkeyShowRunning,
-            HotkeyClearSearch = _hotkeyClearSearch,
-            HotkeyClearTags = _hotkeyClearTags,
-            HotkeyRightPanelDetails = _hotkeyRightPanelDetails,
-            HotkeyFindInList = _hotkeyFindInList,
-            HotkeySwitchUser = _hotkeySwitchUser,
-            HotkeyCheckUpdate = _hotkeyCheckUpdate,
-            HotkeyActualReleases = _hotkeyActualReleases,
-            HotkeyPlatformUpdate = _hotkeyPlatformUpdate,
-            // Учётная запись ИТС (issue #333): выбранная запись справочника its_accounts.json
-            // (пусто — «Основная»). Старые поля UpdatesLogin/UpdatesPassword не записываются —
-            // они нужны только для однократной миграции в справочник.
-            ItsAccountId = _itsAccountId,
-            // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
-            HotkeySessionLock = _hotkeySessionLock,
-            HotkeyLockApp = _hotkeyLockApp,
-            // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
-            HotkeyCheckIntegrity = _hotkeyCheckIntegrity,
-            HotkeyServerConsole = _hotkeyServerConsole,
-            AppLockPasswordHash = _appLockPasswordHash,
-            // Активная блокировка переживает перезапуск приложения (issue #294).
-            AppLockActive = _appLockActive,
-            // Масштаб строк списка и его хоткеи (issue #303).
-            ListZoomFactor = _listZoomFactor,
-            HotkeyZoomIn = _hotkeyZoomIn,
-            HotkeyZoomOut = _hotkeyZoomOut,
-            HotkeyZoomReset = _hotkeyZoomReset,
-            SortField = _sortField,
-            SortAscending = _sortAscending,
-            FavoriteHotkeyIds = _favoriteHotkeyIds.ToList(),
-            NoGroupColor = _noGroupColor,
-            NoGroupIconColor = _noGroupIconColor,
-            NoGroupIcon = _noGroupIcon,
-            PinnedColor = _pinnedColor,
-            PinnedIconColor = _pinnedIconColor,
-            PinnedIcon = _pinnedIcon,
-            FontFamily = _fontFamily,
-            FontSize = _fontSize,
-            FontWeight = _fontWeight,
-            FontStyle = _fontStyle,
-            ElementFonts = _elementFonts,
-            LastSelectedInfobaseId = _lastSelectedInfobaseId,
-            LastSelectedGroupPath = _lastSelectedGroupPath,
-            CustomLaunchParameters = _customLaunchParameters.ToList(),
-            // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
-            DefaultDoubleClickAction = _defaultDoubleClickAction,
-            ProfileBackupDirectory = _profileBackupDirectory,
-            ProfileRestoreOnStartup = _profileRestoreOnStartup,
-            FileSizeCache = new Dictionary<string, Models.FileSizeCacheEntry>(_fileSizeCache),
-            // Режим функциональности (Этап 10 StartManager): «Пользователь»/«Специалист»/«Разработчик».
-            FunctionalMode = _functionalMode,
-            LaunchConfigDefaults = _launchConfigDefaults
-        });
+        // «Мутация» загруженного экземпляра вместо конструктора с нуля (issue #305):
+        // файл настроек может содержать поля, которые VM не ведёт (LastCreateDbServer,
+        // LastCreateDbPort, LastCreateDbType и др.), — перезапись новым AppSettings теряла
+        // их (гонка с ScheduleSaveSettings после успешного создания базы).
+        var s = _repository.LoadSettings();
+        // Актуальный язык интерфейса сохраняется всегда, чтобы выбор
+        // пользователя не затирался при закрытии окна (OnClosing).
+        s.Language = Configuration_Management.Localization.LocalizationManager.Instance.CurrentLanguage;
+        s.ShowFavoritesOnly = _showFavoritesOnly;
+        // Отбор «Только запущенные» (issue #339).
+        s.ShowRunningOnly = _showRunningOnly;
+        s.GroupByGroup = _groupByGroup;
+        s.ShowEmptyGroups = _showEmptyGroups;
+        s.Theme = _savedTheme;
+        s.ActiveColorScheme = _activeColorScheme;
+        // Устаревшие раздельные слоты больше не ведутся.
+        s.LightColorScheme = null;
+        s.DarkColorScheme = null;
+        s.CollapsedGroups = _collapsedGroups.ToList();
+        s.InstalledPlatformVersions = _installedPlatformVersions;
+        s.AdditionalPlatformSearchPaths = _additionalPlatformSearchPaths;
+        s.NameColumnWidth = _nameColumnWidth;
+        s.VersionColumnWidth = _versionColumnWidth;
+        s.LaunchModeColumnWidth = _launchModeColumnWidth;
+        s.ServerColumnWidth = _serverColumnWidth;
+        s.LastLaunchColumnWidth = _lastLaunchColumnWidth;
+        s.ShowFavoritesButton = _showFavoritesButton;
+        s.ShowPinnedButton = _showPinnedButton;
+        s.ShowTags = _showTags;
+        s.ShowTagFilterPanel = _showTagFilterPanel;
+        s.AllowMultipleInstances = _allowMultipleInstances;
+        s.CheckForUpdatesOnStartup = _checkForUpdatesOnStartup;
+        s.AutoUpdateEnabled = _autoUpdateEnabled;
+        s.ComConnectorNameTemplate = _comConnectorNameTemplate;
+        s.ComDetectTimeoutMs = _comDetectTimeoutMs;
+        s.AvailabilityTcpPrecheckEnabled = _tcpPrecheckEnabled;
+        s.MaxLaunchHistoryPerBase = _maxLaunchHistoryPerBase;
+        s.ShowVersionColumn = _showVersionColumn;
+        s.ShowConfigurationColumn = _showConfigurationColumn;
+        s.ShowConfigurationVersionColumn = _showConfigurationVersionColumn;
+        s.ConfigurationColumnWidth = _configurationColumnWidth;
+        s.ConfigurationVersionColumnWidth = _configurationVersionColumnWidth;
+        s.ActionsColumnWidth = _actionsColumnWidth;
+        s.ShowRightPanelDetails = _showRightPanelDetails;
+        s.ShowSessionLaunchPanel = _showSessionLaunchPanel;
+        s.SessionClientMode = _sessionClientMode.ToString();
+        s.SessionArchitecture = _sessionArchitecture.ToString();
+        s.DefaultArchitecture = _defaultArchitecture;
+        s.StatusShowConnectionPath = _statusShowConnectionPath;
+        s.StatusShowArchitecture = _statusShowArchitecture;
+        s.StatusShowLaunchMode = _statusShowLaunchMode;
+        s.StatusShowPort = _statusShowPort;
+        s.StatusShowPlatformVersion = _statusShowPlatformVersion;
+        s.StatusShowClientType = _statusShowClientType;
+        s.StatusShowConnectionType = _statusShowConnectionType;
+        s.StatusShowUser = _statusShowUser;
+        s.StatusShowId = _statusShowId;
+        s.ShowLaunchModeColumn = _showLaunchModeColumn;
+        s.ShowServerColumn = _showServerColumn;
+        s.ShowLastLaunchColumn = _showLastLaunchColumn;
+        s.ShowSizeColumn = _showSizeColumn;
+        s.ShowActionsColumn = _showActionsColumn;
+        s.SizeColumnWidth = _sizeColumnWidth;
+        s.ShowModifiedColumn = _showModifiedColumn;
+        s.ModifiedColumnWidth = _modifiedColumnWidth;
+        s.ShowLastBackupColumn = _showLastBackupColumn;
+        s.LastBackupColumnWidth = _lastBackupColumnWidth;
+        s.ColumnOrder = _columnOrder.ToList();
+        s.WindowWidth = _windowWidth;
+        s.WindowHeight = _windowHeight;
+        s.WindowLeft = _windowLeft;
+        s.WindowTop = _windowTop;
+        s.WindowState = _windowState;
+        s.RememberWindowLayout = _rememberWindowLayout;
+        s.IbasesSyncMode = _ibasesSyncMode;
+        s.IbasesSyncFilePath = _ibasesSyncFilePath;
+        s.IbasesSyncTrigger = _ibasesSyncTrigger;
+        s.IbasesSyncIntervalMinutes = _ibasesSyncIntervalMinutes;
+        s.IbasesSyncScheduleTime = _ibasesSyncScheduleTime;
+        s.IbasesBackupEnabled = _ibasesBackupEnabled;
+        s.IbasesBackupKeepCount = _ibasesBackupKeepCount;
+        s.IbasesLastSyncExportUtc = _ibasesLastSyncExportUtc;
+        s.AddTimestampToExportFileName = _addTimestampToExportFileName;
+        s.ExportTimestampFormat = _exportTimestampFormat;
+        s.CloseToTray = _closeToTray;
+        s.AfterLaunchAction = _afterLaunchAction;
+        s.ShowTrayIcon = _showTrayIcon;
+        s.ShowSystemNotifications = _showSystemNotifications;
+        s.CatchUpMissedTasks = _catchUpMissedTasks;
+        s.MaintenanceFreeSpaceWarningGb = _maintenanceFreeSpaceWarningGb;
+        s.EscapeToTray = _escapeToTray;
+        s.ConfirmCustomActions = _confirmCustomActions;
+        s.CompactMode = _compactMode;
+        s.ExplorerIntegrationEnabled = _explorerIntegrationEnabled;
+        // Автозапуск при старте ОС (функция №31) и копия экрана (функция №30, Этап 8).
+        s.AutoStartEnabled = _autoStartEnabled;
+        s.ScreenshotHotkey = _screenshotHotkey;
+        s.ScreenshotSaveDirectory = _screenshotSaveDirectory;
+        s.TemplateCatalogPaths = _templateCatalogPaths.ToList();
+        s.HotkeyEnterprise = _hotkeyEnterprise;
+        s.HotkeyConfigurator = _hotkeyConfigurator;
+        s.HotkeyFavorite = _hotkeyFavorite;
+        s.HotkeyEdit = _hotkeyEdit;
+        s.HotkeyDelete = _hotkeyDelete;
+        s.HotkeyClearCache = _hotkeyClearCache;
+        s.HotkeyAdd = _hotkeyAdd;
+        s.HotkeyPin = _hotkeyPin;
+        s.HotkeyShowAll = _hotkeyShowAll;
+        s.HotkeyShowFavorites = _hotkeyShowFavorites;
+        s.HotkeyShowRecent = _hotkeyShowRecent;
+        s.HotkeyShowRunning = _hotkeyShowRunning;
+        s.HotkeyClearSearch = _hotkeyClearSearch;
+        s.HotkeyClearTags = _hotkeyClearTags;
+        s.HotkeyRightPanelDetails = _hotkeyRightPanelDetails;
+        s.HotkeyFindInList = _hotkeyFindInList;
+        s.HotkeySwitchUser = _hotkeySwitchUser;
+        s.HotkeyCheckUpdate = _hotkeyCheckUpdate;
+        s.HotkeyActualReleases = _hotkeyActualReleases;
+        s.HotkeyPlatformUpdate = _hotkeyPlatformUpdate;
+        // Учётная запись ИТС (issue #333): выбранная запись справочника its_accounts.json
+        // (пусто — «Основная»). Старые поля UpdatesLogin/UpdatesPassword не записываются —
+        // они нужны только для однократной миграции в справочник.
+        s.ItsAccountId = _itsAccountId;
+        // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка приложения (функция №19).
+        s.HotkeySessionLock = _hotkeySessionLock;
+        s.HotkeyLockApp = _hotkeyLockApp;
+        // Администрирование ИБ (Этап 6, функция №29 + консоль серверов).
+        s.HotkeyCheckIntegrity = _hotkeyCheckIntegrity;
+        s.HotkeyServerConsole = _hotkeyServerConsole;
+        s.AppLockPasswordHash = _appLockPasswordHash;
+        // Активная блокировка переживает перезапуск приложения (issue #294).
+        s.AppLockActive = _appLockActive;
+        // Масштаб строк списка и его хоткеи (issue #303).
+        s.ListZoomFactor = _listZoomFactor;
+        s.HotkeyZoomIn = _hotkeyZoomIn;
+        s.HotkeyZoomOut = _hotkeyZoomOut;
+        s.HotkeyZoomReset = _hotkeyZoomReset;
+        s.SortField = _sortField;
+        s.SortAscending = _sortAscending;
+        s.FavoriteHotkeyIds = _favoriteHotkeyIds.ToList();
+        s.NoGroupColor = _noGroupColor;
+        s.NoGroupIconColor = _noGroupIconColor;
+        s.NoGroupIcon = _noGroupIcon;
+        s.PinnedColor = _pinnedColor;
+        s.PinnedIconColor = _pinnedIconColor;
+        s.PinnedIcon = _pinnedIcon;
+        s.FontFamily = _fontFamily;
+        s.FontSize = _fontSize;
+        s.FontWeight = _fontWeight;
+        s.FontStyle = _fontStyle;
+        s.ElementFonts = _elementFonts;
+        s.LastSelectedInfobaseId = _lastSelectedInfobaseId;
+        s.LastSelectedGroupPath = _lastSelectedGroupPath;
+        s.CustomLaunchParameters = _customLaunchParameters.ToList();
+        // Глобальное действие по двойному щелчку на базе (функция №28 StartManager).
+        s.DefaultDoubleClickAction = _defaultDoubleClickAction;
+        s.ProfileBackupDirectory = _profileBackupDirectory;
+        s.ProfileRestoreOnStartup = _profileRestoreOnStartup;
+        s.FileSizeCache = new Dictionary<string, Models.FileSizeCacheEntry>(_fileSizeCache);
+        // Режим функциональности (Этап 10 StartManager): «Пользователь»/«Специалист»/«Разработчик».
+        s.FunctionalMode = _functionalMode;
+        s.LaunchConfigDefaults = _launchConfigDefaults;
+        _repository.SaveSettings(s);
     }
 
     /// <summary>

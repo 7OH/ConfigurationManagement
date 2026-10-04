@@ -630,6 +630,10 @@ namespace Configuration_Management
             // первого события мыши (MouseUp/следующий клик вне окна), поэтому двойной клик
             // для запуска базы не блокируется.
             var clickPos = e.GetPosition(MainTree);
+            // Снимок присутствовал в момент клика (F1): стабилизация выполняется не только
+            // при совпавшей повторной доставке (путь A), но и когда снимок был сброшен до
+            // доставки (путь C — MouseUp пришёл раньше) — это тот же клик, закрывший меню.
+            var menuCloseSnapshotPresent = _menuCloseClickSnapshot is not null;
             var isMenuCloseRedelivery = false;
             if (_menuCloseClickSnapshot is { } menuCloseClick)
             {
@@ -646,6 +650,12 @@ namespace Configuration_Management
                     _menuCloseTarget = null;
                     _menuCloseTargetIsPinnedSection = false;
                 }
+            }
+
+            if (menuCloseSnapshotPresent)
+            {
+                MenuCloseTrace.Log($"MouseDown: snapshotPresent=true, matched={isMenuCloseRedelivery}, " +
+                                   $"path={(isMenuCloseRedelivery ? "A" : "C")}, pos=({clickPos.X:0.#},{clickPos.Y:0.#})");
             }
 
             // Payload DnD фиксируем здесь (не в MouseMove): иначе при сдвиге курсора
@@ -760,12 +770,15 @@ namespace Configuration_Management
                     _viewModel.ClearBatchSelection();
                     ApplySelection(treeViewItem, infobase);
 
-                    // issue #340 (новая стратегия): клик, которым закрыли контекстное меню,
-                    // после штатного применения выбора дополнительно «стабилизируется» —
-                    // короткая подписка на LayoutUpdated чинит последствия переработки
-                    // контейнеров (VirtualizingStackPanel Recycling), из-за которых IsSelected
-                    // «уезжал» и выделение пропадало «через мгновение».
-                    if (isMenuCloseRedelivery)
+                    // issue #340 (F1): клик, которым закрыли контекстное меню, после штатного
+                    // применения выбора дополнительно «стабилизируется» — подписка на
+                    // LayoutUpdated чинит последствия переработки контейнеров
+                    // (VirtualizingStackPanel Recycling), из-за которых IsSelected «уезжал»
+                    // и выделение пропадало «через мгновение». Стабилизация вызывается ВО ВСЕХ
+                    // путях: и при совпавшей повторной доставке (путь A), и когда снимок был
+                    // сброшен до доставки (путь C) — признак один: снимок присутствовал
+                    // в момент начала этого клика.
+                    if (menuCloseSnapshotPresent)
                         EnsureSelectionStable(infobase, isPinnedSection);
                     break;
                 }
@@ -832,7 +845,11 @@ namespace Configuration_Management
             // MouseDown не пришла, выбор должен применить fallback (ApplyMenuCloseFallback,
             // запланированный на приоритете Input); отпускание кнопки — не признак того,
             // что выбор применён (issue #340, новая стратегия).
-            _menuCloseClickSnapshot = null;
+            if (_menuCloseClickSnapshot is not null)
+            {
+                _menuCloseClickSnapshot = null;
+                MenuCloseTrace.Log("MouseUp: snapshotCleared=true");
+            }
         }
 
         private void OnEnterpriseMenuClick(object sender, RoutedEventArgs e)

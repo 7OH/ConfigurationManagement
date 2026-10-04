@@ -9,6 +9,67 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.305] — 2026-10-04
+
+### Исправлено
+
+- **Создание серверной базы (issue #305)**:
+  - устранена потеря «Сервера СУБД» после успешного создания: сохранение настроек главного
+    окна больше не перезаписывает файл настроек «с нуля» — поля внешних писателей
+    (`LastCreateDbServer`/`LastCreateDbPort`) сохраняются (рефакторинг `SaveSettings` на
+    мутацию загруженного объекта)
+    ([`MainViewModel.Launch.cs`](Configuration%20Management/ViewModels/MainViewModel.Launch.cs));
+  - запоминается и восстанавливается последний использованный тип базы («Файловая» /
+    «Клиент-серверная»): новое поле `AppSettings.LastCreateDbType` (`"File"`/`"ClientServer"`,
+    пустое значение трактуется как `"File"`), сервер/порт/тип сохраняются после УСПЕШНОГО
+    создания и при закрытии окна (WPF + Avalonia)
+    ([`AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs),
+    [`CreateInfobaseService.cs`](Configuration%20Management/Services/CreateInfobaseService.cs),
+    [`CreateInfobaseWindow.xaml.cs`](Configuration%20Management/Views/CreateInfobaseWindow.xaml.cs),
+    [`CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs);
+    тесты [`CreateInfobaseDbServerStringTests.cs`](ConfigurationManagement.Tests/CreateInfobaseDbServerStringTests.cs)).
+- **Снятие выделения после мультивыделения (issue #340, седьмая попытка)**:
+  - диагностика `CM_MENUCLOSE_TRACE=1` — полная последовательность событий клика,
+    закрывшего контекстное меню (снимок → MouseUp → MouseDown → fallback → стабилизация →
+    контрольный дамп через 500 мс) — при сохранении бага пользователь может прислать полный
+    лог одного воспроизведения;
+  - стабилизация `IsSelected` вызывается во всех путях применения клика (в т.ч. при
+    сброшенном снимке до повторной доставки MouseDown);
+  - стабилизация доводится до сходимости (до 10 проходов / 1 с) и восстанавливает выбор
+    для видимой, но нереализованной виртуализацией строки; проверка реализованных строк в
+    `SelectionMatchesTarget` уточнена;
+  - сброс pending-состояния при деактивации окна — только после фактического закрытия
+    контекстных меню
+    ([`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs),
+    [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+    [`MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs),
+    [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs),
+    [`MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs);
+    тесты [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs)).
+- **Программный вход на portal.1c.ru (issues #323/#330/#334, третья итерация)**:
+  - пошаговая диагностика входа (причина запуска входа, статусы GET/POST, имена полей
+    формы без значений, атрибут `action`, результат цепочки редиректов, наличие сессионной
+    cookie) — при сохранении проблемы следующий релиз сможет точно указать причину;
+  - POST формы входа отправляется на атрибут `action` формы (ранее — всегда на URL GET);
+  - распознавание изменённой формы входа (OAuth/JS-челлендж) с понятным сообщением
+    `FormUnavailable`;
+  - в окнах проверки обновлений / обновления платформы / скачивания — имя используемой
+    учётной записи ИТС, кнопки «Открыть login.1c.ru в браузере» и «Учётные данные ИТС…»,
+    уточнённые тексты ru/en
+    ([`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs),
+    [`PlatformUpdateService.cs`](Configuration%20Management/Services/PlatformUpdateService.cs),
+    [`UpdateCheckWindow.xaml`](Configuration%20Management/Views/UpdateCheckWindow.xaml),
+    [`PlatformUpdateWindow.xaml`](Configuration%20Management/Views/PlatformUpdateWindow.xaml),
+    [`PlatformDownloadWindow.xaml`](Configuration%20Management/Views/PlatformDownloadWindow.xaml),
+    [`ru.json`](Configuration%20Management/Localization/Languages/ru.json),
+    [`en.json`](Configuration%20Management/Localization/Languages/en.json);
+    тесты [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs),
+    [`PlatformUpdateServiceTests.cs`](ConfigurationManagement.Tests/PlatformUpdateServiceTests.cs),
+    [`UpdateCheckCatalogTests.cs`](ConfigurationManagement.Tests/UpdateCheckCatalogTests.cs)).
+
+Полный набор `dotnet test` зелёный (**1740**), сборка Release без ошибок; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) — без ошибок.
+
 ## [0.3.9.304] — 2026-10-04
 
 ### Исправлено

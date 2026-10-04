@@ -27,6 +27,7 @@ using Avalonia.VisualTree;
 using Configuration_Management.Controls;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 using Configuration_Management.Themes;
 using Configuration_Management.ViewModels;
 
@@ -218,13 +219,25 @@ namespace Configuration_Management
             Deactivated += (_, _) =>
             {
                 ApplyTitleBarAppearance(false);
-                // issue #340: окно потеряло активность — снимок клика, которым закрыли
-                // контекстное меню, больше не актуален (повторная доставка в дерево
-                // невозможна); сбрасываем его и флаг pending-применения.
-                _menuCloseClickSnapshot = null;
-                _menuClosePendingApply = false;
-                _menuCloseTarget = null;
-                _menuCloseTargetIsPinnedSection = false;
+                // issue #340 (F3): окно потеряло активность. Закрытие попапа контекстного
+                // меню может кратковременно деактивировать окно; НЕМЕДЛЕННЫЙ сброс снимка
+                // и флага pending-применения отменял бы fallback, а повторная доставка клика
+                // трактовалась бы как новый клик (гипотеза S4). Сброс ОТЛОЖЕН и выполняется
+                // только когда контекстное меню гарантированно закрыто — к этому моменту
+                // повторная доставка либо уже обработала клик (флаг снят), либо fallback
+                // уже не нужен.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    if (_tree?.ContextMenu is not { IsOpen: true })
+                    {
+                        if (_menuClosePendingApply || _menuCloseClickSnapshot is not null)
+                            MenuCloseTrace.Log("Deactivated: отложенный сброс (меню закрыто)");
+                        _menuCloseClickSnapshot = null;
+                        _menuClosePendingApply = false;
+                        _menuCloseTarget = null;
+                        _menuCloseTargetIsPinnedSection = false;
+                    }
+                });
                 ToolTipCloserAvalonia.TraceLog("MainWindow.Deactivated: окно потеряло фокус");
                 ToolTipCloserAvalonia.CloseAll();
             };

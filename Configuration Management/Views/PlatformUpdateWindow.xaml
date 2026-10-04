@@ -221,7 +221,17 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <Button Height="36" Style="{StaticResource PrimaryButtonStyle}"
+                <!-- Действия при проблемах авторизации (issue #323/#330/#334): открыть
+                     login.1c.ru в браузере, справочник учётных данных ИТС. -->
+                <Button Height="36" Style="{StaticResource OutlineButtonStyle}" Click="OnOpenLoginClick">
+                    <TextBlock Text="{loc:Loc Updates.OpenLoginPage}" VerticalAlignment="Center"/>
+                </Button>
+                <Button Height="36" Margin="8,0,0,0" Style="{StaticResource OutlineButtonStyle}"
+                        Click="OnItsAccountsClick">
+                    <TextBlock Text="{loc:Loc Updates.OpenItsAccounts}" VerticalAlignment="Center"/>
+                </Button>
+
+                <Button Height="36" Margin="8,0,0,0" Style="{StaticResource PrimaryButtonStyle}"
                         Command="{Binding CheckCommand}">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16" Foreground="White"/>

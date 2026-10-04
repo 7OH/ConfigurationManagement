@@ -309,11 +309,13 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
     }
 
     /// <summary>True — статус ошибки связан с авторизацией на портале 1С (требуется вход,
-    /// вход не подтверждён, исчерпан лимит попыток): для таких ошибок в журнал окна
-    /// добавляется расширенный совет <c>PlatformUpdate.AuthAdvice</c> (issue #334/#330/#323).</summary>
+    /// вход не подтверждён, исчерпан лимит попыток, форма входа изменилась): для таких
+    /// ошибок в журнал окна добавляется расширенный совет <c>PlatformUpdate.AuthAdvice</c>
+    /// (issue #334/#330/#323; FormUnavailable — issue #323/#330/#334, третья итерация).</summary>
     private static bool IsAuthIssue(PortalFetchStatus status)
         => status is PortalFetchStatus.AuthRequired or PortalFetchStatus.AuthFailed
-            or PortalFetchStatus.LoginLimitReached;
+            or PortalFetchStatus.LoginLimitReached
+            or PortalFetchStatus.FormUnavailable;
 
     /// <summary>Получает список версий платформы с портала и заполняет список. Ошибки
     /// каталога (авторизация/сеть/404) пишутся в журнал ключом локализации.</summary>

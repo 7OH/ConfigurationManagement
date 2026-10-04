@@ -31,6 +31,7 @@ namespace Configuration_Management
         private readonly Services.IOneCUpdatesService _updates = AppServices.GetRequiredService<Services.IOneCUpdatesService>();
         private readonly Services.IInfobaseRepository _repository = AppServices.GetRequiredService<Services.IInfobaseRepository>();
         private readonly Services.ICustomConfigTypesStore _store = AppServices.GetRequiredService<Services.ICustomConfigTypesStore>();
+        private readonly Services.IItsAccountsStore _itsAccounts = AppServices.GetRequiredService<Services.IItsAccountsStore>();
         private readonly Services.IAppLogger _logger = AppServices.GetRequiredService<Services.IAppLogger>();
         private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
 
@@ -47,6 +48,8 @@ namespace Configuration_Management
         private readonly TextBlock _urlText = new();
         private readonly TextBlock _statusText = new();
         private readonly TextBlock _errorText = new();
+        private readonly StackPanel _authActionsPanel = new() { IsVisible = false };
+        private readonly TextBlock _authAccountText = new();
         private readonly StackPanel _progressPanel = new() { IsVisible = false };
         private readonly ProgressBar _progressBar = new() { Minimum = 0, Maximum = 1 };
         private readonly TextBlock _progressText = new();
@@ -198,6 +201,47 @@ namespace Configuration_Management
             // ключ переводим, свободный текст LocalizationManager.T() вернёт как есть.
             _errorText.Text = _row.Status == ConfigUpdateStatus.Failed ? LocalizeError(_row.Error) : string.Empty;
             _downloadButton.IsEnabled = _row.CanDownload;
+
+            // При ошибке авторизации показываем панель действий: имя учётной записи ИТС,
+            // «Открыть login.1c.ru в браузере», «Учётные данные ИТС…» (issue #323/#330/#334).
+            ShowAuthActions(_row.Status == ConfigUpdateStatus.Failed && IsAuthErrorKey(_row.Error));
+        }
+
+        /// <summary>Показывает/скрывает панель действий при ошибке авторизации и заполняет имя
+        /// используемой учётной записи ИТС (анонимизированно — без логина, issue #323/#330/#334).</summary>
+        private void ShowAuthActions(bool visible)
+        {
+            _authActionsPanel.IsVisible = visible;
+            if (!visible)
+                return;
+
+            var settings = _repository.LoadSettings();
+            var account = _itsAccounts.Resolve(settings.ItsAccountId);
+            var accountName = account is not null && !string.IsNullOrWhiteSpace(account.Name)
+                ? account.Name!
+                : T("Updates.AccountPrimary");
+            _authAccountText.Text = string.Format(T("Updates.AccountUsed"), accountName);
+        }
+
+        /// <summary>True — ключ ошибки относится к авторизации на portal.1c.ru (для панели действий).</summary>
+        private static bool IsAuthErrorKey(string error)
+            => error is "Updates.AuthRequired" or "Updates.AuthFailed"
+                or "Updates.FormUnavailable" or "Updates.LoginLimitReached";
+
+        /// <summary>Открывает login.1c.ru в браузере (issue #323/#330/#334): пользователь выполняет
+        /// вход вручную, после чего возвращается в окно и повторяет проверку.</summary>
+        private void OnOpenLoginClick()
+        {
+            if (!OneCLauncher.OpenUrl("https://login.1c.ru/login"))
+                _errorText.Text = T("Settings.About.LinkOpenFailed");
+        }
+
+        /// <summary>Открывает справочник учётных записей ИТС (issue #323/#330/#334): после правки
+        /// данных повторный вход использует обновлённую запись.</summary>
+        private void OnItsAccountsClick()
+        {
+            var win = new ItsAccountsWindow();
+            win.ShowSync(this);
         }
 
         /// <summary>Обновляет ссылку каталога релизов: текст, активность и вид (issue #323).
@@ -450,6 +494,32 @@ namespace Configuration_Management
             _errorText.TextWrapping = TextWrapping.Wrap;
             _errorText.Foreground = new SolidColorBrush(Color.Parse("#EF4444"));
             fields.Children.Add(MakeFieldRow(string.Empty, _errorText));
+
+            // Панель действий при ошибке авторизации (issue #323/#330/#334): имя учётной
+            // записи ИТС, открыть login.1c.ru в браузере, справочник учётных данных ИТС.
+            _authAccountText.FontSize = 12;
+            _authAccountText.TextWrapping = TextWrapping.Wrap;
+            Themes.ThemeBrushes.Bind(_authAccountText, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+
+            var openLoginButton = new Button { Content = T("Updates.OpenLoginPage"), MinWidth = 150, Height = 32 };
+            openLoginButton.Styled(ControlThemes.SecondaryButton);
+            openLoginButton.Click += (_, _) => OnOpenLoginClick();
+
+            var itsAccountsButton = new Button { Content = T("Updates.OpenItsAccounts"), MinWidth = 150, Height = 32 };
+            itsAccountsButton.Styled(ControlThemes.SecondaryButton);
+            itsAccountsButton.Click += (_, _) => OnItsAccountsClick();
+
+            var authButtons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 6, 0, 0)
+            };
+            authButtons.Children.Add(openLoginButton);
+            authButtons.Children.Add(itsAccountsButton);
+            _authActionsPanel.Children.Add(_authAccountText);
+            _authActionsPanel.Children.Add(authButtons);
+            fields.Children.Add(_authActionsPanel);
 
             // Пояснение пользователю: откуда берётся адрес каталога и где задать логин/пароль (issue #323).
             var helpText = new TextBlock

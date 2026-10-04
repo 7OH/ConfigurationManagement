@@ -240,7 +240,10 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
     /// добавляется расширенный совет <c>PlatformUpdate.AuthAdvice</c> (issue #334/#330/#323).</summary>
     private static bool IsAuthIssue(PortalFetchStatus status)
         => status is PortalFetchStatus.AuthRequired or PortalFetchStatus.AuthFailed
-            or PortalFetchStatus.LoginLimitReached;
+            or PortalFetchStatus.LoginLimitReached
+            // Форма входа изменилась (OAuth/JS-челлендж) — тоже «авторизация», совет
+            // открыть login.1c.ru в браузере уместен (issue #323/#330/#334).
+            or PortalFetchStatus.FormUnavailable;
 
     /// <summary>Проверяет каталог версий платформы на портале 1С и перестраивает
     /// список строк (установленные ∪ доступные) с числом совместимых баз. Статус

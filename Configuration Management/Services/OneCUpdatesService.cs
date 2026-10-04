@@ -918,15 +918,20 @@ public class OneCUpdatesService : IOneCUpdatesService
                 .ConfigureAwait(false);
 
             var authFailed = _lastLoginResult is PortalLoginResult.AuthFailed or PortalLoginResult.RedirectFailed;
+            // Форма входа изменилась радикально (OAuth/JS-челлендж) или не получена — отдельный
+            // статус с понятным сообщением (issue #323/#330/#334).
+            var formUnavailable = _lastLoginResult == PortalLoginResult.FormUnavailable;
 
             // Ответ со страницей входа либо редирект на неё — требуется авторизация.
             // Если лимит попыток входа исчерпан — отдельный статус (issue #334/#330/#323);
-            // если вход предпринимался и не подтверждён сервером — это именно AuthFailed.
+            // если форма входа недоступна — FormUnavailable; если вход предпринимался и не
+            // подтверждён сервером — это именно AuthFailed.
             var isLoginRedirect =
                 response.Headers.Location?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true ||
                 response.RequestMessage?.RequestUri?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true;
             if (isLoginRedirect)
                 return Page(IsPortalLoginLimitReached() ? PortalFetchStatus.LoginLimitReached
+                    : formUnavailable ? PortalFetchStatus.FormUnavailable
                     : authFailed ? PortalFetchStatus.AuthFailed
                     : PortalFetchStatus.AuthRequired);
 
@@ -935,6 +940,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                 var code = (int)response.StatusCode;
                 if (code is 401 or 403 or (>= 300 and < 400))
                     return Page(IsPortalLoginLimitReached() ? PortalFetchStatus.LoginLimitReached
+                        : formUnavailable ? PortalFetchStatus.FormUnavailable
                         : authFailed ? PortalFetchStatus.AuthFailed
                         : PortalFetchStatus.AuthRequired);
                 return Page(PortalFetchStatus.NetworkError);
@@ -950,6 +956,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             {
                 _logger.Warn($"[Updates] Получена страница входа вместо содержимого ({url}) — авторизация не выполнена.");
                 return Page(IsPortalLoginLimitReached() ? PortalFetchStatus.LoginLimitReached
+                    : formUnavailable ? PortalFetchStatus.FormUnavailable
                     : authFailed ? PortalFetchStatus.AuthFailed
                     : PortalFetchStatus.AuthRequired);
             }
@@ -1018,9 +1025,15 @@ public class OneCUpdatesService : IOneCUpdatesService
             if (needsLogin && !loginTried && CanAttemptPortalLogin())
             {
                 loginTried = true;
+                // Диагностика (issue #323/#330/#334): причина запуска входа и его результат —
+                // по журналу должно быть видно, на каком звене CAS-цепочка рвётся.
+                var reason = status is 401 or 403 ? $"http-{status}" : "redirect-login";
+                var locText = response.Headers.Location?.ToString() ?? "<нет>";
+                _logger.Info($"[Updates] Вход запущен: reason={reason}, url='{current.RequestUri}', location='{locText}'");
                 // Передаём полный URL редиректа (login.1c.ru/login?service=...): форма входа
                 // получит service= исходного каталога, и CAS после входа вернёт верный адрес.
                 var loginResult = await TryLoginPortalAsync(response.Headers.Location?.ToString(), ct).ConfigureAwait(false);
+                _logger.Info($"[Updates] Вход запущен: результат={loginResult}, повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
                 if (loginResult == PortalLoginResult.Success)
                 {
                     response.Dispose();
@@ -1050,8 +1063,12 @@ public class OneCUpdatesService : IOneCUpdatesService
             if (selfRedirect && !loginTried && CanAttemptPortalLogin())
             {
                 loginTried = true;
+                // Диагностика (issue #323/#330/#334): циклический/пустой редирект — тот же
+                // признак требования авторизации, что и прямой редирект на login.1c.ru.
+                _logger.Info($"[Updates] Вход запущен: reason={(response.Headers.Location is null ? "redirect-no-location" : "self-redirect")}, url='{current.RequestUri}'");
                 // Location отсутствует (302 без заголовка) — форма входа по базовому адресу.
                 var loginResult = await TryLoginPortalAsync(null, ct).ConfigureAwait(false);
+                _logger.Info($"[Updates] Вход запущен: результат={loginResult}, повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
                 if (loginResult == PortalLoginResult.Success)
                 {
                     response.Dispose();
@@ -1165,7 +1182,8 @@ public class OneCUpdatesService : IOneCUpdatesService
         try
         {
             var formUrl = ResolveLoginFormUrl(loginUrl);
-            _logger.Info($"[Updates] Вход на portal.1c.ru: учётная запись '{ResolveAccountName()}', форма: {formUrl}");
+            _logger.Info($"[Updates] Вход на portal.1c.ru: учётная запись '{ResolveAccountName()}', " +
+                         $"credsPresent={!string.IsNullOrEmpty(login)}, форма: {formUrl}");
 
             // Шаг 1: GET формы входа — получаем HTML и все скрытые поля Spring Security CAS
             // (execution, lt, CSRF и пр.). Запрос идёт по HTTP/1.1: часть CAS-серверов некорректно
@@ -1174,19 +1192,46 @@ public class OneCUpdatesService : IOneCUpdatesService
             using (var formResponse =
                    await _httpClient.SendAsync(formRequest, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false))
             {
+                var formStatus = (int)formResponse.StatusCode;
                 var html = await formResponse.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
                 var fields = ExtractFormFields(html);
-                if (!fields.TryGetValue("execution", out var execution) || string.IsNullOrWhiteSpace(execution))
+                var hasExecution = fields.TryGetValue("execution", out var execution) && !string.IsNullOrWhiteSpace(execution);
+                var hasLt = fields.ContainsKey("lt");
+                var formAction = ExtractFormAction(html);
+                var fieldNames = fields.Count == 0
+                    ? "<нет>"
+                    : string.Join(",", fields.Keys.OrderBy(k => k, StringComparer.Ordinal));
+                _logger.Info($"[Updates] Вход: GET формы status={formStatus}, execution={(hasExecution ? "есть" : "нет")}, " +
+                             $"lt={(hasLt ? "есть" : "нет")}, action='{formAction ?? "<нет>"}', поля: {fieldNames}");
+
+                if (!hasExecution)
                 {
                     LogAnonymizedAuthFailure("[Updates] Не удалось извлечь токен 'execution' из формы входа.", html, fields);
+                    // Распознавание «протокол изменился» (issue #323/#330/#334): если в форме
+                    // нет классических токенов CAS (execution/lt), но есть признаки OAuth/JS-
+                    // челленджа — программный вход невозможен в принципе; пользователю нужен
+                    // браузер, а не очередная попытка POST.
+                    if (LooksLikeOAuthOrChallenge(html))
+                    {
+                        _logger.Warn("[Updates] Форма входа изменилась (признаки OAuth/JS-челленджа): " +
+                                     "автоматический вход временно недоступен, откройте login.1c.ru в браузере.");
+                    }
                     _lastLoginResult = PortalLoginResult.FormUnavailable;
                     return PortalLoginResult.FormUnavailable;
                 }
 
-                // Шаг 2: POST на тот же адрес формы (с тем же query service). Набор полей строится
-                // ДИНАМИЧЕСКИ из фактической формы (execution, lt, CSRF и пр.) + обязательные
-                // username/password/_eventId=submit — жёсткий список 0.3.9.297 отклоняется сервером
-                // 401 при изменении формы входа (issue #334).
+                // Шаг 2: POST на АТРИБУТ action формы (issue #323/#330/#334, третья итерация):
+                // ранее POST всегда шёл на URL GET-формы, а Spring Security CAS часто указывает
+                // отдельный action («/login/cas?service=…») — запрос уходил не туда (401/404).
+                // Если action отсутствует/пуст — POST остаётся на адресе формы (прежнее поведение).
+                // Набор полей строится ДИНАМИЧЕСКИ из фактической формы (execution, lt, CSRF
+                // и пр.) + обязательные username/password/_eventId=submit — жёсткий список
+                // 0.3.9.297 отклоняется сервером 401 при изменении формы входа (issue #334).
+                var postUrl = ResolveFormPostUrl(formUrl, formAction);
+                if (!string.Equals(postUrl, formUrl, StringComparison.Ordinal))
+                {
+                    _logger.Info($"[Updates] Вход: POST на action формы '{postUrl}' (GET-форма: {formUrl})");
+                }
                 var form = new Dictionary<string, string>(fields, StringComparer.Ordinal)
                 {
                     ["username"] = login,
@@ -1194,7 +1239,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                     ["_eventId"] = "submit",
                 };
 
-                using var postRequest = new HttpRequestMessage(HttpMethod.Post, formUrl) { Version = LoginHttpVersion };
+                using var postRequest = new HttpRequestMessage(HttpMethod.Post, postUrl) { Version = LoginHttpVersion };
                 postRequest.Content = new FormUrlEncodedContent(form);
                 postRequest.Content.Headers.ContentType =
                     new MediaTypeHeaderValue("application/x-www-form-urlencoded");
@@ -1206,6 +1251,8 @@ public class OneCUpdatesService : IOneCUpdatesService
                     await _httpClient.SendAsync(postRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
 
                 var postStatus = (int)postResponse.StatusCode;
+                var postLocation = postResponse.Headers.Location?.ToString() ?? "<нет>";
+                _logger.Info($"[Updates] Вход: POST status={postStatus}, location='{postLocation}'");
 
                 // Шаг 3: доводим CAS-цепочку до конца. После успешного входа сервер отвечает
                 // 302 на releases.1c.ru/public/security_check?ticket=ST-…; сессионная cookie
@@ -1215,6 +1262,8 @@ public class OneCUpdatesService : IOneCUpdatesService
                 {
                     var completed = await FollowLoginRedirectsAsync(
                         postResponse.Headers.Location, ct).ConfigureAwait(false);
+                    _logger.Info($"[Updates] Вход: FollowLoginRedirectsAsync={completed}, " +
+                                 $"sessionCookie={HasPortalSessionCookie()}");
                     if (completed)
                     {
                         _logger.Info("[Updates] Вход на portal.1c.ru выполнен (цепочка редиректов пройдена).");
@@ -1246,7 +1295,8 @@ public class OneCUpdatesService : IOneCUpdatesService
                         return PortalLoginResult.AuthFailed;
                     }
 
-                    _logger.Info($"[Updates] Вход на portal.1c.ru выполнен (status={postStatus}).");
+                    _logger.Info($"[Updates] Вход на portal.1c.ru выполнен (status={postStatus}), " +
+                                 $"sessionCookie={HasPortalSessionCookie()}.");
                     _portalLoginAttempts = 0;
                     _lastLoginResult = PortalLoginResult.Success;
                     return PortalLoginResult.Success;
@@ -1259,6 +1309,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                     ? await ReadBodyQuietlyAsync(postResponse, ct).ConfigureAwait(false)
                     : string.Empty;
                 LogAnonymizedAuthFailure($"[Updates] Вход на portal.1c.ru не подтверждён (status={postStatus}).", body, fields);
+                _logger.Info($"[Updates] Вход: итог=AuthFailed, status={postStatus}");
                 _lastLoginResult = PortalLoginResult.AuthFailed;
                 return PortalLoginResult.AuthFailed;
             }
@@ -1519,6 +1570,62 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <summary>
+    /// Извлекает атрибут <c>action</c> формы входа (issue #323/#330/#334, третья итерация):
+    /// адрес, на который отправляется POST. Spring Security CAS часто указывает action,
+    /// отличный от URL GET-формы (<c>/login/cas?service=…</c>) — POST «на адрес GET» уходил
+    /// не туда (401/404). Возвращает null, если action отсутствует/пуст/равен "#".
+    /// </summary>
+    internal static string? ExtractFormAction(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return null;
+
+        foreach (Match tag in FormTagRegex.Matches(html))
+        {
+            var action = GetAttribute(tag.Value, "action");
+            if (string.IsNullOrWhiteSpace(action) || action == "#")
+                continue;
+            return action;
+        }
+
+        return null;
+    }
+
+    /// <summary>Регулярное выражение открывающего тега <c><form …></c>.</summary>
+    private static readonly Regex FormTagRegex =
+        new(@"<form\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+    /// <summary>
+    /// Адрес POST формы входа: атрибут <c>action</c> формы, резолвленный относительно адреса
+    /// GET-формы, либо сам адрес GET-формы, если action отсутствует/пуст/"#" (прежнее поведение).
+    /// Referer/Origin при этом остаются на адресе GET-формы — часть CAS-развёртываний проверяет
+    /// их при POST (см. TryLoginPortalAsync).
+    /// </summary>
+    private static string ResolveFormPostUrl(string formUrl, string? action)
+    {
+        if (string.IsNullOrWhiteSpace(action))
+            return formUrl;
+        if (Uri.TryCreate(action, UriKind.Absolute, out var abs))
+            return abs.AbsoluteUri;
+        if (Uri.TryCreate(new Uri(formUrl), action, out var rel))
+            return rel.AbsoluteUri;
+        return formUrl;
+    }
+
+    /// <summary>
+    /// Признаки того, что форма входа изменилась радикально — OAuth/JS-челлендж вместо
+    /// классической CAS-формы с <c>execution</c>/<c>lt</c> (issue #323/#330/#334): маркеры
+    /// <c>oauth</c>/<c>client_id</c>/<c>challenge</c>/<c>csrf</c>. Программный POST классической
+    /// формы в таком случае невозможен — нужен браузер (или импорт cookie, будущая итерация).
+    /// </summary>
+    internal static bool LooksLikeOAuthOrChallenge(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return false;
+        return ContainsAny(body, "oauth", "client_id", "challenge", "csrf");
+    }
+
+    /// <summary>
     /// Логирует анонимизированные признаки неудачной авторизации: размер тела, маркеры
     /// ошибки, имена полей формы. Значения (пароль, логин, execution/lt-токены) НЕ выводятся.
     /// </summary>
@@ -1554,6 +1661,14 @@ public class OneCUpdatesService : IOneCUpdatesService
             found.Add("execution");
         if (body.Contains("csrf", StringComparison.OrdinalIgnoreCase))
             found.Add("csrf");
+        // Маркеры изменённой формы (OAuth/JS-челлендж, issue #323/#330/#334): по ним
+        // распознаётся «протокол изменился» — автоматический вход невозможен.
+        if (body.Contains("oauth", StringComparison.OrdinalIgnoreCase))
+            found.Add("oauth");
+        if (body.Contains("client_id", StringComparison.OrdinalIgnoreCase))
+            found.Add("client_id");
+        if (body.Contains("challenge", StringComparison.OrdinalIgnoreCase))
+            found.Add("challenge");
         return string.Join(", ", found);
     }
 
@@ -1636,6 +1751,9 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// и не подтверждён сервером — «вход не подтверждён (401)»; иначе — «требуется вход».</summary>
     private string AuthErrorKey(bool authFailed)
         => IsPortalLoginLimitReached() ? "Updates.LoginLimitReached"
+            // Форма входа изменилась/недоступна (OAuth/JS-челлендж, issue #323/#330/#334) —
+            // отдельный ключ с понятным текстом и советом открыть login.1c.ru в браузере.
+            : _lastLoginResult == PortalLoginResult.FormUnavailable ? "Updates.FormUnavailable"
             : authFailed ? "Updates.AuthFailed"
             : "Updates.AuthRequired";
 }
