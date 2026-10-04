@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Xunit;
@@ -368,5 +370,123 @@ public sealed class CreateInfobaseDbServerStringTests
         Assert.False(CreateInfobaseService.SameServer(string.Empty, "localhost"));
         Assert.False(CreateInfobaseService.SameServer(null, "localhost"));
         Assert.False(CreateInfobaseService.SameServer("", ""));
+    }
+
+    // ============ SameServer с ЯВНЫМИ портами (порт в поле ConnectionSettings.Port) ============
+    // У существующей базы порт лежит в отдельном поле (по умолчанию 1541), а не в строке
+    // сервера — сравнение только строк не различило бы кластеры localhost:1541/1545 (issue #305).
+
+    [Fact]
+    public void SameServer_ExplicitPorts_EqualWhenHostAndPortMatch()
+    {
+        Assert.True(CreateInfobaseService.SameServer("localhost", 1541, "localhost", 1541));
+        Assert.True(CreateInfobaseService.SameServer("SRV", 1541, "srv", 1541));
+    }
+
+    [Fact]
+    public void SameServer_ExplicitDifferentPorts_NotEqual()
+    {
+        // Ключевой кейс issue #305: порты заданы в отдельном поле у ОБЕИХ сторон
+        // и различаются — это разные кластеры на одном хосте.
+        Assert.False(CreateInfobaseService.SameServer("localhost", 1541, "localhost", 1545));
+    }
+
+    [Fact]
+    public void SameServer_ExplicitPorts_NoPortOnOneSide_EqualFallback()
+    {
+        // Порт не задан хотя бы у одной стороны — серверы считаются равными (fallback):
+        // «localhost» в поле окна совпадает с базой на localhost:1541.
+        Assert.True(CreateInfobaseService.SameServer("localhost", 0, "localhost", 1541));
+        Assert.True(CreateInfobaseService.SameServer("localhost", 1541, "localhost", 0));
+    }
+
+    [Fact]
+    public void SameServer_ExplicitPorts_DifferentHosts_NotEqual()
+    {
+        Assert.False(CreateInfobaseService.SameServer("srv1", 1541, "srv2", 1541));
+    }
+
+    // ============ BuildBaseServerAddress — адрес найденной базы для предупреждения ============
+
+    [Fact]
+    public void BuildBaseServerAddress_UsesPortField_WhenSet()
+    {
+        var conn = new ConnectionSettings { Server = "localhost", Port = 1545 };
+
+        Assert.Equal("localhost:1545", CreateInfobaseService.BuildBaseServerAddress(conn));
+    }
+
+    [Fact]
+    public void BuildBaseServerAddress_NoDoublePort_WhenPortInStringAndField()
+    {
+        // Порт может храниться и в строке сервера, и в отдельном поле — задвоения быть не должно.
+        var conn = new ConnectionSettings { Server = "localhost:1541", Port = 1541 };
+
+        Assert.Equal("localhost:1541", CreateInfobaseService.BuildBaseServerAddress(conn));
+    }
+
+    [Fact]
+    public void BuildBaseServerAddress_DefaultPortField_UsedForAddress()
+    {
+        // Значение по умолчанию 1541 (пользователь порт не вводил) — именно его и увидит
+        // пользователь в предупреждении; текст сообщения объясняет, что адрес взят из списка баз.
+        var conn = new ConnectionSettings { Server = "localhost" };
+
+        Assert.Equal("localhost:1541", CreateInfobaseService.BuildBaseServerAddress(conn));
+    }
+
+    [Fact]
+    public void BuildBaseServerAddress_EmptyServer_ReturnsEmpty()
+    {
+        Assert.Equal(string.Empty, CreateInfobaseService.BuildBaseServerAddress(null));
+        Assert.Equal(string.Empty, CreateInfobaseService.BuildBaseServerAddress(new ConnectionSettings()));
+    }
+
+    // ============ Сохранение «Сервера СУБД» при закрытии окна (issue #305) ============
+
+    [Fact]
+    public void SaveLastDbServer_PersistsForNextOpen()
+    {
+        var repo = new FakeRepository();
+        var service = new CreateInfobaseService(repo);
+
+        service.SaveLastDbServer("localhost", "5433");
+
+        Assert.Equal("localhost", repo.Settings.LastCreateDbServer);
+        Assert.Equal("5433", repo.Settings.LastCreateDbPort);
+    }
+
+    /// <summary>Репозиторий в памяти: настройки живут в объекте (образец PlatformDownloadTests).</summary>
+    private sealed class FakeRepository : IInfobaseRepository
+    {
+        public AppSettings Settings { get; set; } = new();
+
+        public List<Infobase> Load() => new();
+
+        public void Save(List<Infobase> infobases)
+        {
+        }
+
+        public Task SaveAsync(List<Infobase> infobases, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public List<Group> LoadGroups() => new();
+
+        public void SaveGroups(List<Group> groups)
+        {
+        }
+
+        public Task SaveGroupsAsync(List<Group> groups, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public AppSettings LoadSettings() => Settings;
+
+        public void SaveSettings(AppSettings settings) => Settings = settings;
+
+        public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
+        {
+            Settings = settings;
+            return Task.CompletedTask;
+        }
     }
 }

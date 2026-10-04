@@ -154,7 +154,7 @@ namespace Configuration_Management
             // «перевыбор» не сбросил выделение.
             if (_menuCloseClickSnapshot is { } snapshot)
             {
-                if (!BatchSelectionHelper.IsSameClick(snapshot, "Left", DateTime.UtcNow, pos.X, pos.Y))
+                if (!BatchSelectionHelper.IsSameClick(snapshot, "Left", Environment.TickCount, pos.X, pos.Y))
                 {
                     // Снимок устарел (прошло больше допуска) или клик в другом месте —
                     // это новое действие пользователя, обрабатываем штатно.
@@ -170,15 +170,32 @@ namespace Configuration_Management
 
             // Первичный клик по строке базы при ОТКРЫТОМ контекстном меню: меню закрывается
             // этим кликом, и его повторная доставка в дерево (после освобождения попапа)
-            // должна быть погашена выше. Запоминаем снимок; сам выбор строки применяет
-            // штатный обработчик контрола, когда событие дойдёт до него.
+            // должна быть погашена выше. Выбор применяется СИНХРОННО по данным строки
+            // (issue #340): в четырёх прежних попытках на WPF выбор ставился отложенно,
+            // и выделение пропадало «через мгновение». Контейнер под курсором сейчас
+            // живой (клик только что пришёл) — применяем выбор сразу и запоминаем снимок;
+            // повторная доставка «хвоста» гасится снимком и ничего не переприменяет.
             if (_tree.ContextMenu is { IsOpen: true } &&
                 source.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault()
-                    is { DataContext: Infobase or PinnedInfobaseItem } &&
+                    is { DataContext: Infobase or PinnedInfobaseItem } rowItem &&
                 e.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed)
             {
                 _menuCloseClickSnapshot = new BatchSelectionHelper.MenuCloseClickSnapshot(
-                    "Left", DateTime.UtcNow, pos.X, pos.Y);
+                    "Left", Environment.TickCount, pos.X, pos.Y);
+
+                var clickedBase = rowItem.DataContext switch
+                {
+                    PinnedInfobaseItem pinned => pinned.Base,
+                    Infobase ib => ib,
+                    _ => null
+                };
+                if (clickedBase is not null && _vm is not null)
+                {
+                    _vm.ClearBatchSelection();
+                    _vm.SelectedInfobase = clickedBase;
+                    _vm.SelectedGroupNode = null;
+                    rowItem.IsSelected = true;
+                }
             }
         }
 

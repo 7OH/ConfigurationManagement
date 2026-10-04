@@ -397,6 +397,11 @@ namespace Configuration_Management
             RestoreLastDbServer();
             UpdateDbServerHint();
 
+            // «Сервер СУБД» запоминается и при закрытии окна (issue #305): пользователь мог
+            // ввести значение и закрыть окно без создания — сохранение только после успешного
+            // создания такой сценарий не покрывало.
+            Closed += OnWindowClosed;
+
             fields.Children.Add(_filePanel);
             fields.Children.Add(_serverPanel);
             _serverPanel.IsVisible = false;
@@ -919,6 +924,28 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Закрытие окна: запоминает «Сервер СУБД» и порт (issue #305). Сохранение только
+        /// после успешного создания не покрывало сценарий «ввёл значение и закрыл окно без
+        /// создания». Сохраняем только в клиент-серверном режиме и при непустом сервере.
+        /// </summary>
+        private void OnWindowClosed(object? sender, EventArgs e)
+        {
+            try
+            {
+                if (_typeBox.SelectedIndex != 1)
+                    return; // файловая база — поля СУБД не заполнялись
+                var dbServer = _dbServerBox.Text?.Trim() ?? "";
+                if (string.IsNullOrWhiteSpace(dbServer))
+                    return;
+                _createService.SaveLastDbServer(dbServer, _dbPortBox.Text?.Trim() ?? "");
+            }
+            catch
+            {
+                // Несохранение последнего сервера СУБД не должно ломать закрытие окна.
+            }
+        }
+
+        /// <summary>
         /// Выбор сервера 1С из списка (issue #305): строка «server:port» остаётся в поле
         /// целиком, как в окне правки свойств базы; при создании она разнесётся
         /// на сервер и порт. Свободный ввод не затрагивается: при IsTextSearchEnabled=false
@@ -1051,15 +1078,18 @@ namespace Configuration_Management
                     // Вариант 2 (#91): заранее предупреждаем, если выбранная версия платформы
                     // отличается (по major.minor) от версий, которыми уже работают
                     // клиент-серверные базы на этом же сервере. Создание можно продолжить.
-                    // Адрес найденной базы — с портом (issue #305): предупреждение должно
-                    // указывать на конкретный сервер «server:port», а не на поле окна.
+                    // В предупреждении показываются ОБА адреса (issue #305): адрес из ввода
+                    // пользователя и полный адрес найденной базы из списка (с портом) —
+                    // чтобы было понятно, откуда взялся порт, которого пользователь не вводил.
                     var mismatchServerAddress = string.IsNullOrWhiteSpace(result.IncompatibleExistingServerAddress)
                         ? request.Server
                         : result.IncompatibleExistingServerAddress;
+                    var enteredServerAddress = CreateInfobaseService.Format1CServer(serverName, serverPortFromName);
                     var proceed = _dialogs.Confirm(
                         string.Format(
                             LocalizationManager.T("CreateInfobase.VersionMismatchMsg"),
-                            request.PlatformVersion, result.IncompatibleExistingVersion, mismatchServerAddress),
+                            request.PlatformVersion, result.IncompatibleExistingVersion,
+                            mismatchServerAddress, enteredServerAddress),
                         LocalizationManager.T("CreateInfobase.VersionMismatchTitle"));
                     if (!proceed)
                         return;

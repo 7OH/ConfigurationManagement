@@ -87,23 +87,24 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
             <StackPanel>
                 <!-- Код конфигурации: стабильный код для связи ИБ ↔ конфигурация.
-                     При добавлении с пустым кодом он генерируется из наименования. -->
+                     При добавлении с пустым кодом он генерируется из наименования.
+                     Поля — общий стиль ModernTextBox, как в EditionEditWindow (issue #321). -->
                 <TextBlock Text="{loc:Loc Updates.ConfigCode}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <TextBox x:Name="CodeBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+                <TextBox x:Name="CodeBox" Style="{DynamicResource ModernTextBox}"/>
 
                 <TextBlock Text="{loc:Loc Updates.Name}" FontWeight="SemiBold" Margin="0,12,0,4"/>
-                <TextBox x:Name="NameBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+                <TextBox x:Name="NameBox" Style="{DynamicResource ModernTextBox}"/>
 
                 <!-- Имя конфигурации (issue #321): имя в метаданных 1С, например
                      «БухгалтерияПредприятия». Для сопоставления данных о конфигурации,
                      в адрес обновлений не попадает. -->
                 <TextBlock Text="{loc:Loc Updates.ConfigName}" FontWeight="SemiBold" Margin="0,12,0,4"
                            ToolTip="{loc:Loc Updates.ConfigNameHint}"/>
-                <TextBox x:Name="ConfigNameBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"
+                <TextBox x:Name="ConfigNameBox" Style="{DynamicResource ModernTextBox}"
                          ToolTip="{loc:Loc Updates.ConfigNameHint}"/>
 
                 <TextBlock Text="{loc:Loc Updates.Nick}" FontWeight="SemiBold" Margin="0,12,0,4"/>
-                <TextBox x:Name="NickBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+                <TextBox x:Name="NickBox" Style="{DynamicResource ModernTextBox}"/>
 
                 <!-- Учётная запись ИТС для этой конфигурации (issue #333): опционально,
                      пусто — используется «Основная» (либо выбранная в настройках). -->

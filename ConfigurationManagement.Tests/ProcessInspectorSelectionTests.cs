@@ -85,6 +85,70 @@ public sealed class ProcessInspectorSelectionTests
         Assert.Empty(dialogs.Warnings);
     }
 
+    [Fact]
+    public void Refresh_ClearsSelection_WhenPidReusedWithDifferentCommandLine()
+    {
+        // Переиспользование PID ОС (issue #342): старый процесс завершился, тот же PID
+        // получил другой процесс с иной командной строкой — выделение НЕ должно
+        // перескакивать на чужой процесс.
+        var service = new FakeRunningService(Proc(1000, "1cv8.exe", "/S srv\\БазаA"));
+        using var vm = CreateViewModel(service, out _, out _);
+
+        WaitFor(() => vm.Processes.Count == 1);
+        vm.SelectedRow = vm.Processes.First(r => r.Pid == 1000);
+
+        service.Set(Proc(1000, "1cv8.exe", "/S srv\\БазаB"));
+        vm.Refresh();
+
+        WaitFor(() => vm.Processes.Count == 1 && vm.SelectedRow is null);
+        Assert.Null(vm.SelectedRow);
+    }
+
+    [Fact]
+    public void Refresh_RestoresSelection_WhenPidAndCommandLineMatch()
+    {
+        // Тот же PID и та же командная строка — тот же логический процесс (issue #342):
+        // выделение восстанавливается по составному ключу.
+        var service = new FakeRunningService(Proc(1000, "1cv8.exe", "/S srv\\БазаA"));
+        using var vm = CreateViewModel(service, out _, out _);
+
+        WaitFor(() => vm.Processes.Count == 1);
+        vm.SelectedRow = vm.Processes.First(r => r.Pid == 1000);
+
+        service.Set(Proc(1000, "1cv8.exe", "/S srv\\БазаA"));
+        vm.Refresh();
+
+        WaitFor(() => vm.Processes.Count == 1 && vm.SelectedRow is not null);
+        Assert.Equal(1000, vm.SelectedRow!.Pid);
+    }
+
+    [Fact]
+    public void Refresh_DoesNotOverrideUserSelectionMadeSinceRestore()
+    {
+        // Двухфазное восстановление не должно «возвращать» старую строку, если
+        // пользователь уже выбрал другую (issue #342: страховка от гонки «клик ↔
+        // повторная фаза»).
+        var service = new FakeRunningService(Proc(1000, "Первый"), Proc(2000, "Второй"));
+        using var vm = CreateViewModel(service, out _, out _);
+
+        WaitFor(() => vm.Processes.Count == 2);
+        vm.SelectedRow = vm.Processes.First(r => r.Pid == 1000);
+
+        // Автообновление восстанавливает PID 1000.
+        service.Set(Proc(1000, "Первый"), Proc(2000, "Второй"));
+        vm.Refresh();
+        WaitFor(() => vm.SelectedRow is { } r && r.Pid == 1000);
+
+        // Пользователь кликнул строку 2000, затем пришло ещё одно обновление —
+        // выделение должно остаться на 2000 (выбор пользователя не перебивается).
+        vm.SelectedRow = vm.Processes.First(r => r.Pid == 2000);
+        service.Set(Proc(1000, "Первый"), Proc(2000, "Второй"));
+        vm.Refresh();
+
+        WaitFor(() => vm.SelectedRow is { } sel && sel.Pid == 2000);
+        Assert.Equal(2000, vm.SelectedRow!.Pid);
+    }
+
     private static ProcessInspectorViewModel CreateViewModel(
         FakeRunningService service,
         out FakeKiller killer,
@@ -109,7 +173,10 @@ public sealed class ProcessInspectorSelectionTests
     }
 
     private static RunningOneCProcessDetails Proc(int pid, string processName) =>
-        new(pid, processName, string.Empty, null, null, null);
+        Proc(pid, processName, string.Empty);
+
+    private static RunningOneCProcessDetails Proc(int pid, string processName, string commandLine) =>
+        new(pid, processName, commandLine, null, null, null);
 
     /// <summary>Настраиваемый источник процессов (список меняется между опросами).</summary>
     private sealed class FakeRunningService : IRunningInfobasesService

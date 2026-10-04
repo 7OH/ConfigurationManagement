@@ -18,19 +18,10 @@
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
 
-        <!-- Поля формы не должны выглядеть «серыми»/недоступными (issue #321): явно
-             задаём карточный фон, основной цвет текста и контур — штатная тема
-             MaterialDesign может красить поля системными кистями, выглядящими как disabled. -->
-        <Style TargetType="TextBox">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
-            <Setter Property="BorderThickness" Value="1.5"/>
-            <Setter Property="Padding" Value="10,7"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
+        <!-- Поля формы используют ОБЩИЙ стиль приложения ModernTextBox (скругление 8 px,
+             акцентная рамка при наведении/фокусе), как в остальных окнах правки — CreateInfobase,
+             GroupEdit, Settings и др. Локальный неявный стиль TextBox убран (issue #321):
+             он делал поля «чужеродными» по сравнению с остальными окнами. -->
 
         <!-- Основная зелёная кнопка -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
@@ -100,18 +91,19 @@
 
         <StackPanel Grid.Row="1" Margin="0,14,0,0">
             <!-- Редакция/каталог релизов типовой конфигурации (issue #321): модальный диалог
-                 вместо инлайн-полей под списком. Поля: имя, «Ред», «Подред» и ручная ссылка. -->
+                 вместо инлайн-полей под списком. Поля: имя, «Ред», «Подред» и ручная ссылка.
+                 Единый стиль полей — ModernTextBox (общий вид окон приложения, issue #321). -->
             <TextBlock Text="{loc:Loc Updates.Name}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-            <TextBox x:Name="NameBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+            <TextBox x:Name="NameBox" Style="{DynamicResource ModernTextBox}"/>
 
             <TextBlock Text="{loc:Loc Updates.EditionRed}" FontWeight="SemiBold" Margin="0,12,0,4"/>
-            <TextBox x:Name="RedBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+            <TextBox x:Name="RedBox" Style="{DynamicResource ModernTextBox}"/>
 
             <TextBlock Text="{loc:Loc Updates.EditionSubRed}" FontWeight="SemiBold" Margin="0,12,0,4"/>
-            <TextBox x:Name="SubRedBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+            <TextBox x:Name="SubRedBox" Style="{DynamicResource ModernTextBox}"/>
 
             <TextBlock Text="{loc:Loc Updates.UrlOverride}" FontWeight="SemiBold" Margin="0,12,0,4"/>
-            <TextBox x:Name="UrlOverrideBox" Padding="10,7" FontSize="13" VerticalContentAlignment="Center"/>
+            <TextBox x:Name="UrlOverrideBox" Style="{DynamicResource ModernTextBox}"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">

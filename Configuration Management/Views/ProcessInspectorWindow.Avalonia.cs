@@ -78,6 +78,11 @@ namespace Configuration_Management
 
             // Таблица процессов: шапка с фиксированными колонками и строки.
             _grid.ItemsSource = _vm.Processes;
+            // Двусторонняя привязка выбора (issue #342): клик по строке обновляет
+            // SelectedRow во ViewModel, а восстановление после автообновления возвращает
+            // выделение в контрол. Без неё выделение сбрасывалось при каждом опросе (~5 с)
+            // и «Завершить процесс» находила SelectedRow == null.
+            _grid.Bind(ListBox.SelectedItemProperty, new Binding("SelectedRow") { Mode = BindingMode.TwoWay });
             _grid.ItemTemplate = new FuncDataTemplate<ProcessRowViewModel>((row, _) => BuildRow(row));
             _grid.DoubleTapped += OnGrid_DoubleTapped;
             ScrollViewer.SetHorizontalScrollBarVisibility(_grid, ScrollBarVisibility.Disabled);

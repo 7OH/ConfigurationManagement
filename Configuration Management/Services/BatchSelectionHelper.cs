@@ -171,58 +171,23 @@ public static class BatchSelectionHelper
         return new HashSet<string>(batchIds ?? Array.Empty<string>(), StringComparer.Ordinal);
     }
 
-    /// <summary>
-    /// Решение «что делать с выбором после закрытия контекстного меню кликом по строке
-    /// дерева» (issue #340). Чистая логика, опирается на состояние МОДЕЛИ (текущая база
-    /// <see cref="MainViewModel.SelectedInfobase"/> и наличие мультивыделения), а не на
-    /// состояние контейнера <c>TreeViewItem</c>: контейнеры переиспользуются виртуализацией,
-    /// и его <c>IsSelected</c> к моменту отложенного применения может уже не относиться
-    /// к строке, по которой кликнули.
-    /// </summary>
-    public enum TreeMenuCloseClickAction
-    {
-        /// <summary>Цель уже является единственной текущей строкой, набор снят — ничего делать не нужно.</summary>
-        None,
-
-        /// <summary>Цель уже текущая, но мультивыделение ещё висит — снять только набор.</summary>
-        ClearBatchOnly,
-
-        /// <summary>Цель не является текущей — снять набор и выбрать цель.</summary>
-        SelectTargetAndClearBatch,
-    }
-
-    /// <summary>
-    /// Определяет действие после закрытия контекстного меню кликом по строке дерева
-    /// (issue #340). Повторное применение клика «через мгновение» ломало выделение:
-    /// строка под курсором выбиралась, а затем текущая строка пропадала. Правило:
-    /// если штатная обработка уже применила клик (цель — текущая база), выбор не
-    /// трогаем — при висящем наборе снимаем только его; иначе применяем клик сами:
-    /// цель становится единственной текущей строкой, набор снимается.
-    /// </summary>
-    /// <param name="isTargetRowCurrent">
-    /// true, если цель клика уже является текущей базой (<see cref="MainViewModel.SelectedInfobase"/>).
-    /// </param>
-    /// <param name="hasBatchSelection">true, если есть хотя бы одна база в мультивыделении.</param>
-    public static TreeMenuCloseClickAction DecideAfterMenuCloseClick(
-        bool isTargetRowCurrent, bool hasBatchSelection)
-    {
-        if (isTargetRowCurrent)
-            return hasBatchSelection
-                ? TreeMenuCloseClickAction.ClearBatchOnly
-                : TreeMenuCloseClickAction.None;
-        return TreeMenuCloseClickAction.SelectTargetAndClearBatch;
-    }
 
     /// <summary>
     /// Снимок клика, которым закрыли контекстное меню дерева (issue #340, новый подход):
-    /// кнопка, метка времени MouseDown (UTC) и координаты в дереве. Клик запоминается
-    /// в момент закрытия меню, а его ПОВТОРНАЯ доставка в дерево (WPF/Avalonia
-    /// освобождают захват попапа меню асинхронно) распознаётся по времени и позиции —
-    /// без подавления по флагу, которое не срабатывало в трёх прежних попытках.
+    /// кнопка, метка времени (мс с момента старта системы, <see cref="Environment.TickCount"/>)
+    /// и координаты в дереве. Клик запоминается в момент закрытия меню, а его ПОВТОРНАЯ
+    /// доставка в дерево (WPF/Avalonia освобождают захват попапа меню асинхронно)
+    /// распознаётся по времени и позиции — без подавления по флагу, которое не срабатывало
+    /// в четырёх прежних попытках.
+    /// <para>
+    /// Время берётся ЕДИНЫМИ часами (TickCount): сравнение не зависит от семантики штампа
+    /// события платформы (WPF MouseEventArgs.Timestamp и Avalonia PointerEventArgs.Timestamp
+    /// используют разные источники и единицы) и устойчиво к расхождению часов UTC.
+    /// </para>
     /// </summary>
     public readonly record struct MenuCloseClickSnapshot(
         string Button,
-        DateTime TimestampUtc,
+        long TimestampMs,
         double X,
         double Y);
 
@@ -230,13 +195,14 @@ public static class BatchSelectionHelper
     /// Является ли событие повторной доставкой клика, которым закрыли контекстное меню
     /// (issue #340): кнопка совпадает, время в пределах допуска (мс), позиция — в пределах
     /// окрестности (px). Дедупликация по данным события, а не по флагу подавления:
-    /// отложенный повтор «через мгновение» с другими координатами считается новым
-    /// действием пользователя и обрабатывается штатно.
+    /// повтор «через мгновение» с другими координатами считается новым действием
+    /// пользователя и обрабатывается штатно. Событие, наступившее РАНЬШЕ снимка,
+    /// не может быть повторной доставкой того же клика.
     /// </summary>
     public static bool IsSameClick(
         MenuCloseClickSnapshot snapshot,
         string button,
-        DateTime timestampUtc,
+        long timestampMs,
         double x,
         double y,
         int toleranceMs = 300,
@@ -244,7 +210,9 @@ public static class BatchSelectionHelper
     {
         if (!string.Equals(snapshot.Button, button, StringComparison.OrdinalIgnoreCase))
             return false;
-        if (Math.Abs((snapshot.TimestampUtc - timestampUtc).TotalMilliseconds) > toleranceMs)
+        if (timestampMs < snapshot.TimestampMs)
+            return false;
+        if (timestampMs - snapshot.TimestampMs > toleranceMs)
             return false;
         return Math.Abs(snapshot.X - x) <= tolerancePx && Math.Abs(snapshot.Y - y) <= tolerancePx;
     }

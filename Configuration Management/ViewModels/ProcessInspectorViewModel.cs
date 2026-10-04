@@ -30,6 +30,16 @@ public sealed class ProcessInspectorViewModel : ViewModelBase, IDisposable
     private int _refreshBusy;
     private ProcessRowViewModel? _selectedRow;
 
+    /// <summary>
+    /// Ключ строки, восстановленной последним обновлением (issue #342). Хранится для
+    /// двухфазного восстановления: если пользователь с момента восстановления ничего
+    /// не выбрал, повторная установка того же ключа страхует от «роняющего» выделение
+    /// поведения виртуализации контрола (WPF DataGrid / Avalonia ListBox) на последующей
+    /// разметке. Как только пользователь выбирает другую строку — ключ перезаписывается
+    /// и повторная фаза становится no-op.
+    /// </summary>
+    private RowSelectionKey? _lastRestoredKey;
+
     /// <param name="service">Источник процессов 1С (WMI на Windows, /proc на Linux).</param>
     /// <param name="killer">Завершение процесса по PID.</param>
     /// <param name="dialogs">Диалоги (подтверждение завершения, сообщения об ошибках).</param>
@@ -61,6 +71,18 @@ public sealed class ProcessInspectorViewModel : ViewModelBase, IDisposable
 
     /// <summary>Строки таблицы (пересоздаются при каждом обновлении).</summary>
     public ObservableCollection<ProcessRowViewModel> Processes { get; } = new();
+
+    /// <summary>
+    /// Составной ключ строки для восстановления выделения (issue #342): PID + полная
+    /// командная строка. PID может быть переиспользован ОС после перезапуска процесса —
+    /// одна только проверка по PID перескочила бы выделение на другой процесс; командная
+    /// строка (строка подключения) остаётся стабильной для одного и того же запуска.
+    /// </summary>
+    private readonly record struct RowSelectionKey(int Pid, string CommandLine);
+
+    /// <summary>Ключ строки для восстановления выделения (issue #342).</summary>
+    private static RowSelectionKey KeyOf(ProcessRowViewModel row) =>
+        new(row.Pid, row.FullCommandLine ?? string.Empty);
 
     /// <summary>Выбранная строка (кнопка «Завершить процесс»).</summary>
     public ProcessRowViewModel? SelectedRow
@@ -180,22 +202,63 @@ public sealed class ProcessInspectorViewModel : ViewModelBase, IDisposable
     private void ApplyRows(List<ProcessRowViewModel> rows)
     {
         // Строки пересоздаются при каждом опросе, поэтому выделение сохраняется
-        // по идентификатору процесса (PID), а не по ссылке на старую строку.
-        // Если процесса с сохранённым PID в новом списке нет (процесс завершился) —
-        // выделение снимается (issue #342).
-        var selectedPid = SelectedRow?.Pid;
+        // по составному ключу (PID + командная строка), а не по ссылке на старую
+        // строку (issue #342). Командная строка в ключе защищает от переиспользования
+        // PID ОС: если процесс перезапустился с другим аргументом, тот же PID — это
+        // уже другой процесс, выделение на него не переносится.
+        var selectedKey = SelectedRow is { } selected ? KeyOf(selected) : (RowSelectionKey?)null;
 
         Processes.Clear();
         foreach (var row in rows)
             Processes.Add(row);
 
-        SelectedRow = selectedPid is int pid
-            ? rows.FirstOrDefault(r => r.Pid == pid)
-            : null;
+        if (selectedKey is { } key)
+        {
+            // Точное совпадение по составному ключу; при пустой командной строке у
+            // старой строки (идентичность неизвестна) — fallback на единственный PID.
+            var match = rows.FirstOrDefault(r => KeyOf(r) == key)
+                ?? (key.CommandLine.Length == 0 ? rows.FirstOrDefault(r => r.Pid == key.Pid) : null);
+            SelectedRow = match;
+        }
+        else
+        {
+            SelectedRow = null;
+        }
+
+        _lastRestoredKey = SelectedRow is { } restored ? KeyOf(restored) : (RowSelectionKey?)null;
+
+        // Двухфазное восстановление (issue #342): часть контролов (виртуализация,
+        // пересоздание контейнеров) может сбросить только что восстановленное выделение
+        // на последующем проходе разметки. Повторная фаза через диспетчер UI переустанавливает
+        // выбор, но только если пользователь за это время не выбрал другую строку.
+        if (_lastRestoredKey is not null && _dispatchToUi is not null)
+            _dispatchToUi(ReassertSelection);
+
         SummaryText = Processes.Count == 0
             ? LocalizationManager.T("ProcessInspector.Empty")
             : string.Format(LocalizationManager.T("ProcessInspector.SummaryFormat"), Processes.Count);
         OnPropertyChanged(nameof(SummaryText));
         OnPropertyChanged(nameof(HasProcesses));
+    }
+
+    /// <summary>
+    /// Вторая фаза восстановления выделения (issue #342): повторно уведомляет о выбранной
+    /// строке, если она всё ещё в списке и пользователь не изменил выбор с момента
+    /// восстановления. Выполняется асинхронно в UI-потоке ПОСЛЕ первой фазы, когда
+    /// контрол успел обработать пересоздание коллекции и разметку.
+    /// </summary>
+    private void ReassertSelection()
+    {
+        var current = SelectedRow;
+        if (current is null || _lastRestoredKey is not { } key)
+            return;
+        // Пользователь уже выбрал другую строку (или выбор снят) — не вмешиваемся.
+        if (KeyOf(current) != key)
+            return;
+        // Строка должна всё ещё присутствовать в коллекции (не удалена следующим опросом).
+        if (!Processes.Contains(current))
+            return;
+        // Повторное уведомление заставляет привязку SelectedItem перевыставить выбор.
+        OnPropertyChanged(nameof(SelectedRow));
     }
 }

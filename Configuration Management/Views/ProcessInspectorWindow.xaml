@@ -45,6 +45,7 @@
                   AutoGenerateColumns="False" IsReadOnly="True"
                   HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
                   SelectionMode="Single" SelectionUnit="FullRow"
+                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                   GridLinesVisibility="Horizontal"
                   RowHeight="38"
                   AlternatingRowBackground="{DynamicResource CardBackgroundBrush}"

@@ -435,54 +435,15 @@ public sealed class BatchSelectionHelperTests
     }
 
     // ======================= Issue #340: клик, закрывший контекстное меню =======================
-
-    [Fact]
-    public void DecideAfterMenuCloseClick_TargetAlreadyCurrentBatchEmpty_DoesNothing()
-    {
-        // Штатная обработка уже применила клик: цель — текущая база, набор снят.
-        // Повторное применение только «перевыбрало» бы строку — ничего не делаем.
-        var action = BatchSelectionHelper.DecideAfterMenuCloseClick(
-            isTargetRowCurrent: true, hasBatchSelection: false);
-
-        Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.None, action);
-    }
-
-    [Fact]
-    public void DecideAfterMenuCloseClick_TargetAlreadyCurrentBatchHangs_ClearsBatchOnly()
-    {
-        // Цель уже текущая, но мультивыделение ещё висит (клик дошёл до дерева,
-        // а снятие набора — нет): снимаем только набор, выбор не трогаем.
-        var action = BatchSelectionHelper.DecideAfterMenuCloseClick(
-            isTargetRowCurrent: true, hasBatchSelection: true);
-
-        Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.ClearBatchOnly, action);
-    }
-
-    [Fact]
-    public void DecideAfterMenuCloseClick_TargetNotCurrentWithBatch_SelectsTargetAndClearsBatch()
-    {
-        // Клик по строке «мимо» мультивыделения: строка под курсором становится
-        // ЕДИНСТВЕННОЙ текущей, набор снимается (основной сценарий issue #340).
-        var action = BatchSelectionHelper.DecideAfterMenuCloseClick(
-            isTargetRowCurrent: false, hasBatchSelection: true);
-
-        Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.SelectTargetAndClearBatch, action);
-    }
-
-    [Fact]
-    public void DecideAfterMenuCloseClick_TargetNotCurrentWithoutBatch_SelectsTarget()
-    {
-        // Мультивыделения нет, но штатная обработка клика не выполнилась (клик съеден
-        // попапом): применяем выбор цели сами.
-        var action = BatchSelectionHelper.DecideAfterMenuCloseClick(
-            isTargetRowCurrent: false, hasBatchSelection: false);
-
-        Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.SelectTargetAndClearBatch, action);
-    }
+    // Применение выбора при закрытии меню теперь выполняется СИНХРОННО в обработчике окна
+    // (см. MainWindow.Hotkeys.cs / MainWindow.Avalonia.Events.cs); отложенное решение
+    // DecideAfterMenuCloseClick удалено. Чистой логикой остаётся дедупликация «хвоста»
+    // клика по времени+позиции — она тестируется ниже.
 
     // ============ IsSameClick — дедупликация по времени+позиции (issue #340) ============
+    // Время — в миллисекундах единой шкалы (Environment.TickCount), long.
 
-    private static readonly DateTime T0 = new(2026, 10, 3, 12, 0, 0, DateTimeKind.Utc);
+    private const long T0 = 1_000_000L;
 
     [Fact]
     public void IsSameClick_SameTimeAndPosition_ReturnsTrue()
@@ -502,7 +463,7 @@ public sealed class BatchSelectionHelperTests
         var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
 
         Assert.True(BatchSelectionHelper.IsSameClick(
-            snapshot, "Left", T0.AddMilliseconds(250), 108, 208));
+            snapshot, "Left", T0 + 250, 108, 208));
     }
 
     [Fact]
@@ -513,7 +474,18 @@ public sealed class BatchSelectionHelperTests
         var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
 
         Assert.False(BatchSelectionHelper.IsSameClick(
-            snapshot, "Left", T0.AddMilliseconds(301), 100, 200));
+            snapshot, "Left", T0 + 301, 100, 200));
+    }
+
+    [Fact]
+    public void IsSameClick_EarlierThanSnapshot_ReturnsFalse()
+    {
+        // Событие РАНЬШЕ снимка не может быть повторной доставкой того же клика —
+        // снимок записывается в момент закрытия меню, «хвост» всегда позже.
+        var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
+
+        Assert.False(BatchSelectionHelper.IsSameClick(
+            snapshot, "Left", T0 - 50, 100, 200));
     }
 
     [Fact]
@@ -523,7 +495,7 @@ public sealed class BatchSelectionHelperTests
         var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
 
         Assert.False(BatchSelectionHelper.IsSameClick(
-            snapshot, "Left", T0.AddMilliseconds(50), 200, 200));
+            snapshot, "Left", T0 + 50, 200, 200));
     }
 
     [Fact]

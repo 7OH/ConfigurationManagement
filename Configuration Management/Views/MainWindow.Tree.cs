@@ -796,13 +796,17 @@ namespace Configuration_Management
         /// <summary>
         /// Выбирает строку дерева по ДАННЫМ базы (issue #340). Контейнер, зафиксированный
         /// в момент клика, мог быть переиспользован виртуализацией (Recycling) и к моменту
-        /// отложенного применения показывать другую строку, поэтому используется только
-        /// если всё ещё показывает ту же базу; иначе контейнер ищется заново по данным
-        /// (<see cref="FindTreeViewItemForData"/>). Резерв: строка не реализована (вне
-        /// видимой области) — выбор ставится на модели, подсветка синхронизируется при
-        /// появлении строки в видимой области.
+        /// применения показывать другую строку, поэтому используется только если всё ещё
+        /// показывает ту же базу; иначе контейнер ищется заново по данным В ТОЙ ЖЕ СЕКЦИИ
+        /// (закреплённая база дублируется в узле «Закреплённые» и в своей группе — поиск
+        /// без учёта секции мог бы подсветить копию, а не строку под кликом). Резерв:
+        /// строка не реализована (вне видимой области) — выбор ставится на модели,
+        /// подсветка синхронизируется при появлении строки в видимой области.
         /// </summary>
-        private void SelectTreeRowByData(Infobase target, TreeViewItem? clickedContainer)
+        /// <param name="target">База, которую нужно выбрать.</param>
+        /// <param name="clickedContainer">Контейнер под кликом (может быть переиспользован).</param>
+        /// <param name="isPinnedSection">Секция строки под кликом: true — «Закреплённые» (issue #326).</param>
+        private void SelectTreeRowByData(Infobase target, TreeViewItem? clickedContainer, bool isPinnedSection)
         {
             // Захваченный контейнер корректен только пока показывает ту же базу.
             if (clickedContainer is not null &&
@@ -812,7 +816,9 @@ namespace Configuration_Management
                 return;
             }
 
-            var item = FindTreeViewItemForData(target);
+            var item = isPinnedSection
+                ? FindPinnedTreeViewItemForData(target)
+                : FindRegularTreeViewItemForData(target);
             if (item is not null)
             {
                 ApplySelection(item, target);
@@ -820,6 +826,54 @@ namespace Configuration_Management
             }
 
             _viewModel.SelectedInfobase = target;
+        }
+
+        /// <summary>
+        /// Ищет контейнер базы в узле «Закреплённые» (issue #340): узел идентифицируется
+        /// маркером <see cref="GroupNodeViewModel.PinnedMarker"/>, дальше рекурсивный поиск
+        /// по данным (закреплённые строки несут обёртку <see cref="PinnedInfobaseItem"/>).
+        /// </summary>
+        private TreeViewItem? FindPinnedTreeViewItemForData(object data)
+        {
+            if (MainTree is null)
+                return null;
+            for (var i = 0; i < MainTree.Items.Count; i++)
+            {
+                if (MainTree.ItemContainerGenerator.ContainerFromIndex(i) is not TreeViewItem tvi)
+                    continue;
+                if (tvi.DataContext is GroupNodeViewModel { Group: null } groupNode &&
+                    string.Equals(groupNode.Marker, GroupNodeViewModel.PinnedMarker, StringComparison.Ordinal))
+                {
+                    return FindTreeViewItemIn(tvi, data);
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Ищет контейнер базы в обычном списке (вне узла «Закреплённые», issue #340):
+        /// дубль строки в «Закреплённых» пропускается, чтобы выбор не «перепрыгивал»
+        /// на копию из закреплений.
+        /// </summary>
+        private TreeViewItem? FindRegularTreeViewItemForData(object data)
+        {
+            if (MainTree is null)
+                return null;
+            for (var i = 0; i < MainTree.Items.Count; i++)
+            {
+                if (MainTree.ItemContainerGenerator.ContainerFromIndex(i) is not TreeViewItem tvi)
+                    continue;
+                if (tvi.DataContext is GroupNodeViewModel { Group: null } groupNode &&
+                    string.Equals(groupNode.Marker, GroupNodeViewModel.PinnedMarker, StringComparison.Ordinal))
+                {
+                    // Узел «Закреплённые» — дубль строк общего списка: пропускаем ветку.
+                    continue;
+                }
+                var found = FindTreeViewItemIn(tvi, data);
+                if (found is not null)
+                    return found;
+            }
+            return null;
         }
 
         /// <summary>

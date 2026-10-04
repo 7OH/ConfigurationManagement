@@ -84,4 +84,12 @@ public interface ICreateInfobaseService
     /// true — продолжать создание, даже если обнаружена несовместимая версия на сервере.
     /// </param>
     CreateInfobaseResult TryCreate(CreateInfobaseRequest request, bool confirmVersionMismatch);
+
+    /// <summary>
+    /// Запоминает последний использованный сервер СУБД и его порт (issue #305): они
+    /// подставляются по умолчанию при следующем открытии окна создания ИБ. Вызывается
+    /// и после успешного создания, и при закрытии окна (сохранение по факту ввода).
+    /// Ошибки сохранения не должны ломать создание/закрытие окна.
+    /// </summary>
+    void SaveLastDbServer(string dbServer, string dbPort);
 }

@@ -629,8 +629,10 @@ namespace Configuration_Management
             var clickPos = e.GetPosition(MainTree);
             if (_menuCloseClickSnapshot is { } menuCloseClick)
             {
+                // Время — едиными часами Environment.TickCount (той же шкалой записан
+                // снимок в TryApplyTreeClickAfterMenuClosed, issue #340).
                 if (!BatchSelectionHelper.IsSameClick(
-                        menuCloseClick, "Left", DateTime.UtcNow, clickPos.X, clickPos.Y))
+                        menuCloseClick, "Left", Environment.TickCount, clickPos.X, clickPos.Y))
                 {
                     // Снимок устарел (прошло больше допуска) или клик в другом месте —
                     // это новое действие пользователя, обрабатываем штатно.

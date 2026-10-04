@@ -1330,7 +1330,7 @@
     "CreateInfobase.CreateFailed": "Failed to create the infobase.\n{0}",
     "CreateInfobase.CreateFailedPortHint": "\n\nIf the server is unavailable — check the 1C cluster port (default 1541; agent port — 1540) and specify it as \"server:port\", e.g. srv1c:1541.",
     "CreateInfobase.VersionMismatchTitle": "Platform version mismatch",
-    "CreateInfobase.VersionMismatchMsg": "Your base list contains client-server bases on the server \"{2}\" with platform version {1}, which differs from the selected one ({0}).\n\nContinue creating?",
+    "CreateInfobase.VersionMismatchMsg": "You selected the server \"{3}\". Your base list contains client-server bases on the server \"{2}\" (address from the base list) with platform version {1}, which differs from the selected one ({0}).\n\nContinue creating?",
     "CreateInfobase.TypeLabel": "Base type:",
     "CreateInfobase.TypeFile": "File-based base",
     "CreateInfobase.TypeClientServer": "Client-server",

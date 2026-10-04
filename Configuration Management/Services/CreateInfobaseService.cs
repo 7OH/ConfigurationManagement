@@ -82,7 +82,10 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             // Вариант 2 (#91): заранее предупреждаем, если выбранная версия платформы
             // отличается (по major.minor) от версий, которыми уже работают
             // клиент-серверные базы на этом же сервере. «Нет» — прерывает создание.
-            var existing = GetIncompatibleExistingVersion(platform, server);
+            // Порт сервера 1С передаётся явно: у существующих баз порт лежит в поле
+            // ConnectionSettings.Port (по умолчанию 1541), и сравнение только строк
+            // не различило бы localhost:1541 и localhost:1545 (issue #305).
+            var existing = GetIncompatibleExistingVersion(platform, server, serverPort);
             if (existing is not null && !confirmVersionMismatch)
             {
                 return new CreateInfobaseResult
@@ -270,7 +273,10 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
     /// Версия определяется по ЛОКАЛЬНОМУ списку баз приложения (не с сервера): «версия на
     /// сервере» — это версии баз из вашего списка на том же сервере (issue #305).
     /// </summary>
-    private (string Version, string ServerAddress)? GetIncompatibleExistingVersion(string platform, string server)
+    /// <param name="server">Имя сервера 1С из поля окна (без порта; порт передаётся отдельно).</param>
+    /// <param name="serverPort">Порт сервера 1С из поля окна; 0 — порт не указан.</param>
+    private (string Version, string ServerAddress)? GetIncompatibleExistingVersion(
+        string platform, string server, int serverPort)
     {
         var (selectedMajor, selectedMinor) = GetMajorMinor(platform);
 
@@ -284,29 +290,38 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             return null;
         }
 
+        ParseServerPort(server, out var userHost, out _);
+        if (userHost.Length == 0)
+            return null;
+
         foreach (var ib in infobases)
         {
             var conn = ib.Connection;
             if (conn == null || conn.Type != ConnectionType.ClientServer)
                 continue;
-            // Сравнение серверов устойчивое (issue #305): если у базы и поля окна порт задан
-            // и различается — это РАЗНЫЕ серверы (кластеры на одном хосте); если порт не задан
-            // хотя бы у одной стороны — считаем серверы равными (fallback).
-            if (!SameServer(conn.Server, server))
+            // Сравнение серверов с эффективными портами обеих сторон (issue #305): у базы
+            // порт лежит в отдельном поле ConnectionSettings.Port (по умолчанию 1541),
+            // а не в строке сервера — сравнение только строк не различило бы кластеры
+            // localhost:1541 и localhost:1545 на одном хосте. Если порт не задан хотя бы
+            // у одной стороны — серверы считаются равными (fallback).
+            ParseServerPort(conn.Server, out var ibHost, out var ibPortFromString);
+            var ibPort = conn.Port > 0 ? conn.Port : ibPortFromString;
+            if (!SameServer(userHost, serverPort, ibHost, ibPort))
                 continue;
             if (string.IsNullOrWhiteSpace(ib.PlatformVersion))
                 continue;
 
             var (major, minor) = GetMajorMinor(ib.PlatformVersion);
             if (major != selectedMajor || minor != selectedMinor)
-                return (ib.PlatformVersion, Format1CServer(conn.Server, conn.Port));
+                return (ib.PlatformVersion, BuildBaseServerAddress(conn));
         }
 
         return null;
     }
 
     /// <summary>
-    /// Сравнивает два адреса сервера 1С с учётом порта (issue #305):
+    /// Сравнивает два адреса сервера 1С с учётом порта (issue #305). Порт извлекается из
+    /// строк (обёртка над <see cref="SameServer(string,int,string,int)"/> с портами 0/из строки):
     /// <list type="bullet">
     /// <item>порт явно задан у обеих сторон и различается → серверы НЕ равны
     /// («localhost:1541» ≠ «localhost:1545» — это разные кластеры на одном хосте);</item>
@@ -319,6 +334,18 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
     {
         ParseServerPort(a, out var hostA, out var portA);
         ParseServerPort(b, out var hostB, out var portB);
+        return SameServer(hostA, portA, hostB, portB);
+    }
+
+    /// <summary>
+    /// Сравнивает сервер и порт с ЯВНО заданными значениями (issue #305). У существующей
+    /// базы порт может храниться в отдельном поле <see cref="ConnectionSettings.Port"/>
+    /// (по умолчанию 1541), а не в строке сервера, — сравнение только строк такие базы
+    /// не различило бы. Правило прежнее: оба порта заданы и различаются → разные серверы;
+    /// порт не задан хотя бы у одной стороны → равны (fallback).
+    /// </summary>
+    internal static bool SameServer(string hostA, int portA, string hostB, int portB)
+    {
         if (hostA.Length == 0 ||
             !string.Equals(hostA, hostB, StringComparison.OrdinalIgnoreCase))
             return false;
@@ -329,6 +356,23 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
 
         // Порт не задан хотя бы у одной стороны — считаем серверы равными (fallback).
         return true;
+    }
+
+    /// <summary>
+    /// Полный адрес базы «server:port» для предупреждения о несовместимой версии (issue #305).
+    /// Порт берётся из отдельного поля <see cref="ConnectionSettings.Port"/>, если он задан
+    /// (значение по умолчанию 1541), иначе — из строки сервера; защита от задвоения порта,
+    /// когда он хранится и в строке, и в поле.
+    /// </summary>
+    internal static string BuildBaseServerAddress(ConnectionSettings? conn)
+    {
+        if (conn is null)
+            return string.Empty;
+        ParseServerPort(conn.Server, out var host, out var portFromString);
+        if (host.Length == 0)
+            return string.Empty;
+        var port = conn.Port > 0 ? conn.Port : portFromString;
+        return Format1CServer(host, port);
     }
 
     /// <summary>
@@ -391,11 +435,12 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
     }
 
     /// <summary>
-    /// Запоминает последний успешно использованный сервер СУБД и его порт (issue #305):
-    /// они подставляются по умолчанию при следующем открытии окна создания ИБ.
+    /// Запоминает последний использованный сервер СУБД и его порт (issue #305): они
+    /// подставляются по умолчанию при следующем открытии окна создания ИБ. Вызывается как
+    /// после успешного создания, так и при закрытии окна (сохранение по факту ввода).
     /// Ошибки сохранения не должны ломать создание ИБ.
     /// </summary>
-    private void SaveLastDbServer(string dbServer, string dbPort)
+    public void SaveLastDbServer(string dbServer, string dbPort)
     {
         try
         {

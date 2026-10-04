@@ -9,6 +9,63 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.302] — 2026-10-04
+
+### Исправлено
+
+- **Инспектор процессов — сброс выделения и «Завершить процесс» (issue #342)**:
+  выделение таблицы теперь связано с ViewModel двусторонней привязкой `SelectedItem`
+  (WPF DataGrid и Avalonia ListBox) — раньше клик по строке не доходил до
+  `SelectedRow`, поэтому каждые ~5 секунд выбор сбрасывался, а кнопка «Завершить
+  процесс» находила «нет выделения». Восстановление после автообновления ведётся по
+  составному ключу «PID + командная строка» (защита от переиспользования PID ОС)
+  с двухфазным повтором через диспетчер UI и защитой выбора пользователя
+  ([`ProcessInspectorViewModel.cs`](Configuration%20Management/ViewModels/ProcessInspectorViewModel.cs),
+  [`ProcessInspectorWindow.xaml`](Configuration%20Management/Views/ProcessInspectorWindow.xaml),
+  [`ProcessInspectorWindow.Avalonia.cs`](Configuration%20Management/Views/ProcessInspectorWindow.Avalonia.cs);
+  тесты [`ProcessInspectorSelectionTests.cs`](ConfigurationManagement.Tests/ProcessInspectorSelectionTests.cs)).
+
+- **Снятие выделения после мультивыделения/контекстного меню (issue #340)**: вместо
+  четырёх прежних попыток с отложенным применением выбора (`Dispatcher.BeginInvoke`),
+  при которых выделение пропадало «через мгновение», выбор теперь применяется
+  СИНХРОННО в момент закрытия меню по данным клика (WPF — в
+  `TryApplyTreeClickAfterMenuClosed`, Avalonia — на первом `PointerPressed`), а повторная
+  доставка «хвоста» клика гасится снимком по времени (`Environment.TickCount`, единые
+  часы обеих платформ) и позиции. Поиск контейнера при восстановлении учитывает секцию
+  строки («Закреплённые» vs обычный список) — выделение не перескакивает на дубль
+  ([`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  [`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs),
+  [`MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs),
+  [`MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs),
+  [`BatchSelectionHelper.cs`](Configuration%20Management/Services/BatchSelectionHelper.cs);
+  тесты [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs)).
+
+- **Окно «Типовые конфигурации» — стиль полей (issue #321)**: поля окна правки
+  редакции (`EditionEditWindow`) и окна правки конфигурации (`ConfigTypeEditWindow`)
+  приведены к общему виду окон приложения — удалён локальный неявный стиль TextBox
+  (поля выглядели «чужеродными»), поля используют общий `ModernTextBox` (скругление,
+  акцентная рамка при наведении/фокусе), как в остальных окнах правки
+  ([`EditionEditWindow.xaml`](Configuration%20Management/Views/EditionEditWindow.xaml),
+  [`ConfigTypeEditWindow.xaml`](Configuration%20Management/Views/ConfigTypeEditWindow.xaml)).
+
+- **Создание серверной базы — порт в предупреждении и сохранение «Сервера СУБД»
+  (issue #305)**:
+  - сравнение серверов для предупреждения о несовместимой версии теперь учитывает
+    порт из отдельного поля `ConnectionSettings.Port` (у баз он хранится отдельно,
+    значение по умолчанию 1541 — отсюда «взялся» порт в тексте); адрес найденной
+    базы строится нормализатором без задвоения порта; текст предупреждения показывает
+    ОБА адреса — введённый пользователем и адрес базы из списка, поясняя источник порта;
+  - «Сервер СУБД» сохраняется не только после успешного создания, но и при закрытии
+    окна (ввод → закрытие без создания больше не теряется);
+  ([`CreateInfobaseService.cs`](Configuration%20Management/Services/CreateInfobaseService.cs),
+  [`CreateInfobaseWindow.xaml.cs`](Configuration%20Management/Views/CreateInfobaseWindow.xaml.cs),
+  [`CreateInfobaseWindow.Avalonia.cs`](Configuration%20Management/Views/CreateInfobaseWindow.Avalonia.cs),
+  локализация ru/en; тесты
+  [`CreateInfobaseDbServerStringTests.cs`](ConfigurationManagement.Tests/CreateInfobaseDbServerStringTests.cs)).
+
+Полный прогон `dotnet test` зелёный (**1710**), кросс-сборка Linux
+(`dotnet build -p:BuildLinux=true`) без ошибок.
+
 ## [0.3.9.301] — 2026-10-04
 
 ### Исправлено
