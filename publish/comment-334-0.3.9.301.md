@@ -1,0 +1,25 @@
+Исправлено в версии **0.3.9.301** (Windows/WPF и Linux/Avalonia).
+
+**Что было.**
+
+1. POST формы входа на login.1c.ru отклонялся сервером статусом **401** («Вход на portal.1c.ru не подтверждён (status=401)»): POST собирался из жёстко захардкоженного списка полей (`username, password, execution, _eventId, rememberMe, …`), а обязательные скрытые поля фактической формы (в т.ч. стандартное для Spring Security CAS поле `lt`) в него не попадали.
+2. После первой неудачи «отравляющий» флаг `_portalLoginAttempted` блокировал все последующие попытки входа на время сессии службы — следующие окна («Скачивание платформы», «Проверка обновлений») уже не пробовали войти и просто получали пустой ответ каталога → `PlatformUpdate.Error.NetworkError`.
+3. При 401 тело ответа не читалось — по журналу нельзя было отличить «неверный логин/пароль» от «устаревший execution/lt» или капчи.
+
+**Что сделано** ([`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs)).
+
+1. **Динамический сбор полей формы входа.** `ExtractFormFields` собирает все скрытые поля фактической формы (`execution`, `lt` и пр.) плюс отмеченные чекбоксы, устойчиво к порядку атрибутов и кавычкам. POST строится из реальной формы: `username`/`password`/`_eventId=submit` + все остальные поля, которые отдал сервер, — изменение формы портала больше не ломает вход.
+2. **Принудительный HTTP/1.1 + заголовки Referer/Origin** для запросов входа: `LoginHttpVersion = HttpVersion.Version11`, на POST формы добавляются `Referer` (URL формы) и `Origin` (https://login.1c.ru) — часть CAS-развёртываний проверяет их при входе.
+3. **Понятная диагностика при 401.** При неудаче читается тело ответа и логируются только анонимизированные признаки через `LogAnonymizedAuthFailure`: размер HTML, маркеры («неверный логин», «captcha» и т.п.), имена полей формы. **Логин, пароль и значения токенов в журнал не попадают.**
+4. **Retry-политика вместо флага.** Вместо `_portalLoginAttempted` — счётчик `_portalLoginAttempts` с лимитом `MaxPortalLoginAttempts = 3` за сессию службы; при смене учётной записи (сигнатура без пароля) счётчик сбрасывается. Теперь окно, открытое после неудачного входа, может попробовать войти снова, но анти-брутфорс защита портала не сработает от лавины запросов.
+5. **Разделение статусов авторизации.** `AuthFailed` (учётные данные не приняты) отделён от `AuthRequired` (креды не настроены) и `NetworkError` (сеть недоступна). Новые ключи локализации: `Updates.AuthFailed` и `PlatformUpdate.Error.AuthFailed` — «Вход на portal.1c.ru не подтверждён (401). Проверьте логин/пароль учётной записи ИТС…» ([`ru.json`](Configuration%20Management/Localization/Languages/ru.json), [`en.json`](Configuration%20Management/Localization/Languages/en.json)).
+6. **Каталог Platform85 (дополнение к вашему пожеланию).** Ник каталога платформы параметризован: `Platform83Nick`/`Platform85Nick` и `SupportedPlatformNicks = [Platform83, Platform85]`; `GetAvailableReleasesAsync(nick, …)` позволяет проверять `https://releases.1c.ru/project/Platform85` (по умолчанию остаётся Platform83) ([`OneCPlatformCatalogParser.cs`](Configuration%20Management/Services/OneCPlatformCatalogParser.cs), [`PlatformUpdateService.cs`](Configuration%20Management/Services/PlatformUpdateService.cs), [`IPlatformUpdateService.cs`](Configuration%20Management/Services/IPlatformUpdateService.cs)).
+
+**Тесты.** Новый [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs) — 12 сценариев (динамический сбор полей формы, 401 → `AuthFailed`, повторная попытка после неудачи, лимит попыток, сброс счётчика при смене учётной записи, отсутствие кредов → `AuthRequired`); дополнены [`PlatformUpdateServiceTests.cs`](ConfigurationManagement.Tests/PlatformUpdateServiceTests.cs) (маппинг `AuthFailed`), [`PlatformUpdateViewModelTests.cs`](ConfigurationManagement.Tests/PlatformUpdateViewModelTests.cs), [`PlatformDownloadViewModelTests.cs`](ConfigurationManagement.Tests/PlatformDownloadViewModelTests.cs), [`OneCPlatformCatalogParserTests.cs`](ConfigurationManagement.Tests/OneCPlatformCatalogParserTests.cs) (ника Platform85). Полный набор `dotnet test` зелёный: **Windows 1701**, **Linux 1672**; кросс-сборка Linux без ошибок.
+
+**Как проверить:**
+
+1. Установите версию **0.3.9.301**.
+2. Убедитесь, что вход в браузере в режиме **инкогнито** теми же данными (логин/пароль учётной записи ИТС) проходит — это подтверждает корректность самих учётных данных (гипотеза «креды устарели»).
+3. Откройте «Обновление платформы 1С»: каталог версий должен загрузиться; при желании проверьте каталог `Platform85`.
+4. Если вход снова не подтверждён — в журнале приложения будут анонимизированные **признаки причины 401** (размер HTML, маркеры, имена полей формы), по которым можно понять, что именно изменилось на портале; пароли и токены в журнале отсутствуют.

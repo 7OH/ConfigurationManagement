@@ -9,18 +9,22 @@ namespace Configuration_Management.Services;
 
 /// <summary>
 /// Реализация <see cref="IPlatformUpdateService"/>: получение списка доступных версий
-/// технологической платформы 1С со страницы <c>releases.1c.ru/project/Platform83</c>,
-/// ленивая подгрузка файлов дистрибутива из ответа <c>version_files</c> и выбор файла
-/// под текущую ОС/разрядность. Сетевые вызовы выполняются через
-/// <see cref="IOneCUpdatesService.GetPageTextAsync"/> (готовая авторизация портала,
-/// ручное следование редиректам), парсинг — чистым <see cref="OneCPlatformCatalogParser"/>.
-/// Никакие исключения наружу не бросаются: итог всегда описывается статусом
-/// <see cref="PortalFetchStatus"/> и ключом локализации «PlatformUpdate.Error.*».
+/// технологической платформы 1С со страниц <c>releases.1c.ru/project/Platform83</c> и
+/// <c>Platform85</c> (issue #334), ленивая подгрузка файлов дистрибутива из ответа
+/// <c>version_files</c> и выбор файла под текущую ОС/разрядность. Сетевые вызовы
+/// выполняются через <see cref="IOneCUpdatesService.FetchPageAsync"/> (готовая авторизация
+/// портала, ручное следование редиректам, различение AuthRequired/AuthFailed), парсинг —
+/// чистым <see cref="OneCPlatformCatalogParser"/>. Никакие исключения наружу не бросаются:
+/// итог всегда описывается статусом <see cref="PortalFetchStatus"/> и ключом локализации
+/// «PlatformUpdate.Error.*».
 /// </summary>
 public sealed class PlatformUpdateService : IPlatformUpdateService
 {
     /// <summary>Ключ локализации: требуется вход на портал 1С.</summary>
     public const string ErrorAuthRequired = "PlatformUpdate.Error.AuthRequired";
+
+    /// <summary>Ключ локализации: вход на портал 1С не подтверждён сервером (401).</summary>
+    public const string ErrorAuthFailed = "PlatformUpdate.Error.AuthFailed";
 
     /// <summary>Ключ локализации: каталог/версия не найдены (404).</summary>
     public const string ErrorNotFound = "PlatformUpdate.Error.NotFound";
@@ -37,11 +41,12 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
 
     private readonly IOneCUpdatesService _updates;
     private readonly IAppLogger _logger;
-    private readonly Func<string, CancellationToken, Task<string?>> _textProvider;
+    private readonly Func<string, CancellationToken, Task<PortalPageResult>> _pageProvider;
 
     /// <summary>
     /// Основной конструктор (для DI): текст страниц получает через
-    /// <see cref="IOneCUpdatesService.GetPageTextAsync"/>.
+    /// <see cref="IOneCUpdatesService.FetchPageAsync"/> (статусы авторизации и сети уже
+    /// распознаны службой портала).
     /// </summary>
     public PlatformUpdateService(IOneCUpdatesService updates, IAppLogger logger)
         : this(updates, logger, null)
@@ -49,14 +54,14 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
     }
 
     /// <summary>
-    /// Конструктор с инжектируемым провайдером текста страницы (для тестов):
-    /// принимает URL и токен отмены, возвращает текст ответа или null/исключение —
-    /// маппинг ошибок выполняется по контракту, описанному в
-    /// <see cref="GetAvailableReleasesAsync"/>.
+    /// Конструктор с инжектируемым провайдером текста страницы (для тестов): принимает URL
+    /// и токен отмены, возвращает текст ответа или null/исключение — маппинг ошибок выполняется
+    /// по контракту, описанному в <see cref="MapLegacyText"/>. Либо принимает провайдер готовых
+    /// результатов <see cref="PortalPageResult"/> (полный контроль статусов).
     /// </summary>
     /// <param name="updates">Сервис портала 1С (используется как источник по умолчанию).</param>
     /// <param name="logger">Журнал приложения.</param>
-    /// <param name="textProvider">Провайдер текста страницы; null — <c>GetPageTextAsync</c>.</param>
+    /// <param name="textProvider">Провайдер текста страницы; null — <c>FetchPageAsync</c>.</param>
     internal PlatformUpdateService(
         IOneCUpdatesService updates,
         IAppLogger logger,
@@ -64,14 +69,20 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
     {
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _textProvider = textProvider ?? ((url, ct) => _updates.GetPageTextAsync(url, ct));
+        _pageProvider = textProvider is null
+            ? (url, ct) => _updates.FetchPageAsync(url, ct)
+            : (url, ct) => MapLegacyText(textProvider(url, ct));
     }
 
     /// <inheritdoc />
     public async Task<PlatformCatalogResult> GetAvailableReleasesAsync(CancellationToken ct = default)
+        => await GetAvailableReleasesForNickAsync(OneCPlatformCatalogParser.Platform83Nick, ct).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task<PlatformCatalogResult> GetAvailableReleasesForNickAsync(string nick, CancellationToken ct = default)
     {
-        var url = BuildCatalogUrl();
-        var (status, text) = await FetchTextAsync(url, ct).ConfigureAwait(false);
+        var url = BuildCatalogUrl(nick);
+        var (status, text) = await FetchPageAsync(url, ct).ConfigureAwait(false);
         if (status != PortalFetchStatus.Ok)
             return Failure(status);
 
@@ -90,11 +101,16 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
     /// <inheritdoc />
     public async Task<PlatformCatalogResult> LoadReleaseFilesAsync(
         PlatformRelease release, CancellationToken ct = default)
+        => await LoadReleaseFilesForNickAsync(release, OneCPlatformCatalogParser.Platform83Nick, ct).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task<PlatformCatalogResult> LoadReleaseFilesForNickAsync(
+        PlatformRelease release, string nick, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(release);
 
-        var url = BuildVersionFilesUrl(release);
-        var (status, text) = await FetchTextAsync(url, ct).ConfigureAwait(false);
+        var url = BuildVersionFilesUrl(release, nick);
+        var (status, text) = await FetchPageAsync(url, ct).ConfigureAwait(false);
         if (status != PortalFetchStatus.Ok)
             return Failure(status);
 
@@ -150,27 +166,24 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
         => string.Equals(file.Architecture, "x86", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Запрашивает текст страницы и маппит ошибки по контракту:
-    /// null/пусто → <see cref="PortalFetchStatus.NetworkError"/>; текст со страницей входа
-    /// (<c>login.1c.ru</c>) → <see cref="PortalFetchStatus.AuthRequired"/>; маркер
-    /// «404 Not Found» → <see cref="PortalFetchStatus.NotFound"/>;
-    /// <see cref="OperationCanceledException"/> → <see cref="PortalFetchStatus.Cancelled"/>;
-    /// прочие исключения → <see cref="PortalFetchStatus.NetworkError"/>. Не бросает исключений.
+    /// Запрашивает страницу через провайдера и маппит ошибки по контракту: статус провайдера
+    /// (в т.ч. <see cref="PortalFetchStatus.AuthFailed"/> — вход не подтверждён, issue #334)
+    /// передаётся как есть; у текста дополнительно проверяется маркер «404 Not Found»
+    /// (страница может прийти с HTTP 200). Не бросает исключений.
     /// </summary>
-    private async Task<(PortalFetchStatus Status, string? Text)> FetchTextAsync(
+    private async Task<(PortalFetchStatus Status, string? Text)> FetchPageAsync(
         string url, CancellationToken ct)
     {
         try
         {
-            var text = await _textProvider(url, ct).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(text))
-            {
+            var page = await _pageProvider(url, ct).ConfigureAwait(false);
+            if (page.Status == PortalFetchStatus.NetworkError)
                 _logger.Warn($"[PlatformUpdate] Пустой ответ или HTTP-ошибка: {url}");
-                return (PortalFetchStatus.NetworkError, null);
-            }
 
-            if (text.Contains(LoginHostMarker, StringComparison.OrdinalIgnoreCase))
-                return (PortalFetchStatus.AuthRequired, null);
+            if (page.Status != PortalFetchStatus.Ok)
+                return (page.Status, null);
+
+            var text = page.Text;
             if (LooksLikeNotFoundPage(text))
                 return (PortalFetchStatus.NotFound, null);
 
@@ -187,9 +200,41 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
         }
     }
 
+    /// <summary>
+    /// Маппит «устаревший» текстовый провайдер (строка или null/исключение) в
+    /// <see cref="PortalPageResult"/> по прежнему контракту: null/пусто → NetworkError;
+    /// текст со страницей входа (<c>login.1c.ru</c>) → AuthRequired; маркер «404 Not Found» →
+    /// NotFound; отмена → Cancelled; прочие исключения → NetworkError.
+    /// </summary>
+    private static async Task<PortalPageResult> MapLegacyText(Task<string?> textTask)
+    {
+        try
+        {
+            var text = await textTask.ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(text))
+                return Page(PortalFetchStatus.NetworkError);
+            if (text.Contains(LoginHostMarker, StringComparison.OrdinalIgnoreCase))
+                return Page(PortalFetchStatus.AuthRequired);
+            if (LooksLikeNotFoundPage(text))
+                return Page(PortalFetchStatus.NotFound);
+            return Page(PortalFetchStatus.Ok, text);
+        }
+        catch (OperationCanceledException)
+        {
+            return Page(PortalFetchStatus.Cancelled);
+        }
+        catch
+        {
+            return Page(PortalFetchStatus.NetworkError);
+        }
+    }
+
+    private static PortalPageResult Page(PortalFetchStatus status, string? text = null)
+        => new() { Status = status, Text = text };
+
     /// <summary>Эвристический маркер страницы «не найдено»: «404» вместе с «Not Found»/
     /// «страница не найдена» либо только русская фраза.</summary>
-    private static bool LooksLikeNotFoundPage(string text)
+    private static bool LooksLikeNotFoundPage(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return false;
@@ -199,19 +244,28 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
             && text.Contains("not found", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Адрес HTML-каталога версий платформы: <c>releases.1c.ru/project/Platform83</c>.</summary>
-    private static string BuildCatalogUrl()
-        => $"{OneCUpdatesService.ReleasesProjectBaseUrl}/{OneCPlatformCatalogParser.PlatformNick}";
+    /// <summary>Адрес HTML-каталога версий платформы: <c>releases.1c.ru/project/<nick></c>
+    /// (например, Platform83/Platform85). Пустой/невалидный ник — базовый каталог Platform83.</summary>
+    private static string BuildCatalogUrl(string? nick)
+    {
+        var safeNick = string.IsNullOrWhiteSpace(nick)
+            ? OneCPlatformCatalogParser.Platform83Nick
+            : nick.Trim();
+        return $"{OneCUpdatesService.ReleasesProjectBaseUrl}/{Uri.EscapeDataString(safeNick)}";
+    }
 
     /// <summary>Абсолютный адрес страницы файлов релиза. Если у релиза ссылка не задана —
-    /// строится по правилу <c>version_files?nick=…&ver=…</c>; относительная ссылка
-    /// дополняется хостом портала.</summary>
-    private static string BuildVersionFilesUrl(PlatformRelease release)
+    /// строится по правилу <c>version_files?nick=…&ver=…</c> (ник каталога — параметр,
+    /// issue #334); относительная ссылка дополняется хостом портала.</summary>
+    private static string BuildVersionFilesUrl(PlatformRelease release, string nick)
     {
         var url = (release.VersionFilesUrl ?? string.Empty).Trim();
         if (string.IsNullOrEmpty(url))
         {
-            url = $"{OneCUpdatesService.ReleasesBaseUrl}?nick={OneCPlatformCatalogParser.PlatformNick}" +
+            var safeNick = string.IsNullOrWhiteSpace(nick)
+                ? OneCPlatformCatalogParser.Platform83Nick
+                : nick.Trim();
+            url = $"{OneCUpdatesService.ReleasesBaseUrl}?nick={Uri.EscapeDataString(safeNick)}" +
                   $"&ver={Uri.EscapeDataString(release.Version)}";
         }
         else if (url.StartsWith("/", StringComparison.Ordinal))
@@ -228,6 +282,7 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
         var key = status switch
         {
             PortalFetchStatus.AuthRequired => ErrorAuthRequired,
+            PortalFetchStatus.AuthFailed => ErrorAuthFailed,
             PortalFetchStatus.NotFound => ErrorNotFound,
             PortalFetchStatus.Cancelled => ErrorCancelled,
             _ => ErrorNetwork,

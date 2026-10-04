@@ -64,6 +64,19 @@ public interface IOneCUpdatesService
     /// <param name="ct">Токен отмены.</param>
     Task<string?> GetPageTextAsync(string url, CancellationToken ct = default);
 
+    /// <summary>
+    /// Выполняет авторизованный GET по указанному адресу и возвращает текст ответа вместе
+    /// со статусом обращения. В отличие от <see cref="GetPageTextAsync"/> позволяет отличить
+    /// «требуется вход» (AuthRequired) от «вход не подтверждён сервером» (AuthFailed —
+    /// HTTP 401 после POST учётных данных либо цепочка редиректов завершилась на странице
+    /// входа, issue #334/#330/#323) и от сетевой ошибки (NetworkError). Ошибки сети/HTTP
+    /// не бросают исключение — итог описывается статусом <see cref="PortalFetchStatus"/>
+    /// и текстом ответа при успехе.
+    /// </summary>
+    /// <param name="url">Адрес страницы каталога или ответа version_files.</param>
+    /// <param name="ct">Токен отмены.</param>
+    Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default);
+
     /// <summary>Предопределённый набор типовых конфигураций 1С.</summary>
     System.Collections.Generic.IReadOnlyList<OneCConfigType> BuiltInConfigTypes { get; }
 }

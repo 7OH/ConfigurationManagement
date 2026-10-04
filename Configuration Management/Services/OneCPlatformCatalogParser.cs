@@ -21,7 +21,20 @@ public static class OneCPlatformCatalogParser
     /// Ник каталога технологической платформы 8.3 на <c>releases.1c.ru/project/<ник></c>.
     /// Значение сверено с фактическим адресом каталога на портале (п. 2.7 плана 0.3.9.208–216).
     /// </summary>
-    public const string PlatformNick = "Platform83";
+    public const string Platform83Nick = "Platform83";
+
+    /// <summary>
+    /// Ник каталога технологической платформы 8.5 на <c>releases.1c.ru/project/<ник></c>
+    /// (issue #334: «стоит проверять и releases.1c.ru/project/Platform85»).
+    /// </summary>
+    public const string Platform85Nick = "Platform85";
+
+    /// <summary>Алиас для обратной совместимости (использовался до введения списка ников).</summary>
+    public const string PlatformNick = Platform83Nick;
+
+    /// <summary>Поддерживаемые ники каталогов технологической платформы на releases.1c.ru.</summary>
+    public static readonly IReadOnlyList<string> SupportedPlatformNicks =
+        new[] { Platform83Nick, Platform85Nick };
 
     /// <summary>Регулярное выражение для ссылки на страницу файлов релиза вида
     /// <c>/version_files?nick=…&ver=…</c> с захватом адреса и текста (номера версии).</summary>

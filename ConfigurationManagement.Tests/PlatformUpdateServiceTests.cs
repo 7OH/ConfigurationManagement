@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Configuration_Management.Models;
@@ -141,6 +143,66 @@ public sealed class PlatformUpdateServiceTests
     }
 
     [Fact]
+    public async Task GetAvailableReleasesForNickAsync_Platform85_BuildsUrlAndParses()
+    {
+        // issue #334: пожелание проверять и releases.1c.ru/project/Platform85.
+        const string html = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td><a href="/version_files?nick=Platform85&ver=8.5.1.123">8.5.1.123</a></td></tr>
+            </table>
+            </body></html>
+            """;
+        string? requestedUrl = null;
+        var service = CreateService(url =>
+        {
+            requestedUrl = url;
+            return Task.FromResult<string?>(html);
+        });
+
+        var result = await service.GetAvailableReleasesForNickAsync(OneCPlatformCatalogParser.Platform85Nick);
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal("https://releases.1c.ru/project/Platform85", requestedUrl);
+        Assert.Equal("8.5.1.123", result.Releases[0].Version);
+    }
+
+    [Fact]
+    public async Task GetAvailableReleasesForNickAsync_EmptyNick_FallsBackToPlatform83()
+    {
+        string? requestedUrl = null;
+        var service = CreateService(url =>
+        {
+            requestedUrl = url;
+            return Task.FromResult<string?>(VersionsTableHtml);
+        });
+
+        var result = await service.GetAvailableReleasesForNickAsync("   ");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal("https://releases.1c.ru/project/Platform83", requestedUrl);
+    }
+
+    [Fact]
+    public async Task GetAvailableReleasesAsync_Login401_PortalAuthFailedStatus_ReturnsAuthFailedKey()
+    {
+        // Issue #334: после POST учётных данных сервер отвечает 401 — окно должно показать
+        // «вход не подтверждён», а НЕ «каталог не получен — NetworkError» (как в логе 21:45:17).
+        var handler = new PortalAuthFailHandler();
+        var repo = new MemRepoSettings();
+        repo.Settings.UpdatesLogin = "its-user";
+        repo.Settings.UpdatesPassword = "secret";
+        var logger = new StubLogger();
+        var updates = new OneCUpdatesService(repo, logger, handler);
+        var service = new PlatformUpdateService(updates, logger);
+
+        var result = await service.GetAvailableReleasesAsync();
+
+        Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
+        Assert.Equal(PlatformUpdateService.ErrorAuthFailed, result.ErrorKey);
+    }
+
+    [Fact]
     public async Task LoadReleaseFilesAsync_FillsFilesAndSavesAbsoluteVersionFilesUrl()
     {
         var release = new PlatformRelease { Version = "8.3.27.2214", VersionFilesUrl = "/version_files?nick=Platform83&ver=8.3.27.2214" };
@@ -265,6 +327,70 @@ public sealed class PlatformUpdateServiceTests
         Assert.Null(PlatformUpdateService.PickForPlatform(null!, isWindows: true));
     }
 
+    /// <summary>Обработчик: каталог → 302 на login.1c.ru, форма с execution, POST → 401
+    /// (учётные данные не приняты). Для теста AuthFailed (issue #334).</summary>
+    private sealed class PortalAuthFailHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Redirect(new Uri("https://login.1c.ru/login?service=x"));
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                response = request.Method == HttpMethod.Post
+                    ? new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("<html>нет</html>") }
+                    : Ok("<form><input type=\"hidden\" name=\"execution\" value=\"e1s2\"/></form>");
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        private static HttpResponseMessage Redirect(Uri location)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Found);
+            response.Headers.Location = location;
+            return response;
+        }
+    }
+
+    /// <summary>Репозиторий с настройками в памяти (для входных данных авторизации).</summary>
+    private sealed class MemRepoSettings : IInfobaseRepository
+    {
+        public AppSettings Settings { get; set; } = new();
+
+        public List<Infobase> Load() => new();
+        public void Save(List<Infobase> infobases) { }
+        public Task SaveAsync(List<Infobase> infobases, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+        public List<Group> LoadGroups() => new();
+        public void SaveGroups(List<Group> groups) { }
+        public Task SaveGroupsAsync(List<Group> groups, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+        public AppSettings LoadSettings() => Settings;
+        public void SaveSettings(AppSettings settings) => Settings = settings;
+        public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
+        {
+            Settings = settings;
+            return Task.CompletedTask;
+        }
+    }
+
     /// <summary>Создаёт сервис с инжектируемым провайдером текста страницы.</summary>
     private static PlatformUpdateService CreateService(Func<string, Task<string?>> provider)
     {
@@ -303,6 +429,9 @@ public sealed class PlatformUpdateServiceTests
 
         public Task<string?> GetPageTextAsync(string url, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
+
+        public Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default)
+            => Task.FromResult(new PortalPageResult { Status = PortalFetchStatus.NetworkError });
     }
 
     /// <summary>Заглушка журнала приложения.</summary>

@@ -13,6 +13,11 @@ public enum PortalFetchStatus
     /// <summary>Требуется авторизация на портале 1С (редирект на <c>login.1c.ru</c>, 401/403).</summary>
     AuthRequired,
 
+    /// <summary>Программный вход на портал 1С не подтверждён сервером (HTTP 401 после POST
+    /// учётных данных либо цепочка редиректов завершилась на странице входа): логин/пароль
+    /// не приняты либо изменилась форма входа.</summary>
+    AuthFailed,
+
     /// <summary>Запрошенный ресурс не найден (HTTP 404 — страница-маркер «404 Not Found»).</summary>
     NotFound,
 
@@ -44,4 +49,18 @@ public sealed class PlatformCatalogResult
 
     /// <summary>Релиз с подгруженными файлами дистрибутива (для <c>LoadReleaseFilesAsync</c>).</summary>
     public PlatformRelease? Release { get; init; }
+}
+
+/// <summary>
+/// Результат авторизованного GET страницы портала 1С (<c>IOneCUpdatesService.FetchPageAsync</c>):
+/// статус обращения и текст ответа при успехе. Ошибки сети/авторизации не бросают исключений —
+/// итог описывается статусом <see cref="PortalFetchStatus"/>.
+/// </summary>
+public sealed class PortalPageResult
+{
+    /// <summary>Итоговый статус обращения к странице портала.</summary>
+    public PortalFetchStatus Status { get; init; } = PortalFetchStatus.NetworkError;
+
+    /// <summary>Текст ответа (при <see cref="Status"/> == <see cref="PortalFetchStatus.Ok"/>).</summary>
+    public string? Text { get; init; }
 }

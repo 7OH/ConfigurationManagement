@@ -9,6 +9,63 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.301] — 2026-10-04
+
+### Исправлено
+
+- **Программный вход на portal.1c.ru (issues #334, #330, #323 — единый корень:
+  POST формы входа отклонялся статусом 401, сессия «отравлялась» одной неудачей)**:
+  - **динамический сбор полей формы входа** вместо жёстко захардкоженного списка:
+    `ExtractFormFields` собирает все скрытые поля фактической формы (`execution`,
+    `lt` и пр.) плюс отмеченные чекбоксы, устойчиво к порядку атрибутов и кавычкам —
+    POST строится из реальной формы, а не из предположений о ней;
+  - **принудительный HTTP/1.1** для запросов входа (`LoginHttpVersion`) и заголовки
+    `Referer`/`Origin` на POST формы (часть CAS-развёртываний проверяет их при входе);
+  - **понятная диагностика при 401**: читается тело ответа и логируются
+    анонимизированные признаки (размер HTML, маркеры «неверный логин»/«captcha»,
+    имена полей формы) через `LogAnonymizedAuthFailure` — без паролей и значений
+    токенов в журнале;
+  - **retry-политика вместо «отравляющего» флага**: счётчик `_portalLoginAttempts`
+    с лимитом `MaxPortalLoginAttempts = 3` за сессию службы, сброс при смене учётной
+    записи (сигнатура без пароля) — следующее окно/операция могут попробовать вход
+    снова после неудачи;
+  - **разделение статусов авторизации**: `AuthFailed` (учётные данные не приняты)
+    отделён от `AuthRequired` (нет/не настроены креды) и `NetworkError` (сеть) —
+    новые ключи локализации `Updates.AuthFailed` и `PlatformUpdate.Error.AuthFailed`:
+    «Вход на portal.1c.ru не подтверждён (401)…»;
+  - **тесты**: новый [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs)
+    (12 сценариев: динамический сбор полей, 401 → AuthFailed, повторная попытка после
+    неудачи, лимит попыток, сброс при смене учётной записи, отсутствие кредов →
+    AuthRequired), дополнены
+    [`PlatformUpdateServiceTests.cs`](ConfigurationManagement.Tests/PlatformUpdateServiceTests.cs),
+    [`PlatformUpdateViewModelTests.cs`](ConfigurationManagement.Tests/PlatformUpdateViewModelTests.cs),
+    [`PlatformDownloadViewModelTests.cs`](ConfigurationManagement.Tests/PlatformDownloadViewModelTests.cs)
+    (маппинг/отображение AuthFailed)
+    ([`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs),
+    [`PlatformUpdateService.cs`](Configuration%20Management/Services/PlatformUpdateService.cs),
+    [`IOneCUpdatesService.cs`](Configuration%20Management/Services/IOneCUpdatesService.cs),
+    [`ru.json`](Configuration%20Management/Localization/Languages/ru.json),
+    [`en.json`](Configuration%20Management/Localization/Languages/en.json)).
+
+- **Каталог платформы 8.5 (issue #334)**: ник каталога платформы
+  параметризован — добавлены `Platform83Nick`/`Platform85Nick` и
+  `SupportedPlatformNicks = [Platform83, Platform85]`; `GetAvailableReleasesAsync(nick, …)`
+  и `BuildCatalogUrl(nick)` позволяют проверять
+  `https://releases.1c.ru/project/Platform85` (по умолчанию остаётся Platform83)
+  ([`OneCPlatformCatalogParser.cs`](Configuration%20Management/Services/OneCPlatformCatalogParser.cs),
+  [`PlatformUpdateService.cs`](Configuration%20Management/Services/PlatformUpdateService.cs),
+  [`IPlatformUpdateService.cs`](Configuration%20Management/Services/IPlatformUpdateService.cs),
+  [`PlatformCatalogResult.cs`](Configuration%20Management/Services/PlatformCatalogResult.cs);
+  тесты [`OneCPlatformCatalogParserTests.cs`](ConfigurationManagement.Tests/OneCPlatformCatalogParserTests.cs)).
+
+- **Анализ функционала связывания базы (issue #345)**: опубликован анализ в issue —
+  карта использований явной связи (`UpdateConfigCode`/`UpdateUrlOverride`/`UpdateUrlSegment`),
+  зависимость F9/«Актуальных релизов», варианты с последствиями и вопросы пользователю;
+  **код не менялся**.
+
+Полный набор юнит-тестов зелёный: **Windows 1701**, **Linux 1672**; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) без ошибок.
+
 ## [0.3.9.300] — 2026-10-03
 
 ### Исправлено

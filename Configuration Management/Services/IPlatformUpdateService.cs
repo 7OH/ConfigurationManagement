@@ -17,12 +17,22 @@ public interface IPlatformUpdateService
     /// <summary>
     /// Получает список доступных версий платформы со страницы
     /// <c>releases.1c.ru/project/Platform83</c> (через
-    /// <see cref="IOneCUpdatesService.GetPageTextAsync"/> и
+    /// <see cref="IOneCUpdatesService.FetchPageAsync"/> и
     /// <see cref="OneCPlatformCatalogParser.ParseVersions"/>).
     /// </summary>
     /// <param name="ct">Токен отмены.</param>
     /// <returns>Результат со статусом и отсортированным по убыванию списком версий.</returns>
     Task<PlatformCatalogResult> GetAvailableReleasesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Получает список доступных версий платформы с указанного каталога
+    /// <c>releases.1c.ru/project/<nick></c> (например, <c>Platform85</c>, issue #334).
+    /// Поведение идентично <see cref="GetAvailableReleasesAsync"/>, отличается только ник каталога.
+    /// </summary>
+    /// <param name="nick">Ник каталога платформы (например, <c>Platform83</c>/<c>Platform85</c>).</param>
+    /// <param name="ct">Токен отмены.</param>
+    /// <returns>Результат со статусом и отсортированным по убыванию списком версий.</returns>
+    Task<PlatformCatalogResult> GetAvailableReleasesForNickAsync(string nick, CancellationToken ct = default);
 
     /// <summary>
     /// Лениво подгружает файлы дистрибутива выбранной версии из ответа
@@ -36,6 +46,18 @@ public interface IPlatformUpdateService
     /// <param name="ct">Токен отмены.</param>
     /// <returns>Результат с заполненным <see cref="PlatformCatalogResult.Release"/>.</returns>
     Task<PlatformCatalogResult> LoadReleaseFilesAsync(PlatformRelease release, CancellationToken ct = default);
+
+    /// <summary>
+    /// Лениво подгружает файлы дистрибутива выбранной версии с указанного каталога
+    /// <c>version_files?nick=<nick>&ver=…</c> (например, <c>Platform85</c>, issue #334).
+    /// Поведение идентично <see cref="LoadReleaseFilesAsync(PlatformRelease, CancellationToken)"/>,
+    /// отличается только ник каталога (используется при отсутствии ссылки у релиза).
+    /// </summary>
+    /// <param name="release">Релиз, для которого подгружаются файлы (мутируется).</param>
+    /// <param name="nick">Ник каталога платформы (например, <c>Platform83</c>/<c>Platform85</c>).</param>
+    /// <param name="ct">Токен отмены.</param>
+    /// <returns>Результат с заполненным <see cref="PlatformCatalogResult.Release"/>.</returns>
+    Task<PlatformCatalogResult> LoadReleaseFilesForNickAsync(PlatformRelease release, string nick, CancellationToken ct = default);
 
     /// <summary>
     /// Выбирает файл дистрибутива под текущую ОС и разрядность (чистый метод):

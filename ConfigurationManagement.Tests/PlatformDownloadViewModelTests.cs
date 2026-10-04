@@ -446,7 +446,13 @@ public sealed class PlatformDownloadViewModelTests
         public Task<PlatformCatalogResult> GetAvailableReleasesAsync(CancellationToken ct = default)
             => Task.FromResult(AvailableResult);
 
+        public Task<PlatformCatalogResult> GetAvailableReleasesForNickAsync(string nick, CancellationToken ct = default)
+            => Task.FromResult(AvailableResult);
+
         public Task<PlatformCatalogResult> LoadReleaseFilesAsync(PlatformRelease release, CancellationToken ct = default)
+            => Task.FromResult(new PlatformCatalogResult { Status = PortalFetchStatus.Ok, Release = release });
+
+        public Task<PlatformCatalogResult> LoadReleaseFilesForNickAsync(PlatformRelease release, string nick, CancellationToken ct = default)
             => Task.FromResult(new PlatformCatalogResult { Status = PortalFetchStatus.Ok, Release = release });
 
         public PlatformReleaseFile? PickDistribution(IReadOnlyList<PlatformReleaseFile> files)

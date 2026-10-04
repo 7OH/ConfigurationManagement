@@ -34,6 +34,36 @@ public sealed class OneCPlatformCatalogParserTests
         """;
 
     [Fact]
+    public void SupportedPlatformNicks_Contains83And85()
+    {
+        // issue #334: пожелание проверять и каталог Platform85.
+        Assert.Equal("Platform83", OneCPlatformCatalogParser.PlatformNick);
+        Assert.Equal("Platform83", OneCPlatformCatalogParser.Platform83Nick);
+        Assert.Equal("Platform85", OneCPlatformCatalogParser.Platform85Nick);
+        Assert.Contains(OneCPlatformCatalogParser.Platform83Nick, OneCPlatformCatalogParser.SupportedPlatformNicks);
+        Assert.Contains(OneCPlatformCatalogParser.Platform85Nick, OneCPlatformCatalogParser.SupportedPlatformNicks);
+    }
+
+    [Fact]
+    public void ParseVersions_Platform85Catalog_SameTableFormatParses()
+    {
+        // Каталог Platform85 использует ту же таблицу #versionsTable (issue #334).
+        const string html = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td><a href="/version_files?nick=Platform85&ver=8.5.1.123">8.5.1.123</a></td></tr>
+              <tr><td><a href="/version_files?nick=Platform85&ver=8.5.0.77">8.5.0.77</a></td></tr>
+            </table>
+            </body></html>
+            """;
+
+        var releases = OneCPlatformCatalogParser.ParseVersions(html);
+
+        Assert.Equal(new[] { "8.5.1.123", "8.5.0.77" }, releases.Select(r => r.Version));
+        Assert.Equal("/version_files?nick=Platform85&ver=8.5.1.123", releases[0].VersionFilesUrl);
+    }
+
+    [Fact]
     public void ParseVersions_StandardTable_ReturnsAllVersionsSortedDescending()
     {
         var releases = OneCPlatformCatalogParser.ParseVersions(VersionsTableHtml);

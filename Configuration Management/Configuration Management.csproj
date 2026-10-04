@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.9.300</Version>
-    <AssemblyVersion>0.3.9.300</AssemblyVersion>
-    <FileVersion>0.3.9.300</FileVersion>
-    <InformationalVersion>0.3.9.300</InformationalVersion>
+    <Version>0.3.9.301</Version>
+    <AssemblyVersion>0.3.9.301</AssemblyVersion>
+    <FileVersion>0.3.9.301</FileVersion>
+    <InformationalVersion>0.3.9.301</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
