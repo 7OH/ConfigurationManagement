@@ -69,3 +69,10 @@ Configuration Management/Views/Configuration_Management_linux.code-workspace
 plans/\
 release-artifacts/  
 .gh_headers 
+
+# Publish build artifacts - do not commit
+publish/out-*/
+publish/*_linux-x64
+publish/*.log
+publish/_payload.json
+publish/_fetch_debug.txt

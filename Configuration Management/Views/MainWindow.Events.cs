@@ -618,15 +618,32 @@ namespace Configuration_Management
         /// </summary>
         private void OnInfobaseTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // issue #340: подавление «хвоста» клика, которым закрыли контекстное меню.
-            // Оригинальный MouseDown ушёл в попап меню (тот держал захват мыши) и закрыл
-            // его; выбор строки применяет отложенно TryApplyTreeClickAfterMenuClosed.
-            // Тот же клик WPF может повторно доставить в дерево после освобождения
-            // захвата — гасим его, чтобы он не «перевыбрал» другую строку или не попал
-            // в пустую область и не сбросил выделение. Обычные клики (без открытого
-            // меню) проходят штатно.
-            if (SuppressTreeMenuCloseClickTail(e))
-                return;
+            // issue #340 (новый подход): клик, которым закрыли контекстное меню, НЕ должен
+            // доходить до дерева как новое действие выбора — выбор уже применён однократно
+            // по данным реального MouseDown в TryApplyTreeClickAfterMenuClosed. Повторная
+            // доставка того же клика (WPF освобождает захват попапа меню асинхронно)
+            // распознаётся по времени + позиции (BatchSelectionHelper.IsSameClick) и
+            // гасится здесь БЕЗ изменения выделения. Снимок живёт до первого события мыши
+            // (MouseUp/следующий клик вне окна), поэтому двойной клик для запуска базы
+            // не блокируется.
+            var clickPos = e.GetPosition(MainTree);
+            if (_menuCloseClickSnapshot is { } menuCloseClick)
+            {
+                if (!BatchSelectionHelper.IsSameClick(
+                        menuCloseClick, "Left", DateTime.UtcNow, clickPos.X, clickPos.Y))
+                {
+                    // Снимок устарел (прошло больше допуска) или клик в другом месте —
+                    // это новое действие пользователя, обрабатываем штатно.
+                    _menuCloseClickSnapshot = null;
+                }
+                else
+                {
+                    _menuCloseClickSnapshot = null;
+                    _draggedData = null;
+                    e.Handled = true;
+                    return;
+                }
+            }
 
             // Payload DnD фиксируем здесь (не в MouseMove): иначе при сдвиге курсора
             // на дочернюю базу TreeViewItem под курсором меняется и «уезжает» не группа, а базы.
@@ -792,47 +809,14 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Гасит «хвост» клика, которым закрыли контекстное меню дерева (issue #340):
-        /// попап меню держал захват мыши, оригинальный MouseDown ушёл в него, а после
-        /// освобождения захвата WPF может повторно доставить тот же клик в дерево.
-        /// Повторная доставка (кнопка всё ещё нажата, окно подавления активно) гасится,
-        /// чтобы она не перебила выбор, применённый отложенно в
-        /// TryApplyTreeClickAfterMenuClosed. Возвращает true, если событие обработано
-        /// (подавлено) и дальнейшая обработка клика не нужна.
-        /// </summary>
-        private bool SuppressTreeMenuCloseClickTail(MouseButtonEventArgs e)
-        {
-            if (!_suppressTreeClickTail)
-                return false;
-            if (DateTime.UtcNow >= _suppressTreeClickTailUntilUtc)
-            {
-                _suppressTreeClickTail = false;
-                return false;
-            }
-            // Кнопка должна быть всё ещё нажата: отпускание завершает этот клик
-            // (обработчик PreviewMouseLeftButtonUp снимает подавление), и следующее
-            // нажатие — уже новое действие пользователя, его не гасим.
-            if (Mouse.LeftButton != MouseButtonState.Pressed)
-            {
-                _suppressTreeClickTail = false;
-                return false;
-            }
-            _suppressTreeClickTail = false;
-            _draggedData = null;
-            e.Handled = true;
-            return true;
-        }
-
-        /// <summary>
-        /// Первое отпускание левой кнопки завершает «хвост» клика, которым закрыли
-        /// контекстное меню дерева (issue #340). Подавление повторной доставки больше
-        /// не нужно: следующий MouseDown — уже новый клик пользователя и должен
-        /// обрабатываться штатно (в т.ч. двойной клик для запуска базы).
+        /// Первое отпускание левой кнопки завершает обработку клика, которым закрыли
+        /// контекстное меню дерева (issue #340). Снимок клика сбрасывается: следующий
+        /// MouseDown — уже новое действие пользователя и должен обрабатываться штатно
+        /// (в т.ч. двойной клик для запуска базы). Метод остаётся подписанным в XAML.
         /// </summary>
         private void OnInfobaseTree_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            _suppressTreeClickTail = false;
-            _suppressTreeClickTailUntilUtc = default;
+            _menuCloseClickSnapshot = null;
         }
 
         private void OnEnterpriseMenuClick(object sender, RoutedEventArgs e)

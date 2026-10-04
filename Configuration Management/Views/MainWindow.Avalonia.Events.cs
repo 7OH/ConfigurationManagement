@@ -1,11 +1,15 @@
 #if LINUX
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.Utilities;
+using Avalonia.VisualTree;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
 
 namespace Configuration_Management
@@ -47,6 +51,8 @@ namespace Configuration_Management
             // Шаблон дерева готов только после загрузки окна, раньше внутренней
             // прокрутки ещё нет.
             AttachVerticalScrollBar();
+            // Дедупликация клика, которым закрыли контекстное меню строки (issue #340).
+            AttachTreeMenuCloseClickDedup();
             // Масштаб строк списка (issue #303): применяем сохранённое значение и
             // включаем Ctrl+колесо над деревом — как в редакторах.
             _vm?.ApplyListZoom();
@@ -112,6 +118,74 @@ namespace Configuration_Management
 
         /// <summary>Максимальное время показа оверлея загрузки перед принудительным скрытием.</summary>
         private static readonly TimeSpan LoadingOverlayMaxDuration = TimeSpan.FromSeconds(30);
+
+        // ================= Клик, закрывший контекстное меню (issue #340) =================
+
+        /// <summary>
+        /// Снимок клика, которым закрыли контекстное меню строки (issue #340, Avalonia).
+        /// Тот же механизм, что в WPF: первичный клик запоминается (время, позиция),
+        /// а ПОВТОРНАЯ доставка того же PointerPressed в дерево (попап меню освобождает
+        /// перехват асинхронно) распознаётся по времени+позиции и гасится — строка не
+        /// «перевыбирается», выделение не пропадает «через мгновение».
+        /// </summary>
+        private BatchSelectionHelper.MenuCloseClickSnapshot? _menuCloseClickSnapshot;
+
+        /// <summary>
+        /// Подписывает дедупликацию клика, закрывшего контекстное меню строки (issue #340).
+        /// Туннельная фаза ОКНА срабатывает раньше обработчиков контрола LeveledTreeView,
+        /// поэтому повторную доставку можно погасить ДО применения выбора. Снимок живёт
+        /// до первого отпускания кнопки мыши (двойной клик для запуска базы не блокируется).
+        /// </summary>
+        private void AttachTreeMenuCloseClickDedup()
+        {
+            AddHandler(InputElement.PointerPressedEvent, OnTreeMenuCloseClickDedup_PointerPressed, RoutingStrategies.Tunnel);
+            AddHandler(InputElement.PointerReleasedEvent, OnTreeMenuCloseClickDedup_PointerReleased, RoutingStrategies.Tunnel);
+        }
+
+        private void OnTreeMenuCloseClickDedup_PointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (_tree is null || e.Source is not Visual source)
+                return;
+
+            var pos = e.GetPosition(_tree);
+
+            // Повторная доставка клика, которым закрыли контекстное меню: выбор уже применён
+            // штатным обработчиком контрола (OnRowPointerPressed) — гасим событие, чтобы
+            // «перевыбор» не сбросил выделение.
+            if (_menuCloseClickSnapshot is { } snapshot)
+            {
+                if (!BatchSelectionHelper.IsSameClick(snapshot, "Left", DateTime.UtcNow, pos.X, pos.Y))
+                {
+                    // Снимок устарел (прошло больше допуска) или клик в другом месте —
+                    // это новое действие пользователя, обрабатываем штатно.
+                    _menuCloseClickSnapshot = null;
+                }
+                else
+                {
+                    _menuCloseClickSnapshot = null;
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Первичный клик по строке базы при ОТКРЫТОМ контекстном меню: меню закрывается
+            // этим кликом, и его повторная доставка в дерево (после освобождения попапа)
+            // должна быть погашена выше. Запоминаем снимок; сам выбор строки применяет
+            // штатный обработчик контрола, когда событие дойдёт до него.
+            if (_tree.ContextMenu is { IsOpen: true } &&
+                source.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault()
+                    is { DataContext: Infobase or PinnedInfobaseItem } &&
+                e.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed)
+            {
+                _menuCloseClickSnapshot = new BatchSelectionHelper.MenuCloseClickSnapshot(
+                    "Left", DateTime.UtcNow, pos.X, pos.Y);
+            }
+        }
+
+        private void OnTreeMenuCloseClickDedup_PointerReleased(object? sender, PointerReleasedEventArgs e)
+        {
+            _menuCloseClickSnapshot = null;
+        }
 
         /// <summary>
         /// Запускает одноразовый таймер, который по истечении <see cref="LoadingOverlayMaxDuration"/>

@@ -786,10 +786,15 @@ namespace Configuration_Management
                     // Вариант 2 (#91): заранее предупреждаем, если выбранная версия платформы
                     // отличается (по major.minor) от версий, которыми уже работают
                     // клиент-серверные базы на этом же сервере. «Нет» — прерывает создание.
+                    // Адрес найденной базы — с портом (issue #305): предупреждение должно
+                    // указывать на конкретный сервер «server:port», а не на поле окна.
+                    var mismatchServerAddress = string.IsNullOrWhiteSpace(result.IncompatibleExistingServerAddress)
+                        ? request.Server
+                        : result.IncompatibleExistingServerAddress;
                     if (!_dialogs.Confirm(
                             string.Format(
                                 LocalizationManager.T("CreateInfobase.VersionMismatchMsg"),
-                                request.PlatformVersion, result.IncompatibleExistingVersion, request.Server),
+                                request.PlatformVersion, result.IncompatibleExistingVersion, mismatchServerAddress),
                             LocalizationManager.T("CreateInfobase.VersionMismatchTitle")))
                         return;
                     result = _createService.TryCreate(request, confirmVersionMismatch: true);

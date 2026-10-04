@@ -479,4 +479,60 @@ public sealed class BatchSelectionHelperTests
 
         Assert.Equal(BatchSelectionHelper.TreeMenuCloseClickAction.SelectTargetAndClearBatch, action);
     }
+
+    // ============ IsSameClick — дедупликация по времени+позиции (issue #340) ============
+
+    private static readonly DateTime T0 = new(2026, 10, 3, 12, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void IsSameClick_SameTimeAndPosition_ReturnsTrue()
+    {
+        // Повторная доставка того же клика (время и позиция совпадают) — это «хвост»
+        // клика, которым закрыли контекстное меню: его нужно подавить.
+        var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
+
+        Assert.True(BatchSelectionHelper.IsSameClick(snapshot, "Left", T0, 100, 200));
+    }
+
+    [Fact]
+    public void IsSameClick_SmallDriftWithinTolerance_ReturnsTrue()
+    {
+        // Смещение в пределах допуска (время до 300 мс, позиция до 12 px) — тот же клик:
+        // платформы доставляют координаты повторного события с небольшим дрейфом.
+        var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
+
+        Assert.True(BatchSelectionHelper.IsSameClick(
+            snapshot, "Left", T0.AddMilliseconds(250), 108, 208));
+    }
+
+    [Fact]
+    public void IsSameClick_LaterThanTolerance_ReturnsFalse()
+    {
+        // Прошло больше допуска — это НОВЫЙ клик пользователя (например, следующий
+        // после паузы или двойной клик для запуска базы): обрабатываем штатно.
+        var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
+
+        Assert.False(BatchSelectionHelper.IsSameClick(
+            snapshot, "Left", T0.AddMilliseconds(301), 100, 200));
+    }
+
+    [Fact]
+    public void IsSameClick_OtherPositionBeyondTolerance_ReturnsFalse()
+    {
+        // Клик по другой строке/области дерева — новое действие пользователя.
+        var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
+
+        Assert.False(BatchSelectionHelper.IsSameClick(
+            snapshot, "Left", T0.AddMilliseconds(50), 200, 200));
+    }
+
+    [Fact]
+    public void IsSameClick_OtherButton_ReturnsFalse()
+    {
+        // Правая кнопка не может быть повторной доставкой левого клика, закрывшего меню.
+        var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
+
+        Assert.False(BatchSelectionHelper.IsSameClick(
+            snapshot, "Right", T0, 100, 200));
+    }
 }

@@ -308,6 +308,94 @@ public sealed class RacOutputParserTests
         Assert.Equal(27541, cluster.Port);
     }
 
+    [Fact]
+    public void ToClusters_ParsesKeyValueBlocks()
+    {
+        // Реальный вывод из issue #324: новые версии rac отдают «cluster list»
+        // блоками «ключ : значение» с выравниванием пробелами и двоеточием
+        // (не таблицей). Парсер должен извлечь кластер из такого вывода.
+        const string output =
+            "cluster                                   : cbc95ef0-99c9-4b1a-909f-cff4c8de61d9\n" +
+            "host                                      : ALF\n" +
+            "port                                      : 27541\n" +
+            "name                                      : \"Локальный кластер\"\n";
+
+        var cluster = Assert.Single(RacOutputParser.ToClusters(output));
+
+        Assert.Equal(Guid.Parse("cbc95ef0-99c9-4b1a-909f-cff4c8de61d9"), cluster.Id);
+        Assert.Equal("Локальный кластер", cluster.Name);
+        Assert.Equal(27541, cluster.Port);
+    }
+
+    [Fact]
+    public void ToClusters_ParsesMultipleKeyValueBlocks()
+    {
+        // Несколько кластеров подряд — каждый блок начинается строкой «cluster : GUID».
+        const string output =
+            "cluster                                   : cbc95ef0-99c9-4b1a-909f-cff4c8de61d9\n" +
+            "host                                      : ALF\n" +
+            "port                                      : 27541\n" +
+            "name                                      : \"Локальный кластер\"\n" +
+            "cluster                                   : a3f1d2b4-1111-2222-3333-444455556666\n" +
+            "host                                      : ALF\n" +
+            "port                                      : 27542\n" +
+            "name                                      : \"Бухгалтерия предприятия\"\n";
+
+        var clusters = RacOutputParser.ToClusters(output);
+
+        Assert.Equal(2, clusters.Count);
+        Assert.Equal(Guid.Parse("cbc95ef0-99c9-4b1a-909f-cff4c8de61d9"), clusters[0].Id);
+        Assert.Equal("Локальный кластер", clusters[0].Name);
+        Assert.Equal(27541, clusters[0].Port);
+        Assert.Equal(Guid.Parse("a3f1d2b4-1111-2222-3333-444455556666"), clusters[1].Id);
+        Assert.Equal("Бухгалтерия предприятия", clusters[1].Name);
+        Assert.Equal(27542, clusters[1].Port);
+    }
+
+    [Fact]
+    public void ToClusters_KeyValueWithQuotedName()
+    {
+        // Имя кластера в кавычках (rac заключает значения с пробелами) — кавычки снимаются.
+        const string output =
+            "cluster : cbc95ef0-99c9-4b1a-909f-cff4c8de61d9\n" +
+            "name    : \"Узлы ЭДО (основной)\"\n" +
+            "port    : 2541\n";
+
+        var cluster = Assert.Single(RacOutputParser.ToClusters(output));
+
+        Assert.Equal("Узлы ЭДО (основной)", cluster.Name);
+        Assert.Equal(2541, cluster.Port);
+    }
+
+    [Fact]
+    public void ToClusters_TableFormatStillWorks()
+    {
+        // Регрессия: табличный формат (заголовок + строки данных) не должен ломаться
+        // при добавлении разбора key-value блоков.
+        const string output =
+            "cluster\tname\tport\n" +
+            "8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b\tЛокальный кластер\t1541\n";
+
+        var cluster = Assert.Single(RacOutputParser.ToClusters(output));
+
+        Assert.Equal(Guid.Parse("8b2f6f5e-6e3c-4c5a-8a9b-1c2d3e4f5a6b"), cluster.Id);
+        Assert.Equal("Локальный кластер", cluster.Name);
+        Assert.Equal(1541, cluster.Port);
+    }
+
+    [Fact]
+    public void ToClusters_KeyValueWithoutValidClusterMarker_ReturnsEmpty()
+    {
+        // Строка «cluster» без GUID-значения не считается маркером блока — вывод
+        // не должен превращаться в ложные кластеры.
+        const string output =
+            "cluster : не-guid\n" +
+            "name    : Мусор\n" +
+            "port    : 1541\n";
+
+        Assert.Empty(RacOutputParser.ToClusters(output));
+    }
+
     // ---------- ToProcesses ----------
 
     [Fact]

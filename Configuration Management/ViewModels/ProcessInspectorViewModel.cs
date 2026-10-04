@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
@@ -108,7 +109,14 @@ public sealed class ProcessInspectorViewModel : ViewModelBase, IDisposable
     {
         var row = SelectedRow;
         if (row is null)
+        {
+            // Подсказка вместо молчаливого возврата: без выделения завершать нечего,
+            // а молчание выглядело как поломка кнопки (issue #342).
+            _dialogs.ShowWarning(
+                LocalizationManager.T("ProcessInspector.SelectProcessHint"),
+                LocalizationManager.T("ProcessInspector.KillProcess"));
             return;
+        }
 
         if (!_dialogs.Confirm(
                 string.Format(LocalizationManager.T("ProcessInspector.KillConfirm"), row.Pid),
@@ -171,11 +179,19 @@ public sealed class ProcessInspectorViewModel : ViewModelBase, IDisposable
 
     private void ApplyRows(List<ProcessRowViewModel> rows)
     {
+        // Строки пересоздаются при каждом опросе, поэтому выделение сохраняется
+        // по идентификатору процесса (PID), а не по ссылке на старую строку.
+        // Если процесса с сохранённым PID в новом списке нет (процесс завершился) —
+        // выделение снимается (issue #342).
+        var selectedPid = SelectedRow?.Pid;
+
         Processes.Clear();
         foreach (var row in rows)
             Processes.Add(row);
 
-        SelectedRow = null;
+        SelectedRow = selectedPid is int pid
+            ? rows.FirstOrDefault(r => r.Pid == pid)
+            : null;
         SummaryText = Processes.Count == 0
             ? LocalizationManager.T("ProcessInspector.Empty")
             : string.Format(LocalizationManager.T("ProcessInspector.SummaryFormat"), Processes.Count);

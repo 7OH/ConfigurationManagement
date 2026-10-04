@@ -102,11 +102,9 @@ namespace Configuration_Management
             _scrollBarLinks.Add(scroll.GetObservable(ScrollViewer.LargeChangeProperty)
                 .Subscribe(new PropertyObserver<Size>(_ => Sync())));
 
-            // Горизонтальный extent внешней полосы зависит от желаемой ширины строк
-            // дерева: звёздная колонка «Название» занимает по содержимому больше
-            // расчётного минимума, и общая полоса должна дотягивать до неё, иначе
-            // последняя колонка недостижима (issue #309). Изменения Extent/Viewport
-            // внутренней прокрутки пересчитывают ширину контента; сравнение внутри
+            // Ширина контента внешней полосы считается по сумме видимых колонок
+            // и вьюпорту (SyncListWidthToViewport, issue #309): изменения Extent/Viewport
+            // внутренней прокрутки дерева пересчитывают её; сравнение внутри
             // SyncListWidthToViewport не даёт лишних присвоений при прокрутке.
             _scrollBarLinks.Add(scroll.GetObservable(ScrollViewer.ExtentProperty)
                 .Subscribe(new PropertyObserver<Size>(_ => SyncListWidthToViewport(scroll))));
@@ -177,8 +175,12 @@ namespace Configuration_Management
                 }
 
                 // Прокрутка возвращается последней: показываем прежнее место списка.
+                // Горизонталь восстанавливается только вертикалью: смена набора колонок
+                // (удаление/добавление) меняет ширину контента, и восстановление прежнего
+                // Offset.X уводило бы позицию вправо (регресс issue #309) — внутренняя
+                // горизонталь дерева всё равно не используется (её ведёт внешний контейнер).
                 if (_treeScrollOffset is { } offset && TreeScroll is { } scroll)
-                    scroll.Offset = offset;
+                    scroll.Offset = offset.WithX(0);
 
                 // Вернуть клавиатурный фокус строке после закрытия модального
                 // диалога (например, сохранения настроек базы): контейнер прежней

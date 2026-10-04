@@ -198,7 +198,14 @@ public static class RacOutputParser
 
     /// <summary>
     /// Разбирает вывод «cluster list» в список кластеров.
-    /// Колонки: cluster, name, port (лишние справа игнорируются).
+    /// Поддерживаются два формата вывода (issue #324):
+    /// <list type="bullet">
+    /// <item>таблица: строка заголовка + строки данных, колонки cluster, name, port
+    /// (разделитель \t или выравнивание пробелами; лишние колонки справа игнорируются);</item>
+    /// <item>блоки «ключ : значение» (новые версии rac): каждый кластер — блок строк
+    /// вида «cluster : GUID», «host : …», «port : …», «name : "…"».</item>
+    /// </list>
+    /// Если табличный разбор не дал ни одного кластера — пробуется формат key-value блоков.
     /// </summary>
     public static IReadOnlyList<RacCluster> ToClusters(string output)
     {
@@ -222,8 +229,83 @@ public static class RacOutputParser
             });
         }
 
+        if (clusters.Count == 0)
+        {
+            // Формат новых версий rac: «cluster list» выводится блоками «ключ : значение»
+            // вместо таблицы; блок начинается строкой «cluster : GUID» (issue #324).
+            foreach (var block in TryParseKeyValueBlocks(output, "cluster", IsGuid))
+            {
+                var id = ParseGuid(Get(block, "cluster"));
+                if (id == Guid.Empty)
+                    continue; // блок без валидного идентификатора — пропускаем
+
+                clusters.Add(new RacCluster
+                {
+                    Id = id,
+                    Name = Unquote(Get(block, "name")),
+                    Port = ParseInt(Get(block, "port"))
+                });
+            }
+        }
+
         return clusters;
     }
+
+    /// <summary>
+    /// Разбирает вывод rac в блоки «ключ : значение» (формат новых версий rac для list-команд).
+    /// Новый блок начинается со строки, где ключ равен <paramref name="blockStartKey"/> и значение
+    /// проходит проверку <paramref name="blockStartValuePredicate"/> (например, является GUID).
+    /// Внутри блока собираются пары «ключ → значение» (ключ обрезается; значения снимаются
+    /// с кавычек — см. <see cref="Unquote"/>). Возвращает пустой список, если блоков не найдено.
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyDictionary<string, string>> TryParseKeyValueBlocks(
+        string output,
+        string blockStartKey,
+        Func<string, bool>? blockStartValuePredicate = null)
+    {
+        var blocks = new List<IReadOnlyDictionary<string, string>>();
+        Dictionary<string, string>? current = null;
+
+        foreach (var rawLine in (output ?? string.Empty).Split('\n'))
+        {
+            var line = rawLine.TrimEnd('\r');
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            var colon = line.IndexOf(':');
+            if (colon <= 0)
+                continue;
+
+            var key = line.Substring(0, colon).Trim();
+            if (key.Length == 0)
+                continue;
+
+            var value = line.Substring(colon + 1).Trim();
+
+            // Строка «blockStartKey : value» начинает новый блок (и завершает текущий).
+            if (string.Equals(key, blockStartKey, StringComparison.OrdinalIgnoreCase) &&
+                (blockStartValuePredicate is null || blockStartValuePredicate(value)))
+            {
+                if (current is not null)
+                    blocks.Add(current);
+                current = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (current is null)
+                continue;
+
+            current[key] = value;
+        }
+
+        if (current is not null)
+            blocks.Add(current);
+
+        return blocks;
+    }
+
+    /// <summary>Признак того, что значение является корректным GUID (для маркера блока кластера).</summary>
+    private static bool IsGuid(string value) =>
+        Guid.TryParse(value.Trim(), out _);
 
     /// <summary>
     /// Разбирает вывод «process list» в список рабочих процессов (rphost/rmngr).

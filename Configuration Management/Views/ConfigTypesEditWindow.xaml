@@ -8,7 +8,7 @@
         Width="960" Height="600"
         MinHeight="460" MinWidth="760"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="CanResizeWithGrip"
+        ResizeMode="CanResize"
         FontFamily="Segoe UI"
         FontSize="13"
         ShowInTaskbar="False"
@@ -132,7 +132,14 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
+            <!-- Поле поиска с явными цветами (issue #321): штатная тема красила его
+                 системной «серой» кистью, и поле выглядело недоступным для ввода. -->
             <TextBox x:Name="SearchBox" Padding="10,6" VerticalContentAlignment="Center"
+                     Background="{DynamicResource CardBackgroundBrush}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     CaretBrush="{DynamicResource TextPrimaryBrush}"
+                     BorderBrush="{DynamicResource BorderBrushColor}"
+                     BorderThickness="1.5"
                      TextChanged="OnSearchTextChanged"
                      materialDesign:HintAssist.Hint="{loc:Loc Updates.SearchPlaceholder}"/>
             <Button Grid.Column="1" Margin="8,0,0,0" Height="32" Style="{StaticResource OutlineButtonStyle}"

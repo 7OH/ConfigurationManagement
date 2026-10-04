@@ -9,6 +9,68 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.300] — 2026-10-03
+
+### Исправлено
+
+- **Серверы 1С: парсер rac «cluster list» (issue #324)**: кластеры больше не теряются
+  на новых версиях rac, когда вывод команды `cluster list` приходит не таблицей,
+  а блоками «ключ : значение» с выравниванием пробелами и двоеточием: `ToClusters`
+  при пустом табличном разборе переключается на разбор блоков по повторяющемуся
+  ключу `cluster` (GUID) с извлечением `name`/`port`/`host`, значения снимаются
+  с кавычек; единый helper `TryParseKeyValueBlocks` устойчив к обеим версиям rac
+  ([`RacOutputParser.cs`](Configuration%20Management/Services/RacOutputParser.cs),
+  [`RacOutputParserTests.cs`](ConfigurationManagement.Tests/RacOutputParserTests.cs)).
+
+- **Инспектор процессов (issue #342)**: выделение строки сохраняется при
+  автообновлении списка (раз в 5 секунд): перед перезаполнением запоминается PID
+  выбранного процесса, после — строка с тем же PID восстанавливается (строки
+  пересоздаются при каждом опросе, сравнение по идентификатору, а не по ссылке);
+  если процесс завершился — выделение снимается; «Завершить процесс» без
+  выделенной строки показывает подсказку «Выберите процесс из списка» вместо
+  молчаливого возврата
+  ([`ProcessInspectorViewModel.cs`](Configuration%20Management/ViewModels/ProcessInspectorViewModel.cs),
+  [`ProcessInspectorSelectionTests.cs`](ConfigurationManagement.Tests/ProcessInspectorSelectionTests.cs)).
+
+- **Создание серверной базы (issue #305)**: сравнение серверов учитывает порт
+  (`localhost:1541` и `localhost:1545` — разные серверы; если порт не задан хотя бы
+  у одной стороны — fallback «равны»), в предупреждении о различии версий платформы
+  выводится полный адрес найденной базы с портом («базы на сервере localhost:1541
+  работают с версией …»); цепочка сохранения/восстановления «Сервера СУБД» при
+  повторном открытии окна создания восстановлена
+  ([`CreateInfobaseService.cs`](Configuration%20Management/Services/CreateInfobaseService.cs),
+  [`CreateInfobaseWindow.xaml.cs`](Configuration%20Management/Views/CreateInfobaseWindow.xaml.cs),
+  [`CreateInfobaseDbServerStringTests.cs`](ConfigurationManagement.Tests/CreateInfobaseDbServerStringTests.cs)).
+
+- **Горизонтальный скрол (issue #309)**: ширина прокручиваемой области считается
+  строго по сумме видимых колонок (`max(total, viewport)` без «хвоста» от extent) —
+  справа от последней колонки больше нет пустого места; `EnsureHorizontalReach`
+  не докручивает полосу вправо при старте и после удаления колонки, горизонтальная
+  позиция сохраняется при смене набора колонок
+  ([`MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs),
+  [`MainWindow.Scroll.cs`](Configuration%20Management/Views/MainWindow.Scroll.cs),
+  [`ListMinWidthCalculator.cs`](Configuration%20Management/Views/ListMinWidthCalculator.cs),
+  [`ListMinWidthCalculatorTests.cs`](ConfigurationManagement.Tests/ListMinWidthCalculatorTests.cs)).
+
+- **Окно «Типовые конфигурации» (issue #321)**: окно правки редакции стало выше —
+  поле URL видно без прокрутки; поля формы и окно поиска больше не выглядят
+  «серыми»/недоступными; главному окну списка добавлена стандартная кнопка
+  максимизации
+  ([`EditionEditWindow.xaml`](Configuration%20Management/Views/EditionEditWindow.xaml),
+  [`EditionEditWindow.Avalonia.cs`](Configuration%20Management/Views/EditionEditWindow.Avalonia.cs),
+  [`ConfigTypesEditWindow.xaml`](Configuration%20Management/Views/ConfigTypesEditWindow.xaml)).
+
+- **Снятие выделения после мультивыделения (issue #340)**: новый механизм
+  подавления повторного клика — клик, которым закрыли контекстное меню,
+  дедуплицируется по данным события (время + позиция, helper `IsSameClick`
+  с допуском по времени и координатам) и не доходит до дерева как новое действие
+  выбора; выбор строки применяется однократно по данным реального `MouseDown` —
+  строка остаётся активной, выделение не пропадает «через мгновение»
+  ([`BatchSelectionHelper.cs`](Configuration%20Management/Services/BatchSelectionHelper.cs),
+  [`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs),
+  [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs)).
+
 ## [0.3.9.299] — 2026-10-03
 
 ### Исправлено

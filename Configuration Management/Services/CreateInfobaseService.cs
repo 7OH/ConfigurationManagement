@@ -82,13 +82,16 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             // Вариант 2 (#91): заранее предупреждаем, если выбранная версия платформы
             // отличается (по major.minor) от версий, которыми уже работают
             // клиент-серверные базы на этом же сервере. «Нет» — прерывает создание.
-            var existingVersion = GetIncompatibleExistingVersion(platform, server);
-            if (existingVersion != null && !confirmVersionMismatch)
+            var existing = GetIncompatibleExistingVersion(platform, server);
+            if (existing is not null && !confirmVersionMismatch)
             {
                 return new CreateInfobaseResult
                 {
                     Kind = CreateInfobaseResultKind.VersionMismatch,
-                    IncompatibleExistingVersion = existingVersion
+                    IncompatibleExistingVersion = existing.Value.Version,
+                    // Полный адрес найденной базы (сервер + порт) — для текста
+                    // предупреждения (issue #305): «базы на сервере localhost:1541…».
+                    IncompatibleExistingServerAddress = existing.Value.ServerAddress
                 };
             }
 
@@ -262,12 +265,12 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
     /// <summary>
     /// Эвристика Варианта 2 (#91): ищет среди уже существующих клиент-серверных баз на том же
     /// сервере базу, версия платформы которой отличается от выбранной по первым двум числам
-    /// (major.minor). Возвращает версию такой базы или null, если расхождений нет.
-    /// Ошибки чтения списка баз не блокируют создание — возвращаем null.
+    /// (major.minor). Возвращает версию такой базы и её полный адрес (сервер + порт) или null,
+    /// если расхождений нет. Ошибки чтения списка баз не блокируют создание — возвращаем null.
     /// Версия определяется по ЛОКАЛЬНОМУ списку баз приложения (не с сервера): «версия на
     /// сервере» — это версии баз из вашего списка на том же сервере (issue #305).
     /// </summary>
-    private string? GetIncompatibleExistingVersion(string platform, string server)
+    private (string Version, string ServerAddress)? GetIncompatibleExistingVersion(string platform, string server)
     {
         var (selectedMajor, selectedMinor) = GetMajorMinor(platform);
 
@@ -286,8 +289,9 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
             var conn = ib.Connection;
             if (conn == null || conn.Type != ConnectionType.ClientServer)
                 continue;
-            // Сравнение серверов устойчивое (issue #305): порт («srv:1541») и регистр
-            // не мешают — база в списке может быть задана с портом, а поле окна без него.
+            // Сравнение серверов устойчивое (issue #305): если у базы и поля окна порт задан
+            // и различается — это РАЗНЫЕ серверы (кластеры на одном хосте); если порт не задан
+            // хотя бы у одной стороны — считаем серверы равными (fallback).
             if (!SameServer(conn.Server, server))
                 continue;
             if (string.IsNullOrWhiteSpace(ib.PlatformVersion))
@@ -295,31 +299,36 @@ public sealed class CreateInfobaseService : ICreateInfobaseService
 
             var (major, minor) = GetMajorMinor(ib.PlatformVersion);
             if (major != selectedMajor || minor != selectedMinor)
-                return ib.PlatformVersion;
+                return (ib.PlatformVersion, Format1CServer(conn.Server, conn.Port));
         }
 
         return null;
     }
 
     /// <summary>
-    /// Сравнивает два адреса сервера 1С без учёта порта и регистра (issue #305):
-    /// «localhost:1541» ≡ «localhost», «SRV» ≡ «srv». Внутренний — для юнит-тестов.
+    /// Сравнивает два адреса сервера 1С с учётом порта (issue #305):
+    /// <list type="bullet">
+    /// <item>порт явно задан у обеих сторон и различается → серверы НЕ равны
+    /// («localhost:1541» ≠ «localhost:1545» — это разные кластеры на одном хосте);</item>
+    /// <item>порт не задан хотя бы у одной стороны → равны («localhost» ≡ «localhost:1541»);</item>
+    /// <item>регистр имени сервера не учитывается («SRV» ≡ «srv»).</item>
+    /// </list>
+    /// Внутренний — для юнит-тестов.
     /// </summary>
     internal static bool SameServer(string? a, string? b)
     {
-        var na = NormalizeServerHost(a);
-        var nb = NormalizeServerHost(b);
-        return na.Length > 0 && string.Equals(na, nb, StringComparison.OrdinalIgnoreCase);
-    }
+        ParseServerPort(a, out var hostA, out var portA);
+        ParseServerPort(b, out var hostB, out var portB);
+        if (hostA.Length == 0 ||
+            !string.Equals(hostA, hostB, StringComparison.OrdinalIgnoreCase))
+            return false;
 
-    /// <summary>Снимает порт с адреса сервера («srv:1541» → «srv»); без порта — как есть.</summary>
-    private static string NormalizeServerHost(string? server)
-    {
-        var s = (server ?? string.Empty).Trim();
-        var colon = s.LastIndexOf(':');
-        if (colon > 0 && colon < s.Length - 1 && int.TryParse(s[(colon + 1)..], out _))
-            return s[..colon].Trim();
-        return s;
+        // Порт явно задан у обеих сторон: он обязан совпадать, иначе это разные серверы.
+        if (portA > 0 && portB > 0)
+            return portA == portB;
+
+        // Порт не задан хотя бы у одной стороны — считаем серверы равными (fallback).
+        return true;
     }
 
     /// <summary>

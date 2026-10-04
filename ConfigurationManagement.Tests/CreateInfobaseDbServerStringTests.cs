@@ -325,14 +325,48 @@ public sealed class CreateInfobaseDbServerStringTests
     }
 
     [Theory]
-    [InlineData("localhost:1541", "localhost", true)]   // порт не мешает
+    [InlineData("localhost", "localhost:1541", true)]   // порт не задан у одной стороны → равны
+    [InlineData("localhost:1541", "localhost", true)]   // симметрично
     [InlineData("SRV", "srv", true)]                    // регистр не мешает
     [InlineData("server1", "server2", false)]
     [InlineData("127.0.0.1", "localhost", false)]       // разные хосты
-    public void SameServer_IgnoresPortAndCase(string a, string b, bool expected)
+    public void SameServer_WithPorts_EqualWhenNoPortSpecified(string a, string b, bool expected)
     {
         // issue #305: эвристика предупреждения о версии сравнивает серверы из списка баз
         // и поля окна; база может быть задана с портом, поле — без него.
         Assert.Equal(expected, CreateInfobaseService.SameServer(a, b));
+    }
+
+    [Theory]
+    [InlineData("localhost:1541", "localhost:1545")]    // разные порты — разные кластеры
+    [InlineData("srv1c:1541", "srv1c:2541")]
+    public void SameServer_WithDifferentPorts_NotEqual(string a, string b)
+    {
+        // Порт явно задан у обеих сторон и отличается — серверы НЕ равны
+        // (на одном хосте могут работать несколько кластеров 1С, issue #305).
+        Assert.False(CreateInfobaseService.SameServer(a, b));
+    }
+
+    [Fact]
+    public void SameServer_WithSamePort_Equal()
+    {
+        Assert.True(CreateInfobaseService.SameServer("localhost:1541", "localhost:1541"));
+        Assert.True(CreateInfobaseService.SameServer("SRV1C:1541", "srv1c:1541"));
+    }
+
+    [Fact]
+    public void SameServer_NonNumericSuffix_TreatsWholeAsServer()
+    {
+        // «server:prod» не разбирается как сервер+порт — адрес сравнивается целиком.
+        Assert.True(CreateInfobaseService.SameServer("srv1c:prod", "srv1c:prod"));
+        Assert.False(CreateInfobaseService.SameServer("srv1c:prod", "srv1c"));
+    }
+
+    [Fact]
+    public void SameServer_EmptyServer_ReturnsFalse()
+    {
+        Assert.False(CreateInfobaseService.SameServer(string.Empty, "localhost"));
+        Assert.False(CreateInfobaseService.SameServer(null, "localhost"));
+        Assert.False(CreateInfobaseService.SameServer("", ""));
     }
 }

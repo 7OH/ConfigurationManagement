@@ -1766,6 +1766,7 @@
     "ProcessInspector.KillConfirm": "Завершить процесс {0}?\n\nНесохранённые данные в открытых сеансах 1С будут потеряны.\nПродолжить?",
     "ProcessInspector.KillFailedFormat": "Не удалось завершить процесс {0}: нет прав либо процесс уже завершён.",
     "ProcessInspector.KillFailedDetailFormat": "Не удалось завершить процесс {0}. {1}\n\nВероятно, процесс запущен от имени другого пользователя или с повышенными правами — запустите приложение от имени администратора.",
+    "ProcessInspector.SelectProcessHint": "Выберите процесс из списка.",
     "ProcessInspector.Empty": "Процессы платформы 1С не найдены.",
     "ProcessInspector.SummaryFormat": "Всего процессов: {0}",
     "ProcessInspector.UnknownBase": "Неизвестная база",

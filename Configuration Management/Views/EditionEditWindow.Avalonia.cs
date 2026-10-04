@@ -22,10 +22,12 @@ namespace Configuration_Management
     public sealed class EditionEditWindow : ModalWindowBase
     {
         private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
-        private readonly TextBox _nameBox = new() { Height = 32, VerticalContentAlignment = VerticalAlignment.Center };
-        private readonly TextBox _redBox = new() { Height = 32, VerticalContentAlignment = VerticalAlignment.Center };
-        private readonly TextBox _subRedBox = new() { Height = 32, VerticalContentAlignment = VerticalAlignment.Center };
-        private readonly TextBox _urlOverrideBox = new() { Height = 32, VerticalContentAlignment = VerticalAlignment.Center };
+        // Поля со стилем ModernTextBox (как в ConfigTypeEditWindow): без явного стиля поля
+        // выглядят «серыми»/недоступными (issue #321).
+        private readonly TextBox _nameBox = MakeTextBox();
+        private readonly TextBox _redBox = MakeTextBox();
+        private readonly TextBox _subRedBox = MakeTextBox();
+        private readonly TextBox _urlOverrideBox = MakeTextBox();
 
         /// <summary>Готовая редакция при подтверждении, иначе <c>null</c>.</summary>
         public OneCConfigEdition? Result { get; private set; }
@@ -37,9 +39,10 @@ namespace Configuration_Management
 
             Title = T(isNew ? "Updates.AddEdition" : "Updates.EditEdition");
             Width = 520;
-            Height = 360;
+            // Выше (issue #321): поле URL (UrlOverrideBox) было не видно при Height=360.
+            Height = 520;
             MinWidth = 460;
-            MinHeight = 320;
+            MinHeight = 470;
             FontSize = 13;
             CanResize = true;
 
@@ -153,6 +156,18 @@ namespace Configuration_Management
         {
             DialogResult = false;
             Close();
+        }
+
+        /// <summary>Поле ввода формы (стиль ModernTextBox — как в окне конфигурации, issue #321).</summary>
+        private static TextBox MakeTextBox()
+        {
+            var tb = new TextBox
+            {
+                Height = 32,
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            tb.Styled(ControlThemes.ModernTextBox);
+            return tb;
         }
     }
 }

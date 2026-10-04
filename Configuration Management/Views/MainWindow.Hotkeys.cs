@@ -681,21 +681,14 @@ namespace Configuration_Management
         private readonly HashSet<ContextMenu> _openContextMenus = new();
 
         /// <summary>
-        /// Подавление «хвоста» клика, которым закрыли контекстное меню дерева (issue #340).
-        /// Попап меню держал захват мыши: оригинальный MouseDown ушёл в попап, а выбор
-        /// строки применяет отложенно TryApplyTreeClickAfterMenuClosed. После освобождения
-        /// захвата WPF может повторно доставить тот же клик в дерево — до первого
-        /// отпускания кнопки (<see cref="OnInfobaseTree_PreviewMouseLeftButtonUp"/>) он
-        /// считается частью того же физического нажатия и гасится в
-        /// OnInfobaseTree_PreviewMouseLeftButtonDown.
+        /// Снимок клика, которым закрыли контекстное меню дерева (issue #340, новый подход).
+        /// Записывается в момент закрытия меню (клик по строке, левая кнопка нажата);
+        /// повторная доставка того же MouseDown в дерево (WPF освобождает захват попапа
+        /// асинхронно) распознаётся по времени и позиции в
+        /// OnInfobaseTree_PreviewMouseLeftButtonDown и гасится без изменения выделения.
+        /// Сбрасывается при первом же событии мыши после закрытия меню.
         /// </summary>
-        private bool _suppressTreeClickTail;
-
-        /// <summary>Крайний срок подавления «хвоста» клика после закрытия меню (issue #340).</summary>
-        private DateTime _suppressTreeClickTailUntilUtc;
-
-        /// <summary>Окно подавления «хвоста» клика после закрытия контекстного меню (issue #340), мс.</summary>
-        private const int TreeMenuCloseClickTailSuppressionMs = 500;
+        private BatchSelectionHelper.MenuCloseClickSnapshot? _menuCloseClickSnapshot;
 
         private void OnContextMenuOpened(object sender, RoutedEventArgs e)
         {
@@ -717,20 +710,20 @@ namespace Configuration_Management
 
         /// <summary>
         /// Применяет клик по строке дерева, которым пользователь закрыл контекстное меню
-        /// (issue #340). Пока меню открыто, WPF держит захват мыши в попапе: событие клика
-        /// по строке уходит в попап и только закрывает меню — ни выбор строки, ни снятие
-        /// мультивыделения (OnInfobaseTree_PreviewMouseLeftButtonDown) при этом не
-        /// выполняются. Здесь, после фактического закрытия меню, определяем строку под
-        /// курсором и отложенно повторяем обычную логику клика.
+        /// (issue #340, новый подход). Пока меню открыто, WPF держит захват мыши в попапе:
+        /// событие клика по строке уходит в попап и только закрывает меню — ни выбор
+        /// строки, ни снятие мультивыделения (OnInfobaseTree_PreviewMouseLeftButtonDown)
+        /// при этом не выполняются. Здесь, после фактического закрытия меню, определяем
+        /// строку под курсором и применяем выбор ОДНОКРАТНО по данным этого клика.
         /// <para>
-        /// Повторное применение клика применялось ДВАЖДЫ (регресс фикса 0.3.9.277): сначала
-        /// штатной обработкой «хвоста» того же клика, затем отложенным применением — и
-        /// «перевыбор» ломал выделение (строка выбиралась, но «через мгновение» текущая
-        /// строка пропадала). Поэтому решение принимается по состоянию МОДЕЛИ
-        /// (<see cref="MainViewModel.SelectedInfobase"/>), а не контейнера (контейнеры
-        /// переиспользуются виртуализацией), и применяется только то, чего штатный путь
-        /// ещё не сделал. Хвост того же клика дополнительно гасится в
-        /// OnInfobaseTree_PreviewMouseLeftButtonDown, чтобы он не перебил выбор.
+        /// Три прежних попытки (0.3.9.277/291/299) применяли выбор отложенно И гасили
+        /// повторную доставку флагом — выделение всё равно пропадало «через мгновение».
+        /// Новый механизм: клик запоминается СНИМКОМ (кнопка, время, позиция), а его
+        /// повторная доставка в дерево распознаётся по времени+позиции в
+        /// OnInfobaseTree_PreviewMouseLeftButtonDown и гасится БЕЗ изменения выделения —
+        /// строка не перевыбирается, текущее выделение не трогается. Решение о применении
+        /// принимается по состоянию МОДЕЛИ (<see cref="MainViewModel.SelectedInfobase"/>),
+        /// а не контейнера (контейнеры переиспользуются виртуализацией).
         /// </para>
         /// </summary>
         private void TryApplyTreeClickAfterMenuClosed(ContextMenu menu)
@@ -760,11 +753,11 @@ namespace Configuration_Management
             if (infobase is null || infobase.Id is not { Length: > 0 })
                 return;
 
-            // Захват мыши попапом освобождается асинхронно — применяем выбор отложенно,
-            // чтобы не наложиться на остатки событий закрытия меню. До первого отпускания
-            // кнопки хвост того же клика подавляется в OnInfobaseTree_PreviewMouseLeftButtonDown.
-            _suppressTreeClickTail = true;
-            _suppressTreeClickTailUntilUtc = DateTime.UtcNow.AddMilliseconds(TreeMenuCloseClickTailSuppressionMs);
+            // Запоминаем клик, которым закрыли меню: повторная доставка того же MouseDown
+            // в дерево (захват попапа освобождается асинхронно) будет опознана по времени
+            // и позиции и погашена — без подавления флагом (issue #340).
+            _menuCloseClickSnapshot = new BatchSelectionHelper.MenuCloseClickSnapshot(
+                "Left", DateTime.UtcNow, pos.X, pos.Y);
 
             var clickedContainer = treeViewItem;
             var target = infobase;

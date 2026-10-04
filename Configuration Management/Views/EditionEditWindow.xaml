@@ -4,8 +4,8 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:loc="clr-namespace:Configuration_Management.Localization"
         Icon="{StaticResource AppIcon}"
-        Width="520" Height="360"
-        MinWidth="460" MinHeight="330"
+        Width="520" Height="520"
+        MinWidth="460" MinHeight="470"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
         FontFamily="Segoe UI"
@@ -16,6 +16,20 @@
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
+        <!-- Поля формы не должны выглядеть «серыми»/недоступными (issue #321): явно
+             задаём карточный фон, основной цвет текста и контур — штатная тема
+             MaterialDesign может красить поля системными кистями, выглядящими как disabled. -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
 
         <!-- Основная зелёная кнопка -->

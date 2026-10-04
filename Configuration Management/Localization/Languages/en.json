@@ -1766,6 +1766,7 @@
     "ProcessInspector.KillConfirm": "Terminate process {0}?\n\nUnsaved data in open 1C sessions will be lost.\nContinue?",
     "ProcessInspector.KillFailedFormat": "Could not terminate process {0}: no rights or the process has already exited.",
     "ProcessInspector.KillFailedDetailFormat": "Could not terminate process {0}. {1}\n\nThe process may be running as another user or with elevated privileges — run the application as administrator.",
+    "ProcessInspector.SelectProcessHint": "Select a process from the list.",
     "ProcessInspector.Empty": "No 1C platform processes found.",
     "ProcessInspector.SummaryFormat": "Total processes: {0}",
     "ProcessInspector.UnknownBase": "Unknown infobase",

@@ -166,58 +166,42 @@ public sealed class ListMinWidthCalculatorTests
     }
 
     /// <summary>
-    /// Сценарий issue #309 (повторный регресс 0.3.9.156): фактическая желаемая ширина
-    /// строки (длинное название базы в горизонтальном StackPanel) больше суммы ширин
-    /// колонок — минимум обязан дотягивать до реального контента, иначе при прокрутке
-    /// «до конца» последняя колонка остаётся лишь частично видимой.
+    /// Регресс issue #309 («пустой хвост» справа от колонок): прокручиваемая область
+    /// равна сумме видимых колонок БЕЗ лишнего слагаемого от фактической желаемой
+    /// ширины строк (замер контента). Расчётная сумма не зависит от ширины контента —
+    /// последняя колонка достижима ровно на границе суммы.
     /// </summary>
     [Fact]
-    public void Compute_ContentWiderThanColumns_UsesContentWidth()
+    public void Compute_ColumnSum_NoContentTail()
     {
         var leading = new[] { C(24), C(26) };
         var values = new[] { C(120), C(80) };
 
-        // Сумма колонок: 220 + 50 + 200 = 470, а строка хочет 640 (длинное имя базы).
-        var total = ListMinWidthCalculator.Compute(220, 220, leading, 0, values, actualContentWidth: 640);
+        // Сумма колонок 470: минимум равен ей точно, даже если гипотетический контент
+        // строк (длинное имя базы) шире — «хвост» в сумму не добавляется (issue #309).
+        var total = ListMinWidthCalculator.Compute(220, 220, leading, 0, values);
 
-        Assert.Equal(640, total);
-        Assert.True(total > 470, "Минимум должен быть не меньше фактической ширины строки.");
+        Assert.Equal(470, total);
     }
 
     /// <summary>
-    /// Анти-регресс issue #255 (ложная полоса при помещающихся колонках): фактическая
-    /// ширина строк НЕ увеличивает минимум, когда сумма колонок уже покрывает контент.
-    /// Полоса появляется только когда контент реально шире области.
+    /// Регресс issue #309: сумма колонок считается строго по видимым колонкам —
+    /// скрытая колонка (ширина 0) и выключенная (Visible=false) места не занимают,
+    /// и «хвост» от них в сумму не попадает.
     /// </summary>
     [Fact]
-    public void Compute_ContentNarrowerThanColumns_KeepsColumnSum()
+    public void Compute_HiddenColumn_DoesNotAddToSum()
     {
         var leading = new[] { C(24), C(26) };
-        var values = new[] { C(120), C(80) };
+        // Последняя колонка скрыта: её ширина 130 не должна попасть в сумму.
+        var values = new[]
+        {
+            C(120), C(80), C(0), C(130, visible: false)
+        };
 
-        // Сумма колонок 470, строка хочет меньше (400) — минимум остаётся по сумме.
-        var total = ListMinWidthCalculator.Compute(220, 220, leading, 0, values, actualContentWidth: 400);
+        var total = ListMinWidthCalculator.Compute(220, 220, leading, 0, values);
 
-        Assert.Equal(470, total);
-
-        // И сумма, и контент помещаются во вьюпорт — полосы быть не должно.
-        const double viewport = 600;
-        Assert.True(total <= viewport, "Минимум не должен превышать вьюпорт — ложной полосы нет.");
-    }
-
-    /// <summary>
-    /// Нулевая фактическая ширина (строки ещё не материализованы) не меняет расчёт —
-    /// минимум остаётся по сумме колонок с первого прохода раскладки (issue #309).
-    /// </summary>
-    [Fact]
-    public void Compute_NoContentYet_KeepsColumnSum()
-    {
-        var leading = new[] { C(24), C(26) };
-        var values = new[] { C(120), C(80) };
-
-        var total = ListMinWidthCalculator.Compute(220, 220, leading, 0, values, actualContentWidth: 0);
-
-        Assert.Equal(470, total);
+        Assert.Equal(220 + 50 + 200, total);
     }
 
     /// <summary>

@@ -55,6 +55,13 @@ public sealed class CreateInfobaseResult
     /// </summary>
     public string? IncompatibleExistingVersion { get; set; }
 
+    /// <summary>
+    /// Полный адрес (сервер + порт) существующей несовместимой базы при
+    /// <see cref="CreateInfobaseResultKind.VersionMismatch"/> — для текста предупреждения
+    /// «базы на сервере localhost:1541…» (issue #305).
+    /// </summary>
+    public string? IncompatibleExistingServerAddress { get; set; }
+
     /// <summary>Созданная ИБ при <see cref="CreateInfobaseResultKind.Success"/>.</summary>
     public Infobase? CreatedInfobase { get; set; }
 }

@@ -1,3 +1,4 @@
+using System;
 using Configuration_Management.Models;
 using Configuration_Management.ViewModels;
 
@@ -210,6 +211,42 @@ public static class BatchSelectionHelper
                 ? TreeMenuCloseClickAction.ClearBatchOnly
                 : TreeMenuCloseClickAction.None;
         return TreeMenuCloseClickAction.SelectTargetAndClearBatch;
+    }
+
+    /// <summary>
+    /// Снимок клика, которым закрыли контекстное меню дерева (issue #340, новый подход):
+    /// кнопка, метка времени MouseDown (UTC) и координаты в дереве. Клик запоминается
+    /// в момент закрытия меню, а его ПОВТОРНАЯ доставка в дерево (WPF/Avalonia
+    /// освобождают захват попапа меню асинхронно) распознаётся по времени и позиции —
+    /// без подавления по флагу, которое не срабатывало в трёх прежних попытках.
+    /// </summary>
+    public readonly record struct MenuCloseClickSnapshot(
+        string Button,
+        DateTime TimestampUtc,
+        double X,
+        double Y);
+
+    /// <summary>
+    /// Является ли событие повторной доставкой клика, которым закрыли контекстное меню
+    /// (issue #340): кнопка совпадает, время в пределах допуска (мс), позиция — в пределах
+    /// окрестности (px). Дедупликация по данным события, а не по флагу подавления:
+    /// отложенный повтор «через мгновение» с другими координатами считается новым
+    /// действием пользователя и обрабатывается штатно.
+    /// </summary>
+    public static bool IsSameClick(
+        MenuCloseClickSnapshot snapshot,
+        string button,
+        DateTime timestampUtc,
+        double x,
+        double y,
+        int toleranceMs = 300,
+        double tolerancePx = 12)
+    {
+        if (!string.Equals(snapshot.Button, button, StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (Math.Abs((snapshot.TimestampUtc - timestampUtc).TotalMilliseconds) > toleranceMs)
+            return false;
+        return Math.Abs(snapshot.X - x) <= tolerancePx && Math.Abs(snapshot.Y - y) <= tolerancePx;
     }
 
     private static int IndexOf(IReadOnlyList<string> list, string value)
