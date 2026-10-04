@@ -618,32 +618,33 @@ namespace Configuration_Management
         /// </summary>
         private void OnInfobaseTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // issue #340 (новый подход): клик, которым закрыли контекстное меню, НЕ должен
-            // доходить до дерева как новое действие выбора — выбор уже применён однократно
-            // по данным реального MouseDown в TryApplyTreeClickAfterMenuClosed. Повторная
-            // доставка того же клика (WPF освобождает захват попапа меню асинхронно)
-            // распознаётся по времени + позиции (BatchSelectionHelper.IsSameClick) и
-            // гасится здесь БЕЗ изменения выделения. Снимок живёт до первого события мыши
-            // (MouseUp/следующий клик вне окна), поэтому двойной клик для запуска базы
-            // не блокируется.
+            // issue #340 (новая стратегия): клик, которым закрыли контекстное меню, после
+            // освобождения захвата попапа WPF повторно доставляет в дерево «хвост» того же
+            // MouseDown. Это ШТАТНЫЙ путь выбора строки (клик по ЖИВОМУ контейнеру под
+            // Recycling) — гасить его НЕЛЬЗЯ: в пяти прежних попытках (0.3.9.277/291/299/
+            // 300/302) гашение оставляло только нестабильное «применение в Closed», и
+            // выделение пропадало «через мгновение». Здесь повторная доставка распознаётся
+            // снимком и обрабатывается ШТАТНО ниже (обычный клик — ClearBatchSelection +
+            // ApplySelection; Ctrl/Shift — ToggleBatchSelection/SelectRange), а флаг
+            // _menuClosePendingApply снимается — fallback больше не нужен. Снимок живёт до
+            // первого события мыши (MouseUp/следующий клик вне окна), поэтому двойной клик
+            // для запуска базы не блокируется.
             var clickPos = e.GetPosition(MainTree);
+            var isMenuCloseRedelivery = false;
             if (_menuCloseClickSnapshot is { } menuCloseClick)
             {
                 // Время — едиными часами Environment.TickCount (той же шкалой записан
                 // снимок в TryApplyTreeClickAfterMenuClosed, issue #340).
-                if (!BatchSelectionHelper.IsSameClick(
-                        menuCloseClick, "Left", Environment.TickCount, clickPos.X, clickPos.Y))
+                isMenuCloseRedelivery = BatchSelectionHelper.IsSameClick(
+                    menuCloseClick, "Left", Environment.TickCount, clickPos.X, clickPos.Y);
+                _menuCloseClickSnapshot = null;
+                if (isMenuCloseRedelivery)
                 {
-                    // Снимок устарел (прошло больше допуска) или клик в другом месте —
-                    // это новое действие пользователя, обрабатываем штатно.
-                    _menuCloseClickSnapshot = null;
-                }
-                else
-                {
-                    _menuCloseClickSnapshot = null;
-                    _draggedData = null;
-                    e.Handled = true;
-                    return;
+                    // Повторная доставка того же клика: выбор применит штатная ветка ниже,
+                    // fallback отменяется.
+                    _menuClosePendingApply = false;
+                    _menuCloseTarget = null;
+                    _menuCloseTargetIsPinnedSection = false;
                 }
             }
 
@@ -758,6 +759,14 @@ namespace Configuration_Management
                     _draggedData = infobase;
                     _viewModel.ClearBatchSelection();
                     ApplySelection(treeViewItem, infobase);
+
+                    // issue #340 (новая стратегия): клик, которым закрыли контекстное меню,
+                    // после штатного применения выбора дополнительно «стабилизируется» —
+                    // короткая подписка на LayoutUpdated чинит последствия переработки
+                    // контейнеров (VirtualizingStackPanel Recycling), из-за которых IsSelected
+                    // «уезжал» и выделение пропадало «через мгновение».
+                    if (isMenuCloseRedelivery)
+                        EnsureSelectionStable(infobase, isPinnedSection);
                     break;
                 }
                 case GroupNodeViewModel groupNode when groupNode.Group is not null:
@@ -818,6 +827,11 @@ namespace Configuration_Management
         /// </summary>
         private void OnInfobaseTree_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            // Снимок сбрасывается: следующий MouseDown — уже новое действие пользователя.
+            // Флаг _menuClosePendingApply намеренно НЕ трогаем: если повторная доставка
+            // MouseDown не пришла, выбор должен применить fallback (ApplyMenuCloseFallback,
+            // запланированный на приоритете Input); отпускание кнопки — не признак того,
+            // что выбор применён (issue #340, новая стратегия).
             _menuCloseClickSnapshot = null;
         }
 

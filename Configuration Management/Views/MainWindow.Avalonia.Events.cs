@@ -122,19 +122,35 @@ namespace Configuration_Management
         // ================= Клик, закрывший контекстное меню (issue #340) =================
 
         /// <summary>
-        /// Снимок клика, которым закрыли контекстное меню строки (issue #340, Avalonia).
-        /// Тот же механизм, что в WPF: первичный клик запоминается (время, позиция),
-        /// а ПОВТОРНАЯ доставка того же PointerPressed в дерево (попап меню освобождает
-        /// перехват асинхронно) распознаётся по времени+позиции и гасится — строка не
-        /// «перевыбирается», выделение не пропадает «через мгновение».
+        /// Снимок клика, которым закрыли контекстное меню строки (issue #340, новая стратегия).
+        /// Первичный клик запоминается (время, позиция) только для простого левого клика БЕЗ
+        /// модификаторов; используется для распознавания ПОВТОРНОЙ доставки того же
+        /// PointerPressed в дерево (попап меню освобождает перехват асинхронно) и для
+        /// fallback, если повторной доставки не будет.
         /// </summary>
         private BatchSelectionHelper.MenuCloseClickSnapshot? _menuCloseClickSnapshot;
 
         /// <summary>
-        /// Подписывает дедупликацию клика, закрывшего контекстное меню строки (issue #340).
-        /// Туннельная фаза ОКНА срабатывает раньше обработчиков контрола LeveledTreeView,
-        /// поэтому повторную доставку можно погасить ДО применения выбора. Снимок живёт
-        /// до первого отпускания кнопки мыши (двойной клик для запуска базы не блокируется).
+        /// Флаг «клик, закрывший меню, ещё не обработан» (issue #340, новая стратегия):
+        /// взводится при первичном клике при открытом меню, снимается повторной доставкой
+        /// или fallback-обработчиком <see cref="ApplyMenuCloseFallback"/>. Применение выбора
+        /// однократно и идемпотентно.
+        /// </summary>
+        private bool _menuClosePendingApply;
+
+        /// <summary>Целевая база клика, закрывшего меню (для fallback, issue #340).</summary>
+        private Infobase? _menuCloseTarget;
+
+        /// <summary>Секция целевой строки: true — «Закреплённые» (для fallback, issue #340).</summary>
+        private bool _menuCloseTargetIsPinnedSection;
+
+        /// <summary>
+        /// Подписывает обработку клика, закрывшего контекстное меню строки (issue #340).
+        /// Туннельная фаза ОКНА срабатывает раньше обработчиков контрола LeveledTreeView.
+        /// Выбор применяет ШТАТНАЯ логика контрола (OnRowPointerPressed) — по живому
+        /// контейнеру; здесь только фиксируется клик (снимок + флаг) для fallback и
+        /// распознаётся повторная доставка, чтобы отменить fallback. Событие НЕ гасится.
+        /// Снимок живёт до первого отпускания кнопки мыши (двойной клик не блокируется).
         /// </summary>
         private void AttachTreeMenuCloseClickDedup()
         {
@@ -149,59 +165,160 @@ namespace Configuration_Management
 
             var pos = e.GetPosition(_tree);
 
-            // Повторная доставка клика, которым закрыли контекстное меню: выбор уже применён
-            // штатным обработчиком контрола (OnRowPointerPressed) — гасим событие, чтобы
-            // «перевыбор» не сбросил выделение.
+            // Повторная доставка клика, которым закрыли контекстное меню (issue #340, новая
+            // стратегия): гасить событие НЕЛЬЗЯ — выбор должна применить штатная логика
+            // контрола (OnRowPointerPressed), работающая с живым контейнером. Здесь только
+            // снимаем флаг fallback и даём событию дойти до контрола.
             if (_menuCloseClickSnapshot is { } snapshot)
             {
-                if (!BatchSelectionHelper.IsSameClick(snapshot, "Left", Environment.TickCount, pos.X, pos.Y))
+                if (BatchSelectionHelper.IsSameClick(snapshot, "Left", Environment.TickCount, pos.X, pos.Y))
                 {
-                    // Снимок устарел (прошло больше допуска) или клик в другом месте —
-                    // это новое действие пользователя, обрабатываем штатно.
-                    _menuCloseClickSnapshot = null;
+                    _menuClosePendingApply = false;
+                    _menuCloseTarget = null;
+                    _menuCloseTargetIsPinnedSection = false;
                 }
-                else
-                {
-                    _menuCloseClickSnapshot = null;
-                    e.Handled = true;
-                    return;
-                }
+                // Снимок устарел (прошло больше допуска) или клик в другом месте — это новое
+                // действие пользователя: просто сбрасываем снимок, обработка штатная.
+                _menuCloseClickSnapshot = null;
             }
 
             // Первичный клик по строке базы при ОТКРЫТОМ контекстном меню: меню закрывается
-            // этим кликом, и его повторная доставка в дерево (после освобождения попапа)
-            // должна быть погашена выше. Выбор применяется СИНХРОННО по данным строки
-            // (issue #340): в четырёх прежних попытках на WPF выбор ставился отложенно,
-            // и выделение пропадало «через мгновение». Контейнер под курсором сейчас
-            // живой (клик только что пришёл) — применяем выбор сразу и запоминаем снимок;
-            // повторная доставка «хвоста» гасится снимком и ничего не переприменяет.
+            // этим кликом, его повторная доставка в дерево (после освобождения попапа)
+            // обработается ШТАТНО контролом (OnRowPointerPressed) — он применит выбор к
+            // живому контейнеру. Здесь запоминаем клик (снимок + флаг) ТОЛЬКО для fallback
+            // на случай, если повторной доставки не будет. Снимок пишется только для
+            // простого левого клика БЕЗ модификаторов (Ctrl/Shift — штатное мультивыделение).
+            // Выбор НЕ применяем и событие НЕ гасим.
             if (_tree.ContextMenu is { IsOpen: true } &&
                 source.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault()
                     is { DataContext: Infobase or PinnedInfobaseItem } rowItem &&
-                e.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed)
+                e.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed &&
+                BatchSelectionHelper.ShouldRecordMenuCloseSnapshot(
+                    "Left",
+                    (e.KeyModifiers & KeyModifiers.Control) != 0,
+                    (e.KeyModifiers & KeyModifiers.Shift) != 0) &&
+                BatchSelectionHelper.Unwrap(rowItem.DataContext) is { } clickedBase)
             {
                 _menuCloseClickSnapshot = new BatchSelectionHelper.MenuCloseClickSnapshot(
                     "Left", Environment.TickCount, pos.X, pos.Y);
+                _menuClosePendingApply = true;
+                _menuCloseTarget = clickedBase;
+                _menuCloseTargetIsPinnedSection = BatchSelectionHelper.IsPinnedSection(rowItem.DataContext);
 
-                var clickedBase = rowItem.DataContext switch
-                {
-                    PinnedInfobaseItem pinned => pinned.Base,
-                    Infobase ib => ib,
-                    _ => null
-                };
-                if (clickedBase is not null && _vm is not null)
-                {
-                    _vm.ClearBatchSelection();
-                    _vm.SelectedInfobase = clickedBase;
-                    _vm.SelectedGroupNode = null;
-                    rowItem.IsSelected = true;
-                }
+                // Fallback: если повторная доставка клика не придёт (или контрол не применит
+                // выбор), выбор ставится по данным; идемпотентен — сработает только пока
+                // _menuClosePendingApply взведён и пользователь не перевыбрал строку.
+                Avalonia.Threading.Dispatcher.UIThread.Post(ApplyMenuCloseFallback);
             }
         }
 
         private void OnTreeMenuCloseClickDedup_PointerReleased(object? sender, PointerReleasedEventArgs e)
         {
+            // Снимок сбрасывается; флаг _menuClosePendingApply намеренно НЕ трогаем — если
+            // повторная доставка не пришла, выбор применит fallback (ApplyMenuCloseFallback).
             _menuCloseClickSnapshot = null;
+        }
+
+        /// <summary>
+        /// Fallback-применение выбора клика, которым закрыли контекстное меню (issue #340,
+        /// новая стратегия, Avalonia). Штатный путь — повторная доставка PointerPressed в
+        /// контрол (OnRowPointerPressed) — применяет выбор к живому контейнеру и снимает
+        /// флаг <see cref="_menuClosePendingApply"/>. Fallback нужен на случай, если повторной
+        /// доставки не произошло: применяет выбор по ДАННЫМ (<see cref="SelectRowByData"/>)
+        /// и запускает стабилизацию (<see cref="EnsureSelectionStable"/>). Идемпотентен.
+        /// </summary>
+        private void ApplyMenuCloseFallback()
+        {
+            if (!_menuClosePendingApply)
+                return;
+            _menuClosePendingApply = false;
+
+            var target = _menuCloseTarget;
+            var isPinnedSection = _menuCloseTargetIsPinnedSection;
+            _menuCloseTarget = null;
+            _menuCloseTargetIsPinnedSection = false;
+            if (target is null || _vm is null || _tree is null)
+                return;
+
+            // Пользователь успел перевыбрать другую строку — не вмешиваемся.
+            if (_vm.SelectedInfobase is { } current && !ReferenceEquals(current, target))
+                return;
+
+            // Клик был без модификаторов — семантика обычного клика: единственный выбор.
+            _vm.ClearBatchSelection();
+            SelectRowByData(target, isPinnedSection);
+            EnsureSelectionStable(target, isPinnedSection);
+        }
+
+        /// <summary>
+        /// Выбирает строку базы по ДАННЫМ (issue #340, Avalonia): подсветка ставится на
+        /// контейнер нужной секции (закреплённая база дублируется в «Закреплённых» и в
+        /// своей группе), модель синхронизируется. Строка вне видимой области (контейнер
+        /// не реализован) — выбор остаётся на модели и будет подсвечен при появлении.
+        /// </summary>
+        private void SelectRowByData(Infobase target, bool isPinnedSection)
+        {
+            if (_vm is null)
+                return;
+            if (_tree.FindRowForData(target, isPinnedSection) is { } row)
+                _tree.SelectRow(row);
+            _vm.SelectedInfobase = target;
+            _vm.SelectedGroupNode = null;
+        }
+
+        /// <summary>
+        /// Кратковременная стабилизация выделения после клика, которым закрыли контекстное
+        /// меню (issue #340, новая стратегия, Avalonia): одноразовая подписка на LayoutUpdated
+        /// (до 3 срабатываний или ~200 мс) проверяет соответствие модели и контейнера и
+        /// восстанавливает выбор по данным. Мультивыделение не затрагивается; защита от
+        /// рекурсии — восстановление только при фактическом расхождении.
+        /// </summary>
+        private void EnsureSelectionStable(Infobase? target, bool isPinnedSection)
+        {
+            if (_tree is null || target is null || _vm is null)
+                return;
+
+            var passes = 0;
+            const int maxPasses = 3;
+            var startTick = Environment.TickCount;
+            const int timeoutMs = 200;
+
+            EventHandler onLayoutUpdated = null!;
+            onLayoutUpdated = (_, _) =>
+            {
+                passes++;
+                if (passes > maxPasses || Environment.TickCount - startTick >= timeoutMs)
+                {
+                    _tree.LayoutUpdated -= onLayoutUpdated;
+                    return;
+                }
+
+                // Пользователь перевыбрал другую строку — не вмешиваемся.
+                if (!ReferenceEquals(_vm.SelectedInfobase, target))
+                {
+                    _tree.LayoutUpdated -= onLayoutUpdated;
+                    return;
+                }
+
+                if (!SelectionMatchesTarget(target, isPinnedSection))
+                    SelectRowByData(target, isPinnedSection);
+            };
+
+            _tree.LayoutUpdated += onLayoutUpdated;
+        }
+
+        /// <summary>
+        /// Соответствует ли фактическое выделение дерева целевой базе (issue #340, Avalonia):
+        /// SelectedItem дерева разворачивается до той же базы И контейнер строки (если
+        /// реализован) подсвечен. Строка вне видимой области считается согласованной.
+        /// </summary>
+        private bool SelectionMatchesTarget(Infobase target, bool isPinnedSection)
+        {
+            if (!ReferenceEquals(BatchSelectionHelper.Unwrap(_tree.SelectedItem), target))
+                return false;
+
+            var row = _tree.FindRowForData(target, isPinnedSection);
+            return row is null || row.IsSelected;
         }
 
         /// <summary>

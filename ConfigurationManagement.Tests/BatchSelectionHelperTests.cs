@@ -435,10 +435,12 @@ public sealed class BatchSelectionHelperTests
     }
 
     // ======================= Issue #340: клик, закрывший контекстное меню =======================
-    // Применение выбора при закрытии меню теперь выполняется СИНХРОННО в обработчике окна
-    // (см. MainWindow.Hotkeys.cs / MainWindow.Avalonia.Events.cs); отложенное решение
-    // DecideAfterMenuCloseClick удалено. Чистой логикой остаётся дедупликация «хвоста»
-    // клика по времени+позиции — она тестируется ниже.
+    // Новая стратегия (0.3.9.304): выбор применяется ШТАТНЫМ путём — повторной доставкой
+    // клика в дерево (по живому контейнеру); применение в момент закрытия меню остаётся
+    // только как FALLBACK (Dispatcher.BeginInvoke / Dispatcher.UIThread.Post), а после
+    // применения запускается стабилизация IsSelected (EnsureSelectionStable). Чистой логикой
+    // остаются: критерий записи снимка (только простой левый клик без модификаторов),
+    // дедупликация «хвоста» по времени+позиции и решение стабилизации — они тестируются ниже.
 
     // ============ IsSameClick — дедупликация по времени+позиции (issue #340) ============
     // Время — в миллисекундах единой шкалы (Environment.TickCount), long.
@@ -506,5 +508,92 @@ public sealed class BatchSelectionHelperTests
 
         Assert.False(BatchSelectionHelper.IsSameClick(
             snapshot, "Right", T0, 100, 200));
+    }
+
+    // ============ Новая стратегия 0.3.9.304: снимок только без модификаторов ============
+
+    [Fact]
+    public void Snapshot_OnlyForPlainLeftClick_ModifiersNotCaptured()
+    {
+        // Снимок клика, закрывшего меню, записывается ТОЛЬКО для простого левого клика
+        // без модификаторов (issue #340): Ctrl/Shift-клики обрабатываются штатной логикой
+        // мультивыделения (ToggleBatchSelection/SelectRange) и не должны дедуплицироваться
+        // или «перевыбираться» снимком.
+        Assert.True(BatchSelectionHelper.ShouldRecordMenuCloseSnapshot("Left", ctrlPressed: false, shiftPressed: false));
+
+        Assert.False(BatchSelectionHelper.ShouldRecordMenuCloseSnapshot("Left", ctrlPressed: true, shiftPressed: false));
+        Assert.False(BatchSelectionHelper.ShouldRecordMenuCloseSnapshot("Left", ctrlPressed: false, shiftPressed: true));
+        Assert.False(BatchSelectionHelper.ShouldRecordMenuCloseSnapshot("Left", ctrlPressed: true, shiftPressed: true));
+        Assert.False(BatchSelectionHelper.ShouldRecordMenuCloseSnapshot("Right", ctrlPressed: false, shiftPressed: false));
+    }
+
+    // ============ Новая стратегия 0.3.9.304: fallback и стабилизация по данным ============
+
+    [Fact]
+    public void FallbackApply_IsIdempotent_WhenSelectionAlreadyApplied()
+    {
+        // Fallback/стабилизация применяют выбор по данным (SelectTreeRowByData) — операция
+        // идемпотентна: при уже установленном выборе она не меняет состояние модели.
+        var target = new Infobase { Id = "b1", Name = "База" };
+
+        // Цель УЖЕ выбрана и контейнер подсвечен — восстанавливать нечего (None).
+        Assert.Equal(
+            BatchSelectionHelper.SelectionRestoreAction.None,
+            BatchSelectionHelper.DecideSelectionRestore(target, target, containerIsSelected: true));
+
+        // Цель выбрана, но контейнер потерял IsSelected (переработка виртуализацией) —
+        // восстановление подсветки по данным; повторный SelectTreeRowByData безопасен.
+        Assert.Equal(
+            BatchSelectionHelper.SelectionRestoreAction.SelectByData,
+            BatchSelectionHelper.DecideSelectionRestore(target, target, containerIsSelected: false));
+
+        // Выбор ещё не сделан (fallback: повторная доставка клика не пришла) — применяем.
+        Assert.Equal(
+            BatchSelectionHelper.SelectionRestoreAction.SelectByData,
+            BatchSelectionHelper.DecideSelectionRestore(null, target, containerIsSelected: false));
+
+        // Пользователь перевыбрал ДРУГУЮ строку — стабилизация не вмешивается.
+        var other = new Infobase { Id = "b2", Name = "Другая" };
+        Assert.Equal(
+            BatchSelectionHelper.SelectionRestoreAction.None,
+            BatchSelectionHelper.DecideSelectionRestore(other, target, containerIsSelected: false));
+    }
+
+    [Fact]
+    public void Stabilization_DoesNotTouchBatchSelection()
+    {
+        // Модель действий стабилизации (issue #340) намеренно не содержит сброса набора
+        // мультивыделения (ClearBatchSelection) или переключения строки набора
+        // (ToggleBatchSelection): единственные варианты — «не вмешиваться» и «установить
+        // одиночный выбор по данным». Оба не изменяют набор «для выделенных».
+        var actions = Enum.GetValues<BatchSelectionHelper.SelectionRestoreAction>();
+        Assert.Equal(2, actions.Length);
+        Assert.Contains(BatchSelectionHelper.SelectionRestoreAction.None, actions);
+        Assert.Contains(BatchSelectionHelper.SelectionRestoreAction.SelectByData, actions);
+
+        // Практическая проверка типовых состояний: решение всегда в рамках разрешённого
+        // множества и не может «снять» набор (такого действия в модели нет).
+        var target = new Infobase { Id = "b1" };
+        var selected = new Infobase { Id = "b1" };
+        foreach (var containerSelected in new[] { true, false })
+        {
+            var action = BatchSelectionHelper.DecideSelectionRestore(selected, target, containerSelected);
+            Assert.True(action is BatchSelectionHelper.SelectionRestoreAction.None
+                or BatchSelectionHelper.SelectionRestoreAction.SelectByData);
+        }
+    }
+
+    [Fact]
+    public void IsSameClick_StillMatchesRepeatedDelivery()
+    {
+        // Регресс: повторная доставка того же клика, которым закрыли меню, распознаётся
+        // по времени+позиции (для отмены fallback). Снимок записан в момент закрытия меню;
+        // «хвост» доставляется в дерево вскоре после — с небольшим дрейфом координат.
+        var snapshot = new BatchSelectionHelper.MenuCloseClickSnapshot("Left", T0, 100, 200);
+
+        // «Хвост» через ~80 мс в той же позиции — тот же клик.
+        Assert.True(BatchSelectionHelper.IsSameClick(snapshot, "Left", T0 + 80, 100, 200));
+        // «Хвост» с малым дрейфом в пределах допуска — тоже тот же клик.
+        Assert.True(BatchSelectionHelper.IsSameClick(snapshot, "Left", T0 + 120, 104, 198));
     }
 }

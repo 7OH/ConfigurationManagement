@@ -769,6 +769,39 @@ namespace Configuration_Management.Controls
         }
 
         /// <summary>
+        /// Контейнер строки базы в нужной секции дерева (issue #340): «Закреплённые» —
+        /// строка с обёрткой <see cref="PinnedInfobaseItem"/>, обычный список — сама модель
+        /// <see cref="Infobase"/>. Используется fallback-применением и стабилизацией
+        /// выделения после закрытия контекстного меню. Контейнер вне видимой области не
+        /// реализован (виртуализация) — возвращается null.
+        /// </summary>
+        public TreeViewItem? FindRowForData(Infobase target, bool pinnedSection)
+        {
+            return Find(this, target, pinnedSection);
+
+            static TreeViewItem? Find(ItemsControl parent, Infobase target, bool pinnedSection)
+            {
+                for (var i = 0; i < parent.ItemCount; i++)
+                {
+                    if (parent.ContainerFromIndex(i) is not TreeViewItem item)
+                        continue;
+                    if (ReferenceEquals(BatchSelectionHelper.Unwrap(item.DataContext), target)
+                        && BatchSelectionHelper.IsPinnedSection(item.DataContext) == pinnedSection)
+                    {
+                        return item;
+                    }
+                    if (item.IsExpanded)
+                    {
+                        var found = Find(item, target, pinnedSection);
+                        if (found is not null)
+                            return found;
+                    }
+                }
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Доводит строку до видимой области по её данным (issue #285). Контейнер строки
         /// далеко вниз внутри длинной раскрытой группы не реализован (контейнеры создаются
         /// только для видимой области), поэтому метод итеративно двигает внутренний

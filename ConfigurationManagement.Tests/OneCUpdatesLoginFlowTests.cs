@@ -161,9 +161,10 @@ public sealed class OneCUpdatesLoginFlowTests
         Assert.Equal(PortalFetchStatus.AuthFailed, r1.Status);
         Assert.Equal(PortalFetchStatus.AuthFailed, r2.Status);
         Assert.Equal(PortalFetchStatus.AuthFailed, r3.Status);
-        // Лимит попыток исчерпан: четвёртый вызов вход НЕ предпринимает (счётчик тот же),
-        // результат остаётся информативным «вход не подтверждён» (последняя причина 401).
-        Assert.Equal(PortalFetchStatus.AuthFailed, r4.Status);
+        // Лимит попыток исчерпан: четвёртый вызов вход НЕ предпринимает (счётчик тот же)
+        // и возвращает отдельный статус «лимит исчерпан» (issue #334/#330/#323) вместо
+        // вводящего в заблуждение «вход не подтверждён».
+        Assert.Equal(PortalFetchStatus.LoginLimitReached, r4.Status);
         Assert.Equal(3, handler.PostLoginCount);
     }
 
@@ -186,6 +187,147 @@ public sealed class OneCUpdatesLoginFlowTests
         var r2 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
         Assert.Equal(PortalFetchStatus.AuthFailed, r2.Status); // новая попытка выполнена
         Assert.Equal(2, handler.PostLoginCount);
+    }
+
+    // ---------- «Фантомный успех»: 200 с формой входа в теле (Причина 1, issue #330) ----------
+
+    [Fact]
+    public async Task LoginPost200_WithLoginFormInBody_ReturnsAuthFailed()
+    {
+        // CAS при неверном логине возвращает 200 с телом формы входа (execution/lt) и БЕЗ
+        // сессионной cookie. Такой ответ НЕ считается успехом: следующий запрос каталога
+        // снова дал бы 302 → повторный вход → исчерпание лимита (лог issue #330).
+        var handler = new Post200LoginHandler(postBody: FormWithHiddenFields, markLoginSucceeded: false);
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "sup3r-secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+        // Анонимизированная диагностика в журнале: признак формы входа есть, секретов нет.
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("Вход на portal.1c.ru не подтверждён", joined);
+        Assert.DoesNotContain("sup3r-secret", joined);
+        Assert.DoesNotContain("e1s2t3", joined);
+    }
+
+    [Fact]
+    public async Task LoginPost200_WithoutLoginForm_ReturnsSuccess()
+    {
+        // POST вернул 200 с целевым контентом каталога (без полей формы) — вход выполнен,
+        // следующий запрос каталога отдаёт версии.
+        var handler = new Post200LoginHandler(postBody: VersionsTableHtml, markLoginSucceeded: true);
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+    }
+
+    [Fact]
+    public void LooksLikeLoginForm_DetectsFormByFields_MarkersAndHost()
+    {
+        // Форма входа распознаётся по скрытым полям execution/lt, маркерам ошибки и
+        // упоминанию login.1c.ru; каталог версий формой не является.
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(FormWithHiddenFields));
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(SimpleForm));
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm("<html>Неверный логин и/или пароль</html>"));
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(
+            "<html><a href=\"https://login.1c.ru/login\">Вход</a></html>"));
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(VersionsTableHtml));
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(string.Empty));
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(null!));
+    }
+
+    // ---------- Сброс счётчика попыток при успехе (Причина 2) ----------
+
+    [Fact]
+    public async Task SuccessfulLogin_ResetsAttemptCounter()
+    {
+        // Провалы на 1-м, 2-м и 4-м POST; 3-й POST — успех (302 → security_check → 200).
+        // После успеха счётчик обнуляется, поэтому четвёртая операция снова может входить
+        // (issue #334/#330/#323): служба singleton не должна блокировать вход навсегда.
+        var handler = new ChainedLoginHandler(1, 2, 4);
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var r1 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.AuthFailed, r1.Status); // попытка 1
+
+        var r2 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.AuthFailed, r2.Status); // попытка 2
+
+        var r3 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.Ok, r3.Status);         // попытка 3 — успех, счётчик сброшен
+
+        var r4 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.AuthFailed, r4.Status); // счётчик обнулён — вход снова возможен
+        Assert.Equal(4, handler.PostLoginCount);
+    }
+
+    // ---------- Цикл 302→вход→302 внутри одного вызова (Причина 3) ----------
+
+    [Fact]
+    public async Task LoginLoopInsideSingleCall_LimitedToOneAttempt()
+    {
+        // Сервер отвечает 302→login при каждом обращении к каталогу, а POST входа
+        // возвращает 200 с формой (вход не выполнен). За один вызов выполняется ТОЛЬКО
+        // одна попытка входа, остальной лимит сохраняется для следующих операций.
+        var handler = new Post200LoginHandler(postBody: FormWithHiddenFields, markLoginSucceeded: false);
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+    }
+
+    // ---------- Страница входа при HTTP 200 по содержимому (Причина 4) ----------
+
+    [Fact]
+    public async Task CatalogPage_200_WithLoginFormBody_ReturnsAuthRequired()
+    {
+        // releases.1c.ru вернул 200 с HTML формы входа (без редиректа) — распознаём по
+        // содержимому, а не парсим «версии из каталога» (issue #330/#323).
+        var handler = new DirectFormHandler(FormWithHiddenFields);
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var page = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.AuthRequired, page.Status);
+
+        var check = await service.CheckForUpdatesAsync(
+            "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/AccountingCorp30");
+        Assert.Equal(ConfigUpdateStatus.Failed, check.Status);
+        Assert.Equal("Updates.AuthRequired", check.Error);
+    }
+
+    // ---------- Лимит: автосброс по таймеру (Причина 5) ----------
+
+    [Fact]
+    public async Task LoginLimitReached_AfterCooldown_AllowsRetry()
+    {
+        var handler = new StaticLoginHandler(postStatus: HttpStatusCode.Unauthorized, postBody: "<html>нет</html>");
+        var service = CreateService(handler, login: "user1", password: "secret");
+        var now = DateTime.UtcNow;
+        service.UtcNowProvider = () => now;
+
+        var r1 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        var r2 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        var r3 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.AuthFailed, r3.Status);
+        Assert.Equal(3, handler.PostLoginCount);
+
+        // Лимит исчерпан: новая попытка запрещена (статус «лимит»), POST не выполняется.
+        var r4 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.LoginLimitReached, r4.Status);
+        Assert.Equal(3, handler.PostLoginCount);
+
+        // Автосброс по таймеру: после LoginLimitCooldown вход снова разрешён.
+        now = now.AddMinutes(11);
+        var r5 = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.AuthFailed, r5.Status); // новая попытка выполнена (снова 401)
+        Assert.Equal(4, handler.PostLoginCount);
     }
 
     [Fact]
@@ -383,6 +525,142 @@ public sealed class OneCUpdatesLoginFlowTests
                 response = new HttpResponseMessage(HttpStatusCode.Found);
             }
 
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>
+    /// Обработчик «фантомного успеха» (issue #330): POST входа возвращает 200. Если тело —
+    /// форма входа (execution/lt) и сессия НЕ помечается успешной, каталог продолжает
+    /// редиректить на login (вход фактически не выполнен); если тело — целевой контент
+    /// каталога и сессия помечается успешной, каталог отдаёт версии.
+    /// </summary>
+    private sealed class Post200LoginHandler : HttpMessageHandler
+    {
+        private readonly string _postBody;
+        private readonly bool _markLoginSucceeded;
+        private bool _loginSucceeded;
+
+        public int PostLoginCount { get; private set; }
+
+        public Post200LoginHandler(string postBody, bool markLoginSucceeded)
+        {
+            _postBody = postBody;
+            _markLoginSucceeded = markLoginSucceeded;
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = !_loginSucceeded
+                    ? Found(new Uri("https://login.1c.ru/login?service=x"))
+                    : Ok(VersionsTableHtml);
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    if (_markLoginSucceeded)
+                        _loginSucceeded = true;
+                    response = Ok(_postBody);
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return response;
+        }
+    }
+
+    /// <summary>Обработчик с заданной последовательностью результатов POST входа:
+    /// «провал» (401) либо «успех» (302 → security_check → 200). Проверяет сброс счётчика
+    /// попыток после успешного входа (issue #334/#330/#323).</summary>
+    private sealed class ChainedLoginHandler : HttpMessageHandler
+    {
+        private readonly IReadOnlySet<int> _failPostNumbers;
+        private bool _loginSucceeded;
+
+        public int PostLoginCount { get; private set; }
+
+        public ChainedLoginHandler(params int[] failPostNumbers)
+            => _failPostNumbers = new HashSet<int>(failPostNumbers);
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                // «Сессия» действует только внутри одного вызова: первый запрос каталога
+                // каждого НОВОГО вызова снова редиректит на login — так тест проверяет
+                // именно сброс счётчика попыток, а не сохранение сессии обработчиком.
+                var granted = _loginSucceeded;
+                _loginSucceeded = false;
+                response = granted
+                    ? Ok(VersionsTableHtml)
+                    : Found(new Uri("https://login.1c.ru/login?service=x"));
+            }
+            else if (path.Contains("/public/security_check", StringComparison.OrdinalIgnoreCase))
+            {
+                _loginSucceeded = true;
+                response = Ok("<html>session established</html>");
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    response = _failPostNumbers.Contains(PostLoginCount)
+                        ? new HttpResponseMessage(HttpStatusCode.Unauthorized)
+                        {
+                            Content = new StringContent("<html>нет</html>"),
+                        }
+                        : Found(new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик: каталог всегда отвечает 200 с HTML формы входа (без редиректов
+    /// на login.1c.ru) — проверяет распознавание страницы входа по содержимому
+    /// (issue #330/#323).</summary>
+    private sealed class DirectFormHandler : HttpMessageHandler
+    {
+        private readonly string _body;
+
+        public DirectFormHandler(string body) => _body = body;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = Ok(_body);
             response.RequestMessage = request;
             return Task.FromResult(response);
         }

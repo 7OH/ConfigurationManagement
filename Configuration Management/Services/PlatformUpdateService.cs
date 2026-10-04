@@ -26,6 +26,10 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
     /// <summary>Ключ локализации: вход на портал 1С не подтверждён сервером (401).</summary>
     public const string ErrorAuthFailed = "PlatformUpdate.Error.AuthFailed";
 
+    /// <summary>Ключ локализации: исчерпан лимит попыток входа на portal.1c.ru за сессию
+    /// (анти-брутфорс; повторить можно позже или после смены учётных данных ИТС).</summary>
+    public const string ErrorLoginLimit = "PlatformUpdate.Error.LoginLimit";
+
     /// <summary>Ключ локализации: каталог/версия не найдены (404).</summary>
     public const string ErrorNotFound = "PlatformUpdate.Error.NotFound";
 
@@ -283,6 +287,7 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
         {
             PortalFetchStatus.AuthRequired => ErrorAuthRequired,
             PortalFetchStatus.AuthFailed => ErrorAuthFailed,
+            PortalFetchStatus.LoginLimitReached => ErrorLoginLimit,
             PortalFetchStatus.NotFound => ErrorNotFound,
             PortalFetchStatus.Cancelled => ErrorCancelled,
             _ => ErrorNetwork,

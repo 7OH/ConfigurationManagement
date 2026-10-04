@@ -9,6 +9,94 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.304] — 2026-10-04
+
+### Исправлено
+
+- **Снятие выделения после закрытия контекстного меню (issue #340)** — шестая попытка,
+  принципиально новая стратегия «штатный выбор + однократный fallback + стабилизация
+  IsSelected». Пять прежних попыток (0.3.9.277/291/299/300/302) применяли выбор синхронно/
+  отложенно в момент `ContextMenu.Closed` (по данным `InputHitTest`) и гасили повторную
+  доставку клика — но в состоянии Closed контейнеры ещё перерабатываются виртуализацией
+  (`VirtualizingStackPanel`, `VirtualizationMode="Recycling"`), `IsSelected` «уезжает», а
+  гашение лишало систему единственного устойчивого пути выбора — штатного
+  `PreviewMouseLeftButtonDown` по живому контейнеру. Отсюда «строка становится активной,
+  а через мгновение выделение пропадает».
+  - **Новая схема (WPF):** в `TryApplyTreeClickAfterMenuClosed` выбор больше НЕ применяется —
+  только фиксируется клик (снимок + флаг `_menuClosePendingApply` + целевая база/секция) и
+  планируется fallback через `Dispatcher.BeginInvoke(DispatcherPriority.Input)`. Повторная
+  доставка MouseDown в дерево обрабатывается ШТАТНО (`ClearBatchSelection` + `ApplySelection`
+  по живому контейнеру) и снимает флаг; fallback применяет выбор по данным (`SelectTreeRowByData`)
+  только если флаг ещё взведён (идемпотентно).
+  - **Стабилизация:** новый метод `EnsureSelectionStable` — одноразовая подписка на
+  `LayoutUpdated` (до 3 срабатываний или ~200 мс); при расхождении `SelectedInfobase`
+  и `IsSelected` контейнера выбор восстанавливается по данным. Метод НИКОГДА не вызывает
+  `ClearBatchSelection`/`ToggleBatchSelection` — мультивыделение не затрагивается.
+  - **Снимок** записывается только для простого левого клика БЕЗ модификаторов
+  (`ShouldRecordMenuCloseSnapshot`): Ctrl/Shift-клики уходят штатной логике мультивыделения.
+  - **Avalonia** — зеркально: убрано подавление повторной доставки
+  (`OnTreeMenuCloseClickDedup_PointerPressed` больше не гасит событие), выбор применяет
+  штатный `OnRowPointerPressed` контрола; fallback по данным + стабилизация через
+  `Dispatcher.UIThread.Post`/`LayoutUpdated`; новый `LeveledTreeView.FindRowForData` —
+  поиск контейнера с учётом секции («Закреплённые» vs обычный список).
+  - ([`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+    [`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs),
+    [`MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs),
+    [`MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs),
+    [`LeveledTreeView.Avalonia.cs`](Configuration%20Management/Controls/LeveledTreeView.Avalonia.cs),
+    [`BatchSelectionHelper.cs`](Configuration%20Management/Services/BatchSelectionHelper.cs);
+    тесты [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs)).
+  - Тесты: 4 новых сценария (снимок только без модификаторов; идемпотентность fallback;
+    стабилизация не трогает мультивыделение; регресс `IsSameClick` для повторной доставки);
+    полный набор — **1721** тест зелёный, кросс-сборка Linux без ошибок.
+  - Требуется ручная проверка пользователем на Windows (оконный стек юнит-тестами не
+    покрывается) по сценарию: мультивыделение → правый клик → левый клик по другой строке —
+    строка должна остаться активной.
+
+## [0.3.9.303] — 2026-10-04
+
+### Исправлено
+
+- **Программный вход на portal.1c.ru при проверке обновлений и автообновлении платформы
+  (issues #334, #330, #323)** — пять причин «Превышен лимит попыток входа»/«Требуется вход»
+  с общим корнем в CAS-авторизации:
+  1. **«Фантомный успех»**: любой ответ 2xx после POST считался успешным входа. При неверном
+     логине CAS возвращает HTTP 200 с телом формы входа (поля `execution`/`lt`) без сессионной
+     cookie — следующий запрос каталога снова давал 302 → повторный вход ×3 → лимит.
+     Теперь успех подтверждается содержимым тела: `LooksLikeLoginForm()` (поля формы,
+     маркеры ошибки, упоминание `login.1c.ru`) → `AuthFailed` с анонимизированной
+     диагностикой; критерий усилен и в `FollowLoginRedirectsAsync`.
+  2. **Счётчик попыток не сбрасывался при успехе**: служба — singleton, поэтому через
+     3 операции вход блокировался навсегда. Теперь во всех ветках успеха
+     `_portalLoginAttempts = 0`, а наличие сессионной cookie (`HasPortalSessionCookie`,
+     JSESSIONID/TGC/session_id) позволяет выйти из повтора входа раньше.
+  3. **Цикл 302→вход→302 внутри одного вызова**: в `SendWithAuthAsync` заведён локальный
+     флаг `loginTried` — не более одной попытки входа за вызов; остаток лимита сохраняется.
+  4. **Страница входа не распознавалась при HTTP 200**: `FetchPageCoreAsync` и
+     `CheckForUpdatesAsync` теперь проверяют тело (`LooksLikeLoginForm`) после
+     редиректов/хоста и возвращают понятный `AuthRequired`/`AuthFailed`.
+  5. **Вводящее в заблуждение сообщение о лимите и отсутствие повтора**: новый текст
+     («Проверьте учётные данные ИТС… при неверном пароле портал может временно блокировать
+     аккаунт»), автоматический сброс лимита через `LoginLimitCooldown` (10 минут),
+     публичный `ResetPortalLoginAttempts()` и отдельный статус/ключ локализации
+     `LoginLimitReached` вместо вводящего в заблуждение `AuthRequired`/`AuthFailed`.
+  - В окнах «Обновление платформы», «Скачивание версии платформы» и «Проверка обновлений»
+    к ошибкам авторизации добавлен расширенный совет (ключ `PlatformUpdate.AuthAdvice`,
+    уточнены `Updates.AuthRequired`/`AuthFailed` и `PlatformUpdate.Error.*`);
+    ключи добавлены в `ru.json`/`en.json`.
+  - ([`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs),
+    [`PlatformUpdateService.cs`](Configuration%20Management/Services/PlatformUpdateService.cs),
+    [`PlatformCatalogResult.cs`](Configuration%20Management/Models/PlatformCatalogResult.cs),
+    [`PlatformUpdateViewModel.cs`](Configuration%20Management/ViewModels/PlatformUpdateViewModel.cs),
+    [`PlatformDownloadViewModel.cs`](Configuration%20Management/ViewModels/PlatformDownloadViewModel.cs),
+    [`ru.json`](Configuration%20Management/Localization/Languages/ru.json),
+    [`en.json`](Configuration%20Management/Localization/Languages/en.json);
+    тесты [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs)).
+  - Тесты: 7 новых сценариев (фантомный успех 200 с формой; успех 200 без формы; сброс
+    счётчика после успеха; одна попытка входа за вызов; страница входа при 200; кулдаун
+    лимита; распознавание формы `LooksLikeLoginForm`) + 2 обновлённых; полный набор —
+    **1717** тестов зелёный, кросс-сборка Linux без ошибок.
+
 ## [0.3.9.302] — 2026-10-04
 
 ### Исправлено

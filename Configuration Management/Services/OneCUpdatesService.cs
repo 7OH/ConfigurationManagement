@@ -66,8 +66,14 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>Максимальное число попыток программного входа на portal.1c.ru за сессию службы
     /// (защита от анти-брутфорс блокировки портала; счётчик сбрасывается при смене учётной
-    /// записи, см. <see cref="CanAttemptPortalLogin"/>).</summary>
+    /// записи, при успешном входе и автоматически через <see cref="LoginLimitCooldown"/>,
+    /// см. <see cref="CanAttemptPortalLogin"/>).</summary>
     private const int MaxPortalLoginAttempts = 3;
+
+    /// <summary>Период автосброса лимита попыток входа на portal.1c.ru: после исчерпания
+    /// лимита (<see cref="MaxPortalLoginAttempts"/>) новая попытка входа разрешается не ранее
+    /// чем через этот интервал (анти-брутфорс портала; issue #334/#330/#323).</summary>
+    private static readonly TimeSpan LoginLimitCooldown = TimeSpan.FromMinutes(10);
 
     /// <summary>HTTP-обработчик, инжектируемый в тестах (fake вместо реальной сети); null — реальный стек.</summary>
     private readonly HttpMessageHandler? _handlerOverride;
@@ -92,6 +98,15 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <summary>Результат последней попытки входа на portal.1c.ru (для различения
     /// AuthRequired / AuthFailed в результатах проверок).</summary>
     private PortalLoginResult _lastLoginResult = PortalLoginResult.NoCredentials;
+
+    /// <summary>Момент исчерпания лимита попыток входа (для автосброса по
+    /// <see cref="LoginLimitCooldown"/>); default — лимит не исчерпан.</summary>
+    private DateTime _limitReachedAt;
+
+    /// <summary>Источник текущего времени для автосброса лимита попыток входа
+    /// (в проде — <see cref="DateTime.UtcNow"/>; в тестах подменяется фиктивными часами,
+    /// чтобы проверить повторную попытку после <see cref="LoginLimitCooldown"/>).</summary>
+    internal Func<DateTime> UtcNowProvider = () => DateTime.UtcNow;
 
     /// <summary>
     /// Создаёт экземпляр службы. <paramref name="repository"/> (singleton) используется для
@@ -259,9 +274,10 @@ public class OneCUpdatesService : IOneCUpdatesService
             {
                 _logger.Warn($"[Updates] Требуется вход на portal.1c.ru (запрос ушёл на {response.RequestMessage?.RequestUri}) для '{url}'");
                 result.Status = ConfigUpdateStatus.Failed;
-                // Вход предпринимался и не подтверждён сервером (401) — отдельная понятная
-                // ошибка «не подтверждён» (issue #334), иначе — «требуется вход».
-                result.Error = authFailed ? "Updates.AuthFailed" : "Updates.AuthRequired";
+                // Лимит попыток входа исчерпан — отдельная понятная ошибка с советом
+                // (issue #334/#330/#323); вход предпринимался и не подтверждён сервером (401) —
+                // «не подтверждён» (issue #334); иначе — «требуется вход».
+                result.Error = AuthErrorKey(authFailed);
                 return result;
             }
 
@@ -274,15 +290,27 @@ public class OneCUpdatesService : IOneCUpdatesService
                 result.Status = ConfigUpdateStatus.Failed;
                 // 401/403 и редиректы 3xx (в т.ч. 302 без Location от CAS releases.1c.ru) —
                 // понятная ошибка авторизации (неверный/пустой логин-пароль сайта 1С, issue #323);
-                // если вход предпринимался и не подтверждён — «вход не подтверждён (401)»;
-                // остальные коды — техническая диагностика.
+                // лимит попыток исчерпан — отдельный ключ; если вход предпринимался и не
+                // подтверждён — «вход не подтверждён (401)»; остальные коды — техническая диагностика.
                 result.Error = code is 401 or 403 or (>= 300 and < 400)
-                    ? authFailed ? "Updates.AuthFailed" : "Updates.AuthRequired"
+                    ? AuthErrorKey(authFailed)
                     : $"HTTP {code}";
                 return result;
             }
 
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+            // Страница входа может прийти с HTTP 200: CAS возвращает форму (поля execution/lt)
+            // вместо редиректа, когда сессия не установлена (фантомный успех, issue #330).
+            // Распознаём по содержимому и показываем понятную ошибку авторизации, а не
+            // «каталог доступен, но версия не распарсена» (issue #323/#334).
+            if (LooksLikeLoginForm(body))
+            {
+                _logger.Warn($"[Updates] Получена страница входа вместо содержимого каталога ({url}).");
+                result.Status = ConfigUpdateStatus.Failed;
+                result.Error = AuthErrorKey(authFailed);
+                return result;
+            }
 
             // Формат ответа определяется по URL:
             //   - project/<nick>            → HTML-список версий (#versionsTable), парсим из него;
@@ -892,24 +920,40 @@ public class OneCUpdatesService : IOneCUpdatesService
             var authFailed = _lastLoginResult is PortalLoginResult.AuthFailed or PortalLoginResult.RedirectFailed;
 
             // Ответ со страницей входа либо редирект на неё — требуется авторизация.
-            // Если вход предпринимался и не подтверждён сервером — это именно AuthFailed.
+            // Если лимит попыток входа исчерпан — отдельный статус (issue #334/#330/#323);
+            // если вход предпринимался и не подтверждён сервером — это именно AuthFailed.
             var isLoginRedirect =
                 response.Headers.Location?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true ||
                 response.RequestMessage?.RequestUri?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true;
             if (isLoginRedirect)
-                return Page(authFailed ? PortalFetchStatus.AuthFailed : PortalFetchStatus.AuthRequired);
+                return Page(IsPortalLoginLimitReached() ? PortalFetchStatus.LoginLimitReached
+                    : authFailed ? PortalFetchStatus.AuthFailed
+                    : PortalFetchStatus.AuthRequired);
 
             if (!response.IsSuccessStatusCode)
             {
                 var code = (int)response.StatusCode;
                 if (code is 401 or 403 or (>= 300 and < 400))
-                    return Page(authFailed ? PortalFetchStatus.AuthFailed : PortalFetchStatus.AuthRequired);
+                    return Page(IsPortalLoginLimitReached() ? PortalFetchStatus.LoginLimitReached
+                        : authFailed ? PortalFetchStatus.AuthFailed
+                        : PortalFetchStatus.AuthRequired);
                 return Page(PortalFetchStatus.NetworkError);
             }
 
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(body))
                 return Page(PortalFetchStatus.NetworkError);
+
+            // Страница входа может прийти с HTTP 200 (CAS отдаёт форму без сессии,
+            // issue #330): распознаём по содержимому вместо парсинга версий.
+            if (LooksLikeLoginForm(body))
+            {
+                _logger.Warn($"[Updates] Получена страница входа вместо содержимого ({url}) — авторизация не выполнена.");
+                return Page(IsPortalLoginLimitReached() ? PortalFetchStatus.LoginLimitReached
+                    : authFailed ? PortalFetchStatus.AuthFailed
+                    : PortalFetchStatus.AuthRequired);
+            }
+
             return Page(PortalFetchStatus.Ok, body);
         }
         catch (OperationCanceledException)
@@ -946,6 +990,13 @@ public class OneCUpdatesService : IOneCUpdatesService
         CancellationToken ct = default)
     {
         var current = request;
+
+        // Вход на portal.1c.ru выполняется НЕ более одного раза за вызов (issue #330/#334):
+        // «фантомный успех» или рассинхронизация сессии не должны тратить весь лимит попыток
+        // внутри одного запроса — при повторном 302→login возвращаем ответ как есть, а
+        // CheckForUpdatesAsync/FetchPageCoreAsync распознают страницу входа и вернут
+        // AuthRequired/AuthFailed/LoginLimitReached.
+        var loginTried = false;
         for (var i = 0; i <= MaxRedirects; i++)
         {
             AddBasicAuth(current);
@@ -958,14 +1009,15 @@ public class OneCUpdatesService : IOneCUpdatesService
             // а перенаправляет на login.1c.ru (Spring Security CAS). Поэтому вход запускаем при:
             //   - HTTP 401/403 (возможен Basic-вариант), либо
             //   - редиректе на login.1c.ru (нужна cookie-сессия).
-            // Попытки ограничены MaxPortalLoginAttempts на сессию (сброс при смене учётной записи),
-            // при успехе повторяем исходный запрос с сохранёнными cookie.
+            // Попытки ограничены MaxPortalLoginAttempts на сессию (сброс при смене учётной записи
+            // и при успешном входе), при успехе повторяем исходный запрос с сохранёнными cookie.
             var needsLogin =
                 (status is 401 or 403) ||
                 (response.Headers.Location?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true);
 
-            if (needsLogin && CanAttemptPortalLogin())
+            if (needsLogin && !loginTried && CanAttemptPortalLogin())
             {
+                loginTried = true;
                 // Передаём полный URL редиректа (login.1c.ru/login?service=...): форма входа
                 // получит service= исходного каталога, и CAS после входа вернёт верный адрес.
                 var loginResult = await TryLoginPortalAsync(response.Headers.Location?.ToString(), ct).ConfigureAwait(false);
@@ -995,8 +1047,9 @@ public class OneCUpdatesService : IOneCUpdatesService
             var selfRedirect = status is >= 300 and < 400 &&
                                (response.Headers.Location is null ||
                                 SameUri(current.RequestUri, response.Headers.Location));
-            if (selfRedirect && CanAttemptPortalLogin())
+            if (selfRedirect && !loginTried && CanAttemptPortalLogin())
             {
+                loginTried = true;
                 // Location отсутствует (302 без заголовка) — форма входа по базовому адресу.
                 var loginResult = await TryLoginPortalAsync(null, ct).ConfigureAwait(false);
                 if (loginResult == PortalLoginResult.Success)
@@ -1091,6 +1144,16 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// или null — тогда используется базовый <see cref="PortalLoginUrl"/>.</param>
     private async Task<PortalLoginResult> TryLoginPortalAsync(string? loginUrl, CancellationToken ct)
     {
+        // Ранний выход: сессионная cookie портала уже установлена (предыдущий успешный вход
+        // в этой сессии службы) — повторный вход не требуется, каталог отдаст контент сразу
+        // (issue #330/#334). Заодно сбрасываем счётчик попыток как при любом успехе.
+        if (HasPortalSessionCookie())
+        {
+            _portalLoginAttempts = 0;
+            _lastLoginResult = PortalLoginResult.Success;
+            return PortalLoginResult.Success;
+        }
+
         var (login, password) = GetCredentials();
         if (string.IsNullOrEmpty(login))
         {
@@ -1155,6 +1218,9 @@ public class OneCUpdatesService : IOneCUpdatesService
                     if (completed)
                     {
                         _logger.Info("[Updates] Вход на portal.1c.ru выполнен (цепочка редиректов пройдена).");
+                        // Успешный вход сбрасывает счётчик попыток (issue #334/#330/#323):
+                        // сессия установлена, следующие операции могут входить заново.
+                        _portalLoginAttempts = 0;
                         _lastLoginResult = PortalLoginResult.Success;
                         return PortalLoginResult.Success;
                     }
@@ -1164,10 +1230,24 @@ public class OneCUpdatesService : IOneCUpdatesService
                     return PortalLoginResult.RedirectFailed;
                 }
 
-                // Успех без редиректа: 2xx. (Неудачный логин обычно возвращает форму входа снова.)
+                // Успех без редиректа: 2xx. ВАЖНО: при неверном логине CAS может вернуть 200
+                // с телом формы входа (поля execution/lt, сообщение об ошибке) и БЕЗ сессионной
+                // cookie — такой ответ НЕ является успехом («фантомный успех», issue #330):
+                // проверяем содержимое тела, а не только код ответа.
                 if (postResponse.IsSuccessStatusCode)
                 {
+                    var postBody = await ReadBodyQuietlyAsync(postResponse, ct).ConfigureAwait(false);
+                    if (LooksLikeLoginForm(postBody))
+                    {
+                        LogAnonymizedAuthFailure(
+                            $"[Updates] Вход на portal.1c.ru не подтверждён (status={postStatus}: в теле форма входа).",
+                            postBody, fields);
+                        _lastLoginResult = PortalLoginResult.AuthFailed;
+                        return PortalLoginResult.AuthFailed;
+                    }
+
                     _logger.Info($"[Updates] Вход на portal.1c.ru выполнен (status={postStatus}).");
+                    _portalLoginAttempts = 0;
                     _lastLoginResult = PortalLoginResult.Success;
                     return PortalLoginResult.Success;
                 }
@@ -1212,9 +1292,10 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// True — допустима ещё одна попытка программного входа на portal.1c.ru. Лимит —
-    /// <see cref="MaxPortalLoginAttempts"/> попыток за сессию службы; при смене учётной записи
-    /// (логин/выбранная запись ИТС) счётчик сбрасывается, поэтому следующее окно/операция могут
-    /// войти повторно даже после неудачи (issue #330/#323). При отсутствии учётных данных вход
+    /// <see cref="MaxPortalLoginAttempts"/> попыток за сессию службы; счётчик сбрасывается при
+    /// смене учётной записи (логин/выбранная запись ИТС), при УСПЕШНОМ входе
+    /// (см. <see cref="TryLoginPortalAsync"/>) и автоматически через <see cref="LoginLimitCooldown"/>
+    /// после исчерпания (issue #330/#323/#334). При отсутствии учётных данных вход
     /// не «тратит» попытки: каждая операция быстро вернёт NoCredentials и понятное предупреждение.
     /// </summary>
     private bool CanAttemptPortalLogin()
@@ -1231,17 +1312,63 @@ public class OneCUpdatesService : IOneCUpdatesService
         {
             _lastAttemptAccountSignature = signature;
             _portalLoginAttempts = 0;
+            _limitReachedAt = default;
         }
 
         if (_portalLoginAttempts >= MaxPortalLoginAttempts)
         {
-            _logger.Warn("[Updates] Превышен лимит попыток входа на portal.1c.ru за сессию " +
-                         $"(лимит {MaxPortalLoginAttempts}); дальнейший вход возможен после смены учётной записи.");
-            return false;
+            // Автосброс лимита по таймеру: через LoginLimitCooldown после исчерпания
+            // лимита новая попытка входа разрешается автоматически (issue #334/#330/#323).
+            if (_limitReachedAt == default)
+                _limitReachedAt = UtcNowProvider();
+
+            if (UtcNowProvider() - _limitReachedAt >= LoginLimitCooldown)
+            {
+                _portalLoginAttempts = 0;
+                _limitReachedAt = default;
+                _logger.Info($"[Updates] Лимит попыток входа на portal.1c.ru автоматически сброшен (прошло более {(int)LoginLimitCooldown.TotalMinutes} мин).");
+            }
+            else
+            {
+                var remaining = (int)(LoginLimitCooldown - (UtcNowProvider() - _limitReachedAt)).TotalMinutes;
+                _logger.Warn("[Updates] Исчерпан лимит попыток входа на portal.1c.ru (" +
+                             $"{MaxPortalLoginAttempts}) за сессию (повторная попытка через ~{remaining} мин). " +
+                             "Проверьте учётные данные ИТС в «Настройки → Учётные данные ИТС»; " +
+                             "при неверном пароле портал может временно блокировать аккаунт.");
+                return false;
+            }
         }
 
         _portalLoginAttempts++;
         return true;
+    }
+
+    /// <summary>True — лимит попыток входа на portal.1c.ru исчерпан (до автосброса по
+    /// <see cref="LoginLimitCooldown"/> либо явного <see cref="ResetPortalLoginAttempts"/>).
+    /// Используется для показа отдельной ошибки «лимит исчерпан» в результатах проверок
+    /// вместо вводящего в заблуждение AuthRequired/AuthFailed (issue #334/#330/#323).
+    /// Лимит «исчерпан» только если попытка входа была фактически ЗАБЛОКИРОВАНА
+    /// (<see cref="_limitReachedAt"/> взведён): если же счётчик достиг максимума штатными
+    /// неудачными попытками (попытка №Max была разрешена и не подтверждена сервером),
+    /// результат остаётся AuthFailed — статус «лимит» наступает со следующей
+    /// заблокированной попытки.</summary>
+    internal bool IsPortalLoginLimitReached()
+    {
+        if (_limitReachedAt == default)
+            return false;
+
+        // Если время автосброса уже наступило — лимит считается снятым.
+        return UtcNowProvider() - _limitReachedAt < LoginLimitCooldown;
+    }
+
+    /// <summary>Принудительно сбрасывает счётчик попыток входа на portal.1c.ru — например,
+    /// после явного действия пользователя (смена учётных данных ИТС в настройках).
+    /// Сбрасывается только локальный счётчик; анти-брутфорс-защита самого портала
+    /// (временная блокировка аккаунта при многократных неверных входах) не отменяется.</summary>
+    public void ResetPortalLoginAttempts()
+    {
+        _portalLoginAttempts = 0;
+        _limitReachedAt = default;
     }
 
     /// <summary>Сигнатура учётной записи для сброса счётчика попыток входа: выбранная запись
@@ -1296,7 +1423,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, current);
             using var response =
-                await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+                await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
             var status = (int)response.StatusCode;
             var next = response.Headers.Location;
 
@@ -1307,10 +1434,19 @@ public class OneCUpdatesService : IOneCUpdatesService
                 continue;
             }
 
-            // Конец цепочки: успех — финальный ответ вне страницы входа.
+            // Конец цепочки: успех — финальный ответ вне страницы входа И тело НЕ содержит
+            // форму входа (CAS может вернуть 200 с формой вместо целевого контента —
+            // «фантомный успех», issue #330).
             var finalHost = response.RequestMessage?.RequestUri?.Host ?? current.Host;
             if (status < 400 && !finalHost.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase))
-                return true;
+            {
+                var body = await ReadBodyQuietlyAsync(response, ct).ConfigureAwait(false);
+                if (!LooksLikeLoginForm(body))
+                    return true;
+
+                _logger.Warn("[Updates] Цепочка входа завершилась 200 со страницей входа (вход не подтверждён).");
+                return false;
+            }
 
             _logger.Warn($"[Updates] Цепочка входа завершилась на странице входа (status={status}, host='{finalHost}').");
             return false;
@@ -1432,4 +1568,74 @@ public class OneCUpdatesService : IOneCUpdatesService
 
         return false;
     }
+
+    /// <summary>
+    /// Определяет, является ли тело ответа страницей входа на portal.1c.ru (гибридная
+    /// авторизация CAS): наличие полей формы <c>execution</c>/<c>lt</c> (из
+    /// <see cref="ExtractFormFields"/>), текстового поля <c>username</c>, маркеров ошибки
+    /// авторизации (<see cref="DetectAuthFailureMarkers"/>) либо прямого упоминания
+    /// <c>login.1c.ru</c>. Используется для распознавания «фантомного успеха» при HTTP 200
+    /// с формой входа вместо целевого контента (issue #330/#334) и страницы входа при 200.
+    /// </summary>
+    internal static bool LooksLikeLoginForm(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return false;
+
+        // Скрытые поля формы входа CAS: execution/lt — динамический токен сессии.
+        var fields = ExtractFormFields(body);
+        if (fields.ContainsKey("execution") || fields.ContainsKey("lt"))
+            return true;
+
+        // Текстовое поле имени пользователя формы входа.
+        if (body.Contains("name=\"username\"", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("name='username'", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Маркеры ошибки авторизации: неверный логин/пароль, капча, ссылки на форму.
+        if (!string.IsNullOrEmpty(DetectAuthFailureMarkers(body)))
+            return true;
+
+        // Прямое упоминание портала входа в теле ответа.
+        return body.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// True — в общем хранилище cookie есть сессионная cookie портала 1С
+    /// (<c>JSESSIONID</c>/<c>TGC</c>/<c>session_id</c>), выставленная после успешного входа
+    /// на login.1c.ru. Используется как подтверждение успеха входа и ранний выход из
+    /// повторного логина (issue #330/#334): если сессия уже установлена — вход не нужен.
+    /// </summary>
+    private bool HasPortalSessionCookie()
+    {
+        foreach (var host in new[] { "login.1c.ru", "releases.1c.ru" })
+        {
+            try
+            {
+                foreach (Cookie cookie in _cookieContainer.GetCookies(new Uri($"https://{host}/")))
+                {
+                    var name = cookie.Name ?? string.Empty;
+                    if (name.Equals("TGC", StringComparison.OrdinalIgnoreCase) ||
+                        name.StartsWith("JSESSIONID", StringComparison.OrdinalIgnoreCase) ||
+                        name.Contains("session_id", StringComparison.OrdinalIgnoreCase) ||
+                        name.Equals("SESSION", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+            }
+            catch
+            {
+                // Некорректный URI/иные ошибки хранилища не должны ронять вход.
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Выбирает ключ локализации ошибки авторизации для результатов проверок:
+    /// «лимит попыток исчерпан» — отдельный ключ (issue #334/#330/#323); вход предпринимался
+    /// и не подтверждён сервером — «вход не подтверждён (401)»; иначе — «требуется вход».</summary>
+    private string AuthErrorKey(bool authFailed)
+        => IsPortalLoginLimitReached() ? "Updates.LoginLimitReached"
+            : authFailed ? "Updates.AuthFailed"
+            : "Updates.AuthRequired";
 }

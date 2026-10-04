@@ -218,6 +218,13 @@ namespace Configuration_Management
             Deactivated += (_, _) =>
             {
                 ApplyTitleBarAppearance(false);
+                // issue #340: окно потеряло активность — снимок клика, которым закрыли
+                // контекстное меню, больше не актуален (повторная доставка в дерево
+                // невозможна); сбрасываем его и флаг pending-применения.
+                _menuCloseClickSnapshot = null;
+                _menuClosePendingApply = false;
+                _menuCloseTarget = null;
+                _menuCloseTargetIsPinnedSection = false;
                 ToolTipCloserAvalonia.TraceLog("MainWindow.Deactivated: окно потеряло фокус");
                 ToolTipCloserAvalonia.CloseAll();
             };

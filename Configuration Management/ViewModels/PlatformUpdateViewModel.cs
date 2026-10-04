@@ -235,6 +235,13 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         }
     }
 
+    /// <summary>True — статус ошибки связан с авторизацией на портале 1С (требуется вход,
+    /// вход не подтверждён, исчерпан лимит попыток): для таких ошибок в журнал окна
+    /// добавляется расширенный совет <c>PlatformUpdate.AuthAdvice</c> (issue #334/#330/#323).</summary>
+    private static bool IsAuthIssue(PortalFetchStatus status)
+        => status is PortalFetchStatus.AuthRequired or PortalFetchStatus.AuthFailed
+            or PortalFetchStatus.LoginLimitReached;
+
     /// <summary>Проверяет каталог версий платформы на портале 1С и перестраивает
     /// список строк (установленные ∪ доступные) с числом совместимых баз. Статус
     /// ошибки (авторизация/сеть/404) пишется в журнал ключом локализации;
@@ -260,6 +267,10 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
                     : result.ErrorKey;
                 var errorText = LocalizationManager.T(errorKey);
                 AppendLog(errorText);
+                // Расширенный совет при проблемах авторизации портала: что проверить и когда
+                // повторить (issue #334/#330/#323).
+                if (IsAuthIssue(result.Status))
+                    AppendLog(LocalizationManager.T("PlatformUpdate.AuthAdvice"));
                 _appLogger?.Warn($"Обновление платформы: каталог не получен — {errorKey}");
                 NotifyError(errorText);
                 return;
@@ -719,6 +730,8 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
         if (result.Status != PortalFetchStatus.Ok)
         {
             AppendLog(LocalizationManager.T(result.ErrorKey));
+            if (IsAuthIssue(result.Status))
+                AppendLog(LocalizationManager.T("PlatformUpdate.AuthAdvice"));
             return false;
         }
 

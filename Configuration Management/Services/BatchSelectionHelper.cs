@@ -217,6 +217,63 @@ public static class BatchSelectionHelper
         return Math.Abs(snapshot.X - x) <= tolerancePx && Math.Abs(snapshot.Y - y) <= tolerancePx;
     }
 
+    /// <summary>
+    /// Нужно ли записывать снимок клика, закрывшего контекстное меню (issue #340, новая
+    /// стратегия): ТОЛЬКО для простого левого клика БЕЗ модификаторов. Ctrl/Shift-клики
+    /// при открытом меню обрабатываются штатной логикой мультивыделения
+    /// (ToggleBatchSelection/SelectRange) — снимок не должен их дедуплицировать или
+    /// «перевыбирать», иначе мультивыделение подавлялось бы вместе с повторной доставкой.
+    /// </summary>
+    /// <param name="button">Кнопка клика ("Left"/"Right").</param>
+    /// <param name="ctrlPressed">Зажат Control.</param>
+    /// <param name="shiftPressed">Зажат Shift.</param>
+    public static bool ShouldRecordMenuCloseSnapshot(string button, bool ctrlPressed, bool shiftPressed)
+        => string.Equals(button, "Left", StringComparison.OrdinalIgnoreCase) && !ctrlPressed && !shiftPressed;
+
+    /// <summary>
+    /// Действия стабилизации выделения после клика, которым закрыли контекстное меню
+    /// (issue #340, новая стратегия). Список намеренно минимален: только установка
+    /// одиночного выбора по данным (SelectTreeRowByData/SelectRow). Действий «сбросить
+    /// набор мультивыделения» (ClearBatchSelection) или «переключить строку набора»
+    /// (ToggleBatchSelection) здесь НЕТ — стабилизация никогда не трогает набор
+    /// «для выделенных».
+    /// </summary>
+    public enum SelectionRestoreAction
+    {
+        /// <summary>Восстановление не требуется (выбор уже корректен или пользователь перевыбрал).</summary>
+        None,
+
+        /// <summary>Восстановить выбор по данным базы (идемпотентно, без сброса набора).</summary>
+        SelectByData
+    }
+
+    /// <summary>
+    /// Решение стабилизации для целевой базы (issue #340): нужно ли восстанавливать
+    /// выбор по данным. Идемпотентность: если целевая база УЖЕ выбрана в модели и её
+    /// контейнер подсвечен — восстановление не требуется; повторное применение
+    /// (SelectTreeRowByData) при уже установленном выборе не меняет состояние модели.
+    /// Если пользователь успел перевыбрать ДРУГУЮ строку — стабилизация не вмешивается
+    /// (вернёт <see cref="SelectionRestoreAction.None"/>). В остальных случаях (цель не
+    /// выбрана или контейнер потерял IsSelected из-за переработки виртуализацией) —
+    /// выбор восстанавливается по данным.
+    /// </summary>
+    /// <param name="selectedInfobase">Текущая выбранная база модели (может быть null).</param>
+    /// <param name="target">База, выбранная кликом, которым закрыли меню.</param>
+    /// <param name="containerIsSelected">Подсвечен ли контейнер целевой строки (true, если контейнер реализован).</param>
+    public static SelectionRestoreAction DecideSelectionRestore(
+        Infobase? selectedInfobase, Infobase? target, bool containerIsSelected)
+    {
+        if (target is null)
+            return SelectionRestoreAction.None;
+        // Цель уже выбрана и контейнер подсвечен — восстанавливать нечего (идемпотентность).
+        if (ReferenceEquals(selectedInfobase, target) && containerIsSelected)
+            return SelectionRestoreAction.None;
+        // Пользователь перевыбрал другую строку — стабилизация не вмешивается.
+        if (selectedInfobase is not null && !ReferenceEquals(selectedInfobase, target))
+            return SelectionRestoreAction.None;
+        return SelectionRestoreAction.SelectByData;
+    }
+
     private static int IndexOf(IReadOnlyList<string> list, string value)
     {
         for (var i = 0; i < list.Count; i++)

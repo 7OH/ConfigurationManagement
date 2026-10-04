@@ -829,6 +829,79 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Кратковременная «конвергентная» стабилизация выделения после клика, которым закрыли
+        /// контекстное меню (issue #340, новая стратегия). Выбор применяется ШТАТНЫМ путём
+        /// (повторная доставка клика по живому контейнеру), но после закрытия попапа идёт
+        /// дополнительная переработка контейнеров (VirtualizingStackPanel, VirtualizationMode=
+        /// Recycling): у переиспользуемых контейнеров IsSelected может «уехать», а двусторонней
+        /// привязки IsSelected к модели нет (см. OnMainTree_SelectedItemChanged). Здесь короткая
+        /// одноразовая подписка на LayoutUpdated (максимум 3 срабатывания или ~200 мс) проверяет
+        /// соответствие модели и контейнера и восстанавливает выбор по данным.
+        /// <para>
+        /// Метод НИКОГДА не вызывает ClearBatchSelection/ToggleBatchSelection — не вмешивается
+        /// в мультивыделение; вызывается только для безусловного левого клика без модификаторов.
+        /// Защита от рекурсии: восстановление выполняется только при фактическом расхождении
+        /// (SelectionMatchesTarget), счётчик проходов ограничивает работу.
+        /// </para>
+        /// </summary>
+        /// <param name="target">База, выбранная кликом, которым закрыли меню.</param>
+        /// <param name="isPinnedSection">Секция целевой строки: true — «Закреплённые» (issue #326).</param>
+        private void EnsureSelectionStable(Infobase? target, bool isPinnedSection)
+        {
+            if (MainTree is null || target is null || _viewModel is null)
+                return;
+
+            var passes = 0;
+            const int maxPasses = 3;
+            var startTick = Environment.TickCount;
+            const int timeoutMs = 200;
+
+            EventHandler onLayoutUpdated = null!;
+            onLayoutUpdated = (_, _) =>
+            {
+                passes++;
+                if (passes > maxPasses || Environment.TickCount - startTick >= timeoutMs)
+                {
+                    MainTree.LayoutUpdated -= onLayoutUpdated;
+                    return;
+                }
+
+                // Пользователь перевыбрал другую строку (или снял выбор) — не вмешиваемся:
+                // стабилизация отвечает только за целевой клик.
+                if (!ReferenceEquals(_viewModel.SelectedInfobase, target))
+                {
+                    MainTree.LayoutUpdated -= onLayoutUpdated;
+                    return;
+                }
+
+                // Восстановление только при фактическом расхождении (защита от рекурсии):
+                // контейнер строки потерял IsSelected или SelectedItem дерева «уехал».
+                if (!SelectionMatchesTarget(target, isPinnedSection))
+                    SelectTreeRowByData(target, null, isPinnedSection);
+            };
+
+            MainTree.LayoutUpdated += onLayoutUpdated;
+        }
+
+        /// <summary>
+        /// Соответствует ли фактическое выделение дерева целевой базе (issue #340):
+        /// SelectedItem дерева разворачивается до той же базы И контейнер строки (если
+        /// реализован виртуализацией) подсвечен. Строка вне видимой области (контейнер
+        /// не реализован) считается согласованной по модели — восстановление произойдёт
+        /// при появлении строки в видимой области.
+        /// </summary>
+        private bool SelectionMatchesTarget(Infobase target, bool isPinnedSection)
+        {
+            if (!ReferenceEquals(UnwrapInfobase(MainTree?.SelectedItem), target))
+                return false;
+
+            var item = isPinnedSection
+                ? FindPinnedTreeViewItemForData(target)
+                : FindRegularTreeViewItemForData(target);
+            return item is null || item.IsSelected;
+        }
+
+        /// <summary>
         /// Ищет контейнер базы в узле «Закреплённые» (issue #340): узел идентифицируется
         /// маркером <see cref="GroupNodeViewModel.PinnedMarker"/>, дальше рекурсивный поиск
         /// по данным (закреплённые строки несут обёртку <see cref="PinnedInfobaseItem"/>).

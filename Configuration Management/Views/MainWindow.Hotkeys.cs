@@ -681,14 +681,28 @@ namespace Configuration_Management
         private readonly HashSet<ContextMenu> _openContextMenus = new();
 
         /// <summary>
-        /// Снимок клика, которым закрыли контекстное меню дерева (issue #340, новый подход).
-        /// Записывается в момент закрытия меню (клик по строке, левая кнопка нажата);
-        /// повторная доставка того же MouseDown в дерево (WPF освобождает захват попапа
-        /// асинхронно) распознаётся по времени и позиции в
-        /// OnInfobaseTree_PreviewMouseLeftButtonDown и гасится без изменения выделения.
+        /// Снимок клика, которым закрыли контекстное меню дерева (issue #340, новая стратегия).
+        /// Записывается в момент закрытия меню (простой левый клик по строке БЕЗ модификаторов);
+        /// используется для распознавания ПОВТОРНОЙ доставки того же MouseDown в дерево (WPF
+        /// освобождает захват попапа асинхронно) и для fallback, если повторной доставки не будет.
         /// Сбрасывается при первом же событии мыши после закрытия меню.
         /// </summary>
         private BatchSelectionHelper.MenuCloseClickSnapshot? _menuCloseClickSnapshot;
+
+        /// <summary>
+        /// Флаг «клик, закрывший меню, ещё не обработан» (issue #340, новая стратегия):
+        /// взводится в <see cref="TryApplyTreeClickAfterMenuClosed"/>, снимается штатной
+        /// повторной доставкой клика (OnInfobaseTree_PreviewMouseLeftButtonDown) или
+        /// fallback-обработчиком <see cref="ApplyMenuCloseFallback"/>. Fallback срабатывает
+        /// только пока флаг взведён — применение выбора однократно и идемпотентно.
+        /// </summary>
+        private bool _menuClosePendingApply;
+
+        /// <summary>Целевая база клика, закрывшего меню (для fallback, issue #340).</summary>
+        private Infobase? _menuCloseTarget;
+
+        /// <summary>Секция целевой строки: true — «Закреплённые» (для fallback, issue #340).</summary>
+        private bool _menuCloseTargetIsPinnedSection;
 
         private void OnContextMenuOpened(object sender, RoutedEventArgs e)
         {
@@ -709,22 +723,24 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Применяет клик по строке дерева, которым пользователь закрыл контекстное меню
-        /// (issue #340, новый подход). Пока меню открыто, WPF держит захват мыши в попапе:
+        /// Фиксирует клик по строке дерева, которым пользователь закрыл контекстное меню
+        /// (issue #340, новая стратегия). Пока меню открыто, WPF держит захват мыши в попапе:
         /// событие клика по строке уходит в попап и только закрывает меню — ни выбор
         /// строки, ни снятие мультивыделения (OnInfobaseTree_PreviewMouseLeftButtonDown)
-        /// при этом не выполняются. Здесь, после фактического закрытия меню, определяем
-        /// строку под курсором и применяем выбор ОДНОКРАТНО по данным этого клика.
+        /// при этом не выполняются. После фактического закрытия меню WPF освобождает захват
+        /// и ПОВТОРНО доставляет «хвост» того же MouseDown в дерево — это штатный, самый
+        /// устойчивый путь выбора (клик по ЖИВОМУ контейнеру под Recycling).
         /// <para>
-        /// Четыре прежних попытки (0.3.9.277/291/299/300) применяли выбор ОТЛОЖЕННО
-        /// (Dispatcher.BeginInvoke) и/или гасили повторную доставку — выделение всё равно
-        /// пропадало «через мгновение». Новый механизм: выбор применяется СИНХРОННО здесь,
-        /// в момент закрытия меню; клик запоминается СНИМКОМ (кнопка, время TickCount,
-        /// позиция), а повторная доставка того же клика в дерево распознаётся по
-        /// времени+позиции в OnInfobaseTree_PreviewMouseLeftButtonDown и гасится БЕЗ
-        /// изменения выделения — никакой отложенной работы, которая могла бы «перевыбрать»
-        /// строку, больше нет. Выбор строится по ДАННЫМ (<see cref="MainViewModel.SelectedInfobase"/>
-        /// и секция клика), а не по контейнеру (контейнеры переиспользуются виртуализацией).
+        /// Пять прежних попыток (0.3.9.277/291/299/300/302) применяли выбор синхронно/
+        /// отложенно в момент закрытия меню (по данным InputHitTest) и гасили повторную
+        /// доставку — но в состоянии Closed контейнеры ещё перерабатываются виртуализацией
+        /// (VirtualizingStackPanel, Recycling), IsSelected «уезжает», а гашение оставляло
+        /// систему без единственного устойчивого пути выбора. Новая стратегия: здесь выбор
+        /// НЕ применяется — только запоминается клик (снимок + флаг _menuClosePendingApply)
+        /// и планируется FALLBACK (<see cref="ApplyMenuCloseFallback"/>) на случай, если
+        /// WPF повторную доставку не выполнит. Сам выбор применит штатная повторная
+        /// доставка в OnInfobaseTree_PreviewMouseLeftButtonDown; после него запускается
+        /// стабилизация IsSelected (<see cref="EnsureSelectionStable"/>).
         /// </para>
         /// </summary>
         private void TryApplyTreeClickAfterMenuClosed(ContextMenu menu)
@@ -754,24 +770,71 @@ namespace Configuration_Management
             if (infobase is null || infobase.Id is not { Length: > 0 })
                 return;
 
-            // Запоминаем клик, которым закрыли меню: повторная доставка того же MouseDown
-            // в дерево (захват попапа освобождается асинхронно) будет опознана по времени
-            // и позиции и погашена — без подавления флагом (issue #340). Время — едиными
-            // часами Environment.TickCount (та же шкала, что и в сравнении
+            // Снимок записывается ТОЛЬКО для простого левого клика БЕЗ модификаторов:
+            // Ctrl/Shift-клики при открытом меню должны уйти штатной логике мультивыделения
+            // (ToggleBatchSelection/SelectRange) — снимок не должен их дедуплицировать или
+            // «перевыбирать» (иначе мультивыделение подавлялось бы вместе с повторной
+            // доставкой).
+            var mods = Keyboard.Modifiers;
+            if (!BatchSelectionHelper.ShouldRecordMenuCloseSnapshot(
+                    "Left",
+                    (mods & ModifierKeys.Control) == ModifierKeys.Control,
+                    (mods & ModifierKeys.Shift) == ModifierKeys.Shift))
+            {
+                return;
+            }
+
+            // Запоминаем клик (снимок + флаг + цель). Время — едиными часами
+            // Environment.TickCount (та же шкала, что и в сравнении
             // OnInfobaseTree_PreviewMouseLeftButtonDown).
             _menuCloseClickSnapshot = new BatchSelectionHelper.MenuCloseClickSnapshot(
                 "Left", Environment.TickCount, pos.X, pos.Y);
+            _menuClosePendingApply = true;
+            _menuCloseTarget = infobase;
+            _menuCloseTargetIsPinnedSection = BatchSelectionHelper.IsPinnedSection(treeViewItem.DataContext);
 
-            // Выбор применяется СИНХРОННО и однократно (issue #340). В четырёх прежних
-            // попытках (0.3.9.277/291/299/300) выбор ставился ОТЛОЖЕННО через
-            // Dispatcher.BeginInvoke — между «строка стала активной» и фактическим
-            // применением оставалось окно, в которое вмешивались разметка/виртуализация,
-            // и выделение пропадало «через мгновение». Здесь, в момент закрытия меню,
-            // выбор уже сделан по данным клика; повторная доставка «хвоста» гасится
-            // снимком и ничего не переприменяет.
-            var clickedIsPinned = BatchSelectionHelper.IsPinnedSection(treeViewItem.DataContext);
+            // Fallback срабатывает на приоритете Input ПОСЛЕ возможной повторной доставки
+            // клика: если штатный PreviewMouseLeftButtonDown уже обработал клик, он снял
+            // _menuClosePendingApply, и fallback ничего не делает (идемпотентность). Если
+            // повторной доставки не было — выбор ставится по данным (SelectTreeRowByData)
+            // и запускается стабилизация IsSelected.
+            Dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Input,
+                new Action(ApplyMenuCloseFallback));
+        }
+
+        /// <summary>
+        /// Fallback-применение выбора клика, которым закрыли контекстное меню (issue #340,
+        /// новая стратегия). Штатный путь — ПОВТОРНАЯ доставка MouseDown в дерево (WPF
+        /// освобождает захват попапа асинхронно) — обрабатывает клик по живому контейнеру
+        /// и сам снимает флаг <see cref="_menuClosePendingApply"/>. Fallback нужен на случай,
+        /// если повторной доставки не произошло: применяет выбор по ДАННЫМ
+        /// (<see cref="SelectTreeRowByData"/>) и запускает стабилизацию
+        /// (<see cref="EnsureSelectionStable"/>). Идемпотентен: срабатывает только пока флаг
+        /// взведён и пользователь не перевыбрал другую строку.
+        /// </summary>
+        private void ApplyMenuCloseFallback()
+        {
+            if (!_menuClosePendingApply)
+                return;
+            _menuClosePendingApply = false;
+
+            var target = _menuCloseTarget;
+            var isPinnedSection = _menuCloseTargetIsPinnedSection;
+            _menuCloseTarget = null;
+            _menuCloseTargetIsPinnedSection = false;
+            if (target is null || _viewModel is null || MainTree is null)
+                return;
+
+            // Пользователь успел перевыбрать другую строку — не вмешиваемся.
+            if (_viewModel.SelectedInfobase is { } current && !ReferenceEquals(current, target))
+                return;
+
+            // Клик был без модификаторов — семантика обычного клика: единственный выбор
+            // (мультивыделение снимается, выбирается целевая строка).
             _viewModel.ClearBatchSelection();
-            SelectTreeRowByData(infobase, treeViewItem, clickedIsPinned);
+            SelectTreeRowByData(target, null, isPinnedSection);
+            EnsureSelectionStable(target, isPinnedSection);
         }
 
         /// <summary>
