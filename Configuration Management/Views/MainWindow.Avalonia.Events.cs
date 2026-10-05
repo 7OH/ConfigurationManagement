@@ -218,8 +218,14 @@ namespace Configuration_Management
                 _menuCloseTarget = clickedBase;
                 _menuCloseTargetIsPinnedSection = BatchSelectionHelper.IsPinnedSection(rowItem.DataContext);
 
+                // Диагностика (issue #340, F-поля): активность/видимость окна и число
+                // открытых контекстных меню — для проверки гипотезы S4 (деактивация окна
+                // закрытием попапа меню и сброс состояния до повторной доставки клика).
+                // Аналог _openContextMenus.Count в Avalonia — состояние ContextMenu дерева.
                 MenuCloseTrace.Log($"TryApply: snapshot=(Left,t={Environment.TickCount},x={pos.X:0.#},y={pos.Y:0.#}), " +
-                                   $"target={clickedBase.Id}, pending=true, pinned={_menuCloseTargetIsPinnedSection}");
+                                   $"target={clickedBase.Id}, pending=true, pinned={_menuCloseTargetIsPinnedSection}, " +
+                                   $"IsVisible={IsVisible}, IsActive={IsActive}, " +
+                                   $"openMenusCount={(_tree?.ContextMenu?.IsOpen == true ? 1 : 0)}");
 
                 // Fallback: если повторная доставка клика не придёт (или контрол не применит
                 // выбор), выбор ставится по данным; идемпотентен — сработает только пока
@@ -327,18 +333,26 @@ namespace Configuration_Management
                 return;
 
             var passes = 0;
-            const int maxPasses = 10;
+            const int maxPasses = 15;   // F2: расширено с 10 (план 0.3.9.306, 2.4)
             var startTick = Environment.TickCount;
-            const int timeoutMs = 1000;
+            const int timeoutMs = 1500; // F2: расширено с 1000 (план 0.3.9.306, 2.4)
+            const int chaseDelayMs = 800; // F1: одноразовый «догоняющий» таймер
+
+            // Диагностика (issue #340): актуальный SelectedItem дерева и время с начала
+            // стабилизации — чтобы по логу видеть, «уезжал» ли SelectedItem к моменту
+            // завершения подписки.
+            string SelectedItemId() => BatchSelectionHelper.Unwrap(_tree?.SelectedItem)?.Id ?? "null";
 
             EventHandler onLayoutUpdated = null!;
             onLayoutUpdated = (_, _) =>
             {
                 passes++;
-                if (passes > maxPasses || Environment.TickCount - startTick >= timeoutMs)
+                var timeSinceStartMs = Environment.TickCount - startTick;
+                if (passes > maxPasses || timeSinceStartMs >= timeoutMs)
                 {
                     _tree.LayoutUpdated -= onLayoutUpdated;
-                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, done=true");
+                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, done=true, " +
+                                       $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
                     return;
                 }
 
@@ -346,7 +360,8 @@ namespace Configuration_Management
                 if (!ReferenceEquals(_vm.SelectedInfobase, target))
                 {
                     _tree.LayoutUpdated -= onLayoutUpdated;
-                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, userReselected=true");
+                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, userReselected=true, " +
+                                       $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
                     return;
                 }
 
@@ -355,10 +370,59 @@ namespace Configuration_Management
                 if (!matches)
                     SelectRowByData(target, isPinnedSection);
                 MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, matches={matches}, " +
-                                   $"containerRealized={containerRealized}, action={(matches ? "skip" : "restored")}");
+                                   $"containerRealized={containerRealized}, action={(matches ? "skip" : "restored")}, " +
+                                   $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
             };
 
             _tree.LayoutUpdated += onLayoutUpdated;
+
+            // F1 (план 0.3.9.306, 2.4): «догоняющая» стабилизация для нереализованного
+            // контейнера. Если в момент старта контейнер целевой строки ещё не реализован
+            // (виртуализация Recycling после закрытия попапа), подписка на LayoutUpdated
+            // может закончиться раньше, чем контейнер появится, а строка без контейнера
+            // не подсвечивается (SelectRowByData при отсутствии контейнера только ставит
+            // модель). Одноразовый DispatcherTimer (~800 мс) ПОСЛЕ завершения подписки
+            // проверяет реализацию контейнера и применяет выбор (SelectRow), если
+            // подсветка так и не встала. Идемпотентно; при перевыборе не вмешивается.
+            var containerRealizedAtStart = _tree.FindRowForData(target, isPinnedSection) is not null;
+            if (BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+                    containerRealizedAtStart, userReselected: false, elapsedMs: 0, maxChaseMs: chaseDelayMs))
+            {
+                var chaseTimer = new Avalonia.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(chaseDelayMs)
+                };
+                chaseTimer.Tick += (_, _) =>
+                {
+                    chaseTimer.Stop();
+                    var timeSinceStartMs = Environment.TickCount - startTick;
+                    if (_tree is null || _vm is null || target is null)
+                        return;
+                    // Пользователь перевыбрал другую строку — не вмешиваемся.
+                    if (!ReferenceEquals(_vm.SelectedInfobase, target))
+                        return;
+
+                    var row = _tree.FindRowForData(target, isPinnedSection);
+                    if (row is null)
+                    {
+                        MenuCloseTrace.Log($"EnsureStable: target={target.Id}, chase=notRealized, " +
+                                           $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
+                        return;
+                    }
+                    if (!row.IsSelected)
+                    {
+                        _tree.SelectRow(row);
+                        MenuCloseTrace.Log($"EnsureStable: target={target.Id}, chase=applied, " +
+                                           $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
+                    }
+                    else
+                    {
+                        MenuCloseTrace.Log($"EnsureStable: target={target.Id}, chase=ok, " +
+                                           $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
+                    }
+                };
+                chaseTimer.Start();
+            }
         }
 
         /// <summary>

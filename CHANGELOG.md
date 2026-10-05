@@ -9,6 +9,44 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.306] — 2026-10-05
+
+### Исправлено
+
+- **Снятие выделения после мультивыделения (issue #340, восьмая попытка)**:
+  - диагностика переведена с переменной окружения `CM_MENUCLOSE_TRACE=1` и `%TEMP%` на
+    постоянную трассировку в файл **`menuclose_trace.json`** рядом с настройками приложения
+    (Windows: `%APPDATA%\ConfigurationManagement\`, Linux: `~/.config/ConfigurationManagement/`);
+    формат — JSON Lines, усечение ~512 КБ, стартовая запись с версией/платформой
+    ([`MenuCloseTrace.cs`](Configuration%20Management/Services/MenuCloseTrace.cs),
+    [`MenuCloseTraceFormat.cs`](Configuration%20Management/Services/MenuCloseTraceFormat.cs));
+  - стабилизация `IsSelected` доработана: «догоняющее» восстановление для нереализованного
+    виртуализацией контейнера (~800 мс), окно стабилизации расширено до 15 проходов / 1,5 с,
+    сброс pending-состояния при деактивации окна — только после grace-периода ~300 мс
+    (кратковременная деактивация попапом меню больше не отменяет fallback)
+    ([`MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs),
+    [`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs),
+    зеркально Avalonia);
+  - тесты: новый
+    [`MenuCloseTraceFormatTests.cs`](ConfigurationManagement.Tests/MenuCloseTraceFormatTests.cs),
+    дополнен
+    [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs).
+- **Программный вход на portal.1c.ru (issues #323/#330/#334, четвёртая итерация)**:
+  - устранён «фантомный успех» входа: ответ POST 200 без установки сессионной cookie портала
+    больше НЕ считается успешным входом — повторный запрос каталога не запускается и лимит
+    попыток (3 за сессию) не тратится впустую;
+  - вход доводится до конца при JS/meta-refresh-редиректе в теле ответа (CAS-цепочка до
+    `security_check?ticket=…`);
+  - расширенная диагностика в журнале без секретов: `sessionCookie=true/false`,
+    `contentType`/`bodyLength`/санитизированное превью тела, имена и флаги cookie из
+    `Set-Cookie`, инвентаризация cookie контейнера, маркер `retryAfterLoginStill302`
+    ([`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs));
+  - тесты: 5 новых сценариев в
+    [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs).
+
+Полный набор `dotnet test` зелёный (**1759**), сборка Release без ошибок; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) — без ошибок.
+
 ## [0.3.9.305] — 2026-10-04
 
 ### Исправлено

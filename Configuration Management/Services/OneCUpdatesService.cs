@@ -1080,6 +1080,20 @@ public class OneCUpdatesService : IOneCUpdatesService
                 _logger.Warn($"[Updates] HTTP {status} без полезного Location для '{current.RequestUri}' — вход на portal.1c.ru не выполнен (проверьте учётные данные ИТС).");
             }
 
+            // Диагностика «фантомного успеха» (issue #323/#330/#334): вход в рамках этой операции
+            // уже выполнялся и завершился «успехом» (сессионная cookie появилась в контейнере),
+            // но повтор исходного запроса СНОВА дал 302 на login.1c.ru — сервер не принял cookie.
+            // Второй вход не запускаем (loginTried=true): лимит попыток не тратится впустую
+            // (лог issue #330: три подряд «Вход выполнен (status=200)» → лимит → AuthRequired).
+            if (loginTried &&
+                _lastLoginResult == PortalLoginResult.Success &&
+                response.Headers.Location?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                _logger.Warn("[Updates] retryAfterLoginStill302=true: после «успешного» входа повтор " +
+                             "исходного запроса снова дал 302 на login.1c.ru (фантомный успех); второй " +
+                             "вход в рамках операции не выполняется.");
+            }
+
             // На страницу входа portal.1c.ru редирект НЕ следуем: если сессии нет, а программный
             // вход не удался, GET формы входа вернёт HTML без версий, и проверка ложно завершится
             // статусом Unavailable («каталог доступен, точная версия не определена»). Возвращаем
@@ -1252,7 +1266,14 @@ public class OneCUpdatesService : IOneCUpdatesService
 
                 var postStatus = (int)postResponse.StatusCode;
                 var postLocation = postResponse.Headers.Location?.ToString() ?? "<нет>";
-                _logger.Info($"[Updates] Вход: POST status={postStatus}, location='{postLocation}'");
+                // Cookie из ответа POST явно добавляем в общее хранилище: страховка для
+                // кастомных транспортов/тестов с fake-обработчиками (в проде HttpClientHandler
+                // уже обрабатывает Set-Cookie; повторное добавление той же cookie безопасно).
+                // После этого sessionCookie корректно отражает факт установки сессии.
+                ApplySetCookieToContainer(postResponse, postRequest.RequestUri ?? new Uri(postUrl));
+                _logger.Info($"[Updates] Вход: POST status={postStatus}, location='{postLocation}', " +
+                             $"sessionCookie={HasPortalSessionCookie()}");
+                _logger.Info($"[Updates] Вход: POST Set-Cookie: {DescribeSetCookies(postResponse)}");
 
                 // Шаг 3: доводим CAS-цепочку до конца. После успешного входа сервер отвечает
                 // 302 на releases.1c.ru/public/security_check?ticket=ST-…; сессионная cookie
@@ -1271,6 +1292,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                         // сессия установлена, следующие операции могут входить заново.
                         _portalLoginAttempts = 0;
                         _lastLoginResult = PortalLoginResult.Success;
+                        LogPortalCookieInventory();
                         return PortalLoginResult.Success;
                     }
 
@@ -1282,10 +1304,15 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // Успех без редиректа: 2xx. ВАЖНО: при неверном логине CAS может вернуть 200
                 // с телом формы входа (поля execution/lt, сообщение об ошибке) и БЕЗ сессионной
                 // cookie — такой ответ НЕ является успехом («фантомный успех», issue #330):
-                // проверяем содержимое тела, а не только код ответа.
+                // проверяем содержимое тела, наличие Set-Cookie и сессионной cookie, а не
+                // только код ответа.
                 if (postResponse.IsSuccessStatusCode)
                 {
                     var postBody = await ReadBodyQuietlyAsync(postResponse, ct).ConfigureAwait(false);
+                    // Расширенная диагностика ветки 2xx (issue #323/#330/#334): contentType,
+                    // длина тела, превью (без секретов) и Set-Cookie только именами/флагами.
+                    LogPost2xxDiagnostics(postStatus, postResponse, postBody, fields, login, password);
+
                     if (LooksLikeLoginForm(postBody))
                     {
                         LogAnonymizedAuthFailure(
@@ -1295,10 +1322,51 @@ public class OneCUpdatesService : IOneCUpdatesService
                         return PortalLoginResult.AuthFailed;
                     }
 
+                    // Следование JS/meta-refresh-редиректу в теле 2xx (issue #323/#330/#334):
+                    // CAS-цепочка часто доводится до releases.1c.ru/public/security_check?ticket=…
+                    // именно JS-редиректом, и сессионная cookie выставляется на этом звене.
+                    var bodyRedirect = ExtractBodyRedirectUrl(postBody);
+                    if (bodyRedirect is not null)
+                    {
+                        _logger.Info($"[Updates] Вход: в теле 2xx найден JS/meta-refresh редирект на '{bodyRedirect}' — следуем.");
+                        var target = ResolveBodyRedirectTarget(postUrl, bodyRedirect);
+                        if (target is not null)
+                        {
+                            var jsCompleted = await FollowLoginRedirectsAsync(target, ct).ConfigureAwait(false);
+                            _logger.Info($"[Updates] Вход: FollowLoginRedirectsAsync(js)={jsCompleted}, " +
+                                         $"sessionCookie={HasPortalSessionCookie()}");
+                            if (jsCompleted)
+                            {
+                                _logger.Info("[Updates] Вход на portal.1c.ru выполнен (JS/meta-refresh цепочка пройдена).");
+                                _portalLoginAttempts = 0;
+                                _lastLoginResult = PortalLoginResult.Success;
+                                LogPortalCookieInventory();
+                                return PortalLoginResult.Success;
+                            }
+                        }
+                    }
+
+                    // «Фантомный успех» (issue #330): сервер вернул 200, но сессионная cookie
+                    // НЕ установлена и в ответе нет ни одного Set-Cookie — вход фактически не
+                    // выполнен. Такой ответ успехом больше НЕ считается (раньше 2xx + тело без
+                    // формы входа проходило как Success, и следующий запрос каталога снова давал
+                    // 302 → повторный вход → исчерпание лимита за одну операцию, лог 7OH).
+                    var hasSession = HasPortalSessionCookie();
+                    var hasSetCookie = HasSetCookieHeader(postResponse);
+                    if (!hasSession && !hasSetCookie)
+                    {
+                        _logger.Warn("[Updates] Вход на portal.1c.ru не подтверждён: сервер вернул 200 " +
+                                     "без установки сессии и без Set-Cookie (фантомный успех) — вход " +
+                                     "не засчитан, повтор исходного запроса и лимит попыток не тратятся.");
+                        _lastLoginResult = PortalLoginResult.AuthFailed;
+                        return PortalLoginResult.AuthFailed;
+                    }
+
                     _logger.Info($"[Updates] Вход на portal.1c.ru выполнен (status={postStatus}), " +
-                                 $"sessionCookie={HasPortalSessionCookie()}.");
+                                 $"sessionCookie={hasSession}, setCookie={hasSetCookie}.");
                     _portalLoginAttempts = 0;
                     _lastLoginResult = PortalLoginResult.Success;
+                    LogPortalCookieInventory();
                     return PortalLoginResult.Success;
                 }
 
@@ -1443,6 +1511,136 @@ public class OneCUpdatesService : IOneCUpdatesService
         {
             return string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Явно добавляет cookie из заголовков <c>Set-Cookie</c> ответа в общее хранилище
+    /// (issue #323/#330/#334): в проде эту работу выполняет <c>HttpClientHandler</c>, но для
+    /// кастомных транспортов и тестов с fake-обработчиками обработка дублируется здесь, чтобы
+    /// <see cref="HasPortalSessionCookie"/> корректно отражал факт установки сессии. Повторное
+    /// добавление той же cookie в контейнер безопасно (заменяет предыдущую). Некорректные
+    /// заголовки игнорируются — вход не роняется.
+    /// </summary>
+    private void ApplySetCookieToContainer(HttpResponseMessage response, Uri requestUri)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var values))
+            return;
+
+        foreach (var header in values)
+        {
+            try
+            {
+                var cookie = ParseSetCookie(header, requestUri);
+                if (cookie is null)
+                    continue;
+
+                var host = cookie.Domain.StartsWith(".", StringComparison.Ordinal)
+                    ? cookie.Domain.TrimStart('.')
+                    : cookie.Domain;
+                _cookieContainer.Add(new Uri($"https://{host}/"), cookie);
+            }
+            catch
+            {
+                // Некорректный Set-Cookie не должен ронять вход.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Разбирает один заголовок <c>Set-Cookie</c> в <see cref="Cookie"/>: имя/значение и
+    /// атрибуты Path/Domain/Expires/HttpOnly/Secure. Возвращает null при отсутствии пары
+    /// name=value или пустом имени. Значения cookie в журнал не выводятся
+    /// (issue #323/#330/#334).
+    /// </summary>
+    internal static Cookie? ParseSetCookie(string header, Uri fallbackUri)
+    {
+        if (string.IsNullOrWhiteSpace(header))
+            return null;
+
+        var parts = header.Split(';');
+        var first = parts[0];
+        var eq = first.IndexOf('=');
+        if (eq <= 0)
+            return null;
+
+        var name = first.Substring(0, eq).Trim();
+        var value = first.Substring(eq + 1).Trim();
+        if (name.Length == 0)
+            return null;
+
+        var cookie = new Cookie(name, value);
+        for (var i = 1; i < parts.Length; i++)
+        {
+            var p = parts[i].Trim();
+            if (p.Length == 0)
+                continue;
+
+            var eq2 = p.IndexOf('=');
+            var attrName = eq2 > 0 ? p.Substring(0, eq2).Trim() : p;
+            var attrValue = eq2 > 0 ? p.Substring(eq2 + 1).Trim() : string.Empty;
+
+            if (string.Equals(attrName, "path", StringComparison.OrdinalIgnoreCase) && attrValue.Length > 0)
+                cookie.Path = attrValue;
+            else if (string.Equals(attrName, "domain", StringComparison.OrdinalIgnoreCase) && attrValue.Length > 0)
+                cookie.Domain = attrValue;
+            else if (string.Equals(attrName, "expires", StringComparison.OrdinalIgnoreCase) && attrValue.Length > 0
+                     && DateTime.TryParse(attrValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out var expires))
+                cookie.Expires = expires;
+            else if (string.Equals(attrName, "httponly", StringComparison.OrdinalIgnoreCase))
+                cookie.HttpOnly = true;
+            else if (string.Equals(attrName, "secure", StringComparison.OrdinalIgnoreCase))
+                cookie.Secure = true;
+        }
+
+        if (cookie.Domain.Length == 0)
+            cookie.Domain = fallbackUri.Host;
+
+        return cookie;
+    }
+
+    /// <summary>True — в заголовках ответа есть хотя бы один <c>Set-Cookie</c>.</summary>
+    private static bool HasSetCookieHeader(HttpResponseMessage response)
+        => response.Headers.TryGetValues("Set-Cookie", out _);
+
+    /// <summary>Имена и флаги cookie из всех заголовков <c>Set-Cookie</c> ответа POST входа
+    /// (БЕЗ значений) — диагностика «фантомного успеха» (issue #323/#330/#334).</summary>
+    internal static string DescribeSetCookies(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var values))
+            return "<нет>";
+        return string.Join(" | ", values.Select(DescribeSetCookieHeader));
+    }
+
+    /// <summary>Превращает один заголовок <c>Set-Cookie</c> в строку «имя; атрибуты» БЕЗ
+    /// значения: <c>JSESSIONID; HttpOnly; Secure; Path=/; Domain=login.1c.ru</c>.</summary>
+    internal static string DescribeSetCookieHeader(string header)
+    {
+        if (string.IsNullOrWhiteSpace(header))
+            return "<пустой>";
+
+        var parts = header.Split(';');
+        var name = parts[0].Split('=')[0].Trim();
+        var flags = new List<string>();
+        for (var i = 1; i < parts.Length; i++)
+        {
+            var p = parts[i].Trim();
+            if (p.Length == 0)
+                continue;
+
+            var eq = p.IndexOf('=');
+            var attrName = eq > 0 ? p.Substring(0, eq).Trim() : p;
+            var attrValue = eq > 0 ? p.Substring(eq + 1).Trim() : string.Empty;
+            if (string.Equals(attrName, "httponly", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(attrName, "secure", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(attrName, "path", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(attrName, "domain", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(attrName, "samesite", StringComparison.OrdinalIgnoreCase))
+            {
+                flags.Add(attrValue.Length > 0 ? $"{attrName}={attrValue}" : attrName);
+            }
+        }
+
+        return name.Length == 0 ? "<безымянная>" : flags.Count == 0 ? name : $"{name}; {string.Join("; ", flags)}";
     }
 
     /// <summary>
@@ -1641,6 +1839,68 @@ public class OneCUpdatesService : IOneCUpdatesService
                      $"{(fieldNames.Length > 0 ? $", поля формы: {fieldNames}" : string.Empty)}).");
     }
 
+    /// <summary>
+    /// Логирует расширенную диагностику ветки 2xx POST входа (issue #323/#330/#334):
+    /// contentType, длину тела, превью первых ~300 символов (БЕЗ секретов — значения полей
+    /// формы, логин и пароль удаляются) и Set-Cookie только именами/флагами.
+    /// </summary>
+    private void LogPost2xxDiagnostics(
+        int status,
+        HttpResponseMessage response,
+        string body,
+        IReadOnlyDictionary<string, string> fields,
+        string login,
+        string password)
+    {
+        var contentType = response.Content?.Headers.ContentType?.ToString() ?? "<нет>";
+        var bodyLength = string.IsNullOrEmpty(body) ? 0 : body.Length;
+        var preview = SanitizeBodyPreview(body, fields, login, password);
+        _logger.Info($"[Updates] Вход: POST 2xx диагностика status={status}, contentType='{contentType}', " +
+                     $"bodyLength={bodyLength}, bodyPreview='{preview}'");
+        _logger.Info($"[Updates] Вход: POST Set-Cookie: {DescribeSetCookies(response)}");
+    }
+
+    /// <summary>Превью тела для журнала (первые ~300 символов) с удалением секретов:
+    /// значений полей формы (execution/lt/csrf), логина и пароля, значений атрибутов
+    /// <c>value</c> у input-тегов и пар name=значение чувствительных полей. Управляющие
+    /// символы заменяются пробелами — превью остаётся одной строкой.</summary>
+    private static string SanitizeBodyPreview(
+        string body, IReadOnlyDictionary<string, string> fields, string login, string password)
+    {
+        if (string.IsNullOrEmpty(body))
+            return string.Empty;
+
+        var text = body.Length > 300 ? body.Substring(0, 300) : body;
+
+        // Известные секреты: значения полей формы, логин и пароль.
+        var secrets = new List<string>();
+        foreach (var value in fields.Values)
+        {
+            if (!string.IsNullOrWhiteSpace(value) && value.Length >= 3)
+                secrets.Add(value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(login) && login.Length >= 3)
+            secrets.Add(login);
+        if (!string.IsNullOrWhiteSpace(password) && password.Length >= 3)
+            secrets.Add(password);
+
+        foreach (var secret in secrets.Distinct(StringComparer.Ordinal))
+            text = text.Replace(secret, "<...>", StringComparison.Ordinal);
+
+        // Значения атрибутов value любых input скрываются целиком (токены в теле POST-ответа
+        // могут отличаться от полей GET-формы).
+        text = Regex.Replace(text, @"\bvalue\s*=\s*(?:""[^""]*""|'[^']*')",
+            "value=\"<...>\"", RegexOptions.IgnoreCase);
+
+        // Пары name=значение в form-urlencoded контексте для чувствительных полей.
+        text = Regex.Replace(text,
+            @"\b(execution|lt|csrf|_csrf|password|username|j_password)\s*=\s*[^&\s""'<>]+",
+            "$1=<...>", RegexOptions.IgnoreCase);
+
+        return Regex.Replace(text, @"[\r\n\t]+", " ");
+    }
+
     /// <summary>Определяет по тексту тела ответа вероятную причину отклонения входа
     /// (без вывода самого текста): неверный логин/пароль, капча, наличие полей lt/execution/csrf.</summary>
     private static string DetectAuthFailureMarkers(string body)
@@ -1716,6 +1976,61 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <summary>
+    /// Ищет в теле ответа 2xx признак JS/meta-refresh-редиректа и извлекает целевой URL
+    /// (issue #323/#330/#334): CAS-цепочка часто доводится до
+    /// <c>releases.1c.ru/public/security_check?ticket=…</c> именно JS-редиректом, где
+    /// выставляется сессионная cookie. Маркеры: <c><meta http-equiv="refresh"></c>,
+    /// <c>window.location</c>, <c>location.href</c>, <c>document.location</c>, <c>top.location</c>.
+    /// Возвращает URL (HTML-декодированный) или null.
+    /// </summary>
+    internal static string? ExtractBodyRedirectUrl(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return null;
+
+        // 1) <meta http-equiv="refresh" content="N; url=..."> — порядок атрибутов произвольный.
+        foreach (Match tag in MetaRefreshTagRegex.Matches(body))
+        {
+            var contentMatch = Regex.Match(tag.Value,
+                @"content\s*=\s*[""'](?<content>[^""']*)[""']",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (!contentMatch.Success)
+                continue;
+
+            var urlMatch = Regex.Match(contentMatch.Groups["content"].Value,
+                @"url\s*=\s*(?<url>[^;""'\s]+)",
+                RegexOptions.IgnoreCase);
+            if (urlMatch.Success)
+                return WebUtility.HtmlDecode(urlMatch.Groups["url"].Value.Trim());
+        }
+
+        // 2) JS-редирект: window.location[.href|.replace](...) / document.location /
+        //    top.location / location.href — присваивание или вызов.
+        var js = Regex.Match(body,
+            @"(?:\b(?:window|document|top)\s*\.\s*location|\blocation)(?:\s*\.\s*(?:href|replace))?\s*[=(]\s*[""'](?<url>[^""']+)[""']",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (js.Success)
+            return WebUtility.HtmlDecode(js.Groups["url"].Value.Trim());
+
+        return null;
+    }
+
+    /// <summary>Регулярное выражение тега <c><meta http-equiv="refresh" …></c>.</summary>
+    private static readonly Regex MetaRefreshTagRegex =
+        new(@"<meta\b[^>]*http-equiv\s*=\s*[""']refresh[""'][^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+    /// <summary>Резолвит URL из JS/meta-refresh-редиректа относительно адреса POST формы.</summary>
+    private static Uri? ResolveBodyRedirectTarget(string baseUrl, string rawUrl)
+    {
+        if (Uri.TryCreate(rawUrl, UriKind.Absolute, out var abs))
+            return abs;
+        if (Uri.TryCreate(new Uri(baseUrl), rawUrl, out var rel))
+            return rel;
+        return null;
+    }
+
+    /// <summary>
     /// True — в общем хранилище cookie есть сессионная cookie портала 1С
     /// (<c>JSESSIONID</c>/<c>TGC</c>/<c>session_id</c>), выставленная после успешного входа
     /// на login.1c.ru. Используется как подтверждение успеха входа и ранний выход из
@@ -1744,6 +2059,49 @@ public class OneCUpdatesService : IOneCUpdatesService
         }
 
         return false;
+    }
+
+    /// <summary>Логирует перечень cookie общего хранилища для хостов портала 1С (имена и
+    /// атрибуты, БЕЗ значений) — диагностика входа (issue #323/#330/#334).</summary>
+    private void LogPortalCookieInventory()
+        => _logger.Info($"[Updates] Вход: cookie контейнера: {DescribeContainerCookies()}");
+
+    /// <summary>Имена и атрибуты (без значений) cookie в общем хранилище для hosts
+    /// <c>login.1c.ru</c>/<c>releases.1c.ru</c> — строка для журнала.</summary>
+    internal string DescribeContainerCookies()
+    {
+        var entries = new List<string>();
+        foreach (var host in new[] { "login.1c.ru", "releases.1c.ru" })
+        {
+            try
+            {
+                var cookies = _cookieContainer.GetCookies(new Uri($"https://{host}/"));
+                if (cookies.Count == 0)
+                {
+                    entries.Add($"{host}=<нет>");
+                    continue;
+                }
+
+                var names = new List<string>();
+                foreach (Cookie cookie in cookies)
+                {
+                    var attrs = new List<string>();
+                    if (cookie.Secure) attrs.Add("Secure");
+                    if (cookie.HttpOnly) attrs.Add("HttpOnly");
+                    if (!string.IsNullOrEmpty(cookie.Path)) attrs.Add($"Path={cookie.Path}");
+                    if (!string.IsNullOrEmpty(cookie.Domain)) attrs.Add($"Domain={cookie.Domain}");
+                    names.Add(attrs.Count == 0 ? cookie.Name : $"{cookie.Name}{{{string.Join(",", attrs)}}}");
+                }
+
+                entries.Add($"{host}={string.Join("|", names)}");
+            }
+            catch
+            {
+                entries.Add($"{host}=<ошибка чтения>");
+            }
+        }
+
+        return string.Join("; ", entries);
     }
 
     /// <summary>Выбирает ключ локализации ошибки авторизации для результатов проверок:

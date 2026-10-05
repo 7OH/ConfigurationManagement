@@ -793,8 +793,12 @@ namespace Configuration_Management
             _menuCloseTarget = infobase;
             _menuCloseTargetIsPinnedSection = BatchSelectionHelper.IsPinnedSection(treeViewItem.DataContext);
 
+            // Диагностика (issue #340, F-поля): активность/видимость окна и число
+            // открытых контекстных меню — для проверки гипотезы S4 (деактивация окна
+            // закрытием попапа меню и сброс состояния до повторной доставки клика).
             MenuCloseTrace.Log($"TryApply: snapshot=(Left,t={Environment.TickCount},x={pos.X:0.#},y={pos.Y:0.#}), " +
-                               $"target={infobase.Id}, pending=true, pinned={_menuCloseTargetIsPinnedSection}");
+                               $"target={infobase.Id}, pending=true, pinned={_menuCloseTargetIsPinnedSection}, " +
+                               $"IsVisible={IsVisible}, IsActive={IsActive}, openMenusCount={_openContextMenus.Count}");
 
             // Fallback срабатывает на приоритете Input ПОСЛЕ возможной повторной доставки
             // клика: если штатный PreviewMouseLeftButtonDown уже обработал клик, он снял

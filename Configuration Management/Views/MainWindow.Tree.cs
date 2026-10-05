@@ -855,18 +855,26 @@ namespace Configuration_Management
                 return;
 
             var passes = 0;
-            const int maxPasses = 10;
+            const int maxPasses = 15;   // F2: расширено с 10 (план 0.3.9.306, 2.4)
             var startTick = Environment.TickCount;
-            const int timeoutMs = 1000;
+            const int timeoutMs = 1500; // F2: расширено с 1000 (план 0.3.9.306, 2.4)
+            const int chaseDelayMs = 800; // F1: одноразовый «догоняющий» таймер
+
+            // Диагностика (issue #340): актуальный SelectedItem дерева и время с начала
+            // стабилизации — чтобы по логу видеть, «уезжал» ли SelectedItem к моменту
+            // завершения подписки.
+            string SelectedItemId() => UnwrapInfobase(MainTree?.SelectedItem)?.Id ?? "null";
 
             EventHandler onLayoutUpdated = null!;
             onLayoutUpdated = (_, _) =>
             {
                 passes++;
-                if (passes > maxPasses || Environment.TickCount - startTick >= timeoutMs)
+                var timeSinceStartMs = Environment.TickCount - startTick;
+                if (passes > maxPasses || timeSinceStartMs >= timeoutMs)
                 {
                     MainTree.LayoutUpdated -= onLayoutUpdated;
-                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, done=true");
+                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, done=true, " +
+                                       $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
                     return;
                 }
 
@@ -875,7 +883,8 @@ namespace Configuration_Management
                 if (!ReferenceEquals(_viewModel.SelectedInfobase, target))
                 {
                     MainTree.LayoutUpdated -= onLayoutUpdated;
-                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, userReselected=true");
+                    MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, userReselected=true, " +
+                                       $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
                     return;
                 }
 
@@ -891,10 +900,64 @@ namespace Configuration_Management
                 if (!matches)
                     SelectTreeRowByData(target, null, isPinnedSection);
                 MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, matches={matches}, " +
-                                   $"containerRealized={containerRealized}, action={(matches ? "skip" : "restored")}");
+                                   $"containerRealized={containerRealized}, action={(matches ? "skip" : "restored")}, " +
+                                   $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
             };
 
             MainTree.LayoutUpdated += onLayoutUpdated;
+
+            // F1 (план 0.3.9.306, 2.4): «догоняющая» стабилизация для нереализованного
+            // контейнера. Если в момент старта контейнер целевой строки ещё не реализован
+            // (виртуализация Recycling после закрытия попапа), подписка на LayoutUpdated
+            // может закончиться раньше, чем контейнер появится, а WPF TreeView не
+            // подсвечивает строку без контейнера (модель уже выбрана — SelectTreeRowByData
+            // при отсутствии контейнера только ставит SelectedInfobase). Одноразовый
+            // DispatcherTimer (~800 мс) ПОСЛЕ завершения подписки проверяет реализацию
+            // контейнера и применяет выбор (ApplySelection), если подсветка так и не
+            // встала. Идемпотентно; при перевыборе пользователем не вмешивается.
+            var containerRealizedAtStart = isPinnedSection
+                ? FindPinnedTreeViewItemForData(target) is not null
+                : FindRegularTreeViewItemForData(target) is not null;
+            if (BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+                    containerRealizedAtStart, userReselected: false, elapsedMs: 0, maxChaseMs: chaseDelayMs))
+            {
+                var chaseTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(chaseDelayMs)
+                };
+                chaseTimer.Tick += (_, _) =>
+                {
+                    chaseTimer.Stop();
+                    var timeSinceStartMs = Environment.TickCount - startTick;
+                    if (MainTree is null || _viewModel is null || target is null)
+                        return;
+                    // Пользователь перевыбрал другую строку — не вмешиваемся.
+                    if (!ReferenceEquals(_viewModel.SelectedInfobase, target))
+                        return;
+
+                    var item = isPinnedSection
+                        ? FindPinnedTreeViewItemForData(target)
+                        : FindRegularTreeViewItemForData(target);
+                    if (item is null)
+                    {
+                        MenuCloseTrace.Log($"EnsureStable: target={target.Id}, chase=notRealized, " +
+                                           $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
+                        return;
+                    }
+                    if (!item.IsSelected)
+                    {
+                        ApplySelection(item, target);
+                        MenuCloseTrace.Log($"EnsureStable: target={target.Id}, chase=applied, " +
+                                           $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
+                    }
+                    else
+                    {
+                        MenuCloseTrace.Log($"EnsureStable: target={target.Id}, chase=ok, " +
+                                           $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
+                    }
+                };
+                chaseTimer.Start();
+            }
         }
 
         /// <summary>

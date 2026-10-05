@@ -211,7 +211,14 @@ namespace Configuration_Management
 
             // Шапка окна реагирует на активность: акцентная заливка у активного окна,
             // цвет карточки у неактивного (MainWindow.xaml.cs:78-79).
-            Activated += (_, _) => ApplyTitleBarAppearance(true);
+            Activated += (_, _) =>
+            {
+                // issue #340 (F3): окно снова активно — grace-таймер отменяется,
+                // состояние menu-close НЕ сбрасывается: повторная доставка клика,
+                // которым закрыли меню, ещё может прийти (попап освободил захват).
+                StopMenuCloseGraceTimer();
+                ApplyTitleBarAppearance(true);
+            };
             // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное меню:
             // при клике в другое окно/приложение открытый тултип исчезает, а не «висит» поверх.
             // Закрытие идёт через общий механизм ToolTipCloserAvalonia.CloseAll (issue #270) —
@@ -222,22 +229,14 @@ namespace Configuration_Management
                 // issue #340 (F3): окно потеряло активность. Закрытие попапа контекстного
                 // меню может кратковременно деактивировать окно; НЕМЕДЛЕННЫЙ сброс снимка
                 // и флага pending-применения отменял бы fallback, а повторная доставка клика
-                // трактовалась бы как новый клик (гипотеза S4). Сброс ОТЛОЖЕН и выполняется
-                // только когда контекстное меню гарантированно закрыто — к этому моменту
-                // повторная доставка либо уже обработала клик (флаг снят), либо fallback
-                // уже не нужен.
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    if (_tree?.ContextMenu is not { IsOpen: true })
-                    {
-                        if (_menuClosePendingApply || _menuCloseClickSnapshot is not null)
-                            MenuCloseTrace.Log("Deactivated: отложенный сброс (меню закрыто)");
-                        _menuCloseClickSnapshot = null;
-                        _menuClosePendingApply = false;
-                        _menuCloseTarget = null;
-                        _menuCloseTargetIsPinnedSection = false;
-                    }
-                });
+                // трактовалась бы как новый клик (гипотеза S4). Прежний вариант откладывал
+                // сброс через Dispatcher.UIThread.Post при закрытом меню — но меню могло
+                // опустеть ДО повторной доставки клика, и сброс убивал fallback. Вместо
+                // этого — grace-период ~300 мс с момента Deactivated: если окно снова
+                // активировалось (Activated), таймер отменяется и состояние НЕ сбрасывается;
+                // сброс — только если окно реально осталось неактивным и меню закрыты
+                // (см. OnMenuCloseGraceTimerTick).
+                StartMenuCloseGraceTimer();
                 ToolTipCloserAvalonia.TraceLog("MainWindow.Deactivated: окно потеряло фокус");
                 ToolTipCloserAvalonia.CloseAll();
             };
@@ -275,6 +274,66 @@ namespace Configuration_Management
             // создаются в коде через LocalizationManager.T(...), поэтому окно пересобирается,
             // чтобы переведённый текст появился сразу, а не после перезапуска.
             LocalizationManager.Instance.LanguageChanged += OnLanguageChanged;
+        }
+
+        /// <summary>
+        /// Grace-таймер деактивации (issue #340, F3, план 0.3.9.306): запускается при
+        /// <see cref="Window.Deactivated"/> на ~300 мс; если окно снова стало активным
+        /// (<see cref="Window.Activated"/>) — таймер отменяется и состояние menu-close
+        /// НЕ сбрасывается. Сброс выполняется только если окно реально осталось
+        /// неактивным и контекстное меню закрыто.
+        /// </summary>
+        private Avalonia.Threading.DispatcherTimer? _menuCloseGraceTimer;
+
+        /// <summary>Grace-период деактивации, мс (issue #340, F3, план 0.3.9.306).</summary>
+        private const int MenuCloseGraceMs = 300;
+
+        /// <summary>
+        /// Запускает (перезапускает) grace-таймер деактивации (issue #340, F3):
+        /// сброс состояния menu-close откладывается, чтобы кратковременная деактивация
+        /// окна открытием/закрытием попапа контекстного меню не убивала fallback
+        /// до повторной доставки клика.
+        /// </summary>
+        private void StartMenuCloseGraceTimer()
+        {
+            if (_menuCloseGraceTimer is null)
+            {
+                _menuCloseGraceTimer = new Avalonia.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(MenuCloseGraceMs)
+                };
+                _menuCloseGraceTimer.Tick += OnMenuCloseGraceTimerTick;
+            }
+            _menuCloseGraceTimer.Stop();
+            _menuCloseGraceTimer.Start();
+        }
+
+        /// <summary>Отменяет grace-таймер деактивации (окно снова активно — состояние НЕ сбрасываем).</summary>
+        private void StopMenuCloseGraceTimer()
+        {
+            _menuCloseGraceTimer?.Stop();
+        }
+
+        /// <summary>
+        /// Срабатывание grace-таймера деактивации (issue #340, F3): сброс снимка клика
+        /// и флага pending-применения выполняется ТОЛЬКО если окно действительно осталось
+        /// неактивным и контекстное меню дерева закрыто. Если окно активировалось —
+        /// состояние сохраняется (Activated уже отменил таймер); если меню ещё открыто —
+        /// сброс пропускается (повторная доставка клика / закрытие меню ещё впереди).
+        /// </summary>
+        private void OnMenuCloseGraceTimerTick(object? sender, EventArgs e)
+        {
+            _menuCloseGraceTimer?.Stop();
+            if (IsActive)
+                return;
+            if (_tree?.ContextMenu is { IsOpen: true })
+                return;
+            if (_menuClosePendingApply || _menuCloseClickSnapshot is not null)
+                MenuCloseTrace.Log("Deactivated: grace-сброс (меню закрыто, окно неактивно)");
+            _menuCloseClickSnapshot = null;
+            _menuClosePendingApply = false;
+            _menuCloseTarget = null;
+            _menuCloseTargetIsPinnedSection = false;
         }
 
         /// <summary>

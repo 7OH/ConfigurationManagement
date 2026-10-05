@@ -332,11 +332,14 @@ public sealed class OneCUpdatesLoginFlowTests
     }
 
     [Fact]
-    public async Task LoginPost200_WithoutLoginForm_ReturnsSuccess()
+    public async Task LoginPost200_TargetContentWithSetCookie_ReturnsSuccess()
     {
-        // POST вернул 200 с целевым контентом каталога (без полей формы) — вход выполнен,
-        // следующий запрос каталога отдаёт версии.
-        var handler = new Post200LoginHandler(postBody: VersionsTableHtml, markLoginSucceeded: true);
+        // Четвёртая итерация CAS (issue #323/#330/#334): POST вернул 200 с целевым контентом
+        // каталога (не формой входа) И заголовком Set-Cookie — вход засчитывается по второму
+        // критерию успеха («нет маркеров входа + есть Set-Cookie в ответе»). Без Set-Cookie
+        // тот же ответ — «фантомный успех» (см. LoginPost_200WithoutSessionCookie_IsNotSuccess).
+        var handler = new Post200LoginHandler(postBody: VersionsTableHtml, markLoginSucceeded: true,
+            postSetCookies: new[] { "TS01=abc; Path=/; HttpOnly" });
         var service = CreateService(handler, login: "user1", password: "secret");
 
         var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
@@ -358,6 +361,112 @@ public sealed class OneCUpdatesLoginFlowTests
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(VersionsTableHtml));
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(string.Empty));
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(null!));
+    }
+
+    // ---------- «Фантомный успех» и JS/meta-refresh (issue #323/#330/#334, четвёртая итерация) ----------
+
+    [Fact]
+    public async Task LoginPost_200WithoutSessionCookie_IsNotSuccess()
+    {
+        // 200 с целевым контентом, но БЕЗ Set-Cookie и БЕЗ сессионной cookie — «фантомный
+        // успех»: вход НЕ засчитывается (раньше такой ответ считался успехом, и лимит из
+        // 3 попыток сжигался за одну операцию — лог issue #330). Повтор исходного запроса
+        // не запускается, лимит попыток не тратится.
+        var handler = new Post200LoginHandler(postBody: VersionsTableHtml, markLoginSucceeded: false);
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "sup3r-secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+        Assert.Equal(1, handler.CatalogRequestCount); // исходный запрос не повторяется
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("фантомный успех", joined);
+        Assert.DoesNotContain("sup3r-secret", joined);
+    }
+
+    [Fact]
+    public async Task LoginPost_200WithSessionCookie_IsSuccess()
+    {
+        // 200 + Set-Cookie сессии (JSESSIONID) — вход засчитывается по сессионной cookie,
+        // повтор исходного запроса отдаёт версии каталога (issue #323/#330/#334).
+        var handler = new Post200LoginHandler(postBody: "<html>session established</html>",
+            markLoginSucceeded: true, postSetCookies: new[] { "JSESSIONID=abc123; Path=/; HttpOnly" });
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+    }
+
+    [Fact]
+    public async Task LoginPost_BodyWithMetaRefresh_FollowsLocation()
+    {
+        // POST вернул 200 с телом, содержащим meta-refresh на security_check?ticket=ST-… —
+        // CAS-цепочка доводится JS/meta-refresh-редиректом, там устанавливается сессия
+        // (issue #323/#330/#334, четвёртая итерация).
+        var handler = new MetaRefreshHandler(
+            """<html><head><meta http-equiv="refresh" content="0; url=https://releases.1c.ru/public/security_check?ticket=ST-77"></head></html>""");
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("JS/meta-refresh", joined);
+    }
+
+    [Fact]
+    public async Task LoginDiagnostics_LogHasNoSecrets()
+    {
+        // Ветка 2xx: диагностика тела (contentType, bodyLength, превью, Set-Cookie именами
+        // и флагами) НЕ содержит пароля/логина/значений токенов и значений cookie
+        // (issue #323/#330/#334): пароль и логин положены в тело POST-ответа специально.
+        var handler = new Post200LoginHandler(
+            postBody: "<html>preview user1 sup3r-secret e1s2</html>",
+            markLoginSucceeded: false,
+            postSetCookies: new[] { "SESSION=COOKIE-VALUE-42; Path=/; HttpOnly; Secure" });
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "sup3r-secret");
+
+        await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        var joined = string.Join("\n", logger.Messages);
+        var previewLine = logger.Messages.FirstOrDefault(m => m.Contains("bodyPreview=", StringComparison.Ordinal));
+        Assert.NotNull(previewLine);
+        Assert.Contains("contentType=", joined);
+        Assert.Contains("bodyLength=", joined);
+        Assert.Contains("Set-Cookie", joined);
+        Assert.Contains("SESSION", joined);                // имя cookie видно
+        Assert.DoesNotContain("COOKIE-VALUE-42", joined);  // значение cookie — нет
+        Assert.DoesNotContain("sup3r-secret", joined);     // пароль — нет нигде
+        Assert.DoesNotContain("sup3r-secret", previewLine);
+        Assert.DoesNotContain("user1", previewLine);       // логин — нет в превью тела
+        Assert.DoesNotContain("e1s2", previewLine);        // значение токена — нет
+    }
+
+    [Fact]
+    public async Task SendWithAuthAsync_RetryStill302_LogsPhantomSuccessMarker()
+    {
+        // «Успешный» вход (200 + сессионная cookie в контейнере), но повтор исходного запроса
+        // СНОВА даёт 302 на login.1c.ru — сервер не принял cookie. Маркер фантомного успеха
+        // фиксируется в логе, вторая попытка входа в рамках операции НЕ запускается (лимит
+        // попыток не тратится — лог issue #330: тройной вход за одну операцию).
+        var handler = new Post200LoginHandler(postBody: "<html>session established</html>",
+            markLoginSucceeded: false, postSetCookies: new[] { "JSESSIONID=xyz; Path=/; HttpOnly" });
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.AuthRequired, result.Status);
+        Assert.Equal(1, handler.PostLoginCount); // вторая попытка входа не выполняется
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("retryAfterLoginStill302=true", joined);
     }
 
     // ---------- Сброс счётчика попыток при успехе (Причина 2) ----------
@@ -657,23 +766,30 @@ public sealed class OneCUpdatesLoginFlowTests
     }
 
     /// <summary>
-    /// Обработчик «фантомного успеха» (issue #330): POST входа возвращает 200. Если тело —
-    /// форма входа (execution/lt) и сессия НЕ помечается успешной, каталог продолжает
+    /// Обработчик «фантомного успеха» (issue #330): POST входа возвращает 200 (опционально
+    /// с заголовками Set-Cookie). Если сессия НЕ помечается успешной, каталог продолжает
     /// редиректить на login (вход фактически не выполнен); если тело — целевой контент
-    /// каталога и сессия помечается успешной, каталог отдаёт версии.
+    /// и сессия помечается успешной, каталог отдаёт версии. Считает запросы каталога
+    /// (для проверки «исходный запрос не повторяется при фантомном успехе»).
     /// </summary>
     private sealed class Post200LoginHandler : HttpMessageHandler
     {
         private readonly string _postBody;
         private readonly bool _markLoginSucceeded;
+        private readonly IReadOnlyList<string>? _postSetCookies;
         private bool _loginSucceeded;
 
         public int PostLoginCount { get; private set; }
 
-        public Post200LoginHandler(string postBody, bool markLoginSucceeded)
+        /// <summary>Число обращений к каталогу (исходному запросу) — для проверки, что
+        /// при неудачном входе повтор исходного запроса не запускается.</summary>
+        public int CatalogRequestCount { get; private set; }
+
+        public Post200LoginHandler(string postBody, bool markLoginSucceeded, IReadOnlyList<string>? postSetCookies = null)
         {
             _postBody = postBody;
             _markLoginSucceeded = markLoginSucceeded;
+            _postSetCookies = postSetCookies;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(
@@ -684,6 +800,7 @@ public sealed class OneCUpdatesLoginFlowTests
 
             if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
             {
+                CatalogRequestCount++;
                 response = !_loginSucceeded
                     ? Found(new Uri("https://login.1c.ru/login?service=x"))
                     : Ok(VersionsTableHtml);
@@ -696,6 +813,11 @@ public sealed class OneCUpdatesLoginFlowTests
                     if (_markLoginSucceeded)
                         _loginSucceeded = true;
                     response = Ok(_postBody);
+                    if (_postSetCookies is not null)
+                    {
+                        foreach (var cookie in _postSetCookies)
+                            response.Headers.Add("Set-Cookie", cookie);
+                    }
                 }
                 else
                 {
@@ -709,6 +831,57 @@ public sealed class OneCUpdatesLoginFlowTests
 
             response.RequestMessage = request;
             return response;
+        }
+    }
+
+    /// <summary>Обработчик JS/meta-refresh-цепочки: POST входа возвращает 200 с телом,
+    /// содержащим meta-refresh/JS-редирект на security_check; GET security_check «устанавливает
+    /// сессию» и возвращает контент (issue #323/#330/#334, четвёртая итерация).</summary>
+    private sealed class MetaRefreshHandler : HttpMessageHandler
+    {
+        private readonly string _postBody;
+        private bool _loginSucceeded;
+
+        public int PostLoginCount { get; private set; }
+
+        public MetaRefreshHandler(string postBody) => _postBody = postBody;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = !_loginSucceeded
+                    ? Found(new Uri("https://login.1c.ru/login?service=x"))
+                    : Ok(VersionsTableHtml);
+            }
+            else if (path.Contains("/public/security_check", StringComparison.OrdinalIgnoreCase))
+            {
+                _loginSucceeded = true;
+                response = Ok("<html>session established</html>");
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    response = Ok(_postBody);
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
         }
     }
 

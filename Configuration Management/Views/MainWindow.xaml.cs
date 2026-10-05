@@ -55,6 +55,66 @@ namespace Configuration_Management
         /// </summary>
         private bool? _savedTagsStateBeforeTopOff;
 
+        /// <summary>
+        /// Grace-таймер деактивации (issue #340, F3, план 0.3.9.306): запускается при
+        /// <see cref="Window.Deactivated"/> на ~300 мс; если окно снова стало активным
+        /// (<see cref="Window.Activated"/>) — таймер отменяется и состояние menu-close
+        /// НЕ сбрасывается. Сброс выполняется только если окно реально осталось
+        /// неактивным и контекстные меню закрыты.
+        /// </summary>
+        private System.Windows.Threading.DispatcherTimer? _menuCloseGraceTimer;
+
+        /// <summary>Grace-период деактивации, мс (issue #340, F3, план 0.3.9.306).</summary>
+        private const int MenuCloseGraceMs = 300;
+
+        /// <summary>
+        /// Запускает (перезапускает) grace-таймер деактивации (issue #340, F3):
+        /// сброс состояния menu-close откладывается, чтобы кратковременная деактивация
+        /// окна открытием/закрытием попапа контекстного меню не убивала fallback
+        /// до повторной доставки клика.
+        /// </summary>
+        private void StartMenuCloseGraceTimer()
+        {
+            if (_menuCloseGraceTimer is null)
+            {
+                _menuCloseGraceTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(MenuCloseGraceMs)
+                };
+                _menuCloseGraceTimer.Tick += OnMenuCloseGraceTimerTick;
+            }
+            _menuCloseGraceTimer.Stop();
+            _menuCloseGraceTimer.Start();
+        }
+
+        /// <summary>Отменяет grace-таймер деактивации (окно снова активно — состояние НЕ сбрасываем).</summary>
+        private void StopMenuCloseGraceTimer()
+        {
+            _menuCloseGraceTimer?.Stop();
+        }
+
+        /// <summary>
+        /// Срабатывание grace-таймера деактивации (issue #340, F3): сброс снимка клика
+        /// и флага pending-применения выполняется ТОЛЬКО если окно действительно осталось
+        /// неактивным и все контекстные меню закрыты. Если окно активировалось — состояние
+        /// сохраняется (Activated уже отменил таймер); если меню ещё открыты — сброс
+        /// пропускается (повторная доставка клика / закрытие меню ещё впереди).
+        /// </summary>
+        private void OnMenuCloseGraceTimerTick(object? sender, EventArgs e)
+        {
+            _menuCloseGraceTimer?.Stop();
+            if (IsActive)
+                return;
+            if (_openContextMenus.Count > 0)
+                return;
+            if (_menuClosePendingApply || _menuCloseClickSnapshot is not null)
+                MenuCloseTrace.Log($"Deactivated: grace-сброс, openMenus={_openContextMenus.Count}, isActive={IsActive}");
+            _menuCloseClickSnapshot = null;
+            _menuClosePendingApply = false;
+            _menuCloseTarget = null;
+            _menuCloseTargetIsPinnedSection = false;
+        }
+
         public MainWindow(ViewModels.MainViewModel? viewModel = null)
         {
             InitializeComponent();
@@ -75,29 +135,29 @@ namespace Configuration_Management
 
             // Шапка главного окна реагирует на активность: при активном окне заливается
             // акцентным цветом темы, при неактивном — цветом карточки (см. UpdateTitleBarAppearance).
-            Activated += (_, _) => { _isActive = true; UpdateTitleBarAppearance(true); };
+            Activated += (_, _) =>
+            {
+                _isActive = true;
+                // issue #340 (F3): окно снова активно — grace-таймер отменяется,
+                // состояние menu-close НЕ сбрасывается: повторная доставка клика,
+                // которым закрыли меню, ещё может прийти (попап освободил захват).
+                StopMenuCloseGraceTimer();
+                UpdateTitleBarAppearance(true);
+            };
             Deactivated += (_, _) =>
             {
                 _isActive = false;
                 // issue #340 (F3): окно потеряло активность. Открытие/закрытие попапа
                 // контекстного меню может кратковременно деактивировать окно; НЕМЕДЛЕННЫЙ
                 // сброс снимка и флага pending-применения отменял бы fallback, а повторная
-                // доставка клика трактовалась бы как новый клик (гипотеза S4). Сброс
-                // ОТЛОЖЕН и выполняется только когда контекстные меню гарантированно
-                // закрыты (попап освободил захват) — к этому моменту повторная доставка
-                // либо уже обработала клик (флаг снят), либо fallback уже не нужен.
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    if (_openContextMenus.Count == 0)
-                    {
-                        if (_menuClosePendingApply || _menuCloseClickSnapshot is not null)
-                            MenuCloseTrace.Log($"Deactivated: отложенный сброс, openMenus={_openContextMenus.Count}");
-                        _menuCloseClickSnapshot = null;
-                        _menuClosePendingApply = false;
-                        _menuCloseTarget = null;
-                        _menuCloseTargetIsPinnedSection = false;
-                    }
-                }), System.Windows.Threading.DispatcherPriority.Background);
+                // доставка клика трактовалась бы как новый клик (гипотеза S4). Прежний
+                // вариант откладывал сброс на DispatcherPriority.Background при
+                // _openContextMenus.Count == 0 — но список меню мог опустеть ДО повторной
+                // доставки клика, и сброс убивал fallback. Вместо этого — grace-период
+                // ~300 мс с момента Deactivated: если окно снова активировалось (Activated),
+                // таймер отменяется и состояние НЕ сбрасывается; сброс — только если окно
+                // реально осталось неактивным и меню закрыты (см. OnMenuCloseGraceTimerTick).
+                StartMenuCloseGraceTimer();
                 UpdateTitleBarAppearance(false);
                 // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное
                 // меню: при клике в другое окно/приложение открытый тултип исчезает,

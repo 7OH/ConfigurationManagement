@@ -639,4 +639,50 @@ public sealed class BatchSelectionHelperTests
             BatchSelectionHelper.SelectionRestoreAction.SelectByData,
             BatchSelectionHelper.DecideSelectionRestore(null, target, containerIsSelected: false));
     }
+
+    // ============ Догоняющая стабилизация для нереализованного контейнера (issue #340, F1) ============
+
+    [Fact]
+    public void ShouldRetryRestore_UnrealizedContainer_WithinWindow_ReturnsTrue()
+    {
+        // F1: контейнер целевой строки ещё не реализован (Recycling после закрытия
+        // попапа), пользователь не перевыбрал и окно «догоняния» (~800 мс) не исчерпано —
+        // одноразовая повторная попытка нужна: когда контейнер появится, выбор по данным
+        // (SelectTreeRowByData/SelectRow) «догонит» подсветку.
+        Assert.True(BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+            containerRealized: false, userReselected: false, elapsedMs: 0, maxChaseMs: 800));
+        Assert.True(BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+            containerRealized: false, userReselected: false, elapsedMs: 799, maxChaseMs: 800));
+    }
+
+    [Fact]
+    public void ShouldRetryRestore_RealizedContainer_ReturnsFalse()
+    {
+        // Контейнер уже реализован — догоняющий таймер не нужен: стабилизация работает
+        // через подписку на LayoutUpdated (SelectTreeRowByData сразу подсветит строку).
+        Assert.False(BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+            containerRealized: true, userReselected: false, elapsedMs: 0, maxChaseMs: 800));
+    }
+
+    [Fact]
+    public void ShouldRetryRestore_UserReselected_ReturnsFalse()
+    {
+        // Пользователь успел перевыбрать другую строку — «догоняние» не вмешивается
+        // (стабилизация отвечает только за целевой клик).
+        Assert.False(BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+            containerRealized: false, userReselected: true, elapsedMs: 0, maxChaseMs: 800));
+    }
+
+    [Fact]
+    public void ShouldRetryRestore_BeyondWindow_ReturnsFalse()
+    {
+        // Окно «догоняния» исчерпано (>= maxChaseMs) или время ушло в прошлое — дальнейшие
+        // попытки не нужны: состояние отдаётся штатной логике пользователя.
+        Assert.False(BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+            containerRealized: false, userReselected: false, elapsedMs: 800, maxChaseMs: 800));
+        Assert.False(BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+            containerRealized: false, userReselected: false, elapsedMs: 801, maxChaseMs: 800));
+        Assert.False(BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
+            containerRealized: false, userReselected: false, elapsedMs: -1, maxChaseMs: 800));
+    }
 }

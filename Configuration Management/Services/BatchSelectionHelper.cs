@@ -274,6 +274,23 @@ public static class BatchSelectionHelper
         return SelectionRestoreAction.SelectByData;
     }
 
+    /// <summary>
+    /// Нужна ли «догоняющая» стабилизация для НЕреализованного контейнера
+    /// (issue #340, F1, план 0.3.9.306): контейнер целевой строки ещё не реализован
+    /// виртуализацией (Recycling после закрытия попапа) — WPF TreeView/Avalonia не
+    /// подсвечивают строку без контейнера, а подписка на LayoutUpdated может
+    /// закончиться раньше, чем контейнер появится. Критерий запуска одноразового
+    /// таймера (~800 мс): контейнер не реализован, пользователь не перевыбрал
+    /// другую строку и окно «догоняния» не исчерпано.
+    /// </summary>
+    /// <param name="containerRealized">Реализован ли контейнер целевой строки в данный момент.</param>
+    /// <param name="userReselected">Перевыбрал ли пользователь другую строку (стабилизация не вмешивается).</param>
+    /// <param name="elapsedMs">Время, прошедшее с начала стабилизации.</param>
+    /// <param name="maxChaseMs">Окно «догоняния» (рекомендация плана — ~800 мс).</param>
+    public static bool ShouldRetryRestoreForUnrealizedContainer(
+        bool containerRealized, bool userReselected, int elapsedMs, int maxChaseMs)
+        => !containerRealized && !userReselected && elapsedMs >= 0 && elapsedMs < maxChaseMs;
+
     private static int IndexOf(IReadOnlyList<string> list, string value)
     {
         for (var i = 0; i < list.Count; i++)
