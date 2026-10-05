@@ -1,0 +1,38 @@
+[
+    {
+        "Number": 340,
+        "Title": "Снятие выделени после мультивыделения",
+        "CommentsCount": 18,
+        "UpdatedAt": "2026-10-05T06:30:10Z",
+        "LastCommentAuthor": "7OH",
+        "LastCommentDate": "2026-10-05T06:15:18Z",
+        "LastCommentPreview": "(Идея была в файле trace.json видеть доступные переменные, по которым в логи будут писаться дополнительные отладочные информации, в частности по колонкам уже бы отключить отладку)\n\nНа всякий случай создал файл сам - типа если он есть - то его наличие является флагом трассировки.\nНо и туда ничего не записывается при закрытии меню."
+    },
+    {
+        "Number": 334,
+        "Title": "Автообновление платформы",
+        "CommentsCount": 16,
+        "UpdatedAt": "2026-10-05T06:13:57Z",
+        "LastCommentAuthor": "7OH",
+        "LastCommentDate": "2026-10-05T06:13:51Z",
+        "LastCommentPreview": "2026-10-05 09:07:52.869 [INFO] Обновление платформы: получение каталога версий с портала 1С\n2026-10-05 09:07:52.911 [INFO] [Updates] Вход запущен: reason=redirect-login, url='[releases.1c.ru/project/Platform83](https://releases.1c.ru/project/Platform83)', location='[login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check](https://login.1c.ru/login?service=https%3A%2F%2Frel"
+    },
+    {
+        "Number": 330,
+        "Title": "Скачивание и установка нужной версии платформы 1С из стартера",
+        "CommentsCount": 17,
+        "UpdatedAt": "2026-10-05T06:14:12Z",
+        "LastCommentAuthor": "7OH",
+        "LastCommentDate": "2026-10-05T06:14:06Z",
+        "LastCommentPreview": "2026-10-05 09:07:26.447 [INFO] Скачивание платформы: получение каталога версий с портала 1С\n2026-10-05 09:07:26.558 [INFO] [Updates] Вход запущен: reason=redirect-login, url='[releases.1c.ru/project/Platform83](https://releases.1c.ru/project/Platform83)', location='[login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check](https://login.1c.ru/login?service=https%3A%2F%2Frel"
+    },
+    {
+        "Number": 323,
+        "Title": "Окно Проверка обновлений",
+        "CommentsCount": 18,
+        "UpdatedAt": "2026-10-05T06:14:33Z",
+        "LastCommentAuthor": "7OH",
+        "LastCommentDate": "2026-10-05T06:14:26Z",
+        "LastCommentPreview": "2026-10-05 09:06:21.067 [INFO] [Updates] Проверка: config='Бухгалтерия предприятия', url=[releases.1c.ru/project/Accounting30](https://releases.1c.ru/project/Accounting30)\n2026-10-05 09:06:21.187 [INFO] [Updates] Вход запущен: reason=redirect-login, url='[releases.1c.ru/project/Accounting30](https://releases.1c.ru/project/Accounting30)', location='[login.1c.ru/login?service=https%3A%2F%2Freleases."
+    }
+]
