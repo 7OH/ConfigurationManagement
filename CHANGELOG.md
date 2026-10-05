@@ -9,6 +9,58 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.310] — 2026-10-05
+
+### Исправлено
+
+- **Программный вход на portal.1c.ru: ложное AuthFailed после успешного POST (issue #323, кластер A)**:
+  - уточнён детектор формы входа [`LooksLikeLoginForm`](Configuration%20Management/Services/OneCUpdatesService.cs):
+    главный признак — поля ввода логина И пароля (`name="username"` + `name="password"`); токены CAS
+    (`execution`/`lt`) учитываются ТОЛЬКО как поля формы (`ExtractFormFields`) и только вместе с
+    маркером формы входа (action формы с «login», точная фраза отказа/капча либо id/class формы).
+    Страница личного кабинета с полем `execution`, но БЕЗ `username`/`password` и БЕЗ формы-входа
+    формой входа больше НЕ считается — раньше после успешного POST (сервер вернул
+    `<title>Личные данные</title>`, лог 7OH) код объявлял AuthFailed, и повтор исходного запроса
+    каталога не выполнялся;
+  - новый чистый helper [`DetectPersonalAreaPage`](Configuration%20Management/Services/OneCUpdatesService.cs):
+    маркеры страницы после успешного входа («Личные данные», «Личный кабинет», «Главная»,
+    «Профиль», «Мои данные»); в POST-ветке такая страница считается УСПЕШНЫМ входом — сброс
+    счётчика попыток, повтор исходного запроса штатно выполняется `SendWithAuthAsync`, а при
+    повторном 302 срабатывает существующий повторный вход со свежей формой
+    (`MaxLoginAttemptsPerOperation`);
+  - сужены маркеры отказа [`DetectAuthFailureMarkers`](Configuration%20Management/Services/OneCUpdatesService.cs):
+    `execution`/`lt`/`csrf` ищутся только как поля формы (`name="…"`), а не любое вхождение слова
+    в HTML (JS-скрипты и подсказки валидации личного кабинета давали ложные признаки); из фраз
+    отказа убрано короткое «incorrect» — остались точные фразы («Неверный логин или пароль»,
+    «Неверные учётные данные», «incorrect username or password», «bad credentials»,
+    «authentication failed»);
+  - новый признак «капча/подтверждение»: `_lastAuthFailureReason` + отдельный ключ локализации
+    `Updates.CaptchaRequired` («Портал запросил подтверждение (капча)…») — при капче пользователь
+    видит понятное сообщение с советом выполнить вход в браузере на login.1c.ru вместо общего
+    AuthFailed;
+  - уточнён текст `Updates.AuthFailed` (ru/en): совет проверить ту же пару логин/пароль на
+    login.1c.ru в браузере (режим инкогнито) — если браузер просит капчу или отклоняет пароль,
+    автоматический вход также не сработает;
+  - диагностика POST 2xx дополнена извлечённым `<title>` страницы (санитизированный, до 60 симв.)
+    — по журналу сразу видно «Личные данные» vs «Вход» (`LogPost2xxDiagnostics`,
+    `LogAnonymizedAuthFailure`); добавлен `DescribeSessionCookies()` — имена/домены «сессионных»
+    cookie после POST (SESSION Domain=login.1c.ru — сессия страницы входа, а не авторизованная
+    сессия каталога);
+  - тесты: 7 новых сценариев в
+    [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs):
+    POST 200 «Личные данные» → Success (не AuthFailed); детектор формы: `execution` без
+    username/password → false, классическая форма → true; JS-подсказки «incorrect»/«execution» не
+    дают ложных маркеров; капча распознаётся → `Updates.CaptchaRequired`; цепочка «личный кабинет →
+    каталог снова 302 → повторный вход со свежей формой → NewerAvailable»; существующий тест
+    детектора переработан под новый контракт. Регрессия #334/#330: прогоны `UpdateCheckCatalogTests`,
+    `PlatformUpdateServiceTests`, `PlatformUpdateViewModelTests`, `PlatformDownloadViewModelTests`
+    зелёные без правок кода.
+
+Полный набор `dotnet test` зелёный (**1787**), сборка Release без ошибок; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) — без ошибок.
+
+---
+
 ## [0.3.9.309] — 2026-10-05
 
 ### Исправлено

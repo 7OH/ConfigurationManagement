@@ -1,0 +1,78 @@
+﻿{
+    "url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/330",
+    "repository_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement",
+    "labels_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/330/labels{/name}",
+    "comments_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/330/comments",
+    "events_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/330/events",
+    "html_url":  "https://github.com/sivatorov/ConfigurationManagement/issues/330",
+    "id":  5649182397,
+    "node_id":  "I_kwDOTunEwM8AAAABULeuvQ",
+    "number":  330,
+    "title":  "Скачивание и установка нужной версии платформы 1С из стартера",
+    "user":  {
+                 "login":  "Ollivhv",
+                 "id":  275630365,
+                 "node_id":  "U_kgDOEG3JHQ",
+                 "avatar_url":  "https://avatars.githubusercontent.com/u/275630365?v=4",
+                 "gravatar_id":  "",
+                 "url":  "https://api.github.com/users/Ollivhv",
+                 "html_url":  "https://github.com/Ollivhv",
+                 "followers_url":  "https://api.github.com/users/Ollivhv/followers",
+                 "following_url":  "https://api.github.com/users/Ollivhv/following{/other_user}",
+                 "gists_url":  "https://api.github.com/users/Ollivhv/gists{/gist_id}",
+                 "starred_url":  "https://api.github.com/users/Ollivhv/starred{/owner}{/repo}",
+                 "subscriptions_url":  "https://api.github.com/users/Ollivhv/subscriptions",
+                 "organizations_url":  "https://api.github.com/users/Ollivhv/orgs",
+                 "repos_url":  "https://api.github.com/users/Ollivhv/repos",
+                 "events_url":  "https://api.github.com/users/Ollivhv/events{/privacy}",
+                 "received_events_url":  "https://api.github.com/users/Ollivhv/received_events",
+                 "type":  "User",
+                 "user_view_type":  "public",
+                 "site_admin":  false
+             },
+    "labels":  [
+
+               ],
+    "state":  "open",
+    "locked":  false,
+    "assignees":  [
+
+                  ],
+    "milestone":  null,
+    "comments":  18,
+    "created_at":  "2026-09-30T15:47:42Z",
+    "updated_at":  "2026-10-05T11:30:12Z",
+    "closed_at":  null,
+    "assignee":  null,
+    "author_association":  "NONE",
+    "active_lock_reason":  null,
+    "sub_issues_summary":  {
+                               "total":  0,
+                               "completed":  0,
+                               "percent_completed":  0
+                           },
+    "issue_dependencies_summary":  {
+                                       "blocked_by":  0,
+                                       "total_blocked_by":  0,
+                                       "blocking":  0,
+                                       "total_blocking":  0
+                                   },
+    "body":  "\n\n\n### Зачем это нужно\n\nВ некоторых сценариях подключение серверной базы 1С происходит на компьютер пользователя, где ничего не установлено. Было бы удобно иметь возможность скачать требуемую версию платформы не заходя на сайт, а только введя логин/пароль от ИТС.\nДополнительно, возможна ситуация при которой нужной версии платформы просто нет на компьютере пользователя.\n\n### Как сейчас\n\nПриложение ищет уже установленные версии платформы (стандартные каталоги плюс дополнительные пути из настроек) и, если подходящей нет, показывает «Не найдена установленная платформа 1С. Укажите версию через настройки базы». Скачать или установить платформу приложение не умеет.\n\nПри этом почти вся инфраструктура для такой задачи уже есть: `OneCUpdatesService` выполняет вход на login.1c.ru (форма входа со скрытым токеном `execution`, HTTP Basic как запасной путь, сессионные cookie, ручное следование редиректам) и умеет скачивать архив по ссылке с прогрессом; `ArchiveService` распаковывает ZIP штатно и RAR через внешний архиватор; логин и пароль к сайту 1С уже хранятся в настройках (`UpdatesLogin`, `UpdatesPassword`); окно «Актуальные релизы» можно взять как образец интерфейса; запуск процесса с повышением прав в проекте тоже уже встречается.\n### Варианты реализации\n#### Первый вариант\n\nПриложение только скачивает дистрибутив, а установку выполняет штатный стартер 1С:\n\n1. По кнопке «Скачать платформу 8.3.xx.xxxx» загрузить дистрибутив нужной разрядности в каталог, прописанный в `DistributiveLocation` (`1cestart.cfg`), либо в выбранную пользователем папку.\n2. Показать понятное сообщение: что скачано, куда и что стартер 1С поставит версию при следующем запуске; если каталог не прописан — подсказать, как это сделать.\n\nЧто это даёт: не нужны повышение прав, тихая установка, ожидание завершения MSI и разбор кодов возврата. Объём — примерно 3–5 дней, риск низкий.\n\n#### Второй вариант\n1. Модель платформенного релиза: ник проекта на releases.1c.ru, список версий, разбор имён файлов (`windows64full_with_clients_…`, `setuptc64_…` и подобных), выбор разрядности и типа клиента — по умолчанию тонкий клиент нужной разрядности.\n2. Окно «Версии платформы» по образцу «Актуальных релизов»: список релизов, кнопка скачивания, прогресс, статусы «нужна авторизация», «нет доступа», «файл не найден».\n3. Скачивание и распаковка во временный каталог (ZIP уже поддержан; 7z/RAR — при необходимости, с прогрессом).\n4. Тихая установка: `setup.exe /S` (в пользовательском дистрибутиве есть готовый `win-mac_silent_install.cmd`) или MSI. Приложению потребуется повышение прав через UAC, ожидание завершения установки, разбор кодов возврата (1638 «уже установлено», 3010 «нужна перезагрузка») и предупреждение о запущенных процессах `1cv8.exe`.\n5. После установки: пересканировать список версий и предложить привязать новую версию к базе, запуск которой не удался.\n\n\n### Примечание\n- Для Linux/Avalonia: автоустановка практически нереализуема, там уместен только сценарий «скачать и показать инструкцию».",
+    "closed_by":  null,
+    "reactions":  {
+                      "url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/330/reactions",
+                      "total_count":  0,
+                      "+1":  0,
+                      "-1":  0,
+                      "laugh":  0,
+                      "hooray":  0,
+                      "confused":  0,
+                      "heart":  0,
+                      "rocket":  0,
+                      "eyes":  0
+                  },
+    "timeline_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/330/timeline",
+    "performed_via_github_app":  null,
+    "state_reason":  null,
+    "pinned_comment":  null
+}

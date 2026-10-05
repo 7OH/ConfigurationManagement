@@ -1,162 +1,42 @@
 ﻿[
     {
-        "Number":  337,
-        "Title":  "Падает при открытии настроек 3.9.253",
+        "Number":  346,
+        "Title":  "База не связана",
         "Comments":  2,
-        "LastCommentAuthor":  "sivatorov",
-        "LastCommentDate":  "2026-10-01T20:51:23Z",
-        "LastCommentPreview":  "Исправлено в версии **0.3.9.254** (Windows/WPF; Linux/Avalonia не затронута — там окно настроек строится кодом, этот стиль не используется).\r\n\r\n**Что было.** Начиная с 0.3.9.247 окно «Настройки» падал"
-    },
-    {
-        "Number":  336,
-        "Title":  "Количество групп",
-        "Comments":  1,
-        "LastCommentAuthor":  "sivatorov",
-        "LastCommentDate":  "2026-10-01T21:06:15Z",
-        "LastCommentPreview":  "Исправлено в версии **0.3.9.255** (Windows/WPF и Linux/Avalonia).\r\n\r\n**Что было.** В заголовке группы показывалось только рекурсивное количество баз: «Группа с базами (28)». Количество вложенных подгр"
-    },
-    {
-        "Number":  335,
-        "Title":  "Дагностика подключения",
-        "Comments":  3,
         "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T20:04:04Z",
-        "LastCommentPreview":  "Центрирование - ОК\n\nОкно стало Уже - кнопки не видно\nМожет быть кнопки на вторую строку перенести ?\nОсновное поле ведь большим не будет  - там 4 строки максимум пока.\n\n\u003cimg width=\"1068\" height=\"776\" a"
+        "LastCommentDate":  "2026-10-05T13:03:33Z",
+        "LastCommentPreview":  "Отлично - теперь поиск нормально находит базу без привязки. Но есть ещё один момент. У меня есть привязанная база - для неё поиск отрабатывал и раньше, так как привязка была сделана. Собственно сам вопрос-предложение: В окне правки свойств базы, на вкладке Платформа ниже группы Конфигурация вывести ..."
+    },
+    {
+        "Number":  340,
+        "Title":  "Снятие выделения после контекстного меню ",
+        "Comments":  20,
+        "LastCommentAuthor":  "7OH",
+        "LastCommentDate":  "2026-10-05T11:58:02Z",
+        "LastCommentPreview":  "Появился файл trace.json (потом отдельно обсудим его начальную идею) Вот содержимое {\"ts\":\"2026-10-05T14:23:39.123+03:00\",\"thread\":2,\"event\":\"startup\",\"data\":{\"version\":\"0.3.9.308\",\"platform\":\"WPF\",\"os\":\"Microsoft Windows 10.0.26300\",\"appDataDir\":\"C:\\Users\\Semion\\AppData\\Roaming\\ConfigurationManagem..."
     },
     {
         "Number":  334,
         "Title":  "Автообновление платформы",
-        "Comments":  2,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T20:12:26Z",
-        "LastCommentPreview":  "Обновление платформы: получение каталога версий с портала 1С\n2026-10-01 23:11:58.338 [WARN] [Updates] Не удалось получить страницу (пустое тело или HTTP-ошибка): https://releases.1c.ru/project/Platfor"
-    },
-    {
-        "Number":  333,
-        "Title":  "Учетки доступа к ИТС",
-        "Comments":  3,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T20:13:09Z",
-        "LastCommentPreview":  "Ошибка интерфейса\nИсключение: System.InvalidOperationException\nСообщение: Привязка типа TwoWay или OneWayToSource не может работать с доступным только для чтения свойством \"IsPrimary\" типа \"Configurat"
-    },
-    {
-        "Number":  332,
-        "Title":  "Обработка ссылки на базу с сегментом локали как в стандартном стартере",
-        "Comments":  1,
+        "Comments":  17,
         "LastCommentAuthor":  "sivatorov",
-        "LastCommentDate":  "2026-10-01T10:40:06Z",
-        "LastCommentPreview":  "Исправлено в версии **0.3.9.234** (Windows/WPF и Linux/Avalonia).\r\n\r\n**Что было сломано.** Ссылка на веб-базу с завершающим сегментом локали, например\r\n`https://accounting.demo.1c.ru/accounting/ru_RU/"
+        "LastCommentDate":  "2026-10-05T11:30:14Z",
+        "LastCommentPreview":  "Исправлено в версии **0.3.9.307** (Windows/WPF и Linux/Avalonia; пятая итерация программного входа). **Что было.** В последнем логе (2026-10-05, ~09:06–09:08 МСК) для окна «Обновление платформы 1С» (Ctrl+F9, каталог `releases.1c.ru/project/Platform83`): ``` [Updates] Вход запущен: результат=Success,..."
     },
     {
         "Number":  330,
         "Title":  "Скачивание и установка нужной версии платформы 1С из стартера",
-        "Comments":  3,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T20:10:36Z",
-        "LastCommentPreview":  "Пока что падает при попытке открыть окно\n\nОшибка интерфейса\nИсключение: System.InvalidOperationException\nСообщение: Вызывающий поток не может получить доступ к данному объекту, так как владельцем этог"
-    },
-    {
-        "Number":  329,
-        "Title":  "Список шрифтов в настройках не видит установленные в Windows шрифты",
-        "Comments":  1,
+        "Comments":  18,
         "LastCommentAuthor":  "sivatorov",
-        "LastCommentDate":  "2026-10-01T11:13:05Z",
-        "LastCommentPreview":  "Исправлено в версии **0.3.9.236** (Windows/WPF и Linux/Avalonia).\r\n\r\n**Что было сломано.** В окне «Настройки» → подвкладка «Шрифт» (WPF/Windows) выпадающий список\r\nсемейств содержал только десять фикс"
-    },
-    {
-        "Number":  328,
-        "Title":  "Запуск базы по Enter как в родном стартере",
-        "Comments":  3,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T19:27:10Z",
-        "LastCommentPreview":  "Навигация работает, с тегами не конфликтует"
-    },
-    {
-        "Number":  327,
-        "Title":  "Удаление пустых групп",
-        "Comments":  3,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T19:34:25Z",
-        "LastCommentPreview":  "Да - всё таки надо доработать, как написано выше.\nПри полной синхронизации - мы должны удалить в файле ibases то, что было удалено  у нас.\nСейчас группы в файле не удаляются."
-    },
-    {
-        "Number":  326,
-        "Title":  "Выделение в закреплениях",
-        "Comments":  2,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T19:40:15Z",
-        "LastCommentPreview":  "Оба случая на месте\nПри выделении с контролом или шифтом - выделение происходит не в закреплении, а в общем списке.\nТо есть вместо выделения текущей строки, которая в закреплении - оно зачем-то ищет с"
-    },
-    {
-        "Number":  325,
-        "Title":  "Конфигурация ИБ",
-        "Comments":  2,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T19:30:54Z",
-        "LastCommentPreview":  "Немного повредничаю )\n\n\u003cimg width=\"611\" height=\"360\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/22d3956b-dd07-422a-acf3-56a2591fb118\" /\u003e\n\nМожем сделать, чтобы надпись \"Конфигурация\" б"
-    },
-    {
-        "Number":  324,
-        "Title":  "Серверы 1С",
-        "Comments":  7,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T19:59:12Z",
-        "LastCommentPreview":  "Почитал интернеты - везде пишут про администрирование на 1545 порту, но тут как скажете.\nЕсть возможность изменить и то хорошо.\nУ меня не подключается ни 1540, ни к 1541 - везде таймаут, а вот 1545 по"
+        "LastCommentDate":  "2026-10-05T11:30:12Z",
+        "LastCommentPreview":  "Исправлено в версии **0.3.9.307** (Windows/WPF и Linux/Avalonia; пятая итерация программного входа). **Что было.** В последнем логе (2026-10-05, ~09:06–09:08 МСК) для окна «Скачивание версии платформы 1С» (Утилиты, каталог `releases.1c.ru/project/Platform83`): ``` [Updates] Вход запущен: результат=S..."
     },
     {
         "Number":  323,
         "Title":  "Окно Проверка обновлений",
-        "Comments":  4,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T20:25:16Z",
-        "LastCommentPreview":  "\u003cimg width=\"646\" height=\"192\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/64db513e-608d-4ce3-b84a-9f809230a85d\" /\u003e\n\n\u003cimg width=\"440\" height=\"502\" alt=\"Image\" src=\"https://github.com/us"
-    },
-    {
-        "Number":  322,
-        "Title":  "Связать с конфигурацией",
-        "Comments":  7,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T20:51:14Z",
-        "LastCommentPreview":  "Судя по конфиг файлу - при наличии пользовательской конфигурации - она заменяет типовую\nПонять бы это при просмотре списка только, но это в другом тикете.\n\n\u003cimg width=\"832\" height=\"657\" alt=\"Image\" sr"
-    },
-    {
-        "Number":  321,
-        "Title":  "Окно Типовые конфигурации",
-        "Comments":  11,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T21:06:46Z",
-        "LastCommentPreview":  "Плюс  - уже надо добавлять поиск\\отбор.\nПопробую перенести из СтартМенеджера большой список конфигураций для обновления"
-    },
-    {
-        "Number":  313,
-        "Title":  "Для выделенных",
-        "Comments":  5,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T19:44:03Z",
-        "LastCommentPreview":  "Всё на месте - если выделять с контролом 2 и 3 строку при просто текущей первой, то при нажатии потом правой кнопки - выделение на первой пропадает. Если текущую первую, не смотря на то, что она текущ"
-    },
-    {
-        "Number":  309,
-        "Title":  "Пропал горизонтальный скрол",
-        "Comments":  12,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T19:19:01Z",
-        "LastCommentPreview":  "2 колонки за краем, скрол не увеличился, колонки не доступны"
-    },
-    {
-        "Number":  308,
-        "Title":  "Пожелание - Скрипты",
         "Comments":  20,
-        "LastCommentAuthor":  "sivatorov",
-        "LastCommentDate":  "2026-10-01T18:04:41Z",
-        "LastCommentPreview":  "Исправлено в версии **0.3.9.250** (Windows/WPF и Linux/Avalonia) по последним замечаниям к issue.\r\n\r\n**1. «Уведомлять о запуске» вместо обязательного окна «скрипт запущен».**\r\n\r\nВ редакторе сценария д"
-    },
-    {
-        "Number":  305,
-        "Title":  "Создание серверной базы",
-        "Comments":  15,
         "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-01T19:51:31Z",
-        "LastCommentPreview":  "при выборе сервера из списка - всё ещё ничего не подставлено в поле\nТеперь и текст ввести в это поле не даёт, который совпадает с тем, который есть в списке - что-то мигает и тут же исчезает.\nПытаюсь "
+        "LastCommentDate":  "2026-10-05T11:56:24Z",
+        "LastCommentPreview":  "2026-10-05 14:27:08.634 [INFO] [Updates] Проверка: config=\u0027Бухгалтерия предприятия\u0027, url=[releases.1c.ru/project/Accounting30](https://releases.1c.ru/project/Accounting30) 2026-10-05 14:27:08.676 [INFO] [Updates] Вход запущен: reason=redirect-login, url=\u0027[releases.1c.ru/project/Accounting30](https:/..."
     }
 ]

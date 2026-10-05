@@ -1,0 +1,78 @@
+﻿{
+    "url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/309",
+    "repository_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement",
+    "labels_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/309/labels{/name}",
+    "comments_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/309/comments",
+    "events_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/309/events",
+    "html_url":  "https://github.com/sivatorov/ConfigurationManagement/issues/309",
+    "id":  5610207237,
+    "node_id":  "I_kwDOTunEwM8AAAABTmT4BQ",
+    "number":  309,
+    "title":  "Пропал горизонтальный скрол",
+    "user":  {
+                 "login":  "7OH",
+                 "id":  3063507,
+                 "node_id":  "MDQ6VXNlcjMwNjM1MDc=",
+                 "avatar_url":  "https://avatars.githubusercontent.com/u/3063507?v=4",
+                 "gravatar_id":  "",
+                 "url":  "https://api.github.com/users/7OH",
+                 "html_url":  "https://github.com/7OH",
+                 "followers_url":  "https://api.github.com/users/7OH/followers",
+                 "following_url":  "https://api.github.com/users/7OH/following{/other_user}",
+                 "gists_url":  "https://api.github.com/users/7OH/gists{/gist_id}",
+                 "starred_url":  "https://api.github.com/users/7OH/starred{/owner}{/repo}",
+                 "subscriptions_url":  "https://api.github.com/users/7OH/subscriptions",
+                 "organizations_url":  "https://api.github.com/users/7OH/orgs",
+                 "repos_url":  "https://api.github.com/users/7OH/repos",
+                 "events_url":  "https://api.github.com/users/7OH/events{/privacy}",
+                 "received_events_url":  "https://api.github.com/users/7OH/received_events",
+                 "type":  "User",
+                 "user_view_type":  "public",
+                 "site_admin":  false
+             },
+    "labels":  [
+
+               ],
+    "state":  "open",
+    "locked":  false,
+    "assignees":  [
+
+                  ],
+    "milestone":  null,
+    "comments":  23,
+    "created_at":  "2026-09-28T06:14:58Z",
+    "updated_at":  "2026-10-03T11:30:47Z",
+    "closed_at":  null,
+    "assignee":  null,
+    "author_association":  "NONE",
+    "active_lock_reason":  null,
+    "sub_issues_summary":  {
+                               "total":  0,
+                               "completed":  0,
+                               "percent_completed":  0
+                           },
+    "issue_dependencies_summary":  {
+                                       "blocked_by":  0,
+                                       "total_blocked_by":  0,
+                                       "blocking":  0,
+                                       "total_blocking":  0
+                                   },
+    "body":  "\u003cimg width=\"1136\" height=\"931\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/285e3eb0-f69c-4dd0-9b9f-64af5b44b452\" /\u003e\n\nДобавились новые колонки, а скрола нет",
+    "closed_by":  null,
+    "reactions":  {
+                      "url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/309/reactions",
+                      "total_count":  0,
+                      "+1":  0,
+                      "-1":  0,
+                      "laugh":  0,
+                      "hooray":  0,
+                      "confused":  0,
+                      "heart":  0,
+                      "rocket":  0,
+                      "eyes":  0
+                  },
+    "timeline_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/309/timeline",
+    "performed_via_github_app":  null,
+    "state_reason":  "reopened",
+    "pinned_comment":  null
+}

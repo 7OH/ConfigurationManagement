@@ -1,0 +1,78 @@
+﻿{
+    "url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/341",
+    "repository_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement",
+    "labels_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/341/labels{/name}",
+    "comments_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/341/comments",
+    "events_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/341/events",
+    "html_url":  "https://github.com/sivatorov/ConfigurationManagement/issues/341",
+    "id":  5676805588,
+    "node_id":  "I_kwDOTunEwM8AAAABUl0t1A",
+    "number":  341,
+    "title":  "Свертка групп",
+    "user":  {
+                 "login":  "7OH",
+                 "id":  3063507,
+                 "node_id":  "MDQ6VXNlcjMwNjM1MDc=",
+                 "avatar_url":  "https://avatars.githubusercontent.com/u/3063507?v=4",
+                 "gravatar_id":  "",
+                 "url":  "https://api.github.com/users/7OH",
+                 "html_url":  "https://github.com/7OH",
+                 "followers_url":  "https://api.github.com/users/7OH/followers",
+                 "following_url":  "https://api.github.com/users/7OH/following{/other_user}",
+                 "gists_url":  "https://api.github.com/users/7OH/gists{/gist_id}",
+                 "starred_url":  "https://api.github.com/users/7OH/starred{/owner}{/repo}",
+                 "subscriptions_url":  "https://api.github.com/users/7OH/subscriptions",
+                 "organizations_url":  "https://api.github.com/users/7OH/orgs",
+                 "repos_url":  "https://api.github.com/users/7OH/repos",
+                 "events_url":  "https://api.github.com/users/7OH/events{/privacy}",
+                 "received_events_url":  "https://api.github.com/users/7OH/received_events",
+                 "type":  "User",
+                 "user_view_type":  "public",
+                 "site_admin":  false
+             },
+    "labels":  [
+
+               ],
+    "state":  "open",
+    "locked":  false,
+    "assignees":  [
+
+                  ],
+    "milestone":  null,
+    "comments":  5,
+    "created_at":  "2026-10-02T11:34:35Z",
+    "updated_at":  "2026-10-03T11:56:20Z",
+    "closed_at":  null,
+    "assignee":  null,
+    "author_association":  "NONE",
+    "active_lock_reason":  null,
+    "sub_issues_summary":  {
+                               "total":  0,
+                               "completed":  0,
+                               "percent_completed":  0
+                           },
+    "issue_dependencies_summary":  {
+                                       "blocked_by":  0,
+                                       "total_blocked_by":  0,
+                                       "blocking":  0,
+                                       "total_blocking":  0
+                                   },
+    "body":  "Просьба реализовать свертку и развертку рекурсивную только текущей ветки дерева с нажатым Ctrl\nКак мышкой (Ctrl-Click) так и с клавиатуры (Ctrl-+ и Ctrl--)\n\nСейчас можно только развернуть полностью вообще все группы (и свернуть).\n\nЕсть желание разворачивать только нужную ветку дерева:\n1. Ту, которая под курсором при работе с клавиатуры\n2. Ту, на которую нажали с CTRL мышкой, не меняя текущую строку, если они отличались.",
+    "closed_by":  null,
+    "reactions":  {
+                      "url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/341/reactions",
+                      "total_count":  0,
+                      "+1":  0,
+                      "-1":  0,
+                      "laugh":  0,
+                      "hooray":  0,
+                      "confused":  0,
+                      "heart":  0,
+                      "rocket":  0,
+                      "eyes":  0
+                  },
+    "timeline_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/341/timeline",
+    "performed_via_github_app":  null,
+    "state_reason":  null,
+    "pinned_comment":  null
+}

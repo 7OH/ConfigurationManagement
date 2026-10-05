@@ -106,6 +106,12 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// AuthRequired / AuthFailed в результатах проверок).</summary>
     private PortalLoginResult _lastLoginResult = PortalLoginResult.NoCredentials;
 
+    /// <summary>Причина отклонения входа, найденная в теле ответа (issue #323): «капча» —
+    /// портал запросил подтверждение и автоматический вход временно невозможен; null —
+    /// причина не определена. Заполняется в <see cref="LogAnonymizedAuthFailure"/>; используется
+    /// <see cref="AuthErrorKey"/> для выбора ключа <c>Updates.CaptchaRequired</c>.</summary>
+    private string? _lastAuthFailureReason;
+
     /// <summary>Момент исчерпания лимита попыток входа (для автосброса по
     /// <see cref="LoginLimitCooldown"/>); default — лимит не исчерпан.</summary>
     private DateTime _limitReachedAt;
@@ -1198,6 +1204,10 @@ public class OneCUpdatesService : IOneCUpdatesService
         // cookie присутствовала в контейнере и почему вход был/не был запущен (issue #323/#330/#334).
         _logger.Info($"[Updates] Вход: cookie контейнера: {DescribeContainerCookies()}");
 
+        // Новая попытка входа обнуляет ранее найденную причину отказа (капча и пр., issue #323):
+        // ключ локализации выбирается по причине ПОСЛЕДНЕЙ попытки.
+        _lastAuthFailureReason = null;
+
         // A-1 (0.3.9.307): вместо мгновенного «успеха» по имени cookie (0.3.9.306: ранний выход
         // при HasPortalSessionCookie(), лог 7OH: «результат=Success» без единого GET/POST входа) —
         // честная проверка «живой» сессии пробным GET по целевому URL операции. Имя cookie в
@@ -1360,6 +1370,22 @@ public class OneCUpdatesService : IOneCUpdatesService
                         return PortalLoginResult.AuthFailed;
                     }
 
+                    // Страница ЛИЧНОГО КАБИНЕТА после POST — вход фактически УСПЕШЕН (issue #323):
+                    // сервер принял креды и открыл кабинет («Личные данные», лог 7OH), а не форму
+                    // входа с ошибкой. Раньше ложный детектор формы (поле execution на странице
+                    // кабинета) объявлял AuthFailed, и повтор исходного запроса каталога не
+                    // выполнялся. Критерий успеха — повторный запрос каталога штатно выполняется
+                    // в SendWithAuthAsync после Success; при 302 там сработает повторный вход.
+                    if (DetectPersonalAreaPage(postBody))
+                    {
+                        _logger.Info("[Updates] Вход на portal.1c.ru выполнен (POST 200: страница личного кабинета), " +
+                                     $"sessionCookie={HasPortalSessionCookie()} ({DescribeSessionCookies()}).");
+                        _portalLoginAttempts = 0;
+                        _lastLoginResult = PortalLoginResult.Success;
+                        LogPortalCookieInventory();
+                        return PortalLoginResult.Success;
+                    }
+
                     // Следование JS/meta-refresh-редиректу в теле 2xx (issue #323/#330/#334):
                     // CAS-цепочка часто доводится до releases.1c.ru/public/security_check?ticket=…
                     // именно JS-редиректом, и сессионная cookie выставляется на этом звене.
@@ -1391,6 +1417,11 @@ public class OneCUpdatesService : IOneCUpdatesService
                     // 302 → повторный вход → исчерпание лимита за одну операцию, лог 7OH).
                     var hasSession = HasPortalSessionCookie();
                     var hasSetCookie = HasSetCookieHeader(postResponse);
+                    // Диагностика (issue #323): какая именно «сессионная» cookie стоит после
+                    // POST — SESSION Domain=login.1c.ru (сессия страницы входа) НЕ означает
+                    // авторизованную сессию каталога (там домен .1c.ru / releases.1c.ru).
+                    if (hasSession)
+                        _logger.Info($"[Updates] Вход: POST session-cookie: {DescribeSessionCookies()}");
                     if (!hasSession && !hasSetCookie)
                     {
                         _logger.Warn("[Updates] Вход на portal.1c.ru не подтверждён: сервер вернул 200 " +
@@ -1905,18 +1936,24 @@ public class OneCUpdatesService : IOneCUpdatesService
     {
         var len = string.IsNullOrEmpty(body) ? 0 : body.Length;
         var markers = DetectAuthFailureMarkers(body);
+        var title = ExtractPageTitle(body);
         var fieldNames = fields.Count == 0
             ? string.Empty
             : string.Join(", ", fields.Keys.OrderBy(k => k, StringComparer.Ordinal));
+        // Признак «капча» сохраняется для выбора ключа локализации Updates.CaptchaRequired
+        // (issue #323): автоматический вход временно невозможен — портал запросил подтверждение.
+        _lastAuthFailureReason = markers.Contains("капча", StringComparison.Ordinal) ? "капча" : null;
         _logger.Warn($"{message} (body_len={len}" +
+                     $"{(title is not null ? $", title='{title}'" : string.Empty)}" +
                      $"{(markers.Length > 0 ? $", признаки: {markers}" : string.Empty)}" +
                      $"{(fieldNames.Length > 0 ? $", поля формы: {fieldNames}" : string.Empty)}).");
     }
 
     /// <summary>
     /// Логирует расширенную диагностику ветки 2xx POST входа (issue #323/#330/#334):
-    /// contentType, длину тела, превью первых ~300 символов (БЕЗ секретов — значения полей
-    /// формы, логин и пароль удаляются) и Set-Cookie только именами/флагами.
+    /// contentType, длину тела, извлечённый <c><title></c> страницы, превью первых
+    /// ~300 символов (БЕЗ секретов — значения полей формы, логин и пароль удаляются) и
+    /// Set-Cookie только именами/флагами. По title сразу видно «Личные данные» vs «Вход».
     /// </summary>
     private void LogPost2xxDiagnostics(
         int status,
@@ -1928,9 +1965,10 @@ public class OneCUpdatesService : IOneCUpdatesService
     {
         var contentType = response.Content?.Headers.ContentType?.ToString() ?? "<нет>";
         var bodyLength = string.IsNullOrEmpty(body) ? 0 : body.Length;
+        var title = ExtractPageTitle(body);
         var preview = SanitizeBodyPreview(body, fields, login, password);
         _logger.Info($"[Updates] Вход: POST 2xx диагностика status={status}, contentType='{contentType}', " +
-                     $"bodyLength={bodyLength}, bodyPreview='{preview}'");
+                     $"bodyLength={bodyLength}, title='{title ?? "<нет>"}', bodyPreview='{preview}'");
         _logger.Info($"[Updates] Вход: POST Set-Cookie: {DescribeSetCookies(response)}");
     }
 
@@ -1976,24 +2014,26 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <summary>Определяет по тексту тела ответа вероятную причину отклонения входа
-    /// (без вывода самого текста): неверный логин/пароль, капча, наличие полей lt/execution/csrf.</summary>
+    /// (без вывода самого текста): неверный логин/пароль, капча, наличие полей lt/execution/csrf.
+    /// Сужено (issue #323): «execution»/«lt»/«csrf» учитываются ТОЛЬКО как поля формы
+    /// (<c>name="…"</c>), а не любое вхождение слова в HTML — JS-скрипты и подсказки
+    /// валидации личного кабинета давали ложные признаки; из фраз отказа убрано слишком
+    /// короткое «incorrect», остались точные фразы.</summary>
     private static string DetectAuthFailureMarkers(string body)
     {
         if (string.IsNullOrWhiteSpace(body))
             return string.Empty;
 
         var found = new List<string>();
-        if (ContainsAny(body, "Неверный логин", "неверные учётные данные", "incorrect",
-                "invalid username", "invalid credentials", "bad credentials", "authentication failed"))
+        if (HasAuthFailureTextMarker(body))
             found.Add("неверный логин/пароль");
         if (ContainsAny(body, "captcha", "капч", "recaptcha"))
             found.Add("капча");
-        if (body.Contains("name=\"lt\"", StringComparison.OrdinalIgnoreCase) ||
-            body.Contains("name='lt'", StringComparison.OrdinalIgnoreCase))
-            found.Add("поле lt");
-        if (body.Contains("execution", StringComparison.OrdinalIgnoreCase))
+        if (HasInputField(body, "execution"))
             found.Add("execution");
-        if (body.Contains("csrf", StringComparison.OrdinalIgnoreCase))
+        if (HasInputField(body, "lt"))
+            found.Add("поле lt");
+        if (HasInputField(body, "csrf") || HasInputField(body, "_csrf"))
             found.Add("csrf");
         // Маркеры изменённой формы (OAuth/JS-челлендж, issue #323/#330/#334): по ним
         // распознаётся «протокол изменился» — автоматический вход невозможен.
@@ -2004,6 +2044,21 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (body.Contains("challenge", StringComparison.OrdinalIgnoreCase))
             found.Add("challenge");
         return string.Join(", ", found);
+    }
+
+    /// <summary>True — в теле есть ТОЧНАЯ фраза отказа авторизации (используется детектором
+    /// формы входа, issue #323): наличие поля <c>execution</c> как поля формы НЕ должно
+    /// превращать страницу личного кабинета в «форму входа». Капча — ОТДЕЛЬНЫЙ признак
+    /// (см. <see cref="DetectAuthFailureMarkers"/>, A-6), в фразы отказа не входит.</summary>
+    private static bool HasAuthFailureTextMarker(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return false;
+        return ContainsAny(body,
+            "Неверный логин", "Неверный логин или пароль", "Неверные учётные данные",
+            "неверные учётные данные", "incorrect username or password",
+            "invalid username", "invalid credentials", "bad credentials",
+            "authentication failed");
     }
 
     /// <summary>True — текст содержит хотя бы одну из подстрок (без учёта регистра).</summary>
@@ -2020,10 +2075,19 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// Определяет, является ли тело ответа страницей входа на portal.1c.ru (гибридная
-    /// авторизация CAS): наличие полей формы <c>execution</c>/<c>lt</c> (из
-    /// <see cref="ExtractFormFields"/>), текстового поля <c>username</c>, маркеров ошибки
-    /// авторизации (<see cref="DetectAuthFailureMarkers"/>) либо прямого упоминания
-    /// <c>login.1c.ru</c>. Используется для распознавания «фантомного успеха» при HTTP 200
+    /// авторизация CAS). Критерии ужесточены (issue #323), порядок проверки:
+    /// <list type="number">
+    /// <item>поля ввода логина И пароля (<c>name="username"</c> + <c>name="password"</c>) —
+    /// главный признак;</item>
+    /// <item>ИЛИ токены CAS (<c>execution</c>/<c>lt</c>) КАК ПОЛЯ ФОРМЫ (через
+    /// <see cref="ExtractFormFields"/>) И один из признаков: маркер отказа/капчи в разметке
+    /// (<see cref="HasAuthFailureTextMarker"/>), action формы с «login» либо id/class-маркер
+    /// формы входа (<see cref="ContainsLoginFormMarker"/>).</item>
+    /// </list>
+    /// Страница с полем <c>execution</c>, но БЕЗ <c>username</c>/<c>password</c> и БЕЗ
+    /// формы-входа (action не login) формой входа НЕ считается — такие формы приглашений/
+    /// смены аккаунта есть на странице личного кабинета после успешного входа (ложное
+    /// AuthFailed, лог 7OH). Используется для распознавания «фантомного успеха» при HTTP 200
     /// с формой входа вместо целевого контента (issue #330/#334) и страницы входа при 200.
     /// </summary>
     internal static bool LooksLikeLoginForm(string body)
@@ -2031,22 +2095,87 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (string.IsNullOrWhiteSpace(body))
             return false;
 
-        // Скрытые поля формы входа CAS: execution/lt — динамический токен сессии.
+        // Главный признак формы входа CAS: поля ввода логина и пароля.
+        if (HasInputField(body, "username") && HasInputField(body, "password"))
+            return true;
+
+        // Второстепенный признак: токены CAS как ПОЛЯ ФОРМЫ + маркер формы входа.
         var fields = ExtractFormFields(body);
         if (fields.ContainsKey("execution") || fields.ContainsKey("lt"))
-            return true;
+        {
+            var formAction = ExtractFormAction(body) ?? string.Empty;
+            if (formAction.Contains("login", StringComparison.OrdinalIgnoreCase) ||
+                HasAuthFailureTextMarker(body) ||
+                ContainsLoginFormMarker(body))
+                return true;
+        }
 
-        // Текстовое поле имени пользователя формы входа.
-        if (body.Contains("name=\"username\"", StringComparison.OrdinalIgnoreCase) ||
-            body.Contains("name='username'", StringComparison.OrdinalIgnoreCase))
-            return true;
+        return false;
+    }
 
-        // Маркеры ошибки авторизации: неверный логин/пароль, капча, ссылки на форму.
-        if (!string.IsNullOrEmpty(DetectAuthFailureMarkers(body)))
-            return true;
+    /// <summary>True — в HTML есть <c><input></c> с заданным атрибутом <c>name</c>
+    /// (любой тип; устойчиво к порядку атрибутов и кавычкам '…'/«"…"»).</summary>
+    private static bool HasInputField(string html, string name)
+    {
+        foreach (Match tag in InputTagRegex.Matches(html))
+        {
+            var tagName = GetAttribute(tag.Value, "name");
+            if (string.Equals(tagName, name, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
 
-        // Прямое упоминание портала входа в теле ответа.
-        return body.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase);
+        return false;
+    }
+
+    /// <summary>True — среди <c><form></c> есть форма с id/class-маркером страницы входа
+    /// (<c>login</c>, <c>fm1</c>, <c>signin</c>, <c>sign-in</c>, <c>logon</c>, <c>cas</c>,
+    /// <c>authentication</c>) — дополнительный признак детектора формы входа (issue #323).</summary>
+    private static bool ContainsLoginFormMarker(string html)
+    {
+        foreach (Match tag in FormTagRegex.Matches(html))
+        {
+            var marker = string.Concat(GetAttribute(tag.Value, "id"), " ", GetAttribute(tag.Value, "class"));
+            if (ContainsAny(marker, "login", "signin", "sign-in", "logon", "cas", "authentication"))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True — тело ответа является страницей ЛИЧНОГО КАБИНЕТА portal.1c.ru ПОСЛЕ успешного
+    /// входа (issue #323): маркеры в <c><title></c> и заголовках страницы («Личные данные»,
+    /// «Личный кабинет», «личный кабинет», «Главная», «Профиль», «Мои данные»). Используется
+    /// в POST-ветке как положительный признак успеха даже при наличии поля <c>execution</c>
+    /// (формы приглашений/смены аккаунта на странице кабинета). Логика — статическая
+    /// <c>internal</c>, покрывается юнит-тестами.
+    /// </summary>
+    internal static bool DetectPersonalAreaPage(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return false;
+
+        return ContainsAny(body,
+            "Личные данные", "Личный кабинет", "личный кабинет", "Главная", "Профиль", "Мои данные");
+    }
+
+    /// <summary>Извлекает текст <c><title></c> страницы для журнала (санитизированный:
+    /// без вложенных тегов, HTML-декодированный, управляющие символы заменены, до 60 символов);
+    /// null — тега нет или тело пустое/битое.</summary>
+    internal static string? ExtractPageTitle(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return null;
+
+        var match = Regex.Match(body, @"<title\b[^>]*>(?<t>.*?)</title\s*>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (!match.Success)
+            return null;
+
+        var title = Regex.Replace(match.Groups["t"].Value, @"<[^>]+>", string.Empty);
+        title = WebUtility.HtmlDecode(title);
+        title = Regex.Replace(title, @"[\r\n\t]+", " ").Trim();
+        return title.Length > 60 ? title.Substring(0, 60) : title;
     }
 
     /// <summary>
@@ -2245,11 +2374,48 @@ public class OneCUpdatesService : IOneCUpdatesService
         return string.Join("; ", entries);
     }
 
+    /// <summary>Перечень имён, доменов и путей «сессионных» cookie портала в общем хранилище
+    /// (БЕЗ значений) — диагностика POST входа (issue #323): сессия страницы входа
+    /// (SESSION Domain=login.1c.ru) НЕ означает авторизованную сессию каталога (там домен
+    /// .1c.ru / releases.1c.ru).</summary>
+    internal string DescribeSessionCookies()
+    {
+        var entries = new List<string>();
+        foreach (var host in new[] { "login.1c.ru", "releases.1c.ru" })
+        {
+            try
+            {
+                foreach (Cookie cookie in _cookieContainer.GetCookies(new Uri($"https://{host}/")))
+                {
+                    if (!IsPortalDomainCookie(cookie))
+                        continue;
+
+                    var name = cookie.Name ?? string.Empty;
+                    if (name.Equals("TGC", StringComparison.OrdinalIgnoreCase) ||
+                        name.StartsWith("JSESSIONID", StringComparison.OrdinalIgnoreCase) ||
+                        name.Contains("session_id", StringComparison.OrdinalIgnoreCase) ||
+                        name.Equals("SESSION", StringComparison.OrdinalIgnoreCase))
+                        entries.Add($"{name}[Domain={cookie.Domain},Path={cookie.Path}]");
+                }
+            }
+            catch
+            {
+                // Некорректный URI/иные ошибки хранилища не должны ронять вход.
+            }
+        }
+
+        return entries.Count == 0 ? "<нет>" : string.Join("|", entries);
+    }
+
     /// <summary>Выбирает ключ локализации ошибки авторизации для результатов проверок:
-    /// «лимит попыток исчерпан» — отдельный ключ (issue #334/#330/#323); вход предпринимался
+    /// «лимит попыток исчерпан» — отдельный ключ (issue #334/#330/#323); портал запросил
+    /// подтверждение (капча) — «требуется подтверждение» (issue #323); вход предпринимался
     /// и не подтверждён сервером — «вход не подтверждён (401)»; иначе — «требуется вход».</summary>
     private string AuthErrorKey(bool authFailed)
         => IsPortalLoginLimitReached() ? "Updates.LoginLimitReached"
+            // Портал запросил подтверждение (капча): автоматический вход временно невозможен
+            // (issue #323) — отдельный ключ с понятным текстом и советом открыть login.1c.ru.
+            : _lastAuthFailureReason == "капча" ? "Updates.CaptchaRequired"
             // Форма входа изменилась/недоступна (OAuth/JS-челлендж, issue #323/#330/#334) —
             // отдельный ключ с понятным текстом и советом открыть login.1c.ru в браузере.
             : _lastLoginResult == PortalLoginResult.FormUnavailable ? "Updates.FormUnavailable"

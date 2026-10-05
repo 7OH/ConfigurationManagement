@@ -43,6 +43,32 @@ public sealed class OneCUpdatesLoginFlowTests
         </body></html>
         """;
 
+    /// <summary>Страница ЛИЧНОГО КАБИНЕТА после успешного входа (лог 7OH, issue #323):
+    /// title «Личные данные», форма приглашения с полем execution, БЕЗ username/password.</summary>
+    private const string PersonalAreaPageHtml = """
+        <html>
+        <head><title>Личные данные</title></head>
+        <body>
+          <form action="/invite" method="post">
+            <input type="hidden" name="execution" value="e9s9" />
+            <input type="hidden" name="inviteCode" value="" />
+            <input type="checkbox" name="inviteType" value="on" />
+          </form>
+          <h1>Личные данные</h1>
+        </body></html>
+        """;
+
+    /// <summary>Классическая форма входа CAS: username + password + execution + action на /login.</summary>
+    private const string LoginFormWithUserPassHtml = """
+        <html><body>
+        <form id="fm1" action="/login" method="post">
+          <input type="hidden" name="execution" value="e1s2t3" />
+          <input type="text" name="username" />
+          <input type="password" name="password" />
+        </form>
+        </body></html>
+        """;
+
     // ---------- Чистый парсинг формы ----------
 
     [Fact]
@@ -349,18 +375,145 @@ public sealed class OneCUpdatesLoginFlowTests
     }
 
     [Fact]
-    public void LooksLikeLoginForm_DetectsFormByFields_MarkersAndHost()
+    public void LooksLikeLoginForm_DetectsRealForms_NotPersonalAreaOrPlainExecution()
     {
-        // Форма входа распознаётся по скрытым полям execution/lt, маркерам ошибки и
-        // упоминанию login.1c.ru; каталог версий формой не является.
-        Assert.True(OneCUpdatesService.LooksLikeLoginForm(FormWithHiddenFields));
-        Assert.True(OneCUpdatesService.LooksLikeLoginForm(SimpleForm));
-        Assert.True(OneCUpdatesService.LooksLikeLoginForm("<html>Неверный логин и/или пароль</html>"));
+        // Детектор формы входа ужесточён (issue #323): форма распознаётся по полям
+        // username+password (главный признак) либо по токенам execution/lt КАК ПОЛЯМ ФОРМЫ
+        // вместе с маркером формы входа (action на login, фраза отказа/капча, id/class формы).
+        // Страница с execution без этих признаков (личный кабинет) формой НЕ считается.
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(LoginFormWithUserPassHtml));
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(FormWithHiddenFields)); // execution+lt, action=/login
         Assert.True(OneCUpdatesService.LooksLikeLoginForm(
-            "<html><a href=\"https://login.1c.ru/login\">Вход</a></html>"));
+            """<html><form id="login-form"><input type="hidden" name="execution" value="e"/></form></html>"""));
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(
+            """<html><form action="/login"><input type="hidden" name="execution" value="e"/></form></html>"""));
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(
+            """<html><form><input type="hidden" name="execution" value="e"/><div>Неверный логин или пароль</div></form></html>"""));
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(SimpleForm));           // execution без маркеров формы
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(PersonalAreaPageHtml)); // кабинет с execution (лог 7OH)
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(VersionsTableHtml));
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(string.Empty));
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(null!));
+    }
+
+    // ---------- Личный кабинет после POST (issue #323, лог 7OH) ----------
+
+    [Fact]
+    public void LooksLikeLoginForm_ExecutionWithoutUserPass_False()
+    {
+        // HTML с execution/lt в форме, но БЕЗ username/password и БЕЗ action на login —
+        // формой входа не считается (страница личного кабинета с формой приглашения).
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(PersonalAreaPageHtml));
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(SimpleForm));
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(
+            """<form><input type="hidden" name="lt" value="LT-9"/></form>"""));
+    }
+
+    [Fact]
+    public void LooksLikeLoginForm_LoginFormWithUserPass_True()
+    {
+        // Классическая форма входа CAS: username + password (+ execution, action /login) —
+        // распознаётся по главному признаку (поля ввода логина и пароля).
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(LoginFormWithUserPassHtml));
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(
+            """<form><input type="text" name="username"/><input type="password" name="password"/></form>"""));
+    }
+
+    [Fact]
+    public async Task Post200PersonalAreaPage_NotTreatedAsAuthFailed()
+    {
+        // Лог 7OH (issue #323): POST входа вернул 200 со страницей ЛИЧНОГО КАБИНЕТА
+        // (<title>Личные данные</title>, форма с полем execution, БЕЗ username/password) —
+        // вход УСПЕШЕН: повтор исходного запроса выполняется, AuthFailed НЕ выставляется.
+        var handler = new PersonalAreaLoginHandler(PersonalAreaPageHtml);
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+        Assert.Equal(2, handler.CatalogRequestCount); // повтор исходного запроса выполнен
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("страница личного кабинета", joined);
+        Assert.Contains("title='Личные данные'", joined); // A-8: title в POST-диагностике
+        Assert.DoesNotContain("Вход на portal.1c.ru не подтверждён", joined);
+    }
+
+    [Fact]
+    public async Task DetectAuthFailureMarkers_JsHintDoesNotMatch()
+    {
+        // JS-подсказки и строки в скриптах («incorrect», «execution») НЕ должны давать ложные
+        // признаки отказа (issue #323): маркеры полей ищутся только по <input name="…">,
+        // фразы отказа — точными выражениями, а не коротким «incorrect» по всему HTML.
+        var handler = new StaticLoginHandler(HttpStatusCode.Unauthorized,
+            postBody: """
+                <html>
+                  <script>const hint = "incorrect execution argument";</script>
+                  <div>password validation: no spaces allowed</div>
+                </html>
+                """);
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.DoesNotContain("признаки: execution", joined);
+        Assert.DoesNotContain("неверный логин/пароль", joined);
+    }
+
+    [Fact]
+    public async Task DetectAuthFailureMarkers_Captcha_Detected()
+    {
+        // Признак «капча» в теле ответа распознаётся и попадает в журнал анонимизированной
+        // диагностики (issue #323) — по нему AuthErrorKey выбирает Updates.CaptchaRequired.
+        var handler = new StaticLoginHandler(HttpStatusCode.Unauthorized,
+            postBody: "<html><div>Чтобы продолжить, решите капчу / captcha</div></html>");
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("признаки: капча", joined);
+    }
+
+    [Fact]
+    public async Task AuthErrorKey_CaptchaReason_ReturnsCaptchaRequired()
+    {
+        // Портал запросил подтверждение (капча): автоматический вход невозможен — вместо
+        // общего AuthFailed пользователю показывается отдельный ключ Updates.CaptchaRequired
+        // (issue #323) с советом выполнить вход в браузере.
+        var handler = new StaticLoginHandler(HttpStatusCode.Unauthorized,
+            postBody: "<html><div class=\"captcha\">Подтвердите, что вы не робот</div></html>");
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.CheckForUpdatesAsync(
+            "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/AccountingCorp30");
+
+        Assert.Equal(ConfigUpdateStatus.Failed, result.Status);
+        Assert.Equal("Updates.CaptchaRequired", result.Error);
+    }
+
+    [Fact]
+    public async Task Post200PersonalArea_ThenCatalog302_SecondLoginFreshForm_Ok()
+    {
+        // Цепочка из лога 7OH (issue #323): каталог 302 → вход → POST 200 «Личные данные»
+        // (Success) → повтор каталога СНОВА 302 (сессия кабинета ещё не действует для
+        // каталога) → ПОВТОРНЫЙ вход со свежей формой → POST 200 «Личные данные» → каталог
+        // 200 с #versionsTable → NewerAvailable. Повторный вход — существующий механизм
+        // MaxLoginAttemptsPerOperation=2, теперь работающий и для «кабинетного» успеха.
+        var handler = new PersonalAreaThenCatalogOkHandler(PersonalAreaPageHtml);
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.CheckForUpdatesAsync(
+            "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/Accounting30");
+
+        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
+        Assert.Equal(2, handler.PostLoginCount);
     }
 
     // ---------- «Фантомный успех» и JS/meta-refresh (issue #323/#330/#334, четвёртая итерация) ----------
@@ -1232,6 +1385,105 @@ public sealed class OneCUpdatesLoginFlowTests
                     <html><head><script src="/oauth/authorize?client_id=portal"></script></head>
                     <body><h2>JavaScript challenge</h2></body></html>
                     """);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик сценария issue #323 (лог 7OH): POST входа возвращает 200 со страницей
+    /// ЛИЧНОГО КАБИНЕТА (title «Личные данные», форма с execution без username/password); после
+    /// входа каталог отдаёт версии. Проверяет, что кабинет НЕ распознаётся как форма входа и
+    /// вход засчитывается (ложное AuthFailed устранено).</summary>
+    private sealed class PersonalAreaLoginHandler : HttpMessageHandler
+    {
+        private readonly string _postBody;
+        private bool _loginSucceeded;
+
+        public int PostLoginCount { get; private set; }
+        public int CatalogRequestCount { get; private set; }
+
+        public PersonalAreaLoginHandler(string postBody) => _postBody = postBody;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                CatalogRequestCount++;
+                response = !_loginSucceeded
+                    ? Found(new Uri("https://login.1c.ru/login?service=x"))
+                    : Ok(VersionsTableHtml);
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    _loginSucceeded = true;
+                    response = Ok(_postBody);
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик цепочки из лога 7OH (issue #323): каталог отвечает 302 на login при
+    /// ПЕРВЫХ ДВУХ обращениях (первый вход «принят», но сессия кабинета ещё не действует для
+    /// каталога), каждый POST возвращает 200 со страницей личного кабинета; с третьего запроса
+    /// каталог отдаёт версии. Проверяет повторный вход со свежей формой после «кабинетного»
+    /// успеха (MaxLoginAttemptsPerOperation=2).</summary>
+    private sealed class PersonalAreaThenCatalogOkHandler : HttpMessageHandler
+    {
+        private readonly string _postBody;
+        private int _catalogRequestCount;
+
+        public int PostLoginCount { get; private set; }
+
+        public PersonalAreaThenCatalogOkHandler(string postBody) => _postBody = postBody;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                _catalogRequestCount++;
+                response = _catalogRequestCount >= 3
+                    ? Ok(VersionsTableHtml)
+                    : Found(new Uri("https://login.1c.ru/login?service=x"));
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    response = Ok(_postBody);
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
             }
             else
             {
