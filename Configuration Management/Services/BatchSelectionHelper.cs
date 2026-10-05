@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using Configuration_Management.Models;
 using Configuration_Management.ViewModels;
 
@@ -215,6 +216,59 @@ public static class BatchSelectionHelper
         if (timestampMs - snapshot.TimestampMs > toleranceMs)
             return false;
         return Math.Abs(snapshot.X - x) <= tolerancePx && Math.Abs(snapshot.Y - y) <= tolerancePx;
+    }
+
+    /// <summary>
+    /// Человекочитаемая строка модификаторов для диагностики trace.json (issue #340,
+    /// 0.3.9.311, B-6): единый формат для WPF (ModifierKeys) и Avalonia (KeyModifiers).
+    /// Пустое сочетание — "None"; порядок частей фиксирован (Ctrl+Shift+Alt).
+    /// </summary>
+    public static string FormatModifiers(bool ctrl, bool shift, bool alt)
+    {
+        var parts = new List<string>(3);
+        if (ctrl) parts.Add("Ctrl");
+        if (shift) parts.Add("Shift");
+        if (alt) parts.Add("Alt");
+        return parts.Count == 0 ? "None" : string.Join("+", parts);
+    }
+
+    /// <summary>
+    /// Единообразная строка события клика по дереву для диагностики trace.json
+    /// (issue #340, 0.3.9.311, B-6): координаты, модификаторы, целевая база,
+    /// признак снимка клика, признак повторной доставки и секция строки.
+    /// Используется И WPF (MouseDown/MouseUp), И Avalonia (PointerPressed/
+    /// PointerReleased), чтобы записи обеих платформ имели одинаковую форму —
+    /// по логу сразу видно симметрию/асимметрию поведения. Поля: x, y, modifiers,
+    /// target, snapshot, redelivery, pinned. Целевая база может отсутствовать
+    /// (промах/клик по служебному узлу) — пишется "null".
+    /// </summary>
+    /// <param name="clickEvent">Имя события: "MouseDown"/"MouseUp"/"PointerPressed"/"PointerReleased".</param>
+    /// <param name="x">Координата X в координатах дерева.</param>
+    /// <param name="y">Координата Y в координатах дерева.</param>
+    /// <param name="modifiers">Модификаторы (см. <see cref="FormatModifiers"/>).</param>
+    /// <param name="targetId">Идентификатор базы под кликом (null при промахе).</param>
+    /// <param name="snapshotPresent">Присутствовал ли снимок клика, закрывавшего меню (путь A/C).</param>
+    /// <param name="isRedelivery">Является ли событие повторной доставкой клика, закрывшего меню.</param>
+    /// <param name="isPinnedSection">Секция строки: true — «Закреплённые» (issue #326).</param>
+    public static string BuildClickTraceLine(
+        string clickEvent,
+        double x,
+        double y,
+        string modifiers,
+        string? targetId,
+        bool snapshotPresent,
+        bool isRedelivery,
+        bool isPinnedSection)
+    {
+        // Координаты форматируются с InvariantCulture: разделитель дробной части —
+        // точка при ЛЮБОЙ локали ОС (в т.ч. русской), иначе записи WPF/Avalonia и
+        // тесты разъезжались бы по локали («12,5» vs «12.5»). Точность — до сотых
+        // (координаты клика обычно доли пикселя), нули не выводятся.
+        var xs = x.ToString("0.##", CultureInfo.InvariantCulture);
+        var ys = y.ToString("0.##", CultureInfo.InvariantCulture);
+        return $"{clickEvent}: x={xs}, y={ys}, modifiers={modifiers}, " +
+               $"target={targetId ?? "null"}, snapshot={snapshotPresent}, " +
+               $"redelivery={isRedelivery}, pinned={isPinnedSection}";
     }
 
     /// <summary>

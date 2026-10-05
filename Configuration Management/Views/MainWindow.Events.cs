@@ -652,11 +652,25 @@ namespace Configuration_Management
                 }
             }
 
-            if (menuCloseSnapshotPresent)
-            {
-                MenuCloseTrace.Log($"MouseDown: snapshotPresent=true, matched={isMenuCloseRedelivery}, " +
-                                   $"path={(isMenuCloseRedelivery ? "A" : "C")}, pos=({clickPos.X:0.#},{clickPos.Y:0.#})");
-            }
+            // B-1 (0.3.9.311): БЕЗУСЛОВНАЯ запись MouseDown по дереву — координаты, цель,
+            // модификаторы и состояние снимка фиксируются при ЛЮБОМ клике. Прежняя запись
+            // писалась только при наличии снимка (путь A/C) и не оставляла следов в
+            // «путях без снимка» (обычный клик вне окна стабилизации, Ctrl/Shift-клик) —
+            // из-за этого присланный trace.json не содержал ни одного события клика.
+            var clickSource = e.OriginalSource as DependencyObject;
+            var clickRow = clickSource is null ? null : FindAncestor<TreeViewItem>(clickSource);
+            var clickMods = Keyboard.Modifiers;
+            MenuCloseTrace.Log(BatchSelectionHelper.BuildClickTraceLine(
+                "MouseDown",
+                clickPos.X, clickPos.Y,
+                BatchSelectionHelper.FormatModifiers(
+                    (clickMods & ModifierKeys.Control) == ModifierKeys.Control,
+                    (clickMods & ModifierKeys.Shift) == ModifierKeys.Shift,
+                    (clickMods & ModifierKeys.Alt) == ModifierKeys.Alt),
+                BatchSelectionHelper.Unwrap(clickRow?.DataContext)?.Id,
+                menuCloseSnapshotPresent,
+                isMenuCloseRedelivery,
+                BatchSelectionHelper.IsPinnedSection(clickRow?.DataContext)));
 
             // Payload DnD фиксируем здесь (не в MouseMove): иначе при сдвиге курсора
             // на дочернюю базу TreeViewItem под курсором меняется и «уезжает» не группа, а базы.
@@ -793,7 +807,11 @@ namespace Configuration_Management
                             nowTick: Environment.TickCount,
                             windowMs: BatchSelectionHelper.MenuCloseStabilizeWindowMs))
                     {
-                        EnsureSelectionStable(infobase, isPinnedSection);
+                        // B-5 (0.3.9.311): причина стабилизации фиксируется в стартовой
+                        // записи — снимок клика присутствовал (путь A/C) или меню закрылось
+                        // недавно без снимка (ESC/клик мимо строки).
+                        EnsureSelectionStable(infobase, isPinnedSection,
+                            reason: menuCloseSnapshotPresent ? "snapshot" : "recentMenuClose");
                     }
                     break;
                 }
@@ -855,6 +873,26 @@ namespace Configuration_Management
         /// </summary>
         private void OnInfobaseTree_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            // B-1 (0.3.9.311): БЕЗУСЛОВНАЯ запись MouseUp по дереву — те же поля, что
+            // у MouseDown (координаты, цель, модификаторы, состояние снимка). Прежняя
+            // запись писалась только при сбросе снимка и не оставляла следа для
+            // обычных кликов вне окна стабилизации.
+            var upPos = e.GetPosition(MainTree);
+            var upSource = e.OriginalSource as DependencyObject;
+            var upRow = upSource is null ? null : FindAncestor<TreeViewItem>(upSource);
+            var upMods = Keyboard.Modifiers;
+            MenuCloseTrace.Log(BatchSelectionHelper.BuildClickTraceLine(
+                "MouseUp",
+                upPos.X, upPos.Y,
+                BatchSelectionHelper.FormatModifiers(
+                    (upMods & ModifierKeys.Control) == ModifierKeys.Control,
+                    (upMods & ModifierKeys.Shift) == ModifierKeys.Shift,
+                    (upMods & ModifierKeys.Alt) == ModifierKeys.Alt),
+                BatchSelectionHelper.Unwrap(upRow?.DataContext)?.Id,
+                _menuCloseClickSnapshot is not null,
+                false,
+                BatchSelectionHelper.IsPinnedSection(upRow?.DataContext)));
+
             // Снимок сбрасывается: следующий MouseDown — уже новое действие пользователя.
             // Флаг _menuClosePendingApply намеренно НЕ трогаем: если повторная доставка
             // MouseDown не пришла, выбор должен применить fallback (ApplyMenuCloseFallback,

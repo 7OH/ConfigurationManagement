@@ -9,6 +9,46 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.311] — 2026-10-05
+
+### Исправлено
+
+- **Снятие выделения после контекстного меню (issue #340, кластер B): расширенная БЕЗУСЛОВНАЯ трассировка** —
+  присланный 7OH `trace.json` на 0.3.9.308 содержал только startup + записи `MenuOpened`/`MenuClosed`
+  без НИ ОДНОГО события клика: трассировка была условной (`MouseDown` писался только при записанном
+  снимке; `TryApply`/`Fallback`/`EnsureStable` — только при срабатывании соответствующих веток),
+  поэтому сессия не содержала воспроизведения проблемного сценария. Следующая итерация пишет
+  клики и активации безусловно:
+  - [`BuildClickTraceLine`](Configuration%20Management/Services/BatchSelectionHelper.cs): новый чистый
+    метод единого формата события клика (поля `x`, `y`, `modifiers`, `target`, `snapshot`,
+    `redelivery`, `pinned`) + [`FormatModifiers`](Configuration%20Management/Services/BatchSelectionHelper.cs)
+    — используется И WPF, И Avalonia, записи платформ симметричны;
+  - `MouseDown`/`MouseUp` по дереву (WPF, [`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs))
+    и `PointerPressed`/`PointerReleased` (Avalonia, [`MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs))
+    теперь пишутся **безусловно** — при любом клике, включая «пути без снимка» (обычный клик вне
+    окна стабилизации, Ctrl/Shift-клик, промах мимо строки);
+  - `Deactivated`/`Activated` окна записываются **всегда** (прежде — только при pending-состоянии):
+    число открытых меню и время с последнего закрытия меню дерева
+    ([`MainWindow.xaml.cs`](Configuration%20Management/Views/MainWindow.xaml.cs) / [`MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs));
+  - на `MenuClosed` меню дерева дополнительно пишется `MenuClosedCursor`: координаты курсора,
+    признак «курсор над строкой дерева» (hit-test), «над пунктом меню» и фокус окна — видно,
+    ЧЕМ именно закрыто меню (кликом по строке / кликом мимо / выбором пункта / ESC);
+  - стабилизация пишет стартовую запись `EnsureStableStart` (причина `snapshot`|`recentMenuClose`,
+    целевая база, `SelectedInfobase`, `containerIsSelected`, `containerRealized`), а в каждый проход
+    добавлены `SelectedInfobase`, `containerIsSelected`, `selectedByData`, `containerFound`
+    ([`MainWindow.Tree.cs`](Configuration%20Management/Views/MainWindow.Tree.cs) / [`MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs));
+  - лимит кругового усечения `trace.json` увеличен с 512 КБ до **1 МБ**
+    ([`MenuCloseTraceFormat.MaxFileBytes`](Configuration%20Management/Services/MenuCloseTraceFormat.cs)) —
+    трассировка стала плотнее;
+  - тесты: 5 новых сценариев — единый формат строки клика WPF/Avalonia, форматирование модификаторов,
+    `target=null` при промахе, новый лимит усечения, валидная JSON-сериализация полей события клика
+    без секретов ([`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs),
+    [`MenuCloseTraceFormatTests.cs`](ConfigurationManagement.Tests/MenuCloseTraceFormatTests.cs)).
+    Поведение выбора/стабилизации НЕ менялось — правки только диагностические (B-1…B-7 плана).
+
+Полный набор `dotnet test` зелёный (**1792**), сборка Release без ошибок; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) — без ошибок.
+
 ## [0.3.9.310] — 2026-10-05
 
 ### Исправлено

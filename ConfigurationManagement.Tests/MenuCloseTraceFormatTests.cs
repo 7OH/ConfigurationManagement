@@ -257,6 +257,42 @@ public sealed class MenuCloseTraceFormatTests
     }
 
     [Fact]
+    public void MaxFileBytes_UpdatedToOneMegabyte()
+    {
+        // B-7 (0.3.9.311): лимит кругового усечения увеличен с 512 КБ до 1 МБ —
+        // трассировка стала плотнее за счёт безусловных записей кликов/активаций.
+        Assert.Equal(1024L * 1024, MenuCloseTraceFormat.MaxFileBytes);
+    }
+
+    [Fact]
+    public void FormatClickEventFields_ValidJson()
+    {
+        // B-6 (0.3.9.311): строка события клика (поля x, y, modifiers, target, snapshot,
+        // redelivery, pinned) сериализуется в data.message как валидный JSON без перевода
+        // строк и без чувствительных значений.
+        var message = BatchSelectionHelper.BuildClickTraceLine(
+            "MouseDown", 12.5, 33.25, "Ctrl", "base-42",
+            snapshotPresent: true, isRedelivery: true, isPinnedSection: false);
+        var line = MenuCloseTraceFormat.BuildLine("log", Ts, 1,
+            new Dictionary<string, object?> { ["message"] = message });
+
+        Assert.DoesNotContain('\n', line);
+        using var doc = JsonDocument.Parse(line);
+        var text = doc.RootElement.GetProperty("data").GetProperty("message").GetString();
+        Assert.NotNull(text);
+        Assert.Contains("x=12.5", text, StringComparison.Ordinal);
+        Assert.Contains("y=33.25", text, StringComparison.Ordinal);
+        Assert.Contains("modifiers=Ctrl", text, StringComparison.Ordinal);
+        Assert.Contains("target=base-42", text, StringComparison.Ordinal);
+        Assert.Contains("snapshot=True", text, StringComparison.Ordinal);
+        Assert.Contains("redelivery=True", text, StringComparison.Ordinal);
+        Assert.Contains("pinned=False", text, StringComparison.Ordinal);
+        // Значение базы (id) не содержит чувствительного имени поля — поле маскируется
+        // только при совпадении имени ключа, сообщение остаётся читаемым.
+        Assert.DoesNotContain("password", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ResolveFileName_LegacyExists_UsesLegacyMenuCloseTraceJson()
     {
         // Legacy-файл от 0.3.9.306 существует — дописываем в него (непрерывность

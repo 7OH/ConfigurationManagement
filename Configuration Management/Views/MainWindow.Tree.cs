@@ -849,10 +849,26 @@ namespace Configuration_Management
         /// </summary>
         /// <param name="target">База, выбранная кликом, которым закрыли меню.</param>
         /// <param name="isPinnedSection">Секция целевой строки: true — «Закреплённые» (issue #326).</param>
-        private void EnsureSelectionStable(Infobase? target, bool isPinnedSection)
+        /// <param name="reason">Причина запуска стабилизации для стартовой записи
+        /// (issue #340, 0.3.9.311, B-5): "snapshot" — клик, закрывший меню, зафиксирован
+        /// снимком (путь A/C или fallback); "recentMenuClose" — меню закрылось недавно
+        /// без снимка (ESC/клик мимо строки), стабилизация по расширенному признаку.</param>
+        private void EnsureSelectionStable(Infobase? target, bool isPinnedSection, string reason = "unknown")
         {
             if (MainTree is null || target is null || _viewModel is null)
                 return;
+
+            // B-5 (0.3.9.311): стартовая запись стабилизации — причина, целевая база,
+            // выбранная база модели и реализация/подсветка контейнера на момент старта.
+            // По последовательности EnsureStableStart → проходы → Dump500ms видно, какое
+            // звено рвётся (выбор модели vs подсветка контейнера).
+            var startContainer = isPinnedSection
+                ? FindPinnedTreeViewItemForData(target)
+                : FindRegularTreeViewItemForData(target);
+            MenuCloseTrace.Log($"EnsureStableStart: target={target.Id}, reason={reason}, " +
+                               $"SelectedInfobase={(_viewModel.SelectedInfobase?.Id ?? "null")}, " +
+                               $"containerIsSelected={startContainer?.IsSelected}, " +
+                               $"containerRealized={startContainer is not null}");
 
             var passes = 0;
             const int maxPasses = 15;   // F2: расширено с 10 (план 0.3.9.306, 2.4)
@@ -897,11 +913,24 @@ namespace Configuration_Management
                 // контейнер ещё не реализован виртуализацией (F2 — видимая-но-нереализованная
                 // строка НЕ считается согласованной; повторный SelectTreeRowByData идемпотентен
                 // и «догонит» выбор, когда контейнер появится).
+                var restoreApplied = false;
                 if (!matches)
+                {
                     SelectTreeRowByData(target, null, isPinnedSection);
+                    restoreApplied = true;
+                }
+                // B-5 (0.3.9.311): в каждый проход добавляются SelectedInfobase модели,
+                // подсветка контейнера (containerIsSelected) и факт применения выбора
+                // по данным (selectedByData) с результатом поиска контейнера (containerFound).
+                var passContainer = isPinnedSection
+                    ? FindPinnedTreeViewItemForData(target)
+                    : FindRegularTreeViewItemForData(target);
                 MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, matches={matches}, " +
                                    $"containerRealized={containerRealized}, action={(matches ? "skip" : "restored")}, " +
-                                   $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
+                                   $"selectedByData={restoreApplied}, containerFound={passContainer is not null}, " +
+                                   $"selectedItemId={SelectedItemId()}, " +
+                                   $"SelectedInfobase={(_viewModel.SelectedInfobase?.Id ?? "null")}, " +
+                                   $"containerIsSelected={passContainer?.IsSelected}, timeSinceStartMs={timeSinceStartMs}");
             };
 
             MainTree.LayoutUpdated += onLayoutUpdated;

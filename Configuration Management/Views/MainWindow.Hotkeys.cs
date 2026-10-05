@@ -741,6 +741,26 @@ namespace Configuration_Management
                 if (isTreeMenu)
                     _lastMenuCloseTick = Environment.TickCount;
 
+                // B-4 (0.3.9.311): для меню ДЕРЕВА дополнительно записываются координаты
+                // курсора и признаки «курсор над строкой дерева» / «над пунктом меню» /
+                // фокус окна — по логу видно, ЧЕМ именно закрыто меню (кликом по строке /
+                // кликом мимо / выбором пункта / ESC). Hit-test выполняется по дереву даже
+                // если guard-цепочка TryApplyTreeClickAfterMenuClosed не прошла (снимок
+                // клика не записан) — запись о положении мыши остаётся безусловной.
+                if (isTreeMenu && MainTree is not null)
+                {
+                    var cursorPos = Mouse.GetPosition(MainTree);
+                    var hitOver = MainTree.InputHitTest(cursorPos) as DependencyObject;
+                    var cursorRow = hitOver is null ? null : FindAncestor<TreeViewItem>(hitOver);
+                    var overTreeRow = cursorRow is not null
+                        && cursorRow.DataContext is Infobase or PinnedInfobaseItem or GroupNodeViewModel;
+                    var overMenuItem = Mouse.DirectlyOver is { } directlyOver
+                        && FindAncestor<MenuItem>(directlyOver as DependencyObject) is not null;
+                    MenuCloseTrace.Log($"MenuClosedCursor: x={cursorPos.X:0.#}, y={cursorPos.Y:0.#}, " +
+                                       $"overTreeRow={overTreeRow}, overMenuItem={overMenuItem}, " +
+                                       $"keyboardFocusWithin={IsKeyboardFocusWithin}");
+                }
+
                 // issue #340: клик по строке дерева, закрывший контекстное меню,
                 // перехватывается попапом меню и «проглатывается» — выбор строки и
                 // снятие мультивыделения не выполняются. Повторяем обработку клика.
@@ -906,7 +926,8 @@ namespace Configuration_Management
             SelectTreeRowByData(target, null, isPinnedSection);
             MenuCloseTrace.Log($"Fallback: ran=true, target={target.Id}, containerFound={containerFound}, " +
                                $"selectedByData=true, pinned={isPinnedSection}");
-            EnsureSelectionStable(target, isPinnedSection);
+            // B-5 (0.3.9.311): fallback работает по снимку клика — причина "snapshot".
+            EnsureSelectionStable(target, isPinnedSection, reason: "snapshot");
         }
 
         /// <summary>

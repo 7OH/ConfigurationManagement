@@ -769,4 +769,57 @@ public sealed class BatchSelectionHelperTests
             nowTick: 10_100,
             windowMs: StabilizeWindowMs));
     }
+
+    // ======================= Диагностика клика (issue #340, 0.3.9.311, B-6) =======================
+
+    [Fact]
+    public void BuildClickTraceLine_WpfAndAvalonia_SameShape()
+    {
+        // B-6 (0.3.9.311): единый ФОРМАТ строки события клика для обеих платформ —
+        // WPF (MouseDown/MouseUp) и Avalonia (PointerPressed/PointerReleased). Имена
+        // событий платформенные (различаются по дизайну), но форма записи — набор и
+        // порядок полей (x, y, modifiers, target, snapshot, redelivery, pinned) и их
+        // представление — обязана совпадать: асимметрия поведения платформ по логу
+        // видна сразу, а не прячется за разными форматами.
+        string FormOf(string line) => line[(line.IndexOf(':') + 1)..];
+
+        var wpfLine = BatchSelectionHelper.BuildClickTraceLine(
+            "MouseDown", 12.5, 33.25, "None", "base-42",
+            snapshotPresent: true, isRedelivery: true, isPinnedSection: false);
+        var avaloniaLine = BatchSelectionHelper.BuildClickTraceLine(
+            "PointerPressed", 12.5, 33.25, "None", "base-42",
+            snapshotPresent: true, isRedelivery: true, isPinnedSection: false);
+
+        Assert.Equal(FormOf(wpfLine), FormOf(avaloniaLine));
+
+        // События с модификаторами и пустой целью тоже единообразны по форме.
+        var wpfUp = BatchSelectionHelper.BuildClickTraceLine(
+            "MouseUp", 1, 2, "Ctrl+Shift", null, snapshotPresent: false, isRedelivery: false, isPinnedSection: true);
+        var avaloniaReleased = BatchSelectionHelper.BuildClickTraceLine(
+            "PointerReleased", 1, 2, "Ctrl+Shift", null, snapshotPresent: false, isRedelivery: false, isPinnedSection: true);
+        Assert.Equal(FormOf(wpfUp), FormOf(avaloniaReleased));
+    }
+
+    [Fact]
+    public void FormatModifiers_EmptyCombination_IsNone()
+    {
+        Assert.Equal("None", BatchSelectionHelper.FormatModifiers(ctrl: false, shift: false, alt: false));
+        Assert.Equal("Ctrl", BatchSelectionHelper.FormatModifiers(ctrl: true, shift: false, alt: false));
+        Assert.Equal("Shift", BatchSelectionHelper.FormatModifiers(ctrl: false, shift: true, alt: false));
+        Assert.Equal("Alt", BatchSelectionHelper.FormatModifiers(ctrl: false, shift: false, alt: true));
+        Assert.Equal("Ctrl+Shift", BatchSelectionHelper.FormatModifiers(ctrl: true, shift: true, alt: false));
+        Assert.Equal("Ctrl+Shift+Alt", BatchSelectionHelper.FormatModifiers(ctrl: true, shift: true, alt: true));
+    }
+
+    [Fact]
+    public void BuildClickTraceLine_NoTarget_MarksAsNull()
+    {
+        // Клик мимо строки/по служебному узлу: targetId отсутствует — в записи пишется
+        // "null", формат не ломается (и не содержит секретов).
+        var line = BatchSelectionHelper.BuildClickTraceLine(
+            "MouseDown", 4, 5, "None", null,
+            snapshotPresent: false, isRedelivery: false, isPinnedSection: false);
+        Assert.Contains("target=null", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("password", line, StringComparison.OrdinalIgnoreCase);
+    }
 }

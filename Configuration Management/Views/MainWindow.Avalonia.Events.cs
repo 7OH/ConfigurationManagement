@@ -164,6 +164,16 @@ namespace Configuration_Management
         private long _lastMenuCloseTick;
 
         /// <summary>
+        /// Последняя позиция указателя в координатах ДЕРЕВА (issue #340, 0.3.9.311, B-4):
+        /// обновляется обработчиком <c>PointerMoved</c> окна (<see cref="AttachTreeMenuCloseClickDedup"/>)
+        /// и используется в записи <c>MenuClosedCursor</c> — у
+        /// <see cref="OnTreeContextMenuIsOpenChanged"/> нет события указателя, а позиция
+        /// показывает, куда указывала мышь в момент закрытия меню (клик по строке / мимо /
+        /// выбор пункта / ESC). (-1,-1) — движение не зафиксировано.
+        /// </summary>
+        private Point _lastTreePointerPos = new(-1, -1);
+
+        /// <summary>
         /// Подписывает обработку клика, закрывшего контекстное меню строки (issue #340).
         /// Туннельная фаза ОКНА срабатывает раньше обработчиков контрола LeveledTreeView.
         /// Выбор применяет ШТАТНАЯ логика контрола (OnRowPointerPressed) — по живому
@@ -175,6 +185,13 @@ namespace Configuration_Management
         {
             AddHandler(InputElement.PointerPressedEvent, OnTreeMenuCloseClickDedup_PointerPressed, RoutingStrategies.Tunnel);
             AddHandler(InputElement.PointerReleasedEvent, OnTreeMenuCloseClickDedup_PointerReleased, RoutingStrategies.Tunnel);
+            // B-4 (0.3.9.311): запоминаем последнюю позицию указателя в координатах дерева
+            // (см. <see cref="_lastTreePointerPos"/>) — используется записью MenuClosedCursor.
+            AddHandler(InputElement.PointerMovedEvent, (_, e) =>
+            {
+                if (_tree is not null)
+                    _lastTreePointerPos = e.GetPosition(_tree);
+            }, RoutingStrategies.Tunnel);
         }
 
         /// <summary>
@@ -194,7 +211,24 @@ namespace Configuration_Management
                 ? $"MenuOpened: isTreeMenu={isTreeMenu}"
                 : $"MenuClosed: isTreeMenu={isTreeMenu}");
             if (!isOpen && isTreeMenu)
+            {
                 _lastMenuCloseTick = Environment.TickCount;
+
+                // B-4 (0.3.9.311): координаты указателя и признак «курсор над строкой
+                // дерева» на момент закрытия меню — по логу видно, ЧЕМ именно закрыто
+                // меню (кликом по строке / кликом мимо / выбором пункта / ESC). Запись
+                // безусловная: даже если снимок клика не записан (guard-цепочка не
+                // пройдена), положение мыши фиксируется. Позиция берётся из последнего
+                // PointerMoved окна (в координатах дерева, см. <see cref="_lastTreePointerPos"/>).
+                var cursorX = _lastTreePointerPos.X;
+                var cursorY = _lastTreePointerPos.Y;
+                var overTreeRow = false;
+                if (_tree is not null && _tree.InputHitTest(_lastTreePointerPos) is { } hitElement)
+                    overTreeRow = (hitElement as Visual)
+                        ?.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault() is not null;
+                MenuCloseTrace.Log($"MenuClosedCursor: x={cursorX:0.#}, y={cursorY:0.#}, " +
+                                   $"overTreeRow={overTreeRow}, keyboardFocusWithin={IsKeyboardFocusWithin}");
+            }
         }
 
         private void OnTreeMenuCloseClickDedup_PointerPressed(object? sender, PointerPressedEventArgs e)
@@ -236,11 +270,21 @@ namespace Configuration_Management
                 _menuCloseClickSnapshot = null;
             }
 
-            if (menuCloseSnapshotPresent)
-            {
-                MenuCloseTrace.Log($"PointerPressed: snapshotPresent=true, matched={isMenuCloseRedelivery}, " +
-                                   $"path={(isMenuCloseRedelivery ? "A" : "C")}, pos=({pos.X:0.#},{pos.Y:0.#})");
-            }
+            // B-2 (0.3.9.311): БЕЗУСЛОВНАЯ запись PointerPressed по дереву — координаты,
+            // цель, модификаторы и состояние снимка фиксируются при ЛЮБОМ клике. Прежняя
+            // запись писалась только при наличии снимка (путь A/C) и не оставляла следов
+            // в «путях без снимка» (обычный клик вне окна стабилизации, Ctrl/Shift-клик).
+            MenuCloseTrace.Log(BatchSelectionHelper.BuildClickTraceLine(
+                "PointerPressed",
+                pos.X, pos.Y,
+                BatchSelectionHelper.FormatModifiers(
+                    (e.KeyModifiers & KeyModifiers.Control) != 0,
+                    (e.KeyModifiers & KeyModifiers.Shift) != 0,
+                    (e.KeyModifiers & KeyModifiers.Alt) != 0),
+                BatchSelectionHelper.Unwrap(rowItem?.DataContext)?.Id,
+                menuCloseSnapshotPresent,
+                isMenuCloseRedelivery,
+                BatchSelectionHelper.IsPinnedSection(rowItem?.DataContext)));
 
             // Первичный клик по строке базы при ОТКРЫТОМ контекстном меню: меню закрывается
             // этим кликом, его повторная доставка в дерево (после освобождения попапа)
@@ -325,13 +369,36 @@ namespace Configuration_Management
                 var stabilizePinned = BatchSelectionHelper.IsPinnedSection(rowItem.DataContext);
                 MenuCloseTrace.Log($"PointerPressed: stabilizeRequested=true, target={stabilizeBase.Id}, " +
                                    $"snapshotPresent={menuCloseSnapshotPresent}, pinned={stabilizePinned}");
+                // B-5 (0.3.9.311): причина стабилизации фиксируется в стартовой записи —
+                // снимок клика присутствовал (путь A/C) или меню закрылось недавно без
+                // снимка (ESC/клик мимо строки).
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    EnsureSelectionStable(stabilizeBase, stabilizePinned));
+                    EnsureSelectionStable(stabilizeBase, stabilizePinned,
+                        reason: menuCloseSnapshotPresent ? "snapshot" : "recentMenuClose"));
             }
         }
 
         private void OnTreeMenuCloseClickDedup_PointerReleased(object? sender, PointerReleasedEventArgs e)
         {
+            // B-2 (0.3.9.311): БЕЗУСЛОВНАЯ запись PointerReleased по дереву — те же поля,
+            // что у PointerPressed (координаты, цель, модификаторы, состояние снимка).
+            if (_tree is not null && e.Source is Visual sourceReleased)
+            {
+                var relPos = e.GetPosition(_tree);
+                var relRow = sourceReleased.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault();
+                MenuCloseTrace.Log(BatchSelectionHelper.BuildClickTraceLine(
+                    "PointerReleased",
+                    relPos.X, relPos.Y,
+                    BatchSelectionHelper.FormatModifiers(
+                        (e.KeyModifiers & KeyModifiers.Control) != 0,
+                        (e.KeyModifiers & KeyModifiers.Shift) != 0,
+                        (e.KeyModifiers & KeyModifiers.Alt) != 0),
+                    BatchSelectionHelper.Unwrap(relRow?.DataContext)?.Id,
+                    _menuCloseClickSnapshot is not null,
+                    false,
+                    BatchSelectionHelper.IsPinnedSection(relRow?.DataContext)));
+            }
+
             // Снимок сбрасывается; флаг _menuClosePendingApply намеренно НЕ трогаем — если
             // повторная доставка не пришла, выбор применит fallback (ApplyMenuCloseFallback).
             if (_menuCloseClickSnapshot is not null)
@@ -378,7 +445,8 @@ namespace Configuration_Management
             SelectRowByData(target, isPinnedSection);
             MenuCloseTrace.Log($"Fallback: ran=true, target={target.Id}, containerFound={containerFound}, " +
                                $"selectedByData=true, pinned={isPinnedSection}");
-            EnsureSelectionStable(target, isPinnedSection);
+            // B-5 (0.3.9.311): fallback работает по снимку клика — причина "snapshot".
+            EnsureSelectionStable(target, isPinnedSection, reason: "snapshot");
         }
 
         /// <summary>
@@ -406,10 +474,22 @@ namespace Configuration_Management
         /// восстанавливает выбор по данным. Мультивыделение не затрагивается; защита от
         /// рекурсии — восстановление только при фактическом расхождении.
         /// </summary>
-        private void EnsureSelectionStable(Infobase? target, bool isPinnedSection)
+        /// <param name="reason">Причина запуска стабилизации для стартовой записи
+        /// (issue #340, 0.3.9.311, B-5): "snapshot" — клик, закрывший меню, зафиксирован
+        /// снимком (путь A/C или fallback); "recentMenuClose" — меню закрылось недавно
+        /// без снимка (ESC/клик мимо строки), стабилизация по расширенному признаку.</param>
+        private void EnsureSelectionStable(Infobase? target, bool isPinnedSection, string reason = "unknown")
         {
             if (_tree is null || target is null || _vm is null)
                 return;
+
+            // B-5 (0.3.9.311): стартовая запись стабилизации — причина, целевая база,
+            // выбранная база модели и реализация/подсветка контейнера на момент старта.
+            var startRow = _tree.FindRowForData(target, isPinnedSection);
+            MenuCloseTrace.Log($"EnsureStableStart: target={target.Id}, reason={reason}, " +
+                               $"SelectedInfobase={(_vm.SelectedInfobase?.Id ?? "null")}, " +
+                               $"containerIsSelected={startRow?.IsSelected}, " +
+                               $"containerRealized={startRow is not null}");
 
             var passes = 0;
             const int maxPasses = 15;   // F2: расширено с 10 (план 0.3.9.306, 2.4)
@@ -446,11 +526,22 @@ namespace Configuration_Management
 
                 var matches = SelectionMatchesTarget(target, isPinnedSection);
                 var containerRealized = _tree.FindRowForData(target, isPinnedSection) is not null;
+                var restoreApplied = false;
                 if (!matches)
+                {
                     SelectRowByData(target, isPinnedSection);
+                    restoreApplied = true;
+                }
+                // B-5 (0.3.9.311): в каждый проход добавляются SelectedInfobase модели,
+                // подсветка контейнера (containerIsSelected) и факт применения выбора
+                // по данным (selectedByData) с результатом поиска контейнера (containerFound).
+                var passRow = _tree.FindRowForData(target, isPinnedSection);
                 MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, matches={matches}, " +
                                    $"containerRealized={containerRealized}, action={(matches ? "skip" : "restored")}, " +
-                                   $"selectedItemId={SelectedItemId()}, timeSinceStartMs={timeSinceStartMs}");
+                                   $"selectedByData={restoreApplied}, containerFound={passRow is not null}, " +
+                                   $"selectedItemId={SelectedItemId()}, " +
+                                   $"SelectedInfobase={(_vm.SelectedInfobase?.Id ?? "null")}, " +
+                                   $"containerIsSelected={passRow?.IsSelected}, timeSinceStartMs={timeSinceStartMs}");
             };
 
             _tree.LayoutUpdated += onLayoutUpdated;

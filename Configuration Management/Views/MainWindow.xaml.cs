@@ -94,6 +94,15 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Время в мс с последнего закрытия контекстного меню ДЕРЕВА (единые часы
+        /// <see cref="Environment.TickCount"/>; -1 — меню дерева в этой сессии не закрывалось).
+        /// Используется в записях <c>Activated</c>/<c>Deactivated</c> (issue #340, 0.3.9.311, B-3):
+        /// деактивация окна закрытием попапа меню происходит обычно в пределах окна стабилизации.
+        /// </summary>
+        private long TimeSinceLastMenuCloseMs()
+            => _lastMenuCloseTick > 0 ? Environment.TickCount - _lastMenuCloseTick : -1;
+
+        /// <summary>
         /// Срабатывание grace-таймера деактивации (issue #340, F3): сброс снимка клика
         /// и флага pending-применения выполняется ТОЛЬКО если окно действительно осталось
         /// неактивным и все контекстные меню закрыты. Если окно активировалось — состояние
@@ -151,6 +160,12 @@ namespace Configuration_Management
                 // которым закрыли меню, ещё может прийти (попап освободил захват).
                 StopMenuCloseGraceTimer();
                 UpdateTitleBarAppearance(true);
+                // B-3 (0.3.9.311): запись активации окна БЕЗУСЛОВНА (прежде — только при
+                // pending-состоянии/снимке): число открытых меню и время с последнего
+                // закрытия меню дерева — для проверки гипотезы S4 (деактивация окна
+                // закрытием попапа меню и сброс состояния до повторной доставки клика).
+                MenuCloseTrace.Log($"Activated: openMenusCount={_openContextMenus.Count}, " +
+                                   $"timeSinceMenuCloseMs={TimeSinceLastMenuCloseMs()}");
             };
             Deactivated += (_, _) =>
             {
@@ -167,6 +182,9 @@ namespace Configuration_Management
                 // реально осталось неактивным и меню закрыты (см. OnMenuCloseGraceTimerTick).
                 StartMenuCloseGraceTimer();
                 UpdateTitleBarAppearance(false);
+                // B-3 (0.3.9.311): запись деактивации окна БЕЗУСЛОВНА — см. Activated выше.
+                MenuCloseTrace.Log($"Deactivated: openMenusCount={_openContextMenus.Count}, " +
+                                   $"timeSinceMenuCloseMs={TimeSinceLastMenuCloseMs()}");
                 // Подсказки скрываются при потере фокуса окна (issue #275), как контекстное
                 // меню: при клике в другое окно/приложение открытый тултип исчезает,
                 // а не «висит» поверх браузера. Общий механизм ToolTipCloser дополнительно

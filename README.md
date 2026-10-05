@@ -1,6 +1,6 @@
 # Управление конфигурациями 1С
 
-![Версия](https://img.shields.io/badge/Версия-0.3.9.310-1F6FEB) ![.NET](https://img.shields.io/badge/.NET-10-512BD4) ![Windows/WPF](https://img.shields.io/badge/Windows-WPF-4B8BBE) ![Linux/Avalonia](https://img.shields.io/badge/Linux-Avalonia%2011-8B5CF6) ![Лицензия](https://img.shields.io/badge/Лицензия-Open%20Source-success)
+![Версия](https://img.shields.io/badge/Версия-0.3.9.311-1F6FEB) ![.NET](https://img.shields.io/badge/.NET-10-512BD4) ![Windows/WPF](https://img.shields.io/badge/Windows-WPF-4B8BBE) ![Linux/Avalonia](https://img.shields.io/badge/Linux-Avalonia%2011-8B5CF6) ![Лицензия](https://img.shields.io/badge/Лицензия-Open%20Source-success)
 
 > **Кроссплатформенное десктопное приложение на .NET для управления информационными базами 1С:Предприятие 8.3**, заменяющее стандартный список баз 1С современным интерфейсом. Одна кодовая база собирается под обе ОС: **WPF** на Windows и **Avalonia 11** на Linux.
 
@@ -94,15 +94,20 @@
 - **Системный трей**, компактный режим интерфейса (сжимает отступы строк списка и высоту
   собственного заголовка окна), виртуализация списков.
 - **Диагностика выделения и контекстного меню (issue #340)** — файл **`trace.json`** (JSON Lines,
-  ~512 КБ с круговым усечением) рядом с настройками приложения
+  ~1 МБ с круговым усечением, 0.3.9.311) рядом с настройками приложения
   (Windows: `%APPDATA%\ConfigurationManagement\`, Linux: `~/.config/ConfigurationManagement\`,
   в портативном режиме — каталог данных рядом с exe). Создаётся при **каждом старте**
   (startup-запись с версией/платформой/ОС) и наполняется при каждом открытии/закрытии
-  контекстного меню (`MenuOpened`/`MenuClosed`), клике по строке дерева, применении и
-  стабилизации выделения (`TryApply`/`MouseDown`/`PointerPressed`/`Fallback`/`Dump500ms`/
-  `EnsureStable`) — по журналу видно, какое звено снимает выделение. Включать/создавать
-  файл вручную НЕ нужно; прежний `menuclose_trace.json` (0.3.9.306) продолжает дописываться,
-  если уже существует (обе платформы).
+  контекстного меню (`MenuOpened`/`MenuClosed` + `MenuClosedCursor` с координатами курсора
+  и признаком «над строкой дерева»), а также **безусловно** при каждом клике по дереву
+  (`MouseDown`/`MouseUp` — WPF, `PointerPressed`/`PointerReleased` — Avalonia; поля:
+  координаты, модификаторы, целевая база, наличие снимка, повторная доставка, секция),
+  при активации/деактивации окна (`Activated`/`Deactivated` — всегда) и при применении и
+  стабилизации выделения (`TryApply`/`Fallback`/`Dump500ms`/`EnsureStableStart`/`EnsureStable`
+  с полями `SelectedInfobase`/`containerIsSelected`) — по журналу видно, какое звено снимает
+  выделение, даже когда снимок клика не записан. Включать/создавать файл вручную НЕ нужно;
+  прежний `menuclose_trace.json` (0.3.9.306) продолжает дописываться, если уже существует
+  (обе платформы).
 
 [![Infostart](https://infostart.ru/bitrix/templates/sandbox_empty/assets/tpl/abo/img/logo.svg)](https://infostart.ru/1c/articles/2764888/)
 
