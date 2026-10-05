@@ -2277,6 +2277,13 @@
     "Conn.LaunchThickOrdinaryHint": "Launches the thick client 1cv8 in ordinary forms (/RunModeOrdinaryApplication).",
     "Conn.LaunchWebHint": "Opens the database in a web browser. Available with web publishing or client-server.",
     "Conn.LaunchAutoHint": "The mode is selected automatically by the 1C platform based on the infobase settings.",
+    "Conn.LinkGroup": "Link",
+    "Conn.LinkNotSet": "not set",
+    "Conn.LinkBind": "Link…",
+    "Conn.LinkClear": "Clear",
+    "Conn.LinkClearConfirm": "Remove the link to the standard configuration?",
+    "Conn.LinkEditionFormat": "ed. {0}",
+    "Conn.LinkManualUrlMark": " (manual link)",
 
     "Maint.PhysicalDeleteOnlyFile": "Physical deletion is available only for file infobases.",
     "Maint.FileBaseDirNotFound": "The file infobase directory was not found on disk.",

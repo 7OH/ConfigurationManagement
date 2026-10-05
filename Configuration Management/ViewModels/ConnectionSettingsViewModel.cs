@@ -57,6 +57,17 @@ public class ConnectionSettingsViewModel : ViewModelBase
     private string _tagInput = string.Empty;
     private IReadOnlyList<string> _availableTags = Array.Empty<string>();
 
+    // Поля связи ИБ ↔ типовая конфигурация (группа «Привязка» вкладки «Платформа», issue #346).
+    private string _updateConfigCode = string.Empty;
+    private string _updateUrlOverride = string.Empty;
+    private string _updateUrlSegment = string.Empty;
+    private string _linkDisplay = "—";
+    private string _linkUrl = string.Empty;
+    private IReadOnlyList<OneCConfigType> _configTypes = Array.Empty<OneCConfigType>();
+    /// <summary>Построитель адреса каталога релизов вокруг <see cref="IOneCUpdatesService.BuildUpdateUrl"/>
+    /// (инжектируется окном свойств базы; без него ссылка в сводке привязки не показывается).</summary>
+    private Func<OneCConfigType?, OneCConfigEdition?, string, string>? _urlBuilder;
+
     /// <summary>
     /// Создаёт ViewModel с указанным списком доступных групп.
     /// </summary>
@@ -244,6 +255,128 @@ public class ConnectionSettingsViewModel : ViewModelBase
     {
         get => _configurationVersion;
         set => SetProperty(ref _configurationVersion, value ?? string.Empty);
+    }
+
+    // ==================== Связь ИБ ↔ типовая конфигурация (issue #346) ====================
+
+    /// <summary>Код типовой конфигурации (связь ИБ ↔ конфигурация, <see cref="Infobase.UpdateConfigCode"/>).
+    /// Пусто — связь не задана.</summary>
+    public string UpdateConfigCode
+    {
+        get => _updateConfigCode;
+        set
+        {
+            if (SetProperty(ref _updateConfigCode, value ?? string.Empty))
+                OnPropertyChanged(nameof(HasLink));
+        }
+    }
+
+    /// <summary>Ручная ссылка на каталог релизов (<see cref="Infobase.UpdateUrlOverride"/>).</summary>
+    public string UpdateUrlOverride
+    {
+        get => _updateUrlOverride;
+        set => SetProperty(ref _updateUrlOverride, value ?? string.Empty);
+    }
+
+    /// <summary>Персональный сегмент (ник) каталога релизов базы (<see cref="Infobase.UpdateUrlSegment"/>).</summary>
+    public string UpdateUrlSegment
+    {
+        get => _updateUrlSegment;
+        set => SetProperty(ref _updateUrlSegment, value ?? string.Empty);
+    }
+
+    /// <summary>Признак того, что у базы задана привязка к типовой конфигурации.</summary>
+    public bool HasLink => !string.IsNullOrWhiteSpace(UpdateConfigCode);
+
+    /// <summary>Сводка текущей привязки («Бухгалтерия предприятия · ред. 3.0 · https://…»).
+    /// При отсутствии привязки — «—».</summary>
+    public string LinkDisplay => _linkDisplay;
+
+    /// <summary>Адрес каталога релизов текущей привязки (для показа ссылки), пуст при отсутствии.</summary>
+    public string LinkUrl => _linkUrl;
+
+    /// <summary>
+    /// Задаёт список типовых конфигураций (встроенные + пользовательские, единый загрузчик
+    /// <see cref="ICustomConfigTypesStore.LoadAll"/>), по которым строится сводка привязки.
+    /// </summary>
+    public void SetConfigTypes(IReadOnlyList<OneCConfigType>? configs)
+        => _configTypes = configs ?? Array.Empty<OneCConfigType>();
+
+    /// <summary>
+    /// Задаёт построитель адреса каталога релизов (обёртка вокруг
+    /// <see cref="IOneCUpdatesService.BuildUpdateUrl"/>, инжектируется окном свойств базы).
+    /// </summary>
+    public void SetUrlBuilder(Func<OneCConfigType?, OneCConfigEdition?, string, string>? builder)
+        => _urlBuilder = builder;
+
+    /// <summary>
+    /// Пересчитывает сводку привязки из текущих полей: находит типовую конфигурацию по коду,
+    /// редакцию — по версии конфигурации, строит адрес каталога релизов через инжектированный
+    /// построитель и обновляет <see cref="LinkDisplay"/>/<see cref="LinkUrl"/>. Вызывается после
+    /// загрузки базы, повторной привязки через окно «Связать с конфигурацией» и очистки.
+    /// </summary>
+    public void RefreshLinkState()
+    {
+        var config = ConfigTypeMatcher.FindByCode(_configTypes, UpdateConfigCode);
+        var edition = config is null
+            ? null
+            : ConfigTypeMatcher.FindEditionByVersion(config, ConfigurationVersion);
+        var url = config is not null && _urlBuilder is not null
+            ? _urlBuilder(config, edition, UpdateUrlOverride) ?? string.Empty
+            : string.Empty;
+
+        var display = BuildLinkSummary(config, edition, url, !string.IsNullOrWhiteSpace(UpdateUrlOverride))
+                      ?? "—";
+        if (!string.Equals(_linkDisplay, display, StringComparison.Ordinal))
+        {
+            _linkDisplay = display;
+            OnPropertyChanged(nameof(LinkDisplay));
+        }
+
+        if (!string.Equals(_linkUrl, url, StringComparison.Ordinal))
+        {
+            _linkUrl = url;
+            OnPropertyChanged(nameof(LinkUrl));
+        }
+    }
+
+    /// <summary>
+    /// Очищает привязку к типовой конфигурации: сбрасывает код, ручную ссылку и персональный
+    /// сегмент и пересчитывает сводку. Окно свойств дополнительно записывает сброс в объект
+    /// базы и репозиторий (аналог <c>PersistLink</c> окна «Связать с конфигурацией»).
+    /// </summary>
+    public void ClearLink()
+    {
+        UpdateConfigCode = string.Empty;
+        UpdateUrlOverride = string.Empty;
+        UpdateUrlSegment = string.Empty;
+        RefreshLinkState();
+    }
+
+    /// <summary>
+    /// Строит строку-сводку привязки: «Наименование конфигурации · ред. X · URL каталога релизов».
+    /// Части «ред.» и URL опускаются, если редакция/адрес не найдены; ручная ссылка помечается.
+    /// Возвращает null при <paramref name="config"/> null (связь не задана).
+    /// </summary>
+    public static string? BuildLinkSummary(OneCConfigType? config, OneCConfigEdition? edition,
+        string urlOrEmpty, bool isManualUrl = false)
+    {
+        if (config is null)
+            return null;
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(config.Name))
+            parts.Add(config.Name.Trim());
+
+        var red = edition?.Red?.Trim() ?? string.Empty;
+        if (red.Length > 0)
+            parts.Add(string.Format(LocalizationManager.T("Conn.LinkEditionFormat"), red));
+
+        var url = (urlOrEmpty ?? string.Empty).Trim();
+        if (url.Length > 0)
+            parts.Add(isManualUrl ? url + LocalizationManager.T("Conn.LinkManualUrlMark") : url);
+
+        return parts.Count == 0 ? "—" : string.Join(" · ", parts);
     }
 
 
@@ -1131,6 +1264,10 @@ public class ConnectionSettingsViewModel : ViewModelBase
             PlatformVersion = infobase.PlatformVersion;
             ConfigurationName = infobase.ConfigurationName;
             ConfigurationVersion = infobase.ConfigurationVersion;
+            // Связь ИБ ↔ типовая конфигурация (группа «Привязка», issue #346).
+            UpdateConfigCode = infobase.UpdateConfigCode;
+            UpdateUrlOverride = infobase.UpdateUrlOverride;
+            UpdateUrlSegment = infobase.UpdateUrlSegment;
             Architecture = NormalizeArchitecture(infobase.Architecture);
             LaunchMode = infobase.LaunchMode;
             LaunchParameters = infobase.LaunchParameters;
@@ -1224,6 +1361,10 @@ public class ConnectionSettingsViewModel : ViewModelBase
             Tags.Clear();
             foreach (var t in infobase.Tags ?? new List<string>())
                 Tags.Add(t);
+
+            // Сводка привязки строится при _isLoading = true, чтобы повторный вызов
+            // RefreshLinkState() из окна не помечал изменения при открытии (issue #346).
+            RefreshLinkState();
         }
         finally
         {
@@ -1308,6 +1449,12 @@ public class ConnectionSettingsViewModel : ViewModelBase
         infobase.PlatformVersion = PlatformVersion;
         infobase.ConfigurationName = ConfigurationName;
         infobase.ConfigurationVersion = ConfigurationVersion;
+        // Связь ИБ ↔ типовая конфигурация (группа «Привязка», issue #346): переносится и при
+        // очистке (пустые строки), чтобы сброс/связь новой базы сохранялись штатно и в тех
+        // случаях, когда окно связи/очистки не нашло базу в репозитории (PersistLink).
+        infobase.UpdateConfigCode = UpdateConfigCode ?? string.Empty;
+        infobase.UpdateUrlOverride = UpdateUrlOverride ?? string.Empty;
+        infobase.UpdateUrlSegment = UpdateUrlSegment ?? string.Empty;
         infobase.Architecture = NormalizeArchitecture(Architecture);
         infobase.LaunchMode = string.IsNullOrWhiteSpace(LaunchMode) ? "Автоматический" : LaunchMode;
         infobase.LaunchParameters = LaunchParameters ?? string.Empty;

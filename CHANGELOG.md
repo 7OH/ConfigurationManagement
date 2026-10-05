@@ -9,6 +9,35 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.312] — 2026-10-05
+
+### Добавлено
+
+- **Группа «Привязка» в свойствах базы (issue #346, кластер C)** — на вкладке «Платформа» под
+  группой «Версия платформы и параметры» теперь видна текущая привязка базы к типовой
+  конфигурации: наименование типовой, редакция (определяется по номеру релиза из свойств базы)
+  и адрес каталога релизов (раньше эта информация нигде не отображалась):
+  - кнопка **«Связать…»** открывает существующее окно «Связать с конфигурацией» для повторной
+    привязки; поля связи пишутся в базу и репозиторий сразу, как из контекстного меню (issue #322);
+  - кнопка **«Очистить»** (с подтверждением) сбрасывает код типовой конфигурации, ручную ссылку
+    и персональный сегмент; для новой базы сброс сохраняется штатно через свойства базы;
+  - реализовано симметрично в WPF и Avalonia, все тексты локализованы ru/en
+    ([`ConnectionSettingsViewModel.cs`](Configuration%20Management/ViewModels/ConnectionSettingsViewModel.cs),
+    [`ConnectionSettingsWindow.xaml`](Configuration%20Management/Views/ConnectionSettingsWindow.xaml),
+    [`ConnectionSettingsWindow.Avalonia.cs`](Configuration%20Management/Views/ConnectionSettingsWindow.Avalonia.cs));
+  - общий helper сохранения связи [`InfobaseLinkStorage`](Configuration%20Management/Services/InfobaseLinkStorage.cs)
+    (логика PersistLink окна связи без изменения его контракта);
+  - новый чистый метод [`FindByCode`](Configuration%20Management/Services/ConfigTypeMatcher.cs) —
+    поиск типовой конфигурации по коду связи (регистронезависим);
+  - тесты: 11 новых сценариев — перенос полей привязки в LoadFrom/ApplyTo (включая сброс в пустые
+    строки), BuildLinkSummary (формат/без URL/ручная ссылка), HasLink и RefreshLinkState, очистка
+    связи, FindByCode (регистронезависимость и null-кейсы)
+    ([`ConnectionSettingsViewModelTests.cs`](ConfigurationManagement.Tests/ConnectionSettingsViewModelTests.cs),
+    [`ConfigTypeMatcherTests.cs`](ConfigurationManagement.Tests/ConfigTypeMatcherTests.cs)).
+
+Полный набор `dotnet test` зелёный (**1803**), сборка Release без ошибок; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) — без ошибок.
+
 ## [0.3.9.311] — 2026-10-05
 
 ### Исправлено

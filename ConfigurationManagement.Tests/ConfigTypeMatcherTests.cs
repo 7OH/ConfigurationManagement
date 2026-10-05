@@ -375,4 +375,32 @@ public sealed class ConfigTypeMatcherTests
         Assert.NotNull(edition);
         Assert.Equal("142", edition!.SubRed);
     }
+
+    // ==================== Поиск по коду связи (issue #346, группа «Привязка») ====================
+
+    [Fact]
+    public void FindByCode_CaseInsensitive()
+    {
+        var configs = new List<OneCConfigType>
+        {
+            Config("BP", "Бухгалтерия предприятия"),
+            Config("ZUP", "Зарплата и управление персоналом"),
+        };
+
+        Assert.Equal("BP", ConfigTypeMatcher.FindByCode(configs, "bp")!.Code);
+        Assert.Equal("ZUP", ConfigTypeMatcher.FindByCode(configs, "  zup ")!.Code);
+        Assert.Equal("BP", ConfigTypeMatcher.FindByCode(configs, "Bp")!.Code);
+    }
+
+    [Fact]
+    public void FindByCode_UnknownOrEmpty_ReturnsNull()
+    {
+        var configs = new List<OneCConfigType> { Config("BP", "Бухгалтерия предприятия") };
+
+        Assert.Null(ConfigTypeMatcher.FindByCode(configs, "ERP"));
+        Assert.Null(ConfigTypeMatcher.FindByCode(configs, null));
+        Assert.Null(ConfigTypeMatcher.FindByCode(configs, "   "));
+        Assert.Null(ConfigTypeMatcher.FindByCode(new List<OneCConfigType>(), "BP"));
+        Assert.Null(ConfigTypeMatcher.FindByCode(null, "BP"));
+    }
 }

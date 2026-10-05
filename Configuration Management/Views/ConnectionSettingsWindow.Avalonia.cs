@@ -28,6 +28,16 @@ namespace Configuration_Management
         private readonly ConnectionSettingsViewModel _viewModel;
         private readonly IDialogService _dialogs;
 
+        // Сервисы группы «Привязка» (issue #346): репозиторий для немедленного сохранения
+        // очистки связи, единый загрузчик типовых конфигураций и построитель адреса релизов.
+        private readonly IInfobaseRepository _linkRepository;
+        private readonly ICustomConfigTypesStore _configTypesStore;
+        private readonly IOneCUpdatesService _updatesService;
+        private readonly IAppLogger _logger;
+        /// <summary>Редактируемая база: объект из списка (существующая) либо Result (новая).
+        /// В него окно «Связать с конфигурацией» пишет поля связи напрямую (issue #346).</summary>
+        private readonly Infobase _editingInfobase;
+
         private readonly PasswordBox _passwordBox = new PasswordBox().Styled(ControlThemes.ModernPasswordBox);
         private readonly PasswordBox _repositoryPasswordBox = new PasswordBox().Styled(ControlThemes.ModernPasswordBox);
         private readonly PasswordBox _configuratorPasswordBox = new PasswordBox().Styled(ControlThemes.ModernPasswordBox);
@@ -63,6 +73,10 @@ namespace Configuration_Management
             FontSize = 13;
 
             _dialogs = AppServices.GetRequiredService<IDialogService>();
+            _linkRepository = AppServices.GetRequiredService<IInfobaseRepository>();
+            _configTypesStore = AppServices.GetRequiredService<ICustomConfigTypesStore>();
+            _updatesService = AppServices.GetRequiredService<IOneCUpdatesService>();
+            _logger = AppServices.GetRequiredService<IAppLogger>();
 
             _viewModel = new ConnectionSettingsViewModel(groups);
             _viewModel.SetInstalledPlatformVersions(installedPlatformVersions ?? new List<string>());
@@ -72,6 +86,12 @@ namespace Configuration_Management
             _viewModel.SetAvailableConfigurations(availableConfigurations);
             // Существующие теги всех баз — для автодополнения при добавлении (issue #283).
             _viewModel.SetAvailableTags(availableTags);
+            // Группа «Привязка» (issue #346): список типовых конфигураций (встроенные +
+            // пользовательские, единый загрузчик) и построитель адреса каталога релизов.
+            LoadConfigTypesForLink();
+            _viewModel.SetUrlBuilder((config, edition, urlOverride) =>
+                _updatesService.BuildUpdateUrl(config, edition, urlOverride, _viewModel.UpdateUrlSegment));
+            _editingInfobase = infobase ?? Result;
             if (infobase != null)
             {
                 _viewModel.LoadFrom(infobase);
@@ -1105,7 +1125,59 @@ namespace Configuration_Management
             pickParameters.Padding = new Thickness(8, 3);
             Place(fields, 3, "Connection.ParametersLabel", WithButton(parameters, pickParameters));
 
-            return Group("IconPackage", "Connection.GroupPlatform", fields);
+            // Группа «Привязка» (issue #346) размещается под группой «Версия платформы
+            // и параметры» на вкладке «Платформа», как и в WPF-разметке.
+            var platformGroup = Group("IconPackage", "Connection.GroupPlatform", fields);
+            var linkGroup = BuildLinkGroup();
+            return new StackPanel
+            {
+                Children = { platformGroup, linkGroup }
+            };
+        }
+
+        /// <summary>
+        /// Группа «Привязка» (issue #346): сводка текущей привязки базы к типовой конфигурации,
+        /// ссылка каталога релизов и кнопки «Связать…» / «Очистить» (зеркально WPF-разметке).
+        /// </summary>
+        private Control BuildLinkGroup()
+        {
+            var display = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 3),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            display.Bind(TextBlock.TextProperty, new Binding("LinkDisplay"));
+
+            var url = new TextBlock
+            {
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 3)
+            };
+            ThemeBrushes.Bind(url, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            url.Bind(TextBlock.TextProperty, new Binding("LinkUrl"));
+
+            var bind = SecondaryButton("IconLink", "Conn.LinkBind", OnBindConfigLink_Click);
+            bind.Padding = new Thickness(10, 5);
+            var clear = SecondaryButton("IconDelete", "Conn.LinkClear", OnClearConfigLink_Click);
+            clear.Padding = new Thickness(10, 5);
+            clear.Bind(Button.IsEnabledProperty, new Binding("HasLink"));
+
+            var actions = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 6, 0, 0),
+                Spacing = 8,
+                Children = { bind, clear }
+            };
+
+            var content = new StackPanel
+            {
+                Margin = new Thickness(4, 0, 4, 4),
+                Children = { display, url, actions }
+            };
+            return Group("IconLink", "Conn.LinkGroup", content);
         }
 
         private Control BuildIdTab()
@@ -1148,6 +1220,66 @@ namespace Configuration_Management
                     }
                 }
             };
+        }
+
+        // ===================== Группа «Привязка» (issue #346) =====================
+
+        /// <summary>
+        /// Загружает список типовых конфигураций для отображения привязки: встроенные +
+        /// пользовательские (единый загрузчик, как в окне «Связать с конфигурацией»).
+        /// При ошибке загрузки — fallback на встроенный набор.
+        /// </summary>
+        private void LoadConfigTypesForLink()
+        {
+            try
+            {
+                _viewModel.SetConfigTypes(_configTypesStore.LoadAll());
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Ошибка загрузки списка типовых конфигураций для группы «Привязка»", ex);
+                _viewModel.SetConfigTypes(BuiltInConfigTypes.All);
+            }
+        }
+
+        /// <summary>
+        /// «Связать…»: открывает существующее окно «Связать с конфигурацией» с редактируемой базой
+        /// (оно пишет поля связи в объект и репозиторий сразу, как в контекстном меню — issue #322),
+        /// после закрытия перечитывает поля в ViewModel и пересчитывает сводку привязки.
+        /// </summary>
+        private void OnBindConfigLink_Click()
+        {
+            var win = new ConfigUpdateLinkWindow(_editingInfobase);
+            win.ShowSync(this);
+            SyncLinkFieldsFromInfobase();
+        }
+
+        /// <summary>
+        /// «Очистить»: подтверждение, затем сброс трёх полей связи в ViewModel И в объект базы,
+        /// сохранение в репозиторий (аналог PersistLink окна связи) и пересчёт сводки. Для новой
+        /// базы сброс перетечёт в репозиторий при штатном сохранении через ApplyTo.
+        /// </summary>
+        private void OnClearConfigLink_Click()
+        {
+            if (!_dialogs.Confirm(LocalizationManager.T("Conn.LinkClearConfirm"),
+                    LocalizationManager.T("Conn.LinkClear")))
+                return;
+
+            _viewModel.ClearLink();
+            _editingInfobase.UpdateConfigCode = string.Empty;
+            _editingInfobase.UpdateUrlOverride = string.Empty;
+            _editingInfobase.UpdateUrlSegment = string.Empty;
+            InfobaseLinkStorage.Save(_editingInfobase, _linkRepository, _logger);
+        }
+
+        /// <summary>Перечитывает поля связи из объекта базы (единый источник — Infobase)
+        /// в ViewModel и пересчитывает сводку привязки.</summary>
+        private void SyncLinkFieldsFromInfobase()
+        {
+            _viewModel.UpdateConfigCode = _editingInfobase.UpdateConfigCode;
+            _viewModel.UpdateUrlOverride = _editingInfobase.UpdateUrlOverride;
+            _viewModel.UpdateUrlSegment = _editingInfobase.UpdateUrlSegment;
+            _viewModel.RefreshLinkState();
         }
 
         // ===================== Обработчики =====================

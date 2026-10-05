@@ -2277,6 +2277,13 @@
     "Conn.LaunchThickOrdinaryHint": "Запуск толстого клиента 1cv8 в обычных формах (/RunModeOrdinaryApplication).",
     "Conn.LaunchWebHint": "Открытие базы в веб-браузере. Доступно при веб-публикации или клиент-сервере.",
     "Conn.LaunchAutoHint": "Режим выбирает платформа 1С автоматически по настройкам информационной базы.",
+    "Conn.LinkGroup": "Привязка",
+    "Conn.LinkNotSet": "не задана",
+    "Conn.LinkBind": "Связать…",
+    "Conn.LinkClear": "Очистить",
+    "Conn.LinkClearConfirm": "Снять привязку к типовой конфигурации?",
+    "Conn.LinkEditionFormat": "ред. {0}",
+    "Conn.LinkManualUrlMark": " (ручная ссылка)",
 
     "Maint.PhysicalDeleteOnlyFile": "Физическое удаление доступно только для файловых баз.",
     "Maint.FileBaseDirNotFound": "Каталог файловой базы не найден на диске.",

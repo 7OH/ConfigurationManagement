@@ -25,6 +25,16 @@ namespace Configuration_Management
         /// <summary>Обратный вызов сохранения пользовательских параметров запуска (issue #141).</summary>
         private readonly Action<IReadOnlyList<string>>? _onCustomLaunchParametersChanged;
 
+        // Сервисы группы «Привязка» (issue #346): репозиторий для немедленного сохранения
+        // очистки связи, единый загрузчик типовых конфигураций и построитель адреса релизов.
+        private readonly IInfobaseRepository _linkRepository = AppServices.GetRequiredService<IInfobaseRepository>();
+        private readonly ICustomConfigTypesStore _configTypesStore = AppServices.GetRequiredService<ICustomConfigTypesStore>();
+        private readonly IOneCUpdatesService _updatesService = AppServices.GetRequiredService<IOneCUpdatesService>();
+        private readonly IAppLogger _logger = AppServices.GetRequiredService<IAppLogger>();
+        /// <summary>Редактируемая база: объект из списка (существующая) либо Result (новая).
+        /// В него окно «Связать с конфигурацией» пишет поля связи напрямую (issue #346).</summary>
+        private readonly Infobase _editingInfobase;
+
         /// <summary>
         /// Создаёт диалог настройки подключения.
         /// </summary>
@@ -72,6 +82,12 @@ namespace Configuration_Management
             _viewModel.SetAvailableRepositoryServers(availableRepositoryServers);
             // Существующие теги всех баз — для автодополнения при добавлении (issue #283).
             _viewModel.SetAvailableTags(availableTags);
+            // Группа «Привязка» (issue #346): список типовых конфигураций (встроенные +
+            // пользовательские, единый загрузчик) и построитель адреса каталога релизов.
+            LoadConfigTypesForLink();
+            _viewModel.SetUrlBuilder((config, edition, urlOverride) =>
+                _updatesService.BuildUpdateUrl(config, edition, urlOverride, _viewModel.UpdateUrlSegment));
+            _editingInfobase = infobase ?? Result;
             if (infobase != null)
             {
                 _viewModel.LoadFrom(infobase);
@@ -522,6 +538,66 @@ namespace Configuration_Management
             _dialogs.ShowInfo(
                 sb.ToString().TrimEnd(),
                 LocalizationManager.T("Connection.DetectConfigTitle"));
+        }
+
+        // ===================== Группа «Привязка» (issue #346) =====================
+
+        /// <summary>
+        /// Загружает список типовых конфигураций для отображения привязки: встроенные +
+        /// пользовательские (единый загрузчик, как в окне «Связать с конфигурацией»).
+        /// При ошибке загрузки — fallback на встроенный набор.
+        /// </summary>
+        private void LoadConfigTypesForLink()
+        {
+            try
+            {
+                _viewModel.SetConfigTypes(_configTypesStore.LoadAll());
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Ошибка загрузки списка типовых конфигураций для группы «Привязка»", ex);
+                _viewModel.SetConfigTypes(BuiltInConfigTypes.All);
+            }
+        }
+
+        /// <summary>
+        /// «Связать…»: открывает существующее окно «Связать с конфигурацией» с редактируемой базой
+        /// (оно пишет поля связи в объект и репозиторий сразу, как в контекстном меню — issue #322),
+        /// после закрытия перечитывает поля в ViewModel и пересчитывает сводку привязки.
+        /// </summary>
+        private void OnBindConfigLink_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new ConfigUpdateLinkWindow(_editingInfobase) { Owner = this };
+            win.ShowDialog();
+            SyncLinkFieldsFromInfobase();
+        }
+
+        /// <summary>
+        /// «Очистить»: подтверждение, затем сброс трёх полей связи в ViewModel И в объект базы,
+        /// сохранение в репозиторий (аналог PersistLink окна связи) и пересчёт сводки. Для новой
+        /// базы сброс перетечёт в репозиторий при штатном сохранении через ApplyTo.
+        /// </summary>
+        private void OnClearConfigLink_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_dialogs.Confirm(LocalizationManager.T("Conn.LinkClearConfirm"),
+                    LocalizationManager.T("Conn.LinkClear")))
+                return;
+
+            _viewModel.ClearLink();
+            _editingInfobase.UpdateConfigCode = string.Empty;
+            _editingInfobase.UpdateUrlOverride = string.Empty;
+            _editingInfobase.UpdateUrlSegment = string.Empty;
+            InfobaseLinkStorage.Save(_editingInfobase, _linkRepository, _logger);
+        }
+
+        /// <summary>Перечитывает поля связи из объекта базы (единый источник — Infobase)
+        /// в ViewModel и пересчитывает сводку привязки.</summary>
+        private void SyncLinkFieldsFromInfobase()
+        {
+            _viewModel.UpdateConfigCode = _editingInfobase.UpdateConfigCode;
+            _viewModel.UpdateUrlOverride = _editingInfobase.UpdateUrlOverride;
+            _viewModel.UpdateUrlSegment = _editingInfobase.UpdateUrlSegment;
+            _viewModel.RefreshLinkState();
         }
 
         /// <summary>Синхронизация PasswordBox → ViewModel (пароль не биндится напрямую).</summary>

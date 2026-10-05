@@ -1108,6 +1108,7 @@
                     </StackPanel>
                 </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0">
+                <StackPanel>
                 <GroupBox Margin="4,6,4,4" VerticalAlignment="Top">
                     <GroupBox.Header>
                         <StackPanel Orientation="Horizontal">
@@ -1203,6 +1204,40 @@
                         </Grid>
                     </Grid>
                 </GroupBox>
+
+                <!-- Группа «Привязка» (issue #346): отображение текущей привязки базы к типовой
+                     конфигурации, кнопка «Связать…» (повторная привязка через существующее окно
+                     «Связать с конфигурацией») и кнопка «Очистить» (сброс полей связи). -->
+                <GroupBox Margin="4,6,4,4" VerticalAlignment="Top">
+                    <GroupBox.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Link" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}"/>
+                            <TextBlock Text="{loc:Loc Conn.LinkGroup}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </GroupBox.Header>
+                    <StackPanel>
+                        <TextBlock Text="{Binding LinkDisplay}" TextWrapping="Wrap" Margin="0,3" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding LinkUrl}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,3"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Padding="10,5" Margin="0,0,8,0" Style="{DynamicResource SecondaryButton}"
+                                    Click="OnBindConfigLink_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Link" Width="14" Height="14" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{loc:Loc Conn.LinkBind}" VerticalAlignment="Center" FontSize="12"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Padding="10,5" Style="{DynamicResource SecondaryButton}"
+                                    Click="OnClearConfigLink_Click" IsEnabled="{Binding HasLink}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Delete" Width="14" Height="14" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{loc:Loc Conn.LinkClear}" VerticalAlignment="Center" FontSize="12"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+                </StackPanel>
                 </ScrollViewer>
             </TabItem>
 

@@ -193,4 +193,24 @@ public static class ConfigTypeMatcher
         // Уточнить по SubRed не удалось — первая из совпавших по Red (как DefaultEdition по порядку).
         return matches[0];
     }
+
+    /// <summary>
+    /// Находит типовую конфигурацию по внутреннему коду (<see cref="OneCConfigType.Code"/>,
+    /// поле связи <c>Infobase.UpdateConfigCode</c>). Поиск регистронезависим, пробелы по краям
+    /// кода и записей игнорируются. Возвращает null, если список пуст, код пуст или запись
+    /// не найдена (кластер C, issue #346 — группа «Привязка» свойств базы).
+    /// </summary>
+    public static OneCConfigType? FindByCode(IReadOnlyList<OneCConfigType>? configs, string? code)
+    {
+        if (configs is null || configs.Count == 0)
+            return null;
+
+        var trimmed = code?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0)
+            return null;
+
+        return configs.FirstOrDefault(c =>
+            !string.IsNullOrWhiteSpace(c.Code) &&
+            string.Equals(c.Code.Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
+    }
 }
