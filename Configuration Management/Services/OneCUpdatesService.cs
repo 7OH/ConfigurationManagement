@@ -70,6 +70,13 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// см. <see cref="CanAttemptPortalLogin"/>).</summary>
     private const int MaxPortalLoginAttempts = 3;
 
+    /// <summary>Максимальное число попыток программного входа на portal.1c.ru в рамках ОДНОГО
+    /// вызова (операции) <see cref="SendWithAuthAsync"/>: при повторном 302→login после
+    /// «успешного» входа выполняется повторный вход со свежей формой (новый execution/lt),
+    /// а не мгновенный AuthRequired (issue #323/#330/#334). Сессионный лимит
+    /// <see cref="MaxPortalLoginAttempts"/> при этом не тратится впустую.</summary>
+    private const int MaxLoginAttemptsPerOperation = 2;
+
     /// <summary>Период автосброса лимита попыток входа на portal.1c.ru: после исчерпания
     /// лимита (<see cref="MaxPortalLoginAttempts"/>) новая попытка входа разрешается не ранее
     /// чем через этот интервал (анти-брутфорс портала; issue #334/#330/#323).</summary>
@@ -998,12 +1005,13 @@ public class OneCUpdatesService : IOneCUpdatesService
     {
         var current = request;
 
-        // Вход на portal.1c.ru выполняется НЕ более одного раза за вызов (issue #330/#334):
-        // «фантомный успех» или рассинхронизация сессии не должны тратить весь лимит попыток
-        // внутри одного запроса — при повторном 302→login возвращаем ответ как есть, а
-        // CheckForUpdatesAsync/FetchPageCoreAsync распознают страницу входа и вернут
-        // AuthRequired/AuthFailed/LoginLimitReached.
-        var loginTried = false;
+        // Вход на portal.1c.ru в рамках одного вызова ограничен MaxLoginAttemptsPerOperation
+        // (issue #323/#330/#334): при повторном 302→login после «успешного» входа выполняется
+        // ПОВТОРНЫЙ вход со свежей формой (новый execution/lt) — а не мгновенный AuthRequired,
+        // как было при одноразовом флаге loginTried. За пределом повторов (либо при исчерпанном
+        // лимите сессии) ответ возвращается как есть, и CheckForUpdatesAsync/FetchPageCoreAsync
+        // распознают страницу входа и вернут AuthRequired/AuthFailed/LoginLimitReached.
+        var loginTriedCount = 0;
         for (var i = 0; i <= MaxRedirects; i++)
         {
             AddBasicAuth(current);
@@ -1022,9 +1030,9 @@ public class OneCUpdatesService : IOneCUpdatesService
                 (status is 401 or 403) ||
                 (response.Headers.Location?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true);
 
-            if (needsLogin && !loginTried && CanAttemptPortalLogin())
+            if (needsLogin && loginTriedCount < MaxLoginAttemptsPerOperation && CanAttemptPortalLogin())
             {
-                loginTried = true;
+                loginTriedCount++;
                 // Диагностика (issue #323/#330/#334): причина запуска входа и его результат —
                 // по журналу должно быть видно, на каком звене CAS-цепочка рвётся.
                 var reason = status is 401 or 403 ? $"http-{status}" : "redirect-login";
@@ -1032,8 +1040,12 @@ public class OneCUpdatesService : IOneCUpdatesService
                 _logger.Info($"[Updates] Вход запущен: reason={reason}, url='{current.RequestUri}', location='{locText}'");
                 // Передаём полный URL редиректа (login.1c.ru/login?service=...): форма входа
                 // получит service= исходного каталога, и CAS после входа вернёт верный адрес.
-                var loginResult = await TryLoginPortalAsync(response.Headers.Location?.ToString(), ct).ConfigureAwait(false);
-                _logger.Info($"[Updates] Вход запущен: результат={loginResult}, повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
+                // probeUrl (исходный URL операции) позволяет проверить «живость» уже установленной
+                // сессии (A-1): если сессия жива — вход не выполняется и лимит не тратится.
+                var loginResult = await TryLoginPortalAsync(response.Headers.Location?.ToString(), ct,
+                    current.RequestUri?.ToString()).ConfigureAwait(false);
+                _logger.Info($"[Updates] Вход запущен: результат={loginResult} (попытка {loginTriedCount}/{MaxLoginAttemptsPerOperation}), " +
+                             $"повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
                 if (loginResult == PortalLoginResult.Success)
                 {
                     response.Dispose();
@@ -1060,15 +1072,16 @@ public class OneCUpdatesService : IOneCUpdatesService
             var selfRedirect = status is >= 300 and < 400 &&
                                (response.Headers.Location is null ||
                                 SameUri(current.RequestUri, response.Headers.Location));
-            if (selfRedirect && !loginTried && CanAttemptPortalLogin())
+            if (selfRedirect && loginTriedCount < MaxLoginAttemptsPerOperation && CanAttemptPortalLogin())
             {
-                loginTried = true;
+                loginTriedCount++;
                 // Диагностика (issue #323/#330/#334): циклический/пустой редирект — тот же
                 // признак требования авторизации, что и прямой редирект на login.1c.ru.
                 _logger.Info($"[Updates] Вход запущен: reason={(response.Headers.Location is null ? "redirect-no-location" : "self-redirect")}, url='{current.RequestUri}'");
                 // Location отсутствует (302 без заголовка) — форма входа по базовому адресу.
-                var loginResult = await TryLoginPortalAsync(null, ct).ConfigureAwait(false);
-                _logger.Info($"[Updates] Вход запущен: результат={loginResult}, повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
+                var loginResult = await TryLoginPortalAsync(null, ct, current.RequestUri?.ToString()).ConfigureAwait(false);
+                _logger.Info($"[Updates] Вход запущен: результат={loginResult} (попытка {loginTriedCount}/{MaxLoginAttemptsPerOperation}), " +
+                             $"повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
                 if (loginResult == PortalLoginResult.Success)
                 {
                     response.Dispose();
@@ -1081,17 +1094,20 @@ public class OneCUpdatesService : IOneCUpdatesService
             }
 
             // Диагностика «фантомного успеха» (issue #323/#330/#334): вход в рамках этой операции
-            // уже выполнялся и завершился «успехом» (сессионная cookie появилась в контейнере),
-            // но повтор исходного запроса СНОВА дал 302 на login.1c.ru — сервер не принял cookie.
-            // Второй вход не запускаем (loginTried=true): лимит попыток не тратится впустую
-            // (лог issue #330: три подряд «Вход выполнен (status=200)» → лимит → AuthRequired).
-            if (loginTried &&
+            // выполнялся и завершился «успехом», но повтор исходного запроса СНОВА дал 302 на
+            // login.1c.ru — сервер не принял cookie. Повторный вход со свежей формой (новый
+            // execution/lt) выполняется выше в ветке needsLogin до MaxLoginAttemptsPerOperation
+            // (A-2/A-3); маркер здесь остаётся ТОЛЬКО для случая, когда повторы исчерпаны либо
+            // лимит сессии заблокирован — тогда ответ возвращается как есть (ниже) и UI получит
+            // честный AuthRequired/AuthFailed/LoginLimitReached.
+            if (loginTriedCount > 0 &&
                 _lastLoginResult == PortalLoginResult.Success &&
                 response.Headers.Location?.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) == true)
             {
                 _logger.Warn("[Updates] retryAfterLoginStill302=true: после «успешного» входа повтор " +
-                             "исходного запроса снова дал 302 на login.1c.ru (фантомный успех); второй " +
-                             "вход в рамках операции не выполняется.");
+                             "исходного запроса снова дал 302 на login.1c.ru (фантомный успех); " +
+                             "попытки входа в рамках операции исчерпаны " +
+                             $"({MaxLoginAttemptsPerOperation}) либо заблокирован лимит сессии.");
             }
 
             // На страницу входа portal.1c.ru редирект НЕ следуем: если сессии нет, а программный
@@ -1173,16 +1189,38 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// </summary>
     /// <param name="loginUrl">Полный URL редиректа с сервера (<c>login.1c.ru/login?service=…</c>)
     /// или null — тогда используется базовый <see cref="PortalLoginUrl"/>.</param>
-    private async Task<PortalLoginResult> TryLoginPortalAsync(string? loginUrl, CancellationToken ct)
+    /// <param name="probeUrl">Исходный URL операции (каталог), по которому выполняется пробный
+    /// GET проверки «живости» уже установленной сессии (A-1, issue #323/#330/#334). Если сессия
+    /// жива — полный вход не выполняется и лимит попыток не тратится; null — проверка пропускается.</param>
+    private async Task<PortalLoginResult> TryLoginPortalAsync(string? loginUrl, CancellationToken ct, string? probeUrl = null)
     {
-        // Ранний выход: сессионная cookie портала уже установлена (предыдущий успешный вход
-        // в этой сессии службы) — повторный вход не требуется, каталог отдаст контент сразу
-        // (issue #330/#334). Заодно сбрасываем счётчик попыток как при любом успехе.
+        // A-6 (0.3.9.307): инвентаризация cookie до принятия решения — по журналу видно, какая
+        // cookie присутствовала в контейнере и почему вход был/не был запущен (issue #323/#330/#334).
+        _logger.Info($"[Updates] Вход: cookie контейнера: {DescribeContainerCookies()}");
+
+        // A-1 (0.3.9.307): вместо мгновенного «успеха» по имени cookie (0.3.9.306: ранний выход
+        // при HasPortalSessionCookie(), лог 7OH: «результат=Success» без единого GET/POST входа) —
+        // честная проверка «живой» сессии пробным GET по целевому URL операции. Имя cookie в
+        // контейнере не гарантирует, что сервер примет сессию: после входа в контейнер попадают
+        // cookie-заглушки WAF/CDN, которые releases.1c.ru при следующем запросе не принимает
+        // (повторный 302 → retryAfterLoginStill302 → AuthRequired). Пробный GET показывает
+        // реальную живость сессии; при мёртвой сессии cookie снимаются и выполняется полный вход.
         if (HasPortalSessionCookie())
         {
-            _portalLoginAttempts = 0;
-            _lastLoginResult = PortalLoginResult.Success;
-            return PortalLoginResult.Success;
+            var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
+            if (alive)
+            {
+                _logger.Info("[Updates] Вход: сессионная cookie жива (пробный GET вернул контент " +
+                             "каталога) — полный вход не выполняется, лимит попыток не тратится.");
+                _portalLoginAttempts = 0;
+                _lastLoginResult = PortalLoginResult.Success;
+                LogPortalCookieInventory();
+                return PortalLoginResult.Success;
+            }
+
+            _logger.Warn("[Updates] Вход: сессионная cookie в контейнере, но пробный GET показал " +
+                         "мёртвую сессию — cookie портала удаляются, выполняется полный вход со свежей формой.");
+            ClearPortalCookies();
         }
 
         var (login, password) = GetCredentials();
@@ -1387,6 +1425,42 @@ public class OneCUpdatesService : IOneCUpdatesService
             _logger.Warn($"[Updates] Ошибка входа на portal.1c.ru: {ex.GetType().Name}: {ex.Message}");
             _lastLoginResult = PortalLoginResult.FormUnavailable;
             return PortalLoginResult.FormUnavailable;
+        }
+    }
+
+    /// <summary>Пробная проверка «живости» сессии portal.1c.ru: GET по целевому URL операции
+    /// (каталогу). Сессия жива, если ответ 2xx и тело НЕ является страницей входа
+    /// (<see cref="LooksLikeLoginForm"/>). Редирект на login.1c.ru либо страница входа в теле —
+    /// сессия мертва (cookie-заглушка). При невалидном URL/сетевой ошибке — false (безопасный
+    /// выбор: будет выполнен полный вход; оффлайн-fallback-пути не ломаются).</summary>
+    private async Task<bool> IsPortalSessionAliveAsync(string? probeUrl, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(probeUrl) ||
+            !Uri.TryCreate(probeUrl, UriKind.Absolute, out var probeUri))
+        {
+            _logger.Info("[Updates] Вход: пробный GET живости сессии пропущен (URL не задан) — выполняется полный вход.");
+            return false;
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, probeUri);
+            AddBasicAuth(request);
+            using var response =
+                await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+
+            var status = (int)response.StatusCode;
+            var body = await ReadBodyQuietlyAsync(response, ct).ConfigureAwait(false);
+            var isLoginForm = LooksLikeLoginForm(body);
+            var alive = status is >= 200 and < 300 && !isLoginForm;
+            _logger.Info($"[Updates] Вход: пробная проверка живой сессии '{probeUri}' => status={status}, " +
+                         $"bodyLength={body.Length}, loginForm={(isLoginForm ? "да" : "нет")}, alive={alive}");
+            return alive;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"[Updates] Вход: пробная проверка живой сессии не выполнена ({ex.GetType().Name}: {ex.Message}) — выполняется полный вход.");
+            return false;
         }
     }
 
@@ -2032,9 +2106,11 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// True — в общем хранилище cookie есть сессионная cookie портала 1С
-    /// (<c>JSESSIONID</c>/<c>TGC</c>/<c>session_id</c>), выставленная после успешного входа
-    /// на login.1c.ru. Используется как подтверждение успеха входа и ранний выход из
-    /// повторного логина (issue #330/#334): если сессия уже установлена — вход не нужен.
+    /// (<c>JSESSIONID</c>/<c>TGC</c>/<c>session_id</c>) с доменом <c>.1c.ru</c> и Path, покрывающим
+    /// корень. Является вспомогательным признаком; основной критерий успеха — результат пробной
+    /// проверки «живой» сессии (<see cref="IsPortalSessionAliveAsync"/>, A-1). Ужесточено по
+    /// атрибутам Domain/Path (issue #323/#330/#334): cookie-заглушки WAF/CDN с «подходящим»
+    /// именем, но чужим доменом/путём сессией портала не считаются.
     /// </summary>
     private bool HasPortalSessionCookie()
     {
@@ -2044,6 +2120,9 @@ public class OneCUpdatesService : IOneCUpdatesService
             {
                 foreach (Cookie cookie in _cookieContainer.GetCookies(new Uri($"https://{host}/")))
                 {
+                    if (!IsPortalDomainCookie(cookie))
+                        continue;
+
                     var name = cookie.Name ?? string.Empty;
                     if (name.Equals("TGC", StringComparison.OrdinalIgnoreCase) ||
                         name.StartsWith("JSESSIONID", StringComparison.OrdinalIgnoreCase) ||
@@ -2059,6 +2138,68 @@ public class OneCUpdatesService : IOneCUpdatesService
         }
 
         return false;
+    }
+
+    /// <summary>True — cookie принадлежит домену портала 1С и покрывает корневой путь:
+    /// <c>Domain</c> оканчивается на <c>.1c.ru</c> (или равен <c>login.1c.ru</c>/<c>releases.1c.ru</c>),
+    /// <c>Path</c> — «/» (или пуст — значение по умолчанию). Прочие cookie (например, WAF/CDN
+    /// с доменом другого сервиса либо путём /login) сессией портала не считаются.</summary>
+    private static bool IsPortalDomainCookie(Cookie cookie)
+    {
+        var domain = cookie.Domain ?? string.Empty;
+        if (domain.Length == 0)
+            return false;
+
+        var trimmed = domain.StartsWith(".", StringComparison.Ordinal) ? domain.Substring(1) : domain;
+        if (!trimmed.EndsWith(".1c.ru", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var path = cookie.Path ?? "/";
+        return path.Length == 0 || string.Equals(path, "/", StringComparison.Ordinal);
+    }
+
+    /// <summary>Удаляет из общего хранилища cookie хостов <c>login.1c.ru</c>/<c>releases.1c.ru</c>
+    /// (без влияния на Basic Auth в заголовках) — снимает мусорные cookie-заглушки WAF/CDN перед
+    /// повторным входом (issue #323/#330/#334). Реализация через установку просроченного срока:
+    /// <see cref="CookieContainer"/> не имеет публичного API удаления отдельных cookie; истёкшие
+    /// cookie отбрасываются контейнером при следующем обращении (GetCookies).</summary>
+    private void ClearPortalCookies()
+    {
+        foreach (var host in new[] { "login.1c.ru", "releases.1c.ru" })
+        {
+            try
+            {
+                var uri = new Uri($"https://{host}/");
+                var cookies = _cookieContainer.GetCookies(uri);
+                foreach (Cookie cookie in cookies)
+                {
+                    if (!IsPortalDomainCookie(cookie))
+                        continue;
+
+                    cookie.Expires = DateTime.Now.AddYears(-1);
+                    _cookieContainer.Add(uri, cookie);
+                }
+            }
+            catch
+            {
+                // Ошибки очистки cookie не должны ронять вход.
+            }
+        }
+    }
+
+    /// <summary>Внутренний хелпер для юнит-тестов: добавляет cookie портала в общее хранилище
+    /// (симуляция предзаполненного/«заглушечного» контейнера после предыдущего входа).</summary>
+    internal void SeedPortalCookieForTesting(string name, string value, string host)
+    {
+        try
+        {
+            var cookie = new Cookie(name, value) { Domain = host, Path = "/" };
+            _cookieContainer.Add(new Uri($"https://{host}/"), cookie);
+        }
+        catch
+        {
+            // Некорректные параметры хелпера не должны ронять тест.
+        }
     }
 
     /// <summary>Логирует перечень cookie общего хранилища для хостов портала 1С (имена и

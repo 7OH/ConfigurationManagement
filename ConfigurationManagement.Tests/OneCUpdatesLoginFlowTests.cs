@@ -450,12 +450,13 @@ public sealed class OneCUpdatesLoginFlowTests
     }
 
     [Fact]
-    public async Task SendWithAuthAsync_RetryStill302_LogsPhantomSuccessMarker()
+    public async Task SendWithAuthAsync_RetryStill302_TwoAttemptsThenPhantomMarker()
     {
-        // «Успешный» вход (200 + сессионная cookie в контейнере), но повтор исходного запроса
-        // СНОВА даёт 302 на login.1c.ru — сервер не принял cookie. Маркер фантомного успеха
-        // фиксируется в логе, вторая попытка входа в рамках операции НЕ запускается (лимит
-        // попыток не тратится — лог issue #330: тройной вход за одну операцию).
+        // «Успешный» вход (200 + сессионная cookie-заглушка), повтор исходного запроса СНОВА даёт
+        // 302 на login.1c.ru. В рамках операции выполняется ДВА входа (лимит
+        // MaxLoginAttemptsPerOperation), после чего маркер retryAfterLoginStill302 фиксирует
+        // исчерпание повторов, а результат — AuthRequired (в 0.3.9.306 был только один вход и
+        // мгновенный AuthRequired без повторной попытки — issue #323/#330/#334).
         var handler = new Post200LoginHandler(postBody: "<html>session established</html>",
             markLoginSucceeded: false, postSetCookies: new[] { "JSESSIONID=xyz; Path=/; HttpOnly" });
         var logger = new CollectingLogger();
@@ -464,7 +465,7 @@ public sealed class OneCUpdatesLoginFlowTests
         var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
 
         Assert.Equal(PortalFetchStatus.AuthRequired, result.Status);
-        Assert.Equal(1, handler.PostLoginCount); // вторая попытка входа не выполняется
+        Assert.Equal(2, handler.PostLoginCount); // две попытки входа за вызов
         var joined = string.Join("\n", logger.Messages);
         Assert.Contains("retryAfterLoginStill302=true", joined);
     }
@@ -509,6 +510,104 @@ public sealed class OneCUpdatesLoginFlowTests
 
         Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
         Assert.Equal(1, handler.PostLoginCount);
+    }
+
+    // ---------- A-1…A-6 (0.3.9.307): живая сессия, очистка cookie, повторный вход ----------
+
+    [Fact]
+    public async Task PreSeededSessionCookie_DoesNotShortCircuitLogin_WhenSessionIsDead()
+    {
+        // Cookie-заглушка JSESSIONID в контейнере НЕ даёт ложного Success (0.3.9.306: ранний
+        // выход по имени cookie, лог 7OH «результат=Success» без единого POST): пробный GET
+        // каталога даёт 302 на login → сессия мертва → cookie снимаются → выполняется полный
+        // вход (GET формы + POST) → каталог Ok (issue #323/#330/#334).
+        var handler = new LoginCaptureHandler(FormWithHiddenFields, HttpStatusCode.Found,
+            location: new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+        var service = CreateService(handler, login: "user1", password: "secret");
+        service.SeedPortalCookieForTesting("JSESSIONID", "phantom", "login.1c.ru");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.True(handler.PostLoginCount >= 1,
+            "должен выполняться полный вход (POST), а не мгновенный Success по имени cookie");
+    }
+
+    [Fact]
+    public async Task PreSeededCookie_RemovedBeforeRelogin()
+    {
+        // Мусорная cookie хоста login.1c.ru удаляется перед повторным входом (A-5): после
+        // операции инвентаризация контейнера не содержит cookie-заглушки.
+        var handler = new LoginCaptureHandler(FormWithHiddenFields, HttpStatusCode.Found,
+            location: new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+        var service = CreateService(handler, login: "user1", password: "secret");
+        service.SeedPortalCookieForTesting("JSESSIONID", "phantom-junk", "login.1c.ru");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        var inventory = service.DescribeContainerCookies();
+        Assert.DoesNotContain("phantom-junk", inventory);
+        Assert.DoesNotContain("JSESSIONID", inventory);
+    }
+
+    [Fact]
+    public async Task RetryStill302_SecondLoginWithFreshForm_ThenCatalogOk()
+    {
+        // Сценарий из лога 7OH: «успешный» вход (фантом: 200 + cookie-заглушка) → повтор исходного
+        // запроса снова 302 на login → ВЫПОЛНЯЕТСЯ второй вход со свежей формой (новый execution,
+        // 2-й POST) → успех → каталог Ok. Маркер retryAfterLoginStill302 при этом НЕ появляется
+        // (повторы не исчерпаны) — issue #323/#330/#334.
+        var handler = new PhantomThenRealLoginHandler();
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(2, handler.PostLoginCount); // повторный вход со свежей формой выполнен
+        var joined = string.Join("\n", logger.Messages);
+        Assert.DoesNotContain("retryAfterLoginStill302=true", joined);
+    }
+
+    [Fact]
+    public async Task LoginLoopInsideSingleCall_LimitedToTwoAttempts()
+    {
+        // Сервер всегда отвечает 302 на каталог; первый POST — «фантомный успех» (200 +
+        // cookie-заглушка), второй POST — 200 с формой входа (вход не подтверждён). За один
+        // вызов выполняется НЕ более MaxLoginAttemptsPerOperation=2 POST; лимит сессии не
+        // исчерпан — следующая операция снова может входить (issue #323/#330/#334).
+        var handler = new PhantomThenLoginFormHandler();
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
+        Assert.Equal(2, handler.PostLoginCount);
+
+        // Резерв лимита сессии сохранён: следующая операция снова предпринимает вход (3-й POST).
+        var second = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+        Assert.Equal(PortalFetchStatus.AuthFailed, second.Status);
+        Assert.Equal(3, handler.PostLoginCount);
+    }
+
+    [Fact]
+    public async Task LiveSessionProbe_SkipsFullLogin()
+    {
+        // Живая сессия: пробный GET каталога возвращает контент (не форму) — вход не выполняется
+        // (0 POST), лимит попыток не тратится (issue #323/#330/#334).
+        var handler = new LiveSessionProbeHandler();
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+        service.SeedPortalCookieForTesting("JSESSIONID", "live", "login.1c.ru");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(0, handler.PostLoginCount);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("пробная проверка живой сессии", joined);
+        Assert.Contains("alive=True", joined);
     }
 
     // ---------- Страница входа при HTTP 200 по содержимому (Причина 4) ----------
@@ -936,6 +1035,152 @@ public sealed class OneCUpdatesLoginFlowTests
                 {
                     response = Ok(SimpleForm);
                 }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик сценария «фантомный успех → повторный вход со свежей формой → каталог Ok»
+    /// (лог 7OH, issue #323/#330/#334): первый POST возвращает 200 + cookie-заглушку JSESSIONID
+    /// (вход «успешен», но каталог продолжает 302), второй POST — 302 на security_check, где
+    /// «устанавливается» сессия и каталог начинает отдавать версии.</summary>
+    private sealed class PhantomThenRealLoginHandler : HttpMessageHandler
+    {
+        private bool _realLoginDone;
+
+        public int PostLoginCount { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = !_realLoginDone
+                    ? Found(new Uri("https://login.1c.ru/login?service=x"))
+                    : Ok(VersionsTableHtml);
+            }
+            else if (path.Contains("/public/security_check", StringComparison.OrdinalIgnoreCase))
+            {
+                _realLoginDone = true;
+                response = Ok("<html>session established</html>");
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    if (PostLoginCount == 1)
+                    {
+                        // Фантомный «успех»: 200 без редиректа, с cookie-заглушкой, которую сервер
+                        // при следующем запросе не принимает.
+                        response = Ok("<html>session established</html>");
+                        response.Headers.Add("Set-Cookie", "JSESSIONID=phantom; Path=/; HttpOnly");
+                    }
+                    else
+                    {
+                        // Реальный вход: 302 → security_check (сессия устанавливается там).
+                        response = Found(new Uri("https://releases.1c.ru/public/security_check?ticket=ST-2"));
+                    }
+                }
+                else
+                {
+                    // Свежая форма с новым execution (как на реальном портале).
+                    response = Ok(SimpleForm);
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return response;
+        }
+    }
+
+    /// <summary>Обработчик «фантом → форма»: каталог ВСЕГДА 302 на login; первый POST — 200 +
+    /// cookie-заглушка (фантомный успех), последующие POST — 200 с формой входа (вход не
+    /// подтверждён). Проверяет лимит попыток входа в рамках одного вызова
+    /// (issue #323/#330/#334).</summary>
+    private sealed class PhantomThenLoginFormHandler : HttpMessageHandler
+    {
+        public int PostLoginCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Found(new Uri("https://login.1c.ru/login?service=x"));
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    if (PostLoginCount == 1)
+                    {
+                        response = Ok("<html>session established</html>");
+                        response.Headers.Add("Set-Cookie", "JSESSIONID=phantom; Path=/; HttpOnly");
+                    }
+                    else
+                    {
+                        response = Ok(FormWithHiddenFields);
+                    }
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик живой сессии: первый запрос каталога (исходный) редиректит на login
+    /// (рассинхронизация/заглушка), последующие запросы каталога — контент версий. Проверяет
+    /// пробную проверку «живости» сессии (A-1): полный вход при живой сессии не выполняется.</summary>
+    private sealed class LiveSessionProbeHandler : HttpMessageHandler
+    {
+        public int PostLoginCount { get; private set; }
+
+        public int CatalogRequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = CatalogRequestCount++ == 0
+                    ? Found(new Uri("https://login.1c.ru/login?service=x"))
+                    : Ok(VersionsTableHtml);
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                    PostLoginCount++;
+                response = Ok(SimpleForm);
             }
             else
             {
