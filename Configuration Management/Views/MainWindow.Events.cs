@@ -778,8 +778,23 @@ namespace Configuration_Management
                     // путях: и при совпавшей повторной доставке (путь A), и когда снимок был
                     // сброшен до доставки (путь C) — признак один: снимок присутствовал
                     // в момент начала этого клика.
-                    if (menuCloseSnapshotPresent)
+                    //
+                    // 0.3.9.308: признак РАСШИРЕН предикатом ShouldStabilizeAfterMenuClose —
+                    // стабилизация запускается также для ЛЮБОГО обычного клика без модификаторов
+                    // в окне ~1,5 с после закрытия контекстного меню дерева (прежний признак
+                    // «снимок присутствовал» зависел от успешной записи снимка в длинной
+                    // guard-цепочке TryApplyTreeClickAfterMenuClosed и не срабатывал, когда
+                    // меню закрылось по ESC или кликом мимо строки). Здесь мы находимся в
+                    // ветке обычного клика (без Ctrl/Shift) — предикату передаётся true.
+                    if (BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+                            snapshotPresent: menuCloseSnapshotPresent,
+                            isPlainLeftClickWithoutModifiers: true,
+                            lastMenuCloseTick: _lastMenuCloseTick,
+                            nowTick: Environment.TickCount,
+                            windowMs: BatchSelectionHelper.MenuCloseStabilizeWindowMs))
+                    {
                         EnsureSelectionStable(infobase, isPinnedSection);
+                    }
                     break;
                 }
                 case GroupNodeViewModel groupNode when groupNode.Group is not null:

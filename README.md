@@ -1,6 +1,6 @@
 # Управление конфигурациями 1С
 
-![Версия](https://img.shields.io/badge/Версия-0.3.9.307-1F6FEB) ![.NET](https://img.shields.io/badge/.NET-10-512BD4) ![Windows/WPF](https://img.shields.io/badge/Windows-WPF-4B8BBE) ![Linux/Avalonia](https://img.shields.io/badge/Linux-Avalonia%2011-8B5CF6) ![Лицензия](https://img.shields.io/badge/Лицензия-Open%20Source-success)
+![Версия](https://img.shields.io/badge/Версия-0.3.9.308-1F6FEB) ![.NET](https://img.shields.io/badge/.NET-10-512BD4) ![Windows/WPF](https://img.shields.io/badge/Windows-WPF-4B8BBE) ![Linux/Avalonia](https://img.shields.io/badge/Linux-Avalonia%2011-8B5CF6) ![Лицензия](https://img.shields.io/badge/Лицензия-Open%20Source-success)
 
 > **Кроссплатформенное десктопное приложение на .NET для управления информационными базами 1С:Предприятие 8.3**, заменяющее стандартный список баз 1С современным интерфейсом. Одна кодовая база собирается под обе ОС: **WPF** на Windows и **Avalonia 11** на Linux.
 
@@ -93,6 +93,16 @@
 - **Системные уведомления ОС о завершении фоновых операций** — при свёрнутом в трей приложении завершение резервной копии (успех/ошибка, имя базы и сценария), задания по расписанию (успех/ошибка, имя задания и тип) и обнаружение новой версии приложения показываются системным уведомлением (Windows — balloon-tip значка трея, Linux — `notify-send`); отключаются в настройках (Настройки → Настройки → «Системные уведомления»).
 - **Системный трей**, компактный режим интерфейса (сжимает отступы строк списка и высоту
   собственного заголовка окна), виртуализация списков.
+- **Диагностика выделения и контекстного меню (issue #340)** — файл **`trace.json`** (JSON Lines,
+  ~512 КБ с круговым усечением) рядом с настройками приложения
+  (Windows: `%APPDATA%\ConfigurationManagement\`, Linux: `~/.config/ConfigurationManagement\`,
+  в портативном режиме — каталог данных рядом с exe). Создаётся при **каждом старте**
+  (startup-запись с версией/платформой/ОС) и наполняется при каждом открытии/закрытии
+  контекстного меню (`MenuOpened`/`MenuClosed`), клике по строке дерева, применении и
+  стабилизации выделения (`TryApply`/`MouseDown`/`PointerPressed`/`Fallback`/`Dump500ms`/
+  `EnsureStable`) — по журналу видно, какое звено снимает выделение. Включать/создавать
+  файл вручную НЕ нужно; прежний `menuclose_trace.json` (0.3.9.306) продолжает дописываться,
+  если уже существует (обе платформы).
 
 [![Infostart](https://infostart.ru/bitrix/templates/sandbox_empty/assets/tpl/abo/img/logo.svg)](https://infostart.ru/1c/articles/2764888/)
 

@@ -704,10 +704,27 @@ namespace Configuration_Management
         /// <summary>Секция целевой строки: true — «Закреплённые» (для fallback, issue #340).</summary>
         private bool _menuCloseTargetIsPinnedSection;
 
+        /// <summary>
+        /// Метка последнего закрытия контекстного меню ДЕРЕВА (issue #340, 0.3.9.308):
+        /// единые часы <see cref="Environment.TickCount"/>. Фиксируется БЕЗУСЛОВНО в
+        /// <see cref="OnContextMenuClosed"/> (в отличие от снимка клика, который писался
+        /// только после длинной guard-цепочки <see cref="TryApplyTreeClickAfterMenuClosed"/>).
+        /// Используется как расширенный признак запуска стабилизации выделения
+        /// (BatchSelectionHelper.ShouldStabilizeAfterMenuClose) для любого обычного клика
+        /// без модификаторов в окне ~1,5 с после закрытия меню.
+        /// </summary>
+        private long _lastMenuCloseTick;
+
         private void OnContextMenuOpened(object sender, RoutedEventArgs e)
         {
             if (sender is ContextMenu menu)
+            {
                 _openContextMenus.Add(menu);
+                // issue #340 (0.3.9.308): безусловная запись открытия меню — диагностика
+                // не должна зависеть от guard-цепочки TryApplyTreeClickAfterMenuClosed.
+                var isTreeMenu = ReferenceEquals(menu, MainTree?.ContextMenu);
+                MenuCloseTrace.Log($"MenuOpened: menuId={GetContextMenuId(menu)}, isTreeMenu={isTreeMenu}");
+            }
         }
 
         private void OnContextMenuClosed(object sender, RoutedEventArgs e)
@@ -715,11 +732,31 @@ namespace Configuration_Management
             if (sender is ContextMenu menu)
             {
                 _openContextMenus.Remove(menu);
+                // issue #340 (0.3.9.308): безусловная запись закрытия меню. Для меню дерева
+                // дополнительно фиксируется метка закрытия — расширенный признак запуска
+                // стабилизации IsSelected (меню могло закрыться ESC/кликом мимо строки,
+                // когда снимок клика не записывался вовсе).
+                var isTreeMenu = ReferenceEquals(menu, MainTree?.ContextMenu);
+                MenuCloseTrace.Log($"MenuClosed: menuId={GetContextMenuId(menu)}, isTreeMenu={isTreeMenu}");
+                if (isTreeMenu)
+                    _lastMenuCloseTick = Environment.TickCount;
+
                 // issue #340: клик по строке дерева, закрывший контекстное меню,
                 // перехватывается попапом меню и «проглатывается» — выбор строки и
                 // снятие мультивыделения не выполняются. Повторяем обработку клика.
                 TryApplyTreeClickAfterMenuClosed(menu);
             }
+        }
+
+        /// <summary>
+        /// Короткий идентификатор меню для диагностики (issue #340, 0.3.9.308): имя
+        /// элемента или тип (контекстное меню дерева может быть без Name). Чистая
+        /// строка, безопасная для JSON-сообщения.
+        /// </summary>
+        private static string GetContextMenuId(ContextMenu menu)
+        {
+            var name = menu.Name;
+            return string.IsNullOrEmpty(name) ? menu.GetType().Name : name;
         }
 
         /// <summary>

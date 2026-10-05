@@ -53,6 +53,14 @@ namespace Configuration_Management
             AttachVerticalScrollBar();
             // Дедупликация клика, которым закрыли контекстное меню строки (issue #340).
             AttachTreeMenuCloseClickDedup();
+            // issue #340 (0.3.9.308): файл диагностики trace.json создаётся при КАЖДОМ
+            // старте (startup-запись не зависит от событий меню — в 0.3.9.306 файл не
+            // появлялся, т.к. запись выполнялась только внутри условных вызовов Log),
+            // а открытие/закрытие контекстных меню пишется БЕЗУСЛОВНО через класс-
+            // обработчик IsOpenProperty. Меню дерева дополнительно фиксирует
+            // _lastMenuCloseTick — расширенный признак запуска стабилизации выделения.
+            MenuCloseTrace.EnsureStarted();
+            ContextMenu.IsOpenProperty.Changed.AddClassHandler<ContextMenu>(OnTreeContextMenuIsOpenChanged);
             // Масштаб строк списка (issue #303): применяем сохранённое значение и
             // включаем Ctrl+колесо над деревом — как в редакторах.
             _vm?.ApplyListZoom();
@@ -145,6 +153,17 @@ namespace Configuration_Management
         private bool _menuCloseTargetIsPinnedSection;
 
         /// <summary>
+        /// Метка последнего закрытия контекстного меню ДЕРЕВА (issue #340, 0.3.9.308):
+        /// единые часы <see cref="Environment.TickCount"/>. Фиксируется БЕЗУСЛОВНО в
+        /// <see cref="OnTreeContextMenuIsOpenChanged"/> (в отличие от снимка клика, который
+        /// писался только при клике по строке при открытом меню). Используется как
+        /// расширенный признак запуска стабилизации выделения
+        /// (BatchSelectionHelper.ShouldStabilizeAfterMenuClose) для любого обычного клика
+        /// без модификаторов в окне ~1,5 с после закрытия меню.
+        /// </summary>
+        private long _lastMenuCloseTick;
+
+        /// <summary>
         /// Подписывает обработку клика, закрывшего контекстное меню строки (issue #340).
         /// Туннельная фаза ОКНА срабатывает раньше обработчиков контрола LeveledTreeView.
         /// Выбор применяет ШТАТНАЯ логика контрола (OnRowPointerPressed) — по живому
@@ -158,6 +177,26 @@ namespace Configuration_Management
             AddHandler(InputElement.PointerReleasedEvent, OnTreeMenuCloseClickDedup_PointerReleased, RoutingStrategies.Tunnel);
         }
 
+        /// <summary>
+        /// Класс-обработчик открытия/закрытия контекстных меню (issue #340, 0.3.9.308):
+        /// БЕЗУСЛОВНАЯ запись MenuOpened/MenuClosed в trace.json — диагностика не зависит
+        /// от guard-условий клика. Для меню дерева дополнительно фиксируется метка
+        /// закрытия <see cref="_lastMenuCloseTick"/> (расширенный признак стабилизации
+        /// выделения: меню могло закрыться по ESC/кликом мимо строки, когда снимок клика
+        /// не записывался вовсе).
+        /// </summary>
+        private void OnTreeContextMenuIsOpenChanged(ContextMenu menu, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.NewValue is not bool isOpen)
+                return;
+            var isTreeMenu = ReferenceEquals(menu, _tree?.ContextMenu);
+            MenuCloseTrace.Log(isOpen
+                ? $"MenuOpened: isTreeMenu={isTreeMenu}"
+                : $"MenuClosed: isTreeMenu={isTreeMenu}");
+            if (!isOpen && isTreeMenu)
+                _lastMenuCloseTick = Environment.TickCount;
+        }
+
         private void OnTreeMenuCloseClickDedup_PointerPressed(object? sender, PointerPressedEventArgs e)
         {
             if (_tree is null || e.Source is not Visual source)
@@ -165,10 +204,18 @@ namespace Configuration_Management
 
             var pos = e.GetPosition(_tree);
 
+            // Строка базы/группы под курсором (для записи снимка и расширенного признака
+            // стабилизации, issue #340, 0.3.9.308).
+            var rowItem = source.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault();
+
             // Снимок присутствовал в момент клика (F1): стабилизация выполняется не только
             // при совпавшей повторной доставке (путь A), но и когда снимок был сброшен до
             // доставки (путь C) — это тот же клик, закрывший меню.
             var menuCloseSnapshotPresent = _menuCloseClickSnapshot is not null;
+            // Снимок, только что записанный ПЕРВИЧНЫМ кликом при открытом меню (путь B):
+            // выбор ещё не применялся (его применит повторная доставка) — стабилизацию
+            // на этом клике не запускаем, чтобы не конкурировать с контролом.
+            var snapshotJustRecorded = false;
 
             // Повторная доставка клика, которым закрыли контекстное меню (issue #340, новая
             // стратегия): гасить событие НЕЛЬЗЯ — выбор должна применить штатная логика
@@ -203,8 +250,8 @@ namespace Configuration_Management
             // простого левого клика БЕЗ модификаторов (Ctrl/Shift — штатное мультивыделение).
             // Выбор НЕ применяем и событие НЕ гасим.
             if (_tree.ContextMenu is { IsOpen: true } &&
-                source.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault()
-                    is { DataContext: Infobase or PinnedInfobaseItem } rowItem &&
+                rowItem is not null &&
+                rowItem.DataContext is Infobase or PinnedInfobaseItem &&
                 e.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed &&
                 BatchSelectionHelper.ShouldRecordMenuCloseSnapshot(
                     "Left",
@@ -217,6 +264,7 @@ namespace Configuration_Management
                 _menuClosePendingApply = true;
                 _menuCloseTarget = clickedBase;
                 _menuCloseTargetIsPinnedSection = BatchSelectionHelper.IsPinnedSection(rowItem.DataContext);
+                snapshotJustRecorded = true;
 
                 // Диагностика (issue #340, F-поля): активность/видимость окна и число
                 // открытых контекстных меню — для проверки гипотезы S4 (деактивация окна
@@ -248,6 +296,37 @@ namespace Configuration_Management
                         $"row.IsSelected={row?.IsSelected}, batch.Count={_vm?.BatchSelectedCount ?? 0}");
                 };
                 dumpTimer.Start();
+            }
+
+            // issue #340 (0.3.9.308): РАСШИРЕННЫЙ признак стабилизации выделения. Выбор
+            // строки применяет ШТАТНО контрол LeveledTreeView (OnRowPointerPressed) по
+            // живому контейнеру; здесь, в туннельной фазе, стабилизация запускается
+            // ОТЛОЖЕННО (после текущей обработки события), чтобы не конкурировать
+            // с применением выбора. Предикат ShouldStabilizeAfterMenuClose истинен для
+            // любого обычного клика без модификаторов по строке базы в окне ~1,5 с после
+            // закрытия контекстного меню дерева — не только при снимке клика (прежний
+            // признак зависел от успешной записи снимка и не срабатывал при закрытии
+            // меню по ESC/кликом мимо строки). Первичный клик при открытом меню (путь B,
+            // снимок только что записан) стабилизацию не запускает — её выполнит
+            // повторная доставка того же клика.
+            if (!snapshotJustRecorded &&
+                rowItem is not null &&
+                rowItem.DataContext is Infobase or PinnedInfobaseItem &&
+                e.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed &&
+                (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) == 0 &&
+                BatchSelectionHelper.Unwrap(rowItem.DataContext) is { } stabilizeBase &&
+                BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+                    snapshotPresent: menuCloseSnapshotPresent,
+                    isPlainLeftClickWithoutModifiers: true,
+                    lastMenuCloseTick: _lastMenuCloseTick,
+                    nowTick: Environment.TickCount,
+                    windowMs: BatchSelectionHelper.MenuCloseStabilizeWindowMs))
+            {
+                var stabilizePinned = BatchSelectionHelper.IsPinnedSection(rowItem.DataContext);
+                MenuCloseTrace.Log($"PointerPressed: stabilizeRequested=true, target={stabilizeBase.Id}, " +
+                                   $"snapshotPresent={menuCloseSnapshotPresent}, pinned={stabilizePinned}");
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    EnsureSelectionStable(stabilizeBase, stabilizePinned));
             }
         }
 

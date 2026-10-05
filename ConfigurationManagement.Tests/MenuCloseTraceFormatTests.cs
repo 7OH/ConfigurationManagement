@@ -230,4 +230,37 @@ public sealed class MenuCloseTraceFormatTests
         Assert.Equal("***", maskedData.GetProperty("password").GetString());
         Assert.Equal("***", maskedData.GetProperty("token").GetString());
     }
+
+    // ============ Выбор имени файла: trace.json / legacy menuclose_trace.json (0.3.9.308) ============
+
+    [Fact]
+    public void PrimaryFileName_MatchesUserConvention_TraceJson()
+    {
+        // Соглашение с пользователем (issue #340, последний комментарий 7OH): основной
+        // файл диагностики называется trace.json, а не menuclose_trace.json (0.3.9.306).
+        Assert.Equal("trace.json", MenuCloseTraceFormat.PrimaryFileName);
+        Assert.Equal("trace.json", MenuCloseTrace.FileName);
+    }
+
+    [Fact]
+    public void LegacyFileName_IsMenuCloseTraceJson()
+    {
+        Assert.Equal("menuclose_trace.json", MenuCloseTraceFormat.LegacyFileName);
+        Assert.Equal("menuclose_trace.json", MenuCloseTrace.LegacyFileName);
+    }
+
+    [Fact]
+    public void ResolveFileName_NoLegacyFile_UsesPrimaryTraceJson()
+    {
+        // Нет legacy-файла от 0.3.9.306 — журнал пишется в основной trace.json.
+        Assert.Equal("trace.json", MenuCloseTraceFormat.ResolveFileName(legacyExists: false));
+    }
+
+    [Fact]
+    public void ResolveFileName_LegacyExists_UsesLegacyMenuCloseTraceJson()
+    {
+        // Legacy-файл от 0.3.9.306 существует — дописываем в него (непрерывность
+        // диагностики пользователя), а не создаём рядом второй файл.
+        Assert.Equal("menuclose_trace.json", MenuCloseTraceFormat.ResolveFileName(legacyExists: true));
+    }
 }

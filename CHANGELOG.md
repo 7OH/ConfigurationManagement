@@ -9,6 +9,47 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.308] — 2026-10-05
+
+### Исправлено
+
+- **Снятие выделения после мультивыделения (issue #340, девятая попытка)**:
+  - файл диагностики создаётся при КАЖДОМ старте: новый `MenuCloseTrace.EnsureStarted()`
+    пишет startup-запись (версия/платформа/ОС/каталог данных) вне зависимости от событий
+    меню — в 0.3.9.306 файл не появлялся, т.к. startup-запись выполнялась только внутри
+    условных вызовов `Log()`; основной файл — **`trace.json`** (имя по соглашению с
+    пользователем), legacy `menuclose_trace.json` от 0.3.9.306 продолжает дописываться
+    при наличии (непрерывность диагностики)
+    ([`MenuCloseTrace.cs`](Configuration%20Management/Services/MenuCloseTrace.cs),
+    [`MenuCloseTraceFormat.cs`](Configuration%20Management/Services/MenuCloseTraceFormat.cs));
+  - безусловные записи **`MenuOpened`/`MenuClosed`** при каждом открытии/закрытии
+    контекстного меню (класс-обработчики `OnContextMenuOpened`/`OnContextMenuClosed`,
+    WPF) и для меню дерева — метка закрытия `_lastMenuCloseTick` (`Environment.TickCount`);
+    Avalonia — класс-обработчик `ContextMenu.IsOpenProperty.Changed`
+    ([`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+    [`MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs));
+  - стабилизация `IsSelected` запускается не только при снимке клика, но и для ЛЮБОГО
+    обычного клика без модификаторов в окне ~1,5 с после закрытия контекстного меню дерева:
+    чистый предикат `BatchSelectionHelper.ShouldStabilizeAfterMenuClose` (WPF: ветка
+    обычного клика `OnInfobaseTree_PreviewMouseLeftButtonDown`; Avalonia: расширенный
+    признак в `OnTreeMenuCloseClickDedup_PointerPressed` с отложенным запуском) — прежний
+    признак опирался на успешную запись снимка (длинная guard-цепочка
+    `TryApplyTreeClickAfterMenuClosed`) и не срабатывал при закрытии меню по ESC/кликом
+    мимо строки, из-за чего переработка контейнеров (Recycling) сбрасывала подсветку
+    ([`BatchSelectionHelper.cs`](Configuration%20Management/Services/BatchSelectionHelper.cs),
+    [`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs),
+    зеркально Avalonia);
+  - документировано соглашение о файле трассировки в README и комментарии к issue
+    (`trace.json` рядом с настройками; создаётся при старте; включать вручную не нужно);
+  - тесты: новый `MenuCloseTraceFormat.ResolveFileName` (выбор `trace.json` vs legacy) —
+    4 теста в
+    [`MenuCloseTraceFormatTests.cs`](ConfigurationManagement.Tests/MenuCloseTraceFormatTests.cs);
+    5 тестов предиката `ShouldStabilizeAfterMenuClose` в
+    [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs).
+
+Полный набор `dotnet test` зелёный (**1773**), сборка Release без ошибок; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) — без ошибок.
+
 ## [0.3.9.307] — 2026-10-05
 
 ### Исправлено

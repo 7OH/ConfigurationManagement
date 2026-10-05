@@ -685,4 +685,88 @@ public sealed class BatchSelectionHelperTests
         Assert.False(BatchSelectionHelper.ShouldRetryRestoreForUnrealizedContainer(
             containerRealized: false, userReselected: false, elapsedMs: -1, maxChaseMs: 800));
     }
+
+    // ============ Расширенный признак стабилизации после закрытия меню (issue #340, 0.3.9.308) ============
+
+    private const long StabilizeWindowMs = BatchSelectionHelper.MenuCloseStabilizeWindowMs;
+
+    [Fact]
+    public void ShouldStabilizeAfterMenuClose_SnapshotPresent_TrueForPlainLeftClick()
+    {
+        // Путь A/C (повторная доставка клика, закрывшего меню): снимок присутствовал —
+        // обычный клик без модификаторов стабилизируется, даже если метка закрытия меню
+        // не зафиксирована (например, _lastMenuCloseTick = 0).
+        Assert.True(BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+            snapshotPresent: true,
+            isPlainLeftClickWithoutModifiers: true,
+            lastMenuCloseTick: 0,
+            nowTick: 1000,
+            windowMs: StabilizeWindowMs));
+    }
+
+    [Fact]
+    public void ShouldStabilizeAfterMenuClose_RecentMenuClose_TrueWithinWindow()
+    {
+        // Меню закрылось недавно (в пределах окна ~1,5 с), снимка нет (закрытие по ESC /
+        // кликом мимо строки) — обычный клик стабилизируется.
+        const long lastMenuCloseTick = 10_000;
+        Assert.True(BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+            snapshotPresent: false,
+            isPlainLeftClickWithoutModifiers: true,
+            lastMenuCloseTick: lastMenuCloseTick,
+            nowTick: lastMenuCloseTick + StabilizeWindowMs,
+            windowMs: StabilizeWindowMs));
+        Assert.True(BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+            snapshotPresent: false,
+            isPlainLeftClickWithoutModifiers: true,
+            lastMenuCloseTick: lastMenuCloseTick,
+            nowTick: lastMenuCloseTick + 1,
+            windowMs: StabilizeWindowMs));
+    }
+
+    [Fact]
+    public void ShouldStabilizeAfterMenuClose_OutsideWindow_False()
+    {
+        // Меню закрылось ДАВНО (за пределами окна) — клик обрабатывается штатно,
+        // стабилизация не требуется (и её запуск вмешивался бы в обычную работу).
+        const long lastMenuCloseTick = 10_000;
+        Assert.False(BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+            snapshotPresent: false,
+            isPlainLeftClickWithoutModifiers: true,
+            lastMenuCloseTick: lastMenuCloseTick,
+            nowTick: lastMenuCloseTick + StabilizeWindowMs + 1,
+            windowMs: StabilizeWindowMs));
+    }
+
+    [Fact]
+    public void ShouldStabilizeAfterMenuClose_NoMenuCloseNoSnapshot_False()
+    {
+        // Меню вообще не закрывалось (_lastMenuCloseTick = 0) и снимка нет — обычный
+        // клик вне menu-close сценария не стабилизируется.
+        Assert.False(BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+            snapshotPresent: false,
+            isPlainLeftClickWithoutModifiers: true,
+            lastMenuCloseTick: 0,
+            nowTick: 500,
+            windowMs: StabilizeWindowMs));
+    }
+
+    [Fact]
+    public void ShouldStabilizeAfterMenuClose_CtrlClick_False()
+    {
+        // Ctrl/Shift-клик (мультивыделение) стабилизацией не затрагивается — даже при
+        // свежей метке закрытия меню: предикат требует клик без модификаторов.
+        Assert.False(BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+            snapshotPresent: true,
+            isPlainLeftClickWithoutModifiers: false,
+            lastMenuCloseTick: 10_000,
+            nowTick: 10_100,
+            windowMs: StabilizeWindowMs));
+        Assert.False(BatchSelectionHelper.ShouldStabilizeAfterMenuClose(
+            snapshotPresent: false,
+            isPlainLeftClickWithoutModifiers: false,
+            lastMenuCloseTick: 10_000,
+            nowTick: 10_100,
+            windowMs: StabilizeWindowMs));
+    }
 }

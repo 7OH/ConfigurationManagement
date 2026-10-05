@@ -8,31 +8,60 @@ namespace Configuration_Management.Services;
 
 /// <summary>
 /// Диагностическая трассировка клика, закрывающего контекстное меню дерева
-/// (issue #340, восьмая попытка). Пишется ВСЕГДА (без env-гейта) в файл
-/// <c>menuclose_trace.json</c> РЯДОМ с настройками приложения — в каталоге
+/// (issue #340, девятая попытка). Пишется ВСЕГДА (без env-гейта) в файл
+/// <c>trace.json</c> РЯДОМ с настройками приложения — в каталоге
 /// <see cref="PlatformPaths.AppDataDirectory"/> (Windows: %APPDATA%\ConfigurationManagement\,
 /// Linux: ~/.config/ConfigurationManagement/), тот же каталог, что и settings.json.
+/// Имя файла — по соглашению с пользователем (0.3.9.308): основной <c>trace.json</c>;
+/// legacy <c>menuclose_trace.json</c> от 0.3.9.306 продолжает дописываться, если уже
+/// существует (непрерывность диагностики, см. <see cref="ResolvePath"/>).
 /// Формат — JSON Lines: одна JSON-запись на строку (валидный JSON, ключи латиницей).
 /// При превышении ~512 КБ файл усекается по кругу: остаётся хвост последних записей
 /// и первой строкой дописывается маркер <c>{"event":"truncated","ts":...}</c>.
-/// При первом обращении пишется startup-запись (версия приложения из
-/// InformationalVersion, платформа WPF/Avalonia, ОС, время). Запись под lock;
+/// Файл создаётся при КАЖДОМ старте приложения через <see cref="EnsureStarted"/>
+/// (startup-запись пишется вне зависимости от действий пользователя), а не только
+/// при первом событии меню, как было в 0.3.9.306. Запись под lock;
 /// ошибки записи игнорируются — трассировка не должна влиять на работу приложения.
 /// Общий для WPF и Avalonia.
 /// </summary>
 public static class MenuCloseTrace
 {
-    /// <summary>Имя файла трассировки (содержимое — JSONL; расширение .json по просьбе пользователя).</summary>
-    public const string FileName = "menuclose_trace.json";
+    /// <summary>Основное имя файла трассировки (JSONL; расширение .json по просьбе пользователя).</summary>
+    public const string FileName = MenuCloseTraceFormat.PrimaryFileName;
+
+    /// <summary>Прежнее имя файла трассировки 0.3.9.306 (дописывается при наличии).</summary>
+    public const string LegacyFileName = MenuCloseTraceFormat.LegacyFileName;
 
     private static readonly object Lock = new();
     private static string? _tracePath;
     private static bool _startupWritten;
 
     /// <summary>
-    /// Пишет одну запись в menuclose_trace.json. Сигнатура сохранена прежней —
-    /// все существующие вызовы НЕ меняются; текст сообщения сохраняется в
-    /// <c>data.message</c>. Ошибки записи игнорируются.
+    /// Гарантирует создание файла трассировки при старте приложения (issue #340, 0.3.9.308):
+    /// startup-запись пишется БЕЗ какого-либо события меню — чтобы пользователь всегда видел
+    /// файл рядом с настройками и мог убедиться, что диагностика активна (в 0.3.9.306 файл
+    /// не появлялся, т.к. startup-запись выполнялась только внутри <see cref="Log"/>).
+    /// Вызывается из конструктора/OnLoaded главного окна (WPF и Avalonia). Идемпотентна.
+    /// </summary>
+    public static void EnsureStarted()
+    {
+        try
+        {
+            lock (Lock)
+            {
+                WriteStartupIfNeeded(ResolvePath());
+            }
+        }
+        catch
+        {
+            // Трассировка не должна влиять на работу приложения.
+        }
+    }
+
+    /// <summary>
+    /// Пишет одну запись в trace.json (или legacy menuclose_trace.json при его наличии).
+    /// Сигнатура сохранена прежней — все существующие вызовы НЕ меняются; текст сообщения
+    /// сохраняется в <c>data.message</c>. Ошибки записи игнорируются.
     /// </summary>
     public static void Log(string message)
     {
@@ -56,10 +85,23 @@ public static class MenuCloseTrace
         }
     }
 
-    /// <summary>Полный путь к файлу трассировки (в каталоге данных приложения).</summary>
+    /// <summary>
+    /// Полный путь к файлу трассировки (в каталоге данных приложения). Выбор имени
+    /// (issue #340, 0.3.9.308): если рядом с настройками уже существует legacy-файл
+    /// <c>menuclose_trace.json</c> (от 0.3.9.306) — журнал дописывается в него
+    /// (непрерывность диагностики); иначе — основной <c>trace.json</c>. Путь
+    /// кэшируется на время сессии.
+    /// </summary>
     private static string ResolvePath()
     {
-        return _tracePath ??= Path.Combine(PlatformPaths.AppDataDirectory, FileName);
+        if (_tracePath is not null)
+            return _tracePath;
+        var dir = PlatformPaths.AppDataDirectory;
+        var legacy = Path.Combine(dir, LegacyFileName);
+        _tracePath = File.Exists(legacy)
+            ? legacy
+            : Path.Combine(dir, MenuCloseTraceFormat.ResolveFileName(legacyExists: false));
+        return _tracePath;
     }
 
     /// <summary>

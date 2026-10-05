@@ -6,8 +6,8 @@ using System.Text;
 namespace Configuration_Management.Services;
 
 /// <summary>
-/// Чистое форматирование/усечение записей диагностики <c>menuclose_trace.json</c>
-/// (issue #340, восьмая попытка). Без файлового I/O и платформенных зависимостей —
+/// Чистое форматирование/усечение записей диагностики <c>trace.json</c>
+/// (issue #340, девятая попытка). Без файлового I/O и платформенных зависимостей —
 /// вынесено из <see cref="MenuCloseTrace"/>, чтобы покрыть юнит-тестами: построение
 /// одной JSONL-строки (валидный JSON, ключи латиницей), круговое усечение при
 /// превышении лимита и маскирование чувствительных полей (пароли/токены).
@@ -20,6 +20,32 @@ internal static class MenuCloseTraceFormat
     /// записей и дописывается строка-маркер <c>{"event":"truncated","ts":...}</c>.
     /// </summary>
     public const long MaxFileBytes = 512 * 1024;
+
+    /// <summary>
+    /// Основное имя файла трассировки (соглашение с пользователем, issue #340, 0.3.9.308):
+    /// <c>trace.json</c> РЯДОМ с настройками приложения (тот же каталог, что settings.json).
+    /// Содержимое — JSON Lines (одна JSON-запись на строку); расширение .json по просьбе
+    /// пользователя (семантика «файл-флаг», которого нет в механизме env-переменной).
+    /// </summary>
+    public const string PrimaryFileName = "trace.json";
+
+    /// <summary>
+    /// Прежнее имя файла трассировки версии 0.3.9.306 (<c>menuclose_trace.json</c>).
+    /// Если такой файл уже существует рядом с настройками — журнал продолжает
+    /// дописываться в него (непрерывность диагностики), иначе используется
+    /// <see cref="PrimaryFileName"/>.
+    /// </summary>
+    public const string LegacyFileName = "menuclose_trace.json";
+
+    /// <summary>
+    /// Выбор имени файла трассировки (issue #340, 0.3.9.308): при наличии legacy-файла
+    /// <c>menuclose_trace.json</c> от 0.3.9.306 журнал дописывается в него (непрерывность
+    /// диагностики), иначе — основной <c>trace.json</c>. Чистая функция выбора пути
+    /// для юнит-тестов (сам путь строит <see cref="MenuCloseTrace"/> через
+    /// <see cref="PlatformPaths.AppDataDirectory"/>).
+    /// </summary>
+    public static string ResolveFileName(bool legacyExists)
+        => legacyExists ? LegacyFileName : PrimaryFileName;
 
     /// <summary>
     /// Маркеры имён полей, значения которых НЕ выводятся в диагностику

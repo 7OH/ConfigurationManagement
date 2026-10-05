@@ -231,6 +231,50 @@ public static class BatchSelectionHelper
         => string.Equals(button, "Left", StringComparison.OrdinalIgnoreCase) && !ctrlPressed && !shiftPressed;
 
     /// <summary>
+    /// Окно стабилизации выделения после закрытия контекстного меню дерева (issue #340,
+    /// 0.3.9.308): обычный клик без модификаторов в этом окне (~1,5 с) после закрытия
+    /// меню сопровождается стабилизацией <c>IsSelected</c> — отложенная переработка
+    /// контейнеров (VirtualizingStackPanel, VirtualizationMode=Recycling) может сбросить
+    /// подсветку «через мгновение». Общая константа для WPF и Avalonia.
+    /// </summary>
+    public const long MenuCloseStabilizeWindowMs = 1500;
+
+    /// <summary>
+    /// Нужно ли стабилизировать выделение после обычного клика по строке дерева
+    /// (issue #340, 0.3.9.308). Признак РАСШИРЕН относительно прежнего (наличие снимка
+    /// клика, закрывшего меню): снимок записывался только после длинной guard-цепочки
+    /// <c>TryApplyTreeClickAfterMenuClosed</c> (кнопка мыши нажата, клик по строке,
+    /// без модификаторов), поэтому при закрытии меню по ESC или кликом мимо строки
+    /// стабилизация не запускалась вовсе — и выделение пропадало «через мгновение».
+    /// Теперь стабилизация запускается и для ЛЮБОГО простого клика БЕЗ модификаторов
+    /// в окне ~1,5 с (<see cref="MenuCloseStabilizeWindowMs"/>) после закрытия
+    /// контекстного меню дерева. Ctrl/Shift-клики (мультивыделение) стабилизацией
+    /// не затрагиваются — предикат требует клик без модификаторов.
+    /// </summary>
+    /// <param name="snapshotPresent">Присутствовал ли снимок клика, закрывавшего меню (путь A/C).</param>
+    /// <param name="isPlainLeftClickWithoutModifiers">Обычный левый клик БЕЗ Ctrl/Shift.</param>
+    /// <param name="lastMenuCloseTick">Метка последнего закрытия меню дерева (Environment.TickCount; 0 — меню не закрывалось).</param>
+    /// <param name="nowTick">Текущая метка времени (Environment.TickCount).</param>
+    /// <param name="windowMs">Окно стабилизации, мс (по умолчанию <see cref="MenuCloseStabilizeWindowMs"/>).</param>
+    public static bool ShouldStabilizeAfterMenuClose(
+        bool snapshotPresent,
+        bool isPlainLeftClickWithoutModifiers,
+        long lastMenuCloseTick,
+        long nowTick,
+        long windowMs)
+    {
+        if (!isPlainLeftClickWithoutModifiers)
+            return false;
+        if (snapshotPresent)
+            return true;
+        // Того же клика, закрывшего меню, могло не быть (ESC/клик мимо строки), но
+        // меню закрылось недавно — стабилизация нужна для любого обычного клика в окне.
+        return lastMenuCloseTick > 0
+            && nowTick >= lastMenuCloseTick
+            && nowTick - lastMenuCloseTick <= windowMs;
+    }
+
+    /// <summary>
     /// Действия стабилизации выделения после клика, которым закрыли контекстное меню
     /// (issue #340, новая стратегия). Список намеренно минимален: только установка
     /// одиночного выбора по данным (SelectTreeRowByData/SelectRow). Действий «сбросить
