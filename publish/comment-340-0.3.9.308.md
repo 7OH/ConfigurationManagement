@@ -65,5 +65,8 @@
 Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Поведение оконного стека (попапы,
 виртуализация) юнит-тестами не покрывается — требует подтверждения на вашей машине.
 
-Версия 0.3.9.308: [CHANGELOG](https://github.com/sivatorov/ConfigurationManagement/blob/main/CHANGELOG.md),
-ссылка на релиз v0.3.9.308 появится после публикации.
+Версия **0.3.9.308** опубликована:
+[CHANGELOG](https://github.com/sivatorov/ConfigurationManagement/blob/main/CHANGELOG.md),
+[релиз v0.3.9.308](https://github.com/sivatorov/ConfigurationManagement/releases/tag/v0.3.9.308)
+(assets: ConfigurationManagement.exe, ConfigurationManagement Linux x64, .deb; релиз включает
+также исправления входа на portal.1c.ru из 0.3.9.307 — #323/#330/#334).
