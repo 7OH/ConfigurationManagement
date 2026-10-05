@@ -124,7 +124,11 @@ namespace Configuration_Management
                 if (config is null && !string.IsNullOrWhiteSpace(_infobase.ConfigurationName))
                     config = ConfigTypeMatcher.FindByInfobaseName(_store.LoadAll(), _infobase.ConfigurationName);
 
-                var url = _updates.BuildUpdateUrl(config, config?.DefaultEdition, _infobase.UpdateUrlOverride,
+                // Редакция по версии базы («3.1.38.92» → «3.1»), иначе первая редакция по умолчанию
+                // (issue #346: в F9 раньше всегда бралась DefaultEdition, версия не учитывалась).
+                var edition = ConfigTypeMatcher.FindEditionByVersion(config, _infobase.ConfigurationVersion)
+                    ?? config?.DefaultEdition;
+                var url = _updates.BuildUpdateUrl(config, edition, _infobase.UpdateUrlOverride,
                     _infobase.UpdateUrlSegment);
                 _row.Url = url;
 
@@ -319,6 +323,10 @@ namespace Configuration_Management
                 var config = ConfigTypeMatcher.FindByInfobaseName(_store.LoadAll(), _infobase.ConfigurationName);
                 if (config is not null && string.IsNullOrWhiteSpace(config.Nick))
                     return string.Format(T("Updates.NoNick"), config.Name);
+                // Имя конфигурации базы не сопоставилось ни с одной типовой (issue #346):
+                // сообщаем конкретную причину вместо общего «База не связана с типовой».
+                if (config is null)
+                    return string.Format(T("Updates.NoMatchFound"), _infobase.ConfigurationName);
             }
             return T("Updates.NoLink");
         }

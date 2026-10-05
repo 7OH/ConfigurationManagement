@@ -312,11 +312,13 @@ namespace Configuration_Management
             ApplyConfigSelection(rebuildUrl: true);
             TrySelectEditionByVersion(match, version);
 
-            // Поясняем, по какому полю найдена запись (issue #322): точное имя / сегмент адреса /
-            // вхождение имени — чтобы было видно, почему выбрана именно эта запись.
+            // Поясняем, по какому полю найдена запись (issue #322): точное имя / внутреннее имя
+            // конфигурации / сегмент адреса / вхождение имени — чтобы было видно, почему выбрана
+            // именно эта запись.
             var reason = result.Kind switch
             {
                 ConfigMatchKind.ExactUrlCode => T("Updates.ReasonUrlCode"),
+                ConfigMatchKind.ExactConfigName => T("Updates.ReasonConfigName"),
                 ConfigMatchKind.NameContainedInBaseName => T("Updates.ReasonNameContains"),
                 ConfigMatchKind.BaseNameContainedInConfigName => T("Updates.ReasonBaseContains"),
                 _ => T("Updates.ReasonExactName"),
@@ -327,17 +329,11 @@ namespace Configuration_Management
         private ConfigMatchResult? FindConfigByInfobaseName(string configName) =>
             ConfigTypeMatcher.FindMatch(_configs, configName);
 
-        /// <summary>Выбирает редакцию по префиксу версии базы («3.0.142.32» → редакция «3.0»).</summary>
+        /// <summary>Выбирает редакцию по префиксу версии базы («3.0.142.32» → редакция «3.0») —
+        /// единая логика в <see cref="ConfigTypeMatcher.FindEditionByVersion"/> (issue #346).</summary>
         private void TrySelectEditionByVersion(OneCConfigType config, string version)
         {
-            var ver = version?.Trim() ?? string.Empty;
-            if (ver.Length == 0 || config.Editions.Count == 0)
-                return;
-
-            var edition = config.Editions.FirstOrDefault(ed =>
-                !string.IsNullOrWhiteSpace(ed.Red) &&
-                (ver.Equals(ed.Red.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                 ver.StartsWith(ed.Red.Trim() + ".", StringComparison.OrdinalIgnoreCase)));
+            var edition = ConfigTypeMatcher.FindEditionByVersion(config, version);
             if (edition is not null)
                 _editionCombo.SelectedItem = edition;
         }
