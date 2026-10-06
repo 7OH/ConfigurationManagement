@@ -756,6 +756,14 @@ namespace Configuration_Management
                 if (isTreeMenu)
                     _lastMenuCloseTick = Environment.TickCount;
 
+                // Строка базы ПОД КУРСОРОМ на момент закрытия меню дерева (issue #340,
+                // 0.3.9.316): цель восстановления выбором (MenuClosedOverRow), если меню
+                // закрылось кликом, который попап проглотил и не доставил в дерево.
+                Infobase? cursorInfobase = null;
+                var cursorPinnedSection = false;
+                var overTreeRow = false;
+                var overMenuItem = false;
+
                 // B-4 (0.3.9.311): для меню ДЕРЕВА дополнительно записываются координаты
                 // курсора и признаки «курсор над строкой дерева» / «над пунктом меню» /
                 // фокус окна — по логу видно, ЧЕМ именно закрыто меню (кликом по строке /
@@ -767,10 +775,15 @@ namespace Configuration_Management
                     var cursorPos = Mouse.GetPosition(MainTree);
                     var hitOver = MainTree.InputHitTest(cursorPos) as DependencyObject;
                     var cursorRow = hitOver is null ? null : FindAncestor<TreeViewItem>(hitOver);
-                    var overTreeRow = cursorRow is not null
+                    overTreeRow = cursorRow is not null
                         && cursorRow.DataContext is Infobase or PinnedInfobaseItem or GroupNodeViewModel;
-                    var overMenuItem = Mouse.DirectlyOver is { } directlyOver
+                    overMenuItem = Mouse.DirectlyOver is { } directlyOver
                         && FindAncestor<MenuItem>(directlyOver as DependencyObject) is not null;
+                    if (cursorRow?.DataContext is Infobase or PinnedInfobaseItem)
+                    {
+                        cursorInfobase = UnwrapInfobase(cursorRow.DataContext);
+                        cursorPinnedSection = BatchSelectionHelper.IsPinnedSection(cursorRow.DataContext);
+                    }
                     MenuCloseTrace.Log($"MenuClosedCursor: x={cursorPos.X:0.#}, y={cursorPos.Y:0.#}, " +
                                        $"overTreeRow={overTreeRow}, overMenuItem={overMenuItem}, " +
                                        $"keyboardFocusWithin={IsKeyboardFocusWithin}");
@@ -808,6 +821,38 @@ namespace Configuration_Management
                             System.Windows.Threading.DispatcherPriority.Input,
                             new Action(() => EnsureSelectionStable(stabilizeTarget, stabilizePinned,
                                 reason: "clickBeforeMenuClose")));
+                    }
+                    // issue #340 (0.3.9.316, 10-я итерация): третий реальный trace.json
+                    // (0.3.9.315) показал сценарий, где НИ один штатный путь не запускает
+                    // стабилизацию: меню закрылось с курсором над строкой дерева
+                    // (overTreeRow=true), снимок клика не записан (guard-цепочка
+                    // TryApplyTreeClickAfterMenuClosed не прошла — левая кнопка отпущена),
+                    // а последний обычный клик был за пределами окна "clickBeforeMenuClose"
+                    // (500 мс) — например ~1,8 с (клик, начавший цепочку действий, был ещё
+                    // ДО открытия меню). Клик, которым пользователь ЗАКРЫЛ меню, вероятно,
+                    // проглочен попапом и не дошёл до дерева — его цель это строка ПОД
+                    // КУРСОРОМ: восстанавливаем выбор по ней (reason "menuClosedOverRow").
+                    // Исключения — в предикате ShouldRestoreSelectionForRowUnderCursor
+                    // (overMenuItem, наличие снимка, ESC/программно без недавнего клика,
+                    // мультивыделение).
+                    else if (precedingClick is { } activityEvidence &&
+                             BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+                                 overTreeRow: overTreeRow,
+                                 overMenuItem: overMenuItem,
+                                 snapshotPresent: _menuCloseClickSnapshot is not null,
+                                 recentClickWasPlainLeftWithoutModifiers: true,
+                                 lastPlainClickTick: activityEvidence.Tick,
+                                 menuCloseTick: _lastMenuCloseTick,
+                                 nowTick: Environment.TickCount,
+                                 windowMs: BatchSelectionHelper.MenuCloseRecentMouseActivityWindowMs) &&
+                             cursorInfobase is not null)
+                    {
+                        var restoreTarget = cursorInfobase;
+                        var restorePinned = cursorPinnedSection;
+                        var evidenceTick = activityEvidence.Tick;
+                        Dispatcher.BeginInvoke(
+                            System.Windows.Threading.DispatcherPriority.Input,
+                            new Action(() => ApplyRowUnderCursorRestore(restoreTarget, restorePinned, evidenceTick)));
                     }
                 }
             }
@@ -973,6 +1018,47 @@ namespace Configuration_Management
                                $"selectedByData=true, pinned={isPinnedSection}");
             // B-5 (0.3.9.311): fallback работает по снимку клика — причина "snapshot".
             EnsureSelectionStable(target, isPinnedSection, reason: "snapshot");
+        }
+
+        /// <summary>
+        /// Восстанавливает выбор строки ПОД КУРСОРОМ после закрытия контекстного меню
+        /// (issue #340, 10-я итерация): меню закрылось с курсором над строкой дерева,
+        /// снимок клика не записан, а последний обычный клик мыши был в окне
+        /// <see cref="BatchSelectionHelper.MenuCloseRecentMouseActivityWindowMs"/> (клик,
+        /// закрывший меню, проглочен попапом и не дошёл до дерева — строка под курсором
+        /// и есть его цель). Семантика обычного клика без модификаторов: единственный
+        /// выбор; мультивыделение снимается ТОЛЬКО если строка под курсором отличается
+        /// от текущего выбора (строка уже выбранная — только стабилизация, набор «для
+        /// выделенных» не трогаем). Если пользователь успел перевыбрать другую строку —
+        /// не вмешиваемся. Выбор применяется по данным и дополнительно стабилизируется
+        /// (<see cref="EnsureSelectionStable"/>, причина "menuClosedOverRow").
+        /// </summary>
+        /// <param name="target">Строка базы под курсором в момент закрытия меню.</param>
+        /// <param name="isPinnedSection">Секция строки: true — «Закреплённые» (issue #326).</param>
+        /// <param name="evidenceTick">Метка последнего обычного клика (для диагностики).</param>
+        private void ApplyRowUnderCursorRestore(Infobase target, bool isPinnedSection, long evidenceTick)
+        {
+            if (_viewModel is null || MainTree is null || target is null)
+                return;
+
+            // Пользователь успел перевыбрать другую строку — не вмешиваемся.
+            if (_viewModel.SelectedInfobase is { } current && !ReferenceEquals(current, target))
+            {
+                MenuCloseTrace.Log($"MenuClosedOverRow: ran=false, target={target.Id}, userReselected=true");
+                return;
+            }
+
+            var selectionChanged = !ReferenceEquals(_viewModel.SelectedInfobase, target);
+            if (selectionChanged)
+            {
+                // Семантика обычного клика: единственный выбор строки под курсором.
+                _viewModel.ClearBatchSelection();
+                SelectTreeRowByData(target, null, isPinnedSection);
+            }
+            MenuCloseTrace.Log($"MenuClosedOverRow: ran=true, target={target.Id}, pinned={isPinnedSection}, " +
+                               $"selected={(selectionChanged ? "applied" : "same")}, " +
+                               $"precedingClickTick={evidenceTick}");
+            EnsureSelectionStable(target, isPinnedSection, reason: "menuClosedOverRow");
         }
 
         /// <summary>

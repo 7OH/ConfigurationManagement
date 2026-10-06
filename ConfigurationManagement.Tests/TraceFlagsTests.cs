@@ -11,9 +11,13 @@ namespace ConfigurationManagement.Tests;
 /// <summary>
 /// Тесты механизма отладочных флагов trace.json (issue #347 «Сказ о trace.json», кластер C):
 /// чистый разбор/сериализация конфига (регистр имён безразличен, неизвестные флаги
-/// игнорируются, битый JSON → все выключены без исключения), решение о миграции старого
-/// JSONL-журнала и перечитывание конфига по mtime без перезапуска приложения.
+/// игнорируются, битый JSON → все выключены без исключения), pretty-print с переводами
+/// строк/отступами и разбором обратно, жёсткая семантика гейта (явный false в конфиге
+/// выключает флаг ВСЕГДА — env его не перекрывает), решение о миграции старого
+/// JSONL-журнала, перенос конфига из корня в каталог активного профиля и перечитывание
+/// конфига по mtime без перезапуска приложения.
 /// </summary>
+[Collection("TraceFlagsState")]
 public sealed class TraceFlagsTests
 {
     private static readonly DateTimeOffset Ts =
@@ -73,6 +77,8 @@ public sealed class TraceFlagsTests
         Assert.False(TraceFlagsFormat.IsEnabled(result.Flags, "CM_FUTURE"));
     }
 
+    // ============ Сериализация: pretty-print + разбор обратно ============
+
     [Fact]
     public void Serialize_CreatesVersionedDefaults()
     {
@@ -89,6 +95,69 @@ public sealed class TraceFlagsTests
         Assert.Equal(
             new[] { "version" }.Concat(TraceFlagsFormat.KnownFlags).ToArray(),
             keys);
+    }
+
+    [Fact]
+    public void Serialize_PrettyPrinted_RoundTrips()
+    {
+        // issue #347, замечание 1: trace.json пишется с ПЕРЕНОСАМИ СТРОК И ОТСТУПАМИ,
+        // а не в одну строку; парсер разбирает такой формат обратно без потерь.
+        var json = TraceFlagsFormat.SerializeDefaults();
+
+        Assert.Contains('\n', json);
+        Assert.Contains("\n  \"CM_COLUMNS\": false", json, StringComparison.Ordinal);
+        Assert.Contains("\n  \"version\": 1", json, StringComparison.Ordinal);
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        Assert.Equal(1, root.GetProperty("version").GetInt32());
+        foreach (var flag in TraceFlagsFormat.KnownFlags)
+            Assert.False(root.GetProperty(flag).GetBoolean());
+
+        var parsed = TraceFlagsFormat.Parse(json);
+        Assert.True(parsed.IsValid);
+        foreach (var flag in TraceFlagsFormat.KnownFlags)
+            Assert.False(TraceFlagsFormat.IsEnabled(parsed.Flags, flag));
+    }
+
+    // ============ Жёсткий гейт: явный false в конфиге > env (issue #347, замечание 2) ============
+
+    [Fact]
+    public void ExplicitFalse_InConfig_WithEnv1_IsDisabled()
+    {
+        using var dir = new TempDir(envOverride: name =>
+            name == TraceFlags.ColumnsFlag || name == "CM_COLUMNS_TRACE" ? "1" : null);
+        var configPath = Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName);
+        File.WriteAllText(configPath, "{\"version\":1,\"CM_COLUMNS\":false}", System.Text.Encoding.UTF8);
+        File.SetLastWriteTimeUtc(configPath, DateTime.UtcNow.AddSeconds(5));
+
+        // Явное false в trace.json выключает флаг ВСЕГДА — env-переменная (в т.ч. прежняя
+        // CM_COLUMNS_TRACE=1 от 0.3.9.305) НЕ перекрывает: записей CM_COLUMNS нет.
+        Assert.False(TraceFlags.IsEnabled(TraceFlags.ColumnsFlag));
+    }
+
+    [Fact]
+    public void True_InConfig_IsEnabled()
+    {
+        using var dir = new TempDir();
+        var configPath = Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName);
+        File.WriteAllText(configPath, "{\"version\":1,\"CM_COLUMNS\":true}", System.Text.Encoding.UTF8);
+        File.SetLastWriteTimeUtc(configPath, DateTime.UtcNow.AddSeconds(5));
+
+        // Флаг true в конфиге → диагностика включена (env при этом не обязательна).
+        Assert.True(TraceFlags.IsEnabled(TraceFlags.ColumnsFlag));
+    }
+
+    [Fact]
+    public void NoFile_WithEnv1_IsEnabled()
+    {
+        using var dir = new TempDir(envOverride: name =>
+            name == TraceFlags.ColumnsFlag || name == "CM_COLUMNS_TRACE" ? "1" : null);
+
+        // Файла конфига нет (EnsureExists заранее не вызывали): env-переменная остаётся
+        // ЗАПАСНЫМ способом включения — флаг включён.
+        Assert.False(File.Exists(Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName)));
+        Assert.True(TraceFlags.IsEnabled(TraceFlags.ColumnsFlag));
     }
 
     // ============ Миграция старого JSONL-журнала (I/O через временный каталог) ============
@@ -112,7 +181,9 @@ public sealed class TraceFlagsTests
         Assert.True(File.Exists(legacyPath), "старый JSONL-журнал должен быть переименован");
         Assert.True(File.Exists(configPath), "trace.json должен существовать как конфиг");
         Assert.StartsWith("{\"ts\":", File.ReadAllText(legacyPath).TrimStart(), StringComparison.Ordinal);
-        Assert.StartsWith("{\"version\":1", File.ReadAllText(configPath), StringComparison.Ordinal);
+        var parsed = TraceFlagsFormat.Parse(File.ReadAllText(configPath));
+        Assert.True(parsed.IsValid, "новый trace.json должен разбираться как конфиг флагов");
+        Assert.False(TraceFlagsFormat.IsEnabled(parsed.Flags, TraceFlags.ColumnsFlag));
     }
 
     [Fact]
@@ -128,6 +199,41 @@ public sealed class TraceFlagsTests
 
         Assert.False(File.Exists(legacyPath), "конфиг не должен переименовываться");
         Assert.Equal(TraceFlagsFormat.SerializeDefaults(), File.ReadAllText(configPath));
+    }
+
+    // ============ Перенос конфига в каталог активного профиля (issue #347, замечание 3) ============
+
+    [Fact]
+    public void ProfileMigration_RootTraceJson_MovedIntoProfileDirectory()
+    {
+        using var dir = new TempDir();
+        // До выбора профиля EnsureExists создал trace.json в корне каталога данных.
+        var rootPath = Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName);
+        File.WriteAllText(rootPath, TraceFlagsFormat.SerializeDefaults(), System.Text.Encoding.UTF8);
+        var profileDir = Path.Combine(dir.Path, "profiles", "p1");
+
+        TraceFlags.SetProfileDataDirectory(profileDir);
+
+        // Конфиг перенесён рядом с settings.json активного профиля, из корня исчез.
+        var target = Path.Combine(profileDir, TraceFlagsFormat.ConfigFileName);
+        Assert.True(File.Exists(target), "trace.json должен быть перенесён в каталог профиля");
+        Assert.False(File.Exists(rootPath), "корневой trace.json после переноса не должен оставаться");
+        // Чтение идёт уже из профильного каталога (дефолты → флаг выключен).
+        Assert.False(TraceFlags.IsEnabled(TraceFlags.ColumnsFlag));
+    }
+
+    [Fact]
+    public void ProfileMigration_NoRootFile_CreatesInProfileOnDemand()
+    {
+        using var dir = new TempDir();
+        var profileDir = Path.Combine(dir.Path, "profiles", "p1");
+
+        TraceFlags.SetProfileDataDirectory(profileDir);
+
+        Assert.False(TraceFlags.IsEnabled(TraceFlags.ColumnsFlag));
+        Assert.True(
+            File.Exists(Path.Combine(profileDir, TraceFlagsFormat.ConfigFileName)),
+            "конфиг должен создаться в каталоге профиля, а не в корне");
     }
 
     // ============ Перечитывание конфига по mtime (без перезапуска) ============
@@ -154,14 +260,14 @@ public sealed class TraceFlagsTests
         Assert.False(TraceFlags.IsEnabled("CM_COLUMNS"));
     }
 
-    /// <summary>Временный каталог теста с установкой каталога конфига TraceFlags (без env-override).</summary>
+    /// <summary>Временный каталог теста с установкой каталога конфига TraceFlags.</summary>
     private sealed class TempDir : IDisposable
     {
         private readonly string? _previousDir;
         private readonly Func<string, string?> _previousEnv;
         private bool _disposed;
 
-        public TempDir()
+        public TempDir(Func<string, string?>? envOverride = null)
         {
             Path = System.IO.Path.Combine(
                 System.IO.Path.GetTempPath(), $"cm_traceflags_{Guid.NewGuid():N}");
@@ -171,10 +277,13 @@ public sealed class TraceFlagsTests
             // Изолируем тест от env-переменных процесса, НО не отключаем CM_REDIRECT:
             // тесты входа портала (OneCUpdatesLoginFlow и др.) выполняются параллельно
             // и полагаются на этот override включения (TestEnvironment.ModuleInitializer).
+            // envOverride позволяет конкретному тесту включить свой флаг (например CM_COLUMNS=1).
             TraceFlags.EnvReader = name =>
-                string.Equals(name, TraceFlags.RedirectFlag, StringComparison.Ordinal)
-                    ? Environment.GetEnvironmentVariable(name)
-                    : null;
+            {
+                if (string.Equals(name, TraceFlags.RedirectFlag, StringComparison.Ordinal))
+                    return Environment.GetEnvironmentVariable(name);
+                return envOverride?.Invoke(name);
+            };
             TraceFlags.ConfigDirectoryOverride = Path;
             TraceFlags.ResetCacheForTesting();
         }

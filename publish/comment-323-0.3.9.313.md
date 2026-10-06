@@ -67,6 +67,7 @@ HTTP 200 со страницей **личного кабинета** — `<title
 кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок; регрессия статусных цепочек
 #334/#330 пройдена без правок кода.
 
-Версия **0.3.9.313** входит в релиз v0.3.9.313:
-[CHANGELOG](https://github.com/sivatorov/ConfigurationManagement/blob/main/CHANGELOG.md),
-[релиз v0.3.9.313](https://github.com/sivatorov/ConfigurationManagement/releases/tag/v0.3.9.313).
+Версия **0.3.9.313** — исправление вошло в релиз **v0.3.9.315** (в
+[CHANGELOG](https://github.com/sivatorov/ConfigurationManagement/blob/main/CHANGELOG.md) изменения
+отражены секцией 0.3.9.313):
+[релиз v0.3.9.315](https://github.com/sivatorov/ConfigurationManagement/releases/tag/v0.3.9.315).

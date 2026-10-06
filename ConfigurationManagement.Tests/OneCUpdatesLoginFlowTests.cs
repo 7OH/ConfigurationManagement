@@ -19,6 +19,7 @@ namespace ConfigurationManagement.Tests;
 /// анонимизированная диагностика (без пароля и значений токенов в журнале).
 /// Сетевой стек — fake <see cref="HttpMessageHandler"/>, реальная сеть не используется.
 /// </summary>
+[Collection("TraceFlagsState")]
 public sealed class OneCUpdatesLoginFlowTests
 {
     private const string FormWithHiddenFields = """
@@ -463,7 +464,8 @@ public sealed class OneCUpdatesLoginFlowTests
         // title='Личные данные', в теле — execution-форма кабинета и JS-фраза
         // «Неверный логин или пароль» (валидатор формы смены аккаунта). В 0.3.9.310 такой
         // ответ объявлялся AuthFailed; в 0.3.9.313 кабинет распознаётся РАНЬШЕ формы входа
-        // (C-1/A-3) — результат Success и повтор исходного запроса каталога.
+        // (C-1/A-3); в 0.3.9.316 (D-1) после кабинета выполняется звено security_check —
+        // результат Success ТОЛЬКО при живой сессии, затем повтор исходного запроса каталога.
         var handler = new PersonalAreaLoginHandler(PersonalAreaWithJsFailureMarkerHtml);
         var logger = new CollectingLogger();
         var service = CreateService(handler, logger, login: "user1", password: "secret");
@@ -472,10 +474,12 @@ public sealed class OneCUpdatesLoginFlowTests
 
         Assert.Equal(PortalFetchStatus.Ok, result.Status);
         Assert.Equal(1, handler.PostLoginCount);
-        Assert.Equal(2, handler.CatalogRequestCount); // повтор исходного запроса выполнен
+        // 1 исходный запрос + 1 alive-проверка после звена security_check + 1 повтор исходного.
+        Assert.Equal(3, handler.CatalogRequestCount);
         var joined = string.Join("\n", logger.Messages);
         Assert.Contains("страница личного кабинета", joined);
         Assert.Contains("title='Личные данные'", joined);
+        Assert.Contains("alive=True после security_check", joined);
         Assert.DoesNotContain("Вход на portal.1c.ru не подтверждён", joined);
     }
 
@@ -584,7 +588,8 @@ public sealed class OneCUpdatesLoginFlowTests
     {
         // Лог 7OH (issue #323): POST входа вернул 200 со страницей ЛИЧНОГО КАБИНЕТА
         // (<title>Личные данные</title>, форма с полем execution, БЕЗ username/password) —
-        // вход УСПЕШЕН: повтор исходного запроса выполняется, AuthFailed НЕ выставляется.
+        // вход УСПЕШЕН (после звена security_check живая сессия): повтор исходного запроса
+        // выполняется, AuthFailed НЕ выставляется.
         var handler = new PersonalAreaLoginHandler(PersonalAreaPageHtml);
         var logger = new CollectingLogger();
         var service = CreateService(handler, logger, login: "user1", password: "secret");
@@ -593,10 +598,12 @@ public sealed class OneCUpdatesLoginFlowTests
 
         Assert.Equal(PortalFetchStatus.Ok, result.Status);
         Assert.Equal(1, handler.PostLoginCount);
-        Assert.Equal(2, handler.CatalogRequestCount); // повтор исходного запроса выполнен
+        // 1 исходный запрос + 1 alive-проверка после звена security_check + 1 повтор исходного.
+        Assert.Equal(3, handler.CatalogRequestCount);
         var joined = string.Join("\n", logger.Messages);
         Assert.Contains("страница личного кабинета", joined);
         Assert.Contains("title='Личные данные'", joined); // A-8: title в POST-диагностике
+        Assert.Contains("alive=True после security_check", joined);
         Assert.DoesNotContain("Вход на portal.1c.ru не подтверждён", joined);
     }
 
@@ -659,21 +666,114 @@ public sealed class OneCUpdatesLoginFlowTests
     }
 
     [Fact]
-    public async Task Post200PersonalArea_ThenCatalog302_SecondLoginFreshForm_Ok()
+    public async Task Post200PersonalArea_WhenSecurityCheckDead_ReturnsAuthFailed()
     {
-        // Цепочка из лога 7OH (issue #323): каталог 302 → вход → POST 200 «Личные данные»
-        // (Success) → повтор каталога СНОВА 302 (сессия кабинета ещё не действует для
-        // каталога) → ПОВТОРНЫЙ вход со свежей формой → POST 200 «Личные данные» → каталог
-        // 200 с #versionsTable → NewerAvailable. Повторный вход — существующий механизм
-        // MaxLoginAttemptsPerOperation=2, теперь работающий и для «кабинетного» успеха.
+        // Прежний сценарий «кабинет → повтор каталога 302 → повторный вход со свежей формой»
+        // (тест 0.3.9.313) заменён на честный отказ (D-1, issue #323, восьмая итерация): если
+        // звено security_check не установило живую сессию для releases.1c.ru (в этом обработчике
+        // корень releases.1c.ru отвечает 302 без Set-Cookie, каталог продолжает 302 на login),
+        // вход НЕ засчитывается — результат AuthFailed, повторный вход и маркер
+        // retryAfterLoginStill302 НЕ запускаются.
         var handler = new PersonalAreaThenCatalogOkHandler(PersonalAreaPageHtml);
         var service = CreateService(handler, login: "user1", password: "secret");
 
         var result = await service.CheckForUpdatesAsync(
             "Бухгалтерия предприятия", "3.0.120.1", "https://releases.1c.ru/project/Accounting30");
 
-        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
-        Assert.Equal(2, handler.PostLoginCount);
+        Assert.Equal(ConfigUpdateStatus.Failed, result.Status);
+        Assert.Equal("Updates.AuthFailed", result.Error);
+        Assert.Equal(1, handler.PostLoginCount); // повторный вход со свежей формой не выполняется
+    }
+
+    // ---------- D-1 (0.3.9.316): звено CAS security_check после «кабинетного» POST ----------
+
+    [Fact]
+    public void ResolveSecurityCheckTarget_FromServiceParam_UsesServiceUrl()
+    {
+        // URL звена берётся из параметра service GET-формы входа (лог 7OH 0.3.9.313:
+        // POST уходил на login.1c.ru/login?service=https://releases.1c.ru/public/security_check).
+        var target = OneCUpdatesService.ResolveSecurityCheckTarget(
+            "https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check");
+        Assert.Equal("https://releases.1c.ru/public/security_check", target.AbsoluteUri);
+    }
+
+    [Fact]
+    public void ResolveSecurityCheckTarget_NoServiceOrForeignHost_FallsBackToReleasesRoot()
+    {
+        // Эталон рабочего кода 1С (комментарий 23 в #323): без service (или с чужим хостом)
+        // звено выполняется на корне releases.1c.ru.
+        Assert.Equal("https://releases.1c.ru/",
+            OneCUpdatesService.ResolveSecurityCheckTarget(null).AbsoluteUri);
+        Assert.Equal("https://releases.1c.ru/",
+            OneCUpdatesService.ResolveSecurityCheckTarget("https://login.1c.ru/login").AbsoluteUri);
+        Assert.Equal("https://releases.1c.ru/",
+            OneCUpdatesService.ResolveSecurityCheckTarget("https://login.1c.ru/login?service=x").AbsoluteUri);
+        Assert.Equal("https://releases.1c.ru/",
+            OneCUpdatesService.ResolveSecurityCheckTarget(
+                "https://login.1c.ru/login?service=https://other.example/security_check").AbsoluteUri);
+    }
+
+    [Fact]
+    public void GetQueryParam_DecodesValue_AndIgnoresMissing()
+    {
+        var uri = new Uri(
+            "https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check&execution=e1");
+        Assert.Equal("https://releases.1c.ru/public/security_check",
+            OneCUpdatesService.GetQueryParam(uri, "service"));
+        Assert.Equal("e1", OneCUpdatesService.GetQueryParam(uri, "execution"));
+        Assert.Null(OneCUpdatesService.GetQueryParam(uri, "absent"));
+        Assert.Null(OneCUpdatesService.GetQueryParam(new Uri("https://login.1c.ru/login"), "service"));
+    }
+
+    [Fact]
+    public async Task LoginPost_PersonalArea_SecurityCheck_EstablishesReleasesSession_CatalogOk()
+    {
+        // Регресс ТОЧНОГО нового лога 7OH (2026-10-06T07:58:39Z, 0.3.9.313, issue #323):
+        // POST входа 200 «Личные данные» → в контейнере SESSION ТОЛЬКО для login.1c.ru
+        // (до звена releases-сессии НЕТ) → GET звена security_check (адрес service формы)
+        // выдаёт Set-Cookie SESSION для releases.1c.ru → живая сессия (alive=True) →
+        // повтор исходного запроса каталога Ok БЕЗ retryAfterLoginStill302.
+        var handler = new PersonalAreaWithSecurityCheckHandler(PersonalAreaPageHtml);
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+        Assert.Equal(1, handler.SecurityCheckRequestCount); // звено выполнено ровно один раз
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("security_check 'https://releases.1c.ru/public/security_check'", joined);
+        Assert.Contains("setCookie=SESSION; Domain=releases.1c.ru", joined);
+        Assert.Contains("alive=True после security_check", joined);
+        Assert.DoesNotContain("retryAfterLoginStill302=true", joined);
+        Assert.DoesNotContain("Вход на portal.1c.ru не подтверждён", joined);
+        // После звена в контейнере есть SESSION И для login.1c.ru, И для releases.1c.ru —
+        // именно этого не хватало в логе 0.3.9.313 (была только login-сессия).
+        var sessions = service.DescribeSessionCookies();
+        Assert.Contains("SESSION[Domain=login.1c.ru", sessions);
+        Assert.Contains("SESSION[Domain=releases.1c.ru", sessions);
+    }
+
+    [Fact]
+    public async Task LoginPost_PersonalArea_SecurityCheckRedirectsToLogin_ReturnsAuthFailed()
+    {
+        // Звено security_check недоступно (302 на login.1c.ru БЕЗ Set-Cookie — билет не принят):
+        // сессия для releases.1c.ru не устанавливается, alive=False — возвращается ЧЕСТНЫЙ
+        // AuthFailed (без фарса повторов исходного запроса), журнал фиксирует alive=False
+        // после security_check (issue #323, восьмая итерация).
+        var handler = new PersonalAreaWithDeadSecurityCheckHandler(PersonalAreaPageHtml);
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.AuthFailed, result.Status);
+        Assert.Equal(1, handler.PostLoginCount); // повторный вход со свежей формой не запускается
+        Assert.Equal(1, handler.SecurityCheckRequestCount);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("alive=False после security_check", joined);
+        Assert.Contains("Вход на portal.1c.ru не подтверждён", joined);
     }
 
     // ---------- «Фантомный успех» и JS/meta-refresh (issue #323/#330/#334, четвёртая итерация) ----------
@@ -1632,6 +1732,118 @@ public sealed class OneCUpdatesLoginFlowTests
                 response = _catalogRequestCount >= 3
                     ? Ok(VersionsTableHtml)
                     : Found(new Uri("https://login.1c.ru/login?service=x"));
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    response = Ok(_postBody);
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик регресса ТОЧНОГО нового лога 7OH (issue #323, 0.3.9.313, восьмая
+    /// итерация, D-1): POST входа возвращает 200 со страницей личного кабинета и Set-Cookie
+    /// SESSION ТОЛЬКО для login.1c.ru (сессия каталога ещё не выпущена); GET звена
+    /// security_check (адрес service формы) выдаёт Set-Cookie SESSION для releases.1c.ru и
+    /// помечает вход успешным — после него каталог отдаёт версии.</summary>
+    private sealed class PersonalAreaWithSecurityCheckHandler : HttpMessageHandler
+    {
+        private readonly string _postBody;
+        private bool _loginSucceeded;
+
+        public int PostLoginCount { get; private set; }
+
+        public int SecurityCheckRequestCount { get; private set; }
+
+        public PersonalAreaWithSecurityCheckHandler(string postBody) => _postBody = postBody;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = !_loginSucceeded
+                    ? Found(new Uri("https://login.1c.ru/login?service=https://releases.1c.ru/public/security_check"))
+                    : Ok(VersionsTableHtml);
+            }
+            else if (path.Contains("/public/security_check", StringComparison.OrdinalIgnoreCase))
+            {
+                SecurityCheckRequestCount++;
+                _loginSucceeded = true;
+                response = Ok("<html>session established</html>");
+                // Сессионная cookie именно для releases.1c.ru (лог 7OH: SESSION Domain=releases.1c.ru).
+                response.Headers.Add("Set-Cookie", "SESSION=rel-123; Domain=releases.1c.ru; Path=/; HttpOnly; Secure");
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    response = Ok(_postBody);
+                    // POST кабинета выдаёт SESSION только для login.1c.ru (как в логе 7OH):
+                    // releases-сессия НЕ устанавливается до звена security_check.
+                    response.Headers.Add("Set-Cookie", "SESSION=log-123; Domain=login.1c.ru; Path=/; HttpOnly");
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик «мёртвого» звена security_check (issue #323, восьмая итерация):
+    /// POST входа возвращает 200 со страницей личного кабинета, но GET security_check отвечает
+    /// 302 на login.1c.ru БЕЗ Set-Cookie (билет не принят) — сессия для releases.1c.ru так и не
+    /// устанавливается, каталог продолжает редиректить на login. Ожидается честный AuthFailed.</summary>
+    private sealed class PersonalAreaWithDeadSecurityCheckHandler : HttpMessageHandler
+    {
+        private readonly string _postBody;
+
+        public int PostLoginCount { get; private set; }
+
+        public int SecurityCheckRequestCount { get; private set; }
+
+        public PersonalAreaWithDeadSecurityCheckHandler(string postBody) => _postBody = postBody;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Found(new Uri("https://login.1c.ru/login?service=https://releases.1c.ru/public/security_check"));
+            }
+            else if (path.Contains("/public/security_check", StringComparison.OrdinalIgnoreCase))
+            {
+                SecurityCheckRequestCount++;
+                response = Found(new Uri("https://login.1c.ru/login?service=https://releases.1c.ru/public/security_check"));
             }
             else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
             {

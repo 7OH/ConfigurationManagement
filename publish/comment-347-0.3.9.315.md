@@ -50,3 +50,8 @@
 - Для редиректов: включите `CM_REDIRECT` и выполните «Проверку обновлений» — в общем журнале приложения (`logs/`) появятся строки `[Updates] Редирект…`/`[Updates] Вход запущен…`. Ошибки входа видны и без флага.
 
 **Тесты.** Новый [`TraceFlagsTests.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/ConfigurationManagement.Tests/TraceFlagsTests.cs) (+8: дефолты при отсутствии файла, регистронезависимый разбор, битый JSON без исключения, игнорирование неизвестных флагов, сериализация дефолтов, миграция JSONL → legacy, конфиг не переименовывается, перечитывание по mtime); обновлён [`MenuCloseTraceFormatTests.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/ConfigurationManagement.Tests/MenuCloseTraceFormatTests.cs) (+3: имя журнала `trace_menuclose.jsonl`, конфиг `trace.json`, резервное `trace_menuclose_legacy.json`; legacy `menuclose_trace.json` продолжает дописываться). Полный набор `dotnet test` зелёный (**1823**, 0 не пройдено); кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок.
+
+Версия **0.3.9.315** — исправление вошло в релиз **v0.3.9.315** (в
+[CHANGELOG](https://github.com/sivatorov/ConfigurationManagement/blob/main/CHANGELOG.md) изменения
+отражены секцией 0.3.9.315):
+[релиз v0.3.9.315](https://github.com/sivatorov/ConfigurationManagement/releases/tag/v0.3.9.315).

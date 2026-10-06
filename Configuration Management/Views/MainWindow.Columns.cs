@@ -745,14 +745,14 @@ namespace Configuration_Management
 
         /// <summary>
         /// Постоянная диагностика колонок (issue #309/#343): по умолчанию выключена.
-        /// Включается флагом <c>CM_COLUMNS</c> в конфиге trace.json (issue #347); прежняя
-        /// env-переменная CM_COLUMNS_TRACE=1 остаётся только как override включения.
+        /// Включается флагом <c>CM_COLUMNS</c> в конфиге trace.json (issue #347).
+        /// Семантика гейта (0.3.9.316): явное <c>false</c> в trace.json выключает диагностику
+        /// ВСЕГДА — даже при установленной env-переменной CM_COLUMNS_TRACE=1 (замечание
+        /// пользователя #347: записи «CM_COLUMNS: total=…» не должны появляться при false);
+        /// env — только запасной способ включения, если флаг отсутствует либо true.
         /// Свойство читает флаг динамически — правка trace.json применяется без перезапуска.
         /// </summary>
         private static bool ColumnsTraceEnabled => TraceFlags.IsEnabled(TraceFlags.ColumnsFlag);
-
-        /// <summary>Признак однократного стартового дампа диагностики (issue #309).</summary>
-        private bool _columnsTraceDumped;
 
         /// <summary>
         /// Минимальная ширина колонки «Действия»: совпадает с MinWidth=120, заданной трём
@@ -860,20 +860,16 @@ namespace Configuration_Management
         /// <summary>
         /// Пишет в журнал приложения фактические значения расчёта минимальной ширины
         /// (issue #309): сумму колонок заголовка, замер контента строк, MinWidth контента
-        /// внешнего общего ScrollViewer, его viewport/extent и DPI окна. По умолчанию
-        /// запись ограничена одной строкой на сессию (стартовый дамп,
-        /// <paramref name="allowStartupDump"/>=true); постоянный лог включается только
-        /// env-переменной <c>CM_COLUMNS_TRACE=1</c> (issue #343 — циклический вызов
-        /// этой диагностики раздувал журнал до сотен мегабайт за полминуты).
+        /// внешнего общего ScrollViewer, его viewport/extent и DPI окна. Пишет ТОЛЬКО
+        /// при включённом флаге <c>CM_COLUMNS</c> (issue #347): без безусловных веток —
+        /// ни постоянный лог, ни однократный стартовый дамп не пишутся при выключенном
+        /// флаге, даже если установлена env-переменная (замечание пользователя #347,
+        /// issue #343 — циклический вызов раздувал журнал до сотен мегабайт за полминуты).
         /// </summary>
-        private void LogColumnsDiagnostics(double total, bool allowStartupDump = false)
+        private void LogColumnsDiagnostics(double total)
         {
             if (!ColumnsTraceEnabled)
-            {
-                if (!allowStartupDump || _columnsTraceDumped)
-                    return;
-                _columnsTraceDumped = true;
-            }
+                return;
             try
             {
                 var listScroll = DbListScroll;

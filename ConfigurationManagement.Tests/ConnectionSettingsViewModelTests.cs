@@ -327,4 +327,93 @@ public sealed class ConnectionSettingsViewModelTests
         Assert.Equal(string.Empty, vm.UpdateUrlSegment);
         Assert.Equal("—", vm.LinkDisplay);
     }
+
+    // ==================== Разбор единого адреса хранилища (issues #140/#348) ====================
+
+    [Fact]
+    public void SplitRepositoryConnectionString_TcpAddress_KeepsSchemeInServer()
+    {
+        // Кнопка «Вставить» (вкладка «Хранилище»): адрес из 1С «tcp://dev:555/base» разбирается
+        // так, что сервер сохраняет протокол — как в подсказке поля и модели Server (issue #348).
+        var vm = new ConnectionSettingsViewModel();
+
+        vm.SplitRepositoryConnectionString("tcp://dev:555/base");
+
+        Assert.Equal("tcp://dev:555", vm.RepositoryServer);
+        Assert.Equal("base", vm.RepositoryName);
+    }
+
+    [Fact]
+    public void SplitRepositoryConnectionString_FileAddress_KeepsSchemeInServer()
+    {
+        // Файловое хранилище: схема «file://» и путь остаются в адресе сервера,
+        // имя хранилища — последний сегмент (как при импорте из стартера, issue #163).
+        var vm = new ConnectionSettingsViewModel();
+
+        vm.SplitRepositoryConnectionString("file:///path/store");
+
+        Assert.Equal("file:///path", vm.RepositoryServer);
+        Assert.Equal("store", vm.RepositoryName);
+    }
+
+    [Fact]
+    public void SplitRepositoryConnectionString_HttpScheme_KeepsScheme()
+    {
+        var vm = new ConnectionSettingsViewModel();
+
+        vm.SplitRepositoryConnectionString("https://repo.example.ru/storage");
+
+        Assert.Equal("https://repo.example.ru", vm.RepositoryServer);
+        Assert.Equal("storage", vm.RepositoryName);
+    }
+
+    [Fact]
+    public void SplitRepositoryConnectionString_WithoutScheme_Regression()
+    {
+        // Без схемы — прежнее поведение разбора (issue #140): сервер без протокола, имя отдельно.
+        var vm = new ConnectionSettingsViewModel();
+
+        vm.SplitRepositoryConnectionString("dev:555/base");
+
+        Assert.Equal("dev:555", vm.RepositoryServer);
+        Assert.Equal("base", vm.RepositoryName);
+    }
+
+    [Fact]
+    public void SplitRepositoryConnectionString_NoName_SchemeStaysInServer()
+    {
+        var vm = new ConnectionSettingsViewModel();
+
+        vm.SplitRepositoryConnectionString("tcp://dev:555");
+
+        Assert.Equal("tcp://dev:555", vm.RepositoryServer);
+        Assert.Equal(string.Empty, vm.RepositoryName);
+    }
+
+    [Fact]
+    public void SplitRepositoryConnectionString_TrailingSlash_DropsEmptyName()
+    {
+        var vm = new ConnectionSettingsViewModel();
+
+        vm.SplitRepositoryConnectionString("tcp://dev:555/");
+
+        Assert.Equal("tcp://dev:555", vm.RepositoryServer);
+        Assert.Equal(string.Empty, vm.RepositoryName);
+    }
+
+    [Fact]
+    public void SplitThenApplyTo_OneCLauncherPath_NoDoubleScheme()
+    {
+        // Сквозная проверка (issue #348): вставка адреса → Server со схемой → сборка пути
+        // для OneCLauncher даёт ровно один «tcp://» (без «tcp://tcp://»).
+        var vm = new ConnectionSettingsViewModel();
+        vm.SplitRepositoryConnectionString("tcp://dev:555/base");
+        var ib = new Infobase { Connection = new ConnectionSettings() };
+
+        vm.ApplyTo(ib);
+
+        var arg = OneCLauncher.BuildRepositoryDumpCfgArgument(ib, @"C:\out\v.cf", null);
+        Assert.Contains(" /ConfigurationRepositoryF \"tcp://dev:555/base\"", arg);
+        Assert.DoesNotContain("tcp://tcp://", arg);
+    }
 }

@@ -826,6 +826,168 @@ public sealed class BatchSelectionHelperTests
             clickTick, menuCloseTick: clickTick - 50, windowMs: PrecedingWindowMs));
     }
 
+    // ============ Строка под курсором при закрытии меню (issue #340, 0.3.9.316) ============
+    // Третий реальный trace.json (0.3.9.315): MenuClosed с курсором над строкой дерева
+    // (overTreeRow=true), снимок клика не записан (guard-цепочка не прошла), а последний
+    // обычный клик был за ~1,8 с до закрытия — вне окна "clickBeforeMenuClose" (500 мс),
+    // поэтому ни один штатный путь стабилизацию не запускает. Если в окне ~2 с
+    // (MenuCloseRecentMouseActivityWindowMs) был обычный клик без модификаторов, а меню
+    // закрылось НЕ выбором пункта — выбор восстанавливается по строке ПОД КУРСОРОМ
+    // (EnsureSelectionStable, причина "menuClosedOverRow").
+
+    private const long RecentWindowMs = BatchSelectionHelper.MenuCloseRecentMouseActivityWindowMs;
+
+    [Fact]
+    public void ShouldRestoreSelectionForRowUnderCursor_OverRowWithRecentClick_True()
+    {
+        // Лог 0.3.9.315: обычный клик был ~1,8 с до закрытия меню (вне окна 500 мс, но
+        // в пределах 2 с), курсор при закрытии над строкой дерева — восстановление нужно.
+        const long clickTick = 10_000;
+        Assert.True(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: clickTick,
+            menuCloseTick: clickTick + 1_800,
+            nowTick: clickTick + 1_800,
+            windowMs: RecentWindowMs));
+
+        // Граница окна включительно (ровно 2 с до закрытия — ещё «недавний клик»).
+        Assert.True(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: clickTick,
+            menuCloseTick: clickTick + RecentWindowMs,
+            nowTick: clickTick + RecentWindowMs,
+            windowMs: RecentWindowMs));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionForRowUnderCursor_CursorOverMenuItem_False()
+    {
+        // Закрытие выбором пункта меню: курсор над пунктом — строка дерева не меняется,
+        // восстановление не запускается даже при свежем обычном клике.
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: true,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: 10_000,
+            menuCloseTick: 10_200,
+            nowTick: 10_200,
+            windowMs: RecentWindowMs));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionForRowUnderCursor_CursorNotOverRow_False()
+    {
+        // Курсор вне строки дерева (клик мимо / служебная область) — цели для
+        // восстановления нет.
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: false,
+            overMenuItem: false,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: 10_000,
+            menuCloseTick: 10_200,
+            nowTick: 10_200,
+            windowMs: RecentWindowMs));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionForRowUnderCursor_NoRecentClick_False()
+    {
+        // Обычных кликов по строке дерева не было (метка 0) — закрытие ESC/программно
+        // без мышиной активности: восстановление не запускается.
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: 0,
+            menuCloseTick: 10_200,
+            nowTick: 10_200,
+            windowMs: RecentWindowMs));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionForRowUnderCursor_MultiSelectClick_False()
+    {
+        // Последняя мышиная активность — НЕ обычный клик (Ctrl/Shift-клик, мультивыделение):
+        // восстановление строки под курсором не трогает набор «для выделенных».
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: false,
+            lastPlainClickTick: 10_000,
+            menuCloseTick: 10_200,
+            nowTick: 10_200,
+            windowMs: RecentWindowMs));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionForRowUnderCursor_ClickLongAgo_False()
+    {
+        // Клик был ДАВНО (3 с до закрытия — за пределами окна 2 с): это не свидетельство
+        // «пользователь целился в строку под курсором», восстановление не запускается.
+        const long clickTick = 10_000;
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: clickTick,
+            menuCloseTick: clickTick + 3_000,
+            nowTick: clickTick + 3_000,
+            windowMs: RecentWindowMs));
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: clickTick,
+            menuCloseTick: clickTick + RecentWindowMs + 1,
+            nowTick: clickTick + RecentWindowMs + 1,
+            windowMs: RecentWindowMs));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionForRowUnderCursor_SnapshotPresent_False()
+    {
+        // Снимок клика, закрывшего меню, записан — работают штатные пути A/C/snapshot,
+        // восстановление по строке под курсором не нужно (избегаем двойной работы).
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: true,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: 10_000,
+            menuCloseTick: 10_200,
+            nowTick: 10_200,
+            windowMs: RecentWindowMs));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionForRowUnderCursor_ClickAfterClose_False()
+    {
+        // Обычный клик ПОСЛЕ закрытия меню — новое действие пользователя: его обработает
+        // штатный путь ShouldStabilizeAfterMenuClose, а не восстановление по курсору.
+        const long clickTick = 10_000;
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            recentClickWasPlainLeftWithoutModifiers: true,
+            lastPlainClickTick: clickTick,
+            menuCloseTick: clickTick - 50,
+            nowTick: clickTick,
+            windowMs: RecentWindowMs));
+    }
+
     // ======================= Диагностика клика (issue #340, 0.3.9.311, B-6) =======================
 
     [Fact]

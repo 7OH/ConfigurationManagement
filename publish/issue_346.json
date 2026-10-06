@@ -33,16 +33,16 @@
     "labels":  [
 
                ],
-    "state":  "open",
+    "state":  "closed",
     "locked":  false,
     "assignees":  [
 
                   ],
     "milestone":  null,
-    "comments":  2,
+    "comments":  4,
     "created_at":  "2026-10-05T08:27:03Z",
-    "updated_at":  "2026-10-05T13:03:47Z",
-    "closed_at":  null,
+    "updated_at":  "2026-10-06T05:01:31Z",
+    "closed_at":  "2026-10-06T05:01:31Z",
     "assignee":  null,
     "author_association":  "NONE",
     "active_lock_reason":  null,
@@ -58,7 +58,27 @@
                                        "total_blocking":  0
                                    },
     "body":  "У нас есть в базе данные о конфигурации - её имя и версия, например:\nЗарплатаИУправлениеПерсоналом, 3.1.38.92\n\nТак же есть запись про типовую конфигурацию:\nНаименование = Зарплата и управление персоналом\nИмя = ЗарплатаИУправлениеПерсоналом\nРедакция = 3.1\n\nПри попытке проверить обновление получаем\n\"База не связана с типовой\"\n\nПроисходит ли сопоставление по имени конфигурации с типовой и по редакции, если имеются записи для них в типовой ?\nЕсли да - то как ?\nнеобходимо ли иметь в таблице редакций раздельно Редакция = 3 и подРедакция = 1 или можно, как сейчас - хранить там сразу 3.1\n\nВ целом ранее звучало, что приоритет у Привязки к типовой при обновлении, но сейчас без указания привязки - и простой поиск выходит, что не работает.\n\nПросьба пояснить алгоритм поиска, если он есть",
-    "closed_by":  null,
+    "closed_by":  {
+                      "login":  "7OH",
+                      "id":  3063507,
+                      "node_id":  "MDQ6VXNlcjMwNjM1MDc=",
+                      "avatar_url":  "https://avatars.githubusercontent.com/u/3063507?v=4",
+                      "gravatar_id":  "",
+                      "url":  "https://api.github.com/users/7OH",
+                      "html_url":  "https://github.com/7OH",
+                      "followers_url":  "https://api.github.com/users/7OH/followers",
+                      "following_url":  "https://api.github.com/users/7OH/following{/other_user}",
+                      "gists_url":  "https://api.github.com/users/7OH/gists{/gist_id}",
+                      "starred_url":  "https://api.github.com/users/7OH/starred{/owner}{/repo}",
+                      "subscriptions_url":  "https://api.github.com/users/7OH/subscriptions",
+                      "organizations_url":  "https://api.github.com/users/7OH/orgs",
+                      "repos_url":  "https://api.github.com/users/7OH/repos",
+                      "events_url":  "https://api.github.com/users/7OH/events{/privacy}",
+                      "received_events_url":  "https://api.github.com/users/7OH/received_events",
+                      "type":  "User",
+                      "user_view_type":  "public",
+                      "site_admin":  false
+                  },
     "reactions":  {
                       "url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/346/reactions",
                       "total_count":  0,
@@ -73,6 +93,6 @@
                   },
     "timeline_url":  "https://api.github.com/repos/sivatorov/ConfigurationManagement/issues/346/timeline",
     "performed_via_github_app":  null,
-    "state_reason":  null,
+    "state_reason":  "completed",
     "pinned_comment":  null
 }

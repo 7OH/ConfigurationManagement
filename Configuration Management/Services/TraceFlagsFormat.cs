@@ -20,13 +20,26 @@ internal readonly record struct TraceFlagsParseResult(bool IsValid, IReadOnlyDic
 /// сериализация дефолтов, разбор значений (регистр имён безразличен), игнорирование
 /// неизвестных флагов и решение о миграции старого JSONL-журнала.
 /// <para>
-/// <c>trace.json</c> рядом с настройками приложения (<see cref="PlatformPaths.AppDataDirectory"/>)
-/// — это JSON-КОНФИГ флагов, а не журнал: <c>{"version":1,"CM_COLUMNS":false,
-/// "CM_MENUCLICK":false,"CM_MENUCLOSE":false,"CM_REDIRECT":false}</c>. До 0.3.9.315 этот файл
-/// был JSONL-журналом событий меню (первая строка <c>{"ts":…</c>) — при первом старте новой
-/// версии такой файл переименовывается в <see cref="LegacyJsonlBackupFileName"/>
+/// <c>trace.json</c> лежит в каталоге данных АКТИВНОГО ПРОФИЛЯ (рядом с <c>settings.json</c>;
+/// до выбора профиля — в корне <see cref="PlatformPaths.AppDataDirectory"/>, с переносом при
+/// загрузке настроек профиля) — это JSON-КОНФИГ флагов, а не журнал. Формат (pretty-print,
+/// стабильный порядок ключей <c>version</c>, <c>CM_COLUMNS</c>, <c>CM_MENUCLICK</c>,
+/// <c>CM_MENUCLOSE</c>, <c>CM_REDIRECT</c>):
+/// <code>
+/// {
+///   "version": 1,
+///   "CM_COLUMNS": false,
+///   "CM_MENUCLICK": false,
+///   "CM_MENUCLOSE": false,
+///   "CM_REDIRECT": false
+/// }
+/// </code>
+/// Парсер устойчив и к компактной записи в одну строку (прежний формат). До 0.3.9.315 этот
+/// файл был JSONL-журналом событий меню (первая строка <c>{"ts":…</c>) — при первом старте
+/// новой версии такой файл переименовывается в <see cref="LegacyJsonlBackupFileName"/>
 /// (история диагностики сохраняется), а сам журнал переезжает в
-/// <see cref="MenuCloseLogFileName"/> при включённом флаге <c>CM_MENUCLOSE</c>.
+/// <see cref="MenuCloseLogFileName"/> (каталог логов <see cref="PlatformPaths.LogDirectory"/>)
+/// при включённом флаге <c>CM_MENUCLOSE</c>.
 /// </para>
 /// </summary>
 internal static class TraceFlagsFormat
@@ -35,17 +48,20 @@ internal static class TraceFlagsFormat
     public const int ConfigVersion = 1;
 
     /// <summary>
-    /// Имя конфига флагов (issue #347): <c>trace.json</c> РЯДОМ с настройками приложения
-    /// (тот же каталог, что settings.json). С 0.3.9.315 — JSON-объект флагов, а не журнал.
+    /// Имя конфига флагов (issue #347): <c>trace.json</c> в каталоге данных активного профиля
+    /// (тот же каталог, что settings.json; до выбора профиля — корень каталога данных).
+    /// С 0.3.9.315 — JSON-объект флагов, а не журнал.
     /// </summary>
     public const string ConfigFileName = "trace.json";
 
     /// <summary>
-    /// Основное имя журнала событий меню (issue #347): <c>trace_menuclose.jsonl</c>.
-    /// Журнал больше НЕ лежит в <c>trace.json</c> (этот файл стал конфигом флагов);
-    /// содержимое — JSON Lines (одна JSON-запись на строку), расширение .jsonl.
+    /// Основное имя журнала событий меню (issue #347, замечание 3): <c>trace_menuclose.json</c>
+    /// в каталоге логов (<see cref="PlatformPaths.LogDirectory"/> — AppDataDirectory/logs).
+    /// «Буква l в конце лишняя» (пользователь про .jsonl). Журнал больше НЕ лежит в
+    /// <c>trace.json</c> (этот файл стал конфигом флагов); содержимое — JSON Lines
+    /// (одна JSON-запись на строку), расширение .json.
     /// </summary>
-    public const string MenuCloseLogFileName = "trace_menuclose.jsonl";
+    public const string MenuCloseLogFileName = "trace_menuclose.json";
 
     /// <summary>
     /// Имя резервной копии старого JSONL-журнала (issue #347): <c>trace_menuclose_legacy.json</c>.
@@ -82,20 +98,23 @@ internal static class TraceFlagsFormat
         new Dictionary<string, bool>(StringComparer.Ordinal);
 
     /// <summary>
-    /// Сериализует конфиг флагов в JSON со стабильным порядком ключей:
-    /// <c>{"version":1,"CM_COLUMNS":false,"CM_MENUCLICK":false,"CM_MENUCLOSE":false,"CM_REDIRECT":false}</c>.
-    /// Флаги, отсутствующие в <paramref name="flags"/>, выводятся как <c>false</c> (по умолчанию).
+    /// Сериализует конфиг флагов в JSON с ПЕРЕНОСАМИ СТРОК И ОТСТУПАМИ (pretty-print,
+    /// issue #347, замечание 1) и стабильным порядком ключей: <c>version</c>, затем флаги
+    /// в порядке <see cref="KnownFlags"/>. Парсер (<see cref="Parse"/>) устойчив к обоим
+    /// форматам записи — и к этому, и к компактному однострочному. Флаги, отсутствующие
+    /// в <paramref name="flags"/>, выводятся как <c>false</c> (по умолчанию).
     /// </summary>
     public static string Serialize(IReadOnlyDictionary<string, bool>? flags)
     {
-        var sb = new StringBuilder(96);
-        sb.Append("{\"version\":").Append(ConfigVersion);
+        var sb = new StringBuilder(160);
+        sb.Append('{').Append('\n');
+        sb.Append("  \"version\": ").Append(ConfigVersion);
         foreach (var flag in KnownFlags)
         {
             var enabled = flags is not null && flags.TryGetValue(flag, out var value) && value;
-            sb.Append(",\"").Append(flag).Append("\":").Append(enabled ? "true" : "false");
+            sb.Append(",\n  \"").Append(flag).Append("\": ").Append(enabled ? "true" : "false");
         }
-        sb.Append('}');
+        sb.Append('\n').Append('}');
         return sb.ToString();
     }
 
@@ -175,9 +194,9 @@ internal static class TraceFlagsFormat
     /// <summary>
     /// Выбор имени файла журнала событий меню: при наличии legacy-файла
     /// <c>menuclose_trace.json</c> от 0.3.9.306 журнал дописывается в него (непрерывность
-    /// диагностики), иначе — основной <c>trace_menuclose.jsonl</c>. Чистая функция выбора
-    /// пути для юнит-тестов (сам путь строит <see cref="MenuCloseTrace"/> через
-    /// <see cref="PlatformPaths.AppDataDirectory"/>).
+    /// диагностики), иначе — основной <c>trace_menuclose.json</c> в каталоге логов
+    /// (<see cref="PlatformPaths.LogDirectory"/>). Чистая функция выбора имени для
+    /// юнит-тестов (полный путь строит <see cref="MenuCloseTrace"/>).
     /// </summary>
     public static string ResolveMenuCloseFileName(bool legacyExists)
         => legacyExists ? LegacyFileName : MenuCloseLogFileName;

@@ -1,11 +1,11 @@
-﻿[
+[
     {
         "Number":  347,
         "Title":  "Сказ о trace.json",
-        "Comments":  0,
-        "LastCommentAuthor":  "",
-        "LastCommentDate":  "",
-        "LastCommentPreview":  "(нет комментариев)"
+        "Comments":  1,
+        "LastCommentAuthor":  "sivatorov",
+        "LastCommentDate":  "2026-10-06T07:45:06Z",
+        "LastCommentPreview":  "Исправлено в версии **0.3.9.315** (Windows/WPF и Linux/Avalonia; issue #347 «Сказ о trace.json» — механизм отладочных флагов).  **Что было.**  `trace.json` рядом с настройками был JSONL-журналом событ..."
     },
     {
         "Number":  346,
@@ -18,10 +18,10 @@
     {
         "Number":  340,
         "Title":  "Снятие выделения после контекстного меню ",
-        "Comments":  23,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-05T18:34:25Z",
-        "LastCommentPreview":  "{\"ts\":\"2026-10-05T21:32:26.050+03:00\",\"thread\":2,\"event\":\"log\",\"data\":{\"message\":\"Activated: openMenusCount=0, timeSinceMenuCloseMs=1106531\"}} {\"ts\":\"2026-10-05T21:32:28.091+03:00\",\"thread\":2,\"event\":\"log\",\"data\":{\"messa..."
+        "Comments":  24,
+        "LastCommentAuthor":  "sivatorov",
+        "LastCommentDate":  "2026-10-06T07:45:05Z",
+        "LastCommentPreview":  "Исправлено в версии **0.3.9.314** (Windows/WPF и Linux/Avalonia; девятая итерация по issue #340).  **Что было.**  По вашему второму `trace.json` (0.3.9.311, комментарий от 2026-10-05) стало видно недо..."
     },
     {
         "Number":  334,
@@ -42,9 +42,9 @@
     {
         "Number":  323,
         "Title":  "Окно Проверка обновлений",
-        "Comments":  23,
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-05T21:06:37Z",
-        "LastCommentPreview":  "Нашел рабочий код в 1С - возможно и тут чем-то поможет с редиректом -- \u0026НаСервере Функция РаспарситьinviteCode(Текст) ЧтениеHTML = Новый ЧтениеHTML; ЧтениеHTML.УстановитьСтроку(Текст); Построитель = Новый ПостроительDOM;..."
+        "Comments":  24,
+        "LastCommentAuthor":  "sivatorov",
+        "LastCommentDate":  "2026-10-06T07:45:03Z",
+        "LastCommentPreview":  "Исправлено в версии **0.3.9.313** (Windows/WPF и Linux/Avalonia; седьмая итерация программного входа).  **Что было.**  В вашем логе на 0.3.9.310 (комментарий от 2026-10-05) после отправки формы входа ..."
     }
 ]

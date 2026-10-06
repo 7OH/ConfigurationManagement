@@ -189,6 +189,24 @@ namespace Configuration_Management
         private Point _lastTreePointerPos = new(-1, -1);
 
         /// <summary>
+        /// Метка последнего движения указателя НАД ГЛАВНЫМ ОКНОМ (issue #340, 0.3.9.316):
+        /// единые часы <see cref="Environment.TickCount"/>. Позиция <see cref="_lastTreePointerPos"/>
+        /// кэшируется из PointerMoved окна, а движение НАД попапом контекстного меню
+        /// (отдельный top-level) в это окно не приходит — по свежести метки решается,
+        /// можно ли доверять «строке под курсором» при закрытии меню (см.
+        /// <see cref="OnTreeContextMenuIsOpenChanged"/>).
+        /// </summary>
+        private long _lastTreePointerMoveTick;
+
+        /// <summary>
+        /// Метка ОТКРЫТИЯ контекстного меню дерева (issue #340, 0.3.9.316): единые часы
+        /// <see cref="Environment.TickCount"/>. Вместе с <see cref="_lastTreePointerMoveTick"/>
+        /// отличает закрытие выбором пункта меню (указатель над меню — свежего движения
+        /// над окном нет, позиция устаревшая) от закрытия кликом по строке дерева.
+        /// </summary>
+        private long _treeMenuOpenedTick;
+
+        /// <summary>
         /// Подписывает обработку клика, закрывшего контекстное меню строки (issue #340).
         /// Туннельная фаза ОКНА срабатывает раньше обработчиков контрола LeveledTreeView.
         /// Выбор применяет ШТАТНАЯ логика контрола (OnRowPointerPressed) — по живому
@@ -202,10 +220,16 @@ namespace Configuration_Management
             AddHandler(InputElement.PointerReleasedEvent, OnTreeMenuCloseClickDedup_PointerReleased, RoutingStrategies.Tunnel);
             // B-4 (0.3.9.311): запоминаем последнюю позицию указателя в координатах дерева
             // (см. <see cref="_lastTreePointerPos"/>) — используется записью MenuClosedCursor.
+            // 0.3.9.316: вместе с позицией фиксируется метка движения (см.
+            // <see cref="_lastTreePointerMoveTick"/>) — для отличия свежей позиции над
+            // строкой от устаревшей (указатель остался над попапом меню).
             AddHandler(InputElement.PointerMovedEvent, (_, e) =>
             {
                 if (_tree is not null)
+                {
                     _lastTreePointerPos = e.GetPosition(_tree);
+                    _lastTreePointerMoveTick = Environment.TickCount;
+                }
             }, RoutingStrategies.Tunnel);
         }
 
@@ -225,9 +249,17 @@ namespace Configuration_Management
             MenuCloseTrace.Log(isOpen
                 ? $"MenuOpened: isTreeMenu={isTreeMenu}"
                 : $"MenuClosed: isTreeMenu={isTreeMenu}");
+            if (isOpen && isTreeMenu)
+                _treeMenuOpenedTick = Environment.TickCount;
             if (!isOpen && isTreeMenu)
             {
                 _lastMenuCloseTick = Environment.TickCount;
+
+                // Строка базы ПОД УКАЗАТЕЛЕМ на момент закрытия меню дерева (issue #340,
+                // 0.3.9.316): цель восстановления выбором (MenuClosedOverRow), если меню
+                // закрылось кликом, который попап проглотил и не доставил в дерево.
+                Infobase? cursorInfobase = null;
+                var cursorPinnedSection = false;
 
                 // B-4 (0.3.9.311): координаты указателя и признак «курсор над строкой
                 // дерева» на момент закрытия меню — по логу видно, ЧЕМ именно закрыто
@@ -238,11 +270,28 @@ namespace Configuration_Management
                 var cursorX = _lastTreePointerPos.X;
                 var cursorY = _lastTreePointerPos.Y;
                 var overTreeRow = false;
+                TreeViewItem? cursorRow = null;
                 if (_tree is not null && _tree.InputHitTest(_lastTreePointerPos) is { } hitElement)
-                    overTreeRow = (hitElement as Visual)
-                        ?.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault() is not null;
+                    cursorRow = (hitElement as Visual)
+                        ?.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault();
+                overTreeRow = cursorRow is not null;
+                if (cursorRow?.DataContext is Infobase or PinnedInfobaseItem)
+                {
+                    cursorInfobase = BatchSelectionHelper.Unwrap(cursorRow.DataContext);
+                    cursorPinnedSection = BatchSelectionHelper.IsPinnedSection(cursorRow.DataContext);
+                }
                 MenuCloseTrace.Log($"MenuClosedCursor: x={cursorX:0.#}, y={cursorY:0.#}, " +
                                    $"overTreeRow={overTreeRow}, keyboardFocusWithin={IsKeyboardFocusWithin}");
+
+                // issue #340 (0.3.9.316): в Avalonia нет прямого аналога WPF
+                // Mouse.DirectlyOver для закрывающегося попапа — позиция кэшируется из
+                // PointerMoved ГЛАВНОГО окна, а движение НАД меню в него не приходит.
+                // Если во время открытого меню указатель НЕ двигался над окном, «строка
+                // под курсором» — устаревшая позиция (обычно над строкой правого клика,
+                // которая уже выбрана), что характерно для закрытия выбором пункта меню:
+                // трактуем как overMenuItem (восстановление не запускаем; защита «строка
+                // под курсором == текущий выбор» ниже всё равно не даст перенести выбор).
+                var overMenuItemApprox = _lastTreePointerMoveTick < _treeMenuOpenedTick;
 
                 // issue #340 (0.3.9.314): клик по строке мог прийти в дерево ДО закрытия
                 // меню (второй реальный trace.json: PointerPressed → MenuClosed,
@@ -254,19 +303,49 @@ namespace Configuration_Management
                 // Отложенный запуск (Post): компоновка после закрытия попапа устаканится;
                 // стабилизация идемпотентна, доводит выбор до сходимости (15 проходов /
                 // 1,5 с) и не трогает мультивыделение.
+                var precedingClick = _lastPlainTreeClick;
+                _lastPlainTreeClick = null;
                 if (_menuCloseClickSnapshot is null &&
-                    _lastPlainTreeClick is { } precedingClick &&
+                    precedingClick is { } lastPlainClick &&
                     BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
-                        precedingClick.Tick,
+                        lastPlainClick.Tick,
                         _lastMenuCloseTick,
                         BatchSelectionHelper.MenuClosePrecedingClickWindowMs))
                 {
-                    var stabilizeTarget = precedingClick.Base;
-                    var stabilizePinned = precedingClick.IsPinnedSection;
-                    _lastPlainTreeClick = null;
+                    var stabilizeTarget = lastPlainClick.Base;
+                    var stabilizePinned = lastPlainClick.IsPinnedSection;
                     Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                         EnsureSelectionStable(stabilizeTarget, stabilizePinned,
                             reason: "clickBeforeMenuClose"));
+                }
+                // issue #340 (0.3.9.316, 10-я итерация): третий реальный trace.json
+                // (0.3.9.315) показал сценарий, где НИ один штатный путь не запускает
+                // стабилизацию: меню закрылось с указателем над строкой дерева
+                // (overTreeRow=true), снимок клика не записан, а последний обычный клик
+                // был за пределами окна "clickBeforeMenuClose" (500 мс) — например ~1,8 с
+                // (клик, начавший цепочку действий, был ещё ДО открытия меню). Клик,
+                // которым пользователь ЗАКРЫЛ меню, вероятно, проглочен попапом и не дошёл
+                // до дерева — его цель это строка ПОД УКАЗАТЕЛЕМ: восстанавливаем выбор по
+                // ней (reason "menuClosedOverRow"). Исключения — в предикате
+                // ShouldRestoreSelectionForRowUnderCursor (overMenuItem, снимок, ESC/без
+                // недавнего клика, мультивыделение).
+                else if (precedingClick is { } activityEvidence &&
+                         BatchSelectionHelper.ShouldRestoreSelectionForRowUnderCursor(
+                             overTreeRow: overTreeRow,
+                             overMenuItem: overMenuItemApprox,
+                             snapshotPresent: _menuCloseClickSnapshot is not null,
+                             recentClickWasPlainLeftWithoutModifiers: true,
+                             lastPlainClickTick: activityEvidence.Tick,
+                             menuCloseTick: _lastMenuCloseTick,
+                             nowTick: Environment.TickCount,
+                             windowMs: BatchSelectionHelper.MenuCloseRecentMouseActivityWindowMs) &&
+                         cursorInfobase is not null)
+                {
+                    var restoreTarget = cursorInfobase;
+                    var restorePinned = cursorPinnedSection;
+                    var evidenceTick = activityEvidence.Tick;
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        ApplyRowUnderCursorRestore(restoreTarget, restorePinned, evidenceTick));
                 }
             }
         }
@@ -456,6 +535,21 @@ namespace Configuration_Management
                     _menuCloseClickSnapshot is not null,
                     false,
                     BatchSelectionHelper.IsPinnedSection(relRow?.DataContext)));
+
+                // issue #340 (0.3.9.316): симметрично WPF — «последний обычный клик»
+                // фиксируется и на отпускании левой кнопки над строкой базы (см.
+                // OnInfobaseTree_PreviewMouseLeftButtonUp): свежая метка активности мыши
+                // для восстановления выделения после закрытия меню (MenuClosedOverRow),
+                // даже если PointerPressed этого клика дерево не получил.
+                if (relRow?.DataContext is Infobase or PinnedInfobaseItem &&
+                    (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) == 0 &&
+                    BatchSelectionHelper.Unwrap(relRow.DataContext) is { } relBase)
+                {
+                    var relPinned = BatchSelectionHelper.IsPinnedSection(relRow.DataContext);
+                    _lastPlainTreeClick = (Environment.TickCount, relBase, relPinned);
+                    MenuCloseTrace.Log($"LastPlainClick (PointerReleased): target={relBase.Id}, " +
+                                       $"tick={_lastPlainTreeClick.Value.Tick}, pinned={relPinned}");
+                }
             }
 
             // Снимок сбрасывается; флаг _menuClosePendingApply намеренно НЕ трогаем — если
@@ -506,6 +600,47 @@ namespace Configuration_Management
                                $"selectedByData=true, pinned={isPinnedSection}");
             // B-5 (0.3.9.311): fallback работает по снимку клика — причина "snapshot".
             EnsureSelectionStable(target, isPinnedSection, reason: "snapshot");
+        }
+
+        /// <summary>
+        /// Восстанавливает выбор строки ПОД УКАЗАТЕЛЕМ после закрытия контекстного меню
+        /// (issue #340, 10-я итерация, Avalonia; симметрично WPF): меню закрылось с
+        /// указателем над строкой дерева, снимок клика не записан, а последний обычный
+        /// клик мыши был в окне <see cref="BatchSelectionHelper.MenuCloseRecentMouseActivityWindowMs"/>
+        /// (клик, закрывший меню, проглочен попапом и не дошёл до дерева — строка под
+        /// указателем и есть его цель). Семантика обычного клика без модификаторов:
+        /// единственный выбор; мультивыделение снимается ТОЛЬКО если строка под указателем
+        /// отличается от текущего выбора (строка уже выбранная — только стабилизация,
+        /// набор «для выделенных» не трогаем). Если пользователь успел перевыбрать другую
+        /// строку — не вмешиваемся. Выбор применяется по данным и дополнительно
+        /// стабилизируется (<see cref="EnsureSelectionStable"/>, причина "menuClosedOverRow").
+        /// </summary>
+        /// <param name="target">Строка базы под указателем в момент закрытия меню.</param>
+        /// <param name="isPinnedSection">Секция строки: true — «Закреплённые» (issue #326).</param>
+        /// <param name="evidenceTick">Метка последнего обычного клика (для диагностики).</param>
+        private void ApplyRowUnderCursorRestore(Infobase target, bool isPinnedSection, long evidenceTick)
+        {
+            if (_vm is null || _tree is null || target is null)
+                return;
+
+            // Пользователь успел перевыбрать другую строку — не вмешиваемся.
+            if (_vm.SelectedInfobase is { } current && !ReferenceEquals(current, target))
+            {
+                MenuCloseTrace.Log($"MenuClosedOverRow: ran=false, target={target.Id}, userReselected=true");
+                return;
+            }
+
+            var selectionChanged = !ReferenceEquals(_vm.SelectedInfobase, target);
+            if (selectionChanged)
+            {
+                // Семантика обычного клика: единственный выбор строки под указателем.
+                _vm.ClearBatchSelection();
+                SelectRowByData(target, isPinnedSection);
+            }
+            MenuCloseTrace.Log($"MenuClosedOverRow: ran=true, target={target.Id}, pinned={isPinnedSection}, " +
+                               $"selected={(selectionChanged ? "applied" : "same")}, " +
+                               $"precedingClickTick={evidenceTick}");
+            EnsureSelectionStable(target, isPinnedSection, reason: "menuClosedOverRow");
         }
 
         /// <summary>

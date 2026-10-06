@@ -10,14 +10,13 @@ namespace Configuration_Management.Services;
 /// Диагностическая трассировка клика, закрывающего контекстное меню дерева
 /// (issue #340, девятая попытка; issue #347 «Сказ о trace.json» — с 0.3.9.315 пишется
 /// ТОЛЬКО при включённом флаге <c>CM_MENUCLOSE</c> в конфиге <c>trace.json</c>, псевдоним —
-/// <c>CM_MENUCLICK</c>). Журнал лежит в <c>trace_menuclose.jsonl</c> РЯДОМ с настройками
-/// приложения — в каталоге <see cref="PlatformPaths.AppDataDirectory"/> (Windows:
-/// %APPDATA%\ConfigurationManagement\, Linux: ~/.config/ConfigurationManagement/),
-/// тот же каталог, что settings.json и конфиг флагов.
-/// Имя файла — по соглашению с пользователем (0.3.9.308–0.3.9.314 это был основной
-/// <c>trace.json</c>; с 0.3.9.315 — <c>trace_menuclose.jsonl</c>, чтобы не конфликтовать
-/// с конфигом); legacy <c>menuclose_trace.json</c> от 0.3.9.306 продолжает дописываться,
-/// если уже существует (непрерывность диагностики, см. <see cref="ResolvePath"/>).
+/// <c>CM_MENUCLICK</c>). Журнал лежит в каталоге логов
+/// <see cref="PlatformPaths.LogDirectory"/> (AppDataDirectory/logs) под именем
+/// <c>trace_menuclose.json</c> (issue #347, замечание 3: «буква l в конце лишняя» —
+/// прежнее имя <c>trace_menuclose.jsonl</c> убрано). Legacy <c>menuclose_trace.json</c>
+/// от 0.3.9.306 продолжает дописываться, если уже существует рядом с настройками
+/// (<see cref="PlatformPaths.AppDataDirectory"/>) — непрерывность диагностики,
+/// см. <see cref="ResolvePath"/>.
 /// Формат — JSON Lines: одна JSON-запись на строку (валидный JSON, ключи латиницей).
 /// При превышении ~1 МБ (0.3.9.311: лимит увеличен с 512 КБ) файл усекается по кругу:
 /// остаётся хвост последних записей и первой строкой дописывается маркер
@@ -71,11 +70,11 @@ public static class MenuCloseTrace
     }
 
     /// <summary>
-    /// Пишет одну запись в журнал меню (trace_menuclose.jsonl, либо legacy menuclose_trace.json
-    /// при его наличии) — ТОЛЬКО при включённом флаге <c>CM_MENUCLOSE</c> или его псевдониме
-    /// <c>CM_MENUCLICK</c> (issue #347; при выключенном флаге — no-op, файл не растёт).
-    /// Сигнатура сохранена прежней — все существующие вызовы НЕ меняются; текст сообщения
-    /// сохраняется в <c>data.message</c>. Ошибки записи игнорируются.
+    /// Пишет одну запись в журнал меню (logs/trace_menuclose.json, либо legacy
+    /// menuclose_trace.json при его наличии) — ТОЛЬКО при включённом флаге <c>CM_MENUCLOSE</c>
+    /// или его псевдониме <c>CM_MENUCLICK</c> (issue #347; при выключенном флаге — no-op,
+    /// файл не растёт). Сигнатура сохранена прежней — все существующие вызовы НЕ меняются;
+    /// текст сообщения сохраняется в <c>data.message</c>. Ошибки записи игнорируются.
     /// </summary>
     public static void Log(string message)
     {
@@ -102,21 +101,33 @@ public static class MenuCloseTrace
     }
 
     /// <summary>
-    /// Полный путь к журналу (в каталоге данных приложения). Выбор имени
-    /// (issue #340, 0.3.9.308): если рядом с настройками уже существует legacy-файл
+    /// Чистая резолюция пути журнала для юнит-тестов (issue #347, замечание 3):
+    /// основной файл — <c>trace_menuclose.json</c> в каталоге логов
+    /// (<paramref name="logDirectory"/>); если в каталоге данных
+    /// (<paramref name="legacyDirectory"/>) уже существует legacy-файл
+    /// <c>menuclose_trace.json</c> от 0.3.9.306 — журнал дописывается в него
+    /// (непрерывность диагностики).
+    /// </summary>
+    internal static string ResolvePathCore(string logDirectory, string legacyDirectory)
+    {
+        var legacy = Path.Combine(legacyDirectory, LegacyFileName);
+        return File.Exists(legacy)
+            ? legacy
+            : Path.Combine(logDirectory, MenuCloseTraceFormat.ResolveFileName(legacyExists: false));
+    }
+
+    /// <summary>
+    /// Полный путь к журналу (issue #347, замечание 3): основной файл
+    /// <c>trace_menuclose.json</c> — в каталоге логов <see cref="PlatformPaths.LogDirectory"/>
+    /// (AppDataDirectory/logs); если рядом с настройками уже существует legacy-файл
     /// <c>menuclose_trace.json</c> (от 0.3.9.306) — журнал дописывается в него
-    /// (непрерывность диагностики); иначе — основной <c>trace_menuclose.jsonl</c> (issue #347).
-    /// Путь кэшируется на время сессии.
+    /// (непрерывность диагностики). Путь кэшируется на время сессии.
     /// </summary>
     private static string ResolvePath()
     {
         if (_tracePath is not null)
             return _tracePath;
-        var dir = PlatformPaths.AppDataDirectory;
-        var legacy = Path.Combine(dir, LegacyFileName);
-        _tracePath = File.Exists(legacy)
-            ? legacy
-            : Path.Combine(dir, MenuCloseTraceFormat.ResolveFileName(legacyExists: false));
+        _tracePath = ResolvePathCore(PlatformPaths.LogDirectory, PlatformPaths.AppDataDirectory);
         return _tracePath;
     }
 

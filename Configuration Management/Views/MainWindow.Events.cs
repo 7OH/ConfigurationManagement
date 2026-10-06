@@ -907,6 +907,22 @@ namespace Configuration_Management
                 false,
                 BatchSelectionHelper.IsPinnedSection(upRow?.DataContext)));
 
+            // issue #340 (0.3.9.316): «последний обычный клик» фиксируется и на отпускании
+            // левой кнопки над строкой базы — отпускание даёт СВЕЖУЮ метку активности мыши
+            // для восстановления выделения после закрытия контекстного меню
+            // (MenuClosedOverRow), даже если MouseDown этого клика дерево не получил
+            // (проглочен попапом/частичная доставка «хвоста»). Только обычный клик без
+            // Ctrl/Shift — мультивыделение evidence-предиката не касается.
+            if (upRow?.DataContext is Infobase or PinnedInfobaseItem &&
+                (upMods & (ModifierKeys.Control | ModifierKeys.Shift)) == 0 &&
+                BatchSelectionHelper.Unwrap(upRow.DataContext) is { } upBase)
+            {
+                var upPinned = BatchSelectionHelper.IsPinnedSection(upRow.DataContext);
+                _lastPlainTreeClick = (Environment.TickCount, upBase, upPinned);
+                MenuCloseTrace.Log($"LastPlainClick (MouseUp): target={upBase.Id}, " +
+                                   $"tick={_lastPlainTreeClick.Value.Tick}, pinned={upPinned}");
+            }
+
             // Снимок сбрасывается: следующий MouseDown — уже новое действие пользователя.
             // Флаг _menuClosePendingApply намеренно НЕ трогаем: если повторная доставка
             // MouseDown не пришла, выбор должен применить fallback (ApplyMenuCloseFallback,

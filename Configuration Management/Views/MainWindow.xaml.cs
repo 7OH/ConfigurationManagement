@@ -334,8 +334,9 @@ namespace Configuration_Management
                         QueueHeaderAlign();
                         // Стартовый дамп диагностики колонок (issue #309): одна строка
                         // CM_COLUMNS после завершения компоновки — для сверки фактических
-                        // значений; дальше лог не пишется (см. LogColumnsDiagnostics).
-                        LogColumnsDiagnostics(_treeMinWidthTotal, allowStartupDump: true);
+                        // значений; пишется только при включённом флаге CM_COLUMNS
+                        // (issue #347: при явном false — безусловных веток нет).
+                        LogColumnsDiagnostics(_treeMinWidthTotal);
                     }
                     catch { /* не блокируем запуск из-за восстановления выделения */ }
                 }), System.Windows.Threading.DispatcherPriority.Loaded);

@@ -75,3 +75,8 @@ false; закрытие раньше клика → false); регресс су�
 мультивыделение) без изменений. Полный набор `dotnet test` зелёный (**1813**, 0 не пройдено);
 кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Поведение оконного стека
 (попапы, виртуализация) юнит-тестами не покрывается — ждём подтверждения на вашей машине.
+
+Версия **0.3.9.314** — исправление вошло в релиз **v0.3.9.315** (в
+[CHANGELOG](https://github.com/sivatorov/ConfigurationManagement/blob/main/CHANGELOG.md) изменения
+отражены секцией 0.3.9.314):
+[релиз v0.3.9.315](https://github.com/sivatorov/ConfigurationManagement/releases/tag/v0.3.9.315).

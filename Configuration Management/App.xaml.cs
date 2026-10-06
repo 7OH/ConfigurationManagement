@@ -129,6 +129,13 @@ namespace Configuration_Management
 
                 ProfileBackupService.DataDirectoryResolver = () => profileService.CurrentProfileDataDirectory;
 
+                // Конфиг отладочных флагов trace.json живёт в каталоге АКТИВНОГО ПРОФИЛЯ
+                // (рядом с settings.json, issue #347): до выбора профиля EnsureExists выше
+                // создавал его в корне каталога данных — переносим при загрузке настроек
+                // профиля (если в профильном каталоге файла ещё нет).
+                try { Services.TraceFlags.SetProfileDataDirectory(profileService.CurrentProfileDataDirectory); }
+                catch { /* диагностика — вспомогательная возможность */ }
+
                 var repository = AppServices.GetRequiredService<IInfobaseRepository>();
                 AppSettings settings;
                 try

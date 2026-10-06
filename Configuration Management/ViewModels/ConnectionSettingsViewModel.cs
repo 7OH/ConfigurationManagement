@@ -570,6 +570,8 @@ public class ConnectionSettingsViewModel : ViewModelBase
     /// <summary>
     /// Разделяет единое поле подключения к хранилищу, скопированное из 1С
     /// (например «tcp://server:1542/ИмяХранилища»), на адрес сервера и имя хранилища (issue #140).
+    /// Схема («tcp://», «file://», «http(s)://») сохраняется в адресе сервера — подсказка поля
+    /// и модель <see cref="RepositorySettings.Server"/> предполагают адрес с протоколом (issue #348).
     /// </summary>
     public void SplitRepositoryConnectionString(string value)
     {
@@ -577,22 +579,36 @@ public class ConnectionSettingsViewModel : ViewModelBase
         if (string.IsNullOrEmpty(text))
             return;
 
-        // Убираем возможный префикс схемы «tcp://», «file://» и т.п. до «://».
+        // Префикс схемы «tcp://», «file://» и т.п. до «://» НЕ отбрасываем: он остаётся
+        // в адресе сервера (раньше поле «Сервер» теряло протокол, issue #348).
+        var schemePrefix = string.Empty;
         var body = text;
         var schemeIdx = text.IndexOf("://", StringComparison.Ordinal);
         if (schemeIdx >= 0)
+        {
+            schemePrefix = text[..(schemeIdx + 3)];
             body = text[(schemeIdx + 3)..];
+        }
 
-        // Разделяем на «сервер/имя» по первому слэшу.
-        var slashIdx = body.IndexOf('/');
+        // Разделяем на «сервер/имя» по последнему слэшу: у серверного хранилища схема+хост[:порт]
+        // уходят в адрес сервера, имя хранилища — последний сегмент; у файлового
+        // («file:///путь/имя») схема и путь остаются в адресе сервера, имя — последний сегмент
+        // (та же схема, что при импорте из стартера, issues #163/#348).
+        var slashIdx = body.LastIndexOf('/');
         if (slashIdx < 0)
         {
-            RepositoryServer = body.Trim();
+            RepositoryServer = (schemePrefix + body).Trim();
+            RepositoryName = string.Empty;
+        }
+        else if (slashIdx == body.Length - 1)
+        {
+            // Висячий слэш в конце: имени хранилища нет, у сервера убираем завершающий слэш.
+            RepositoryServer = (schemePrefix + body.TrimEnd('/')).Trim();
             RepositoryName = string.Empty;
         }
         else
         {
-            RepositoryServer = body[..slashIdx].Trim();
+            RepositoryServer = (schemePrefix + body[..slashIdx]).Trim();
             RepositoryName = body[(slashIdx + 1)..].Trim();
         }
     }

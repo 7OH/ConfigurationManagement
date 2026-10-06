@@ -1376,10 +1376,28 @@ public class OneCUpdatesService : IOneCUpdatesService
                     {
                         LogRedirectInfo("[Updates] Вход на portal.1c.ru выполнен (POST 200: страница личного кабинета), " +
                                         $"sessionCookie={HasPortalSessionCookie()} ({DescribeSessionCookies()}).");
-                        _portalLoginAttempts = 0;
-                        _lastLoginResult = PortalLoginResult.Success;
-                        LogPortalCookieInventory();
-                        return PortalLoginResult.Success;
+                        // D-1 (0.3.9.316, issue #323, восьмая итерация): POST кабинета «Личные
+                        // данные» устанавливает SESSION ТОЛЬКО для login.1c.ru (лог 7OH 0.3.9.313),
+                        // а для releases.1c.ru сессия выпускается на звене CAS security_check —
+                        // GET на адрес service формы / корень releases.1c.ru (эталон рабочего
+                        // кода 1С, комментарий 23 в #323). Без этого звена повтор исходного
+                        // запроса каталога снова даёт 302 на login (retryAfterLoginStill302),
+                        // и после исчерпания повторов пользователь видит «Требуется вход».
+                        var securityCheckOk = await RunSecurityCheckAsync(formUrl, probeUrl, ct).ConfigureAwait(false);
+                        if (securityCheckOk)
+                        {
+                            _portalLoginAttempts = 0;
+                            _lastLoginResult = PortalLoginResult.Success;
+                            LogPortalCookieInventory();
+                            return PortalLoginResult.Success;
+                        }
+
+                        _logger.Warn("[Updates] Вход на portal.1c.ru не подтверждён: POST 200 со страницей " +
+                                     "личного кабинета, но звено security_check не установило живую сессию " +
+                                     "для releases.1c.ru — повтор исходного запроса не выполняется " +
+                                     "(честный AuthFailed, issue #323).");
+                        _lastLoginResult = PortalLoginResult.RedirectFailed;
+                        return PortalLoginResult.RedirectFailed;
                     }
 
                     if (LooksLikeLoginForm(postBody))
@@ -1462,6 +1480,138 @@ public class OneCUpdatesService : IOneCUpdatesService
             _lastLoginResult = PortalLoginResult.FormUnavailable;
             return PortalLoginResult.FormUnavailable;
         }
+    }
+
+    /// <summary>
+    /// Звено CAS <c>security_check</c> после «кабинетного» успеха POST входа (issue #323,
+    /// восьмая итерация). POST кабинета («Личные данные», лог 7OH 0.3.9.313) НЕ устанавливает
+    /// сессионную cookie для releases.1c.ru — SESSION выпускается только для login.1c.ru,
+    /// и повтор исходного запроса каталога снова уходит в 302 на login
+    /// (<c>retryAfterLoginStill302</c> → AuthRequired). Эталон — рабочий код 1С (комментарий 23
+    /// в #323): после POST формы выполняется GET корня <c>releases.1c.ru</c> (или
+    /// <c>public/security_check</c>), который выдаёт Set-Cookie SESSION/JSESSIONID для хоста
+    /// releases.1c.ru (возможно через цепочку редиректов); ТОЛЬКО затем повторяется исходный
+    /// запрос. URL звена берётся из параметра <c>service</c> GET-формы входа (в логе 7OH —
+    /// <c>https://releases.1c.ru/public/security_check</c>), иначе — корень releases.1c.ru.
+    /// Все Set-Cookie звена сохраняются в общий контейнер через
+    /// <see cref="ApplySetCookieToContainer"/> (важно и для тестов с fake-обработчиками).
+    /// Возвращает true, если после звена пробная проверка живой сессии
+    /// (<see cref="IsPortalSessionAliveAsync"/>) вернула alive=True; иначе — false (звено
+    /// недоступно/не отдало cookie/сессия мертва — вызывающий возвращает честный AuthFailed).
+    /// </summary>
+    private async Task<bool> RunSecurityCheckAsync(string? formUrl, string? probeUrl, CancellationToken ct)
+    {
+        var target = ResolveSecurityCheckTarget(formUrl);
+        var source = ExtractSecurityCheckService(formUrl) is not null
+            ? "service GET-формы"
+            : "корень releases.1c.ru (эталон кода 1С)";
+        LogRedirectInfo($"[Updates] Вход: security_check '{target}' (источник: {source})");
+
+        var current = target;
+        var finished = false;
+        for (var i = 0; i <= MaxRedirects; i++)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, current);
+                using var response =
+                    await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+                ApplySetCookieToContainer(response, request.RequestUri ?? current);
+
+                var status = (int)response.StatusCode;
+                var setCookie = DescribeSetCookies(response);
+                LogRedirectInfo($"[Updates] Вход: security_check '{current}' => status={status}, setCookie={setCookie}");
+
+                if (status is >= 300 and < 400 && response.Headers.Location is not null)
+                {
+                    var next = response.Headers.Location;
+                    var nextTarget = next.IsAbsoluteUri ? next : new Uri(current, next);
+                    // Редирект на страницу входа — билет не принят, звено не отработало:
+                    // дальше по login-цепочке идти бессмысленно (результат заведомо ложный).
+                    if (nextTarget.Host.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase))
+                    {
+                        LogRedirectInfo($"[Updates] Вход: security_check завершился редиректом на login.1c.ru ({status} '{next}') — звено не отработало.");
+                        finished = false;
+                        break;
+                    }
+
+                    LogRedirectInfo($"[Updates] Вход: security_check редирект {status} '{next}' для '{current}'");
+                    current = nextTarget;
+                    continue;
+                }
+
+                var body = await ReadBodyQuietlyAsync(response, ct).ConfigureAwait(false);
+                var finalHost = response.RequestMessage?.RequestUri?.Host ?? current.Host;
+                finished = status is >= 200 and < 300 &&
+                           !finalHost.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase) &&
+                           !LooksLikeLoginForm(body);
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"[Updates] Вход: ошибка звена security_check ({ex.GetType().Name}: {ex.Message}).");
+                finished = false;
+                break;
+            }
+        }
+
+        if (!finished)
+            LogRedirectInfo($"[Updates] Вход: звено security_check не завершилось на целевом контенте (последний адрес '{current}').");
+
+        var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
+        LogRedirectInfo($"[Updates] Вход: alive={(alive ? "True" : "False")} после security_check");
+        return alive;
+    }
+
+    /// <summary>URL звена CAS <c>security_check</c> после успешного POST входа: параметр
+    /// <c>service</c> GET-формы входа (обычно <c>https://releases.1c.ru/public/security_check</c> —
+    /// туда CAS направляет браузер с билетом ST-…), иначе корень <c>https://releases.1c.ru/</c>
+    /// (эталон рабочего кода 1С, комментарий 23 в #323: GET корня после POST формы).</summary>
+    internal static Uri ResolveSecurityCheckTarget(string? formUrl)
+    {
+        var service = ExtractSecurityCheckService(formUrl);
+        return service ?? new Uri("https://releases.1c.ru/");
+    }
+
+    /// <summary>Извлекает URL звена <c>security_check</c> из параметра <c>service</c> GET-формы
+    /// входа, если он валиден и ведёт на releases.1c.ru; иначе null.</summary>
+    internal static Uri? ExtractSecurityCheckService(string? formUrl)
+    {
+        if (string.IsNullOrWhiteSpace(formUrl) ||
+            !Uri.TryCreate(formUrl, UriKind.Absolute, out var form))
+        {
+            return null;
+        }
+
+        var service = GetQueryParam(form, "service");
+        if (string.IsNullOrWhiteSpace(service) ||
+            !Uri.TryCreate(service, UriKind.Absolute, out var serviceUri) ||
+            !serviceUri.Host.Contains("releases.1c.ru", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return serviceUri;
+    }
+
+    /// <summary>Значение query-параметра URL (значение декодируется через
+    /// <see cref="Uri.UnescapeDataString"/>) либо null при отсутствии.</summary>
+    internal static string? GetQueryParam(Uri uri, string name)
+    {
+        var query = uri.Query.TrimStart('?');
+        if (query.Length == 0)
+            return null;
+
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eq = pair.IndexOf('=');
+            if (eq <= 0)
+                continue;
+            if (pair.Substring(0, eq).Equals(name, StringComparison.OrdinalIgnoreCase))
+                return Uri.UnescapeDataString(pair.Substring(eq + 1));
+        }
+
+        return null;
     }
 
     /// <summary>Пробная проверка «живости» сессии portal.1c.ru: GET по целевому URL операции

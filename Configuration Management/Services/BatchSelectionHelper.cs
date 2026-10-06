@@ -364,6 +364,75 @@ public static class BatchSelectionHelper
     }
 
     /// <summary>
+    /// Окно «недавняя активность мыши перед закрытием меню» (issue #340, 10-я итерация):
+    /// обычный клик по строке дерева в последние ~2 с перед закрытием контекстного меню
+    /// считается свидетельством, что пользователь работал мышью в дереве — клик, который
+    /// должен был закрыть меню, мог быть проглочен попапом и НЕ дойти до дерева (третий
+    /// реальный trace.json 0.3.9.315: MouseDown/LastPlainClick → MenuOpened → MenuClosed,
+    /// второго MouseDown в логе нет, cursor над строкой при закрытии). Общая константа
+    /// для WPF и Avalonia.
+    /// </summary>
+    public const long MenuCloseRecentMouseActivityWindowMs = 2000;
+
+    /// <summary>
+    /// Нужно ли восстановить выбор строки ПОД КУРСОРОМ после закрытия контекстного меню
+    /// дерева (issue #340, 10-я итерация). Третий реальный trace.json (0.3.9.315) показал
+    /// сценарий, в котором ни один штатный путь стабилизации не срабатывает: меню
+    /// закрылось с курсором над строкой дерева (overTreeRow=true), снимок клика не записан
+    /// (guard-цепочка TryApplyTreeClickAfterMenuClosed не прошла — левая кнопка отпущена),
+    /// а клик, которым пользователь начал цепочку действий, был за пределами окна
+    /// <see cref="MenuClosePrecedingClickWindowMs"/> (в логе ~1,8 с — предикат
+    /// ShouldStabilizeForClickPrecedingMenuClose не сработал). Меню закрылось НЕ выбором
+    /// пункта (overMenuItem=false) и НЕ бездействием: в окне
+    /// <see cref="MenuCloseRecentMouseActivityWindowMs"/> был обычный клик мыши без
+    /// модификаторов. Вероятно, клик по строке был проглочен попапом и не дошёл до дерева
+    /// (повторной доставки нет) — строка под курсором и есть его цель, выбор нужно
+    /// восстановить. Исключения: курсор над пунктом меню (overMenuItem=true — выбор пункта
+    /// меню строку не меняет), наличие снимка клика (работают штатные пути A/C/snapshot),
+    /// отсутствие недавнего обычного клика (закрытие ESC/программно), клик ДАВНО (за
+    /// пределами окна), а также мультивыделение: evidence — только ОБЫЧНЫЙ клик без
+    /// Ctrl/Shift (<paramref name="recentClickWasPlainLeftWithoutModifiers"/>), поэтому
+    /// Ctrl/Shift-активность сразу отсекает ветку.
+    /// </summary>
+    /// <param name="overTreeRow">Курсор в момент закрытия над строкой дерева (hit-test по координатам).</param>
+    /// <param name="overMenuItem">Курсор в момент закрытия над пунктом меню.</param>
+    /// <param name="snapshotPresent">Присутствовал ли снимок клика, закрывавшего меню (путь A/C).</param>
+    /// <param name="recentClickWasPlainLeftWithoutModifiers">
+    /// Признак того, что недавняя мышиная активность — ОБЫЧНЫЙ левый клик без Ctrl/Shift
+    /// (мультивыделение не затрагивается).
+    /// </param>
+    /// <param name="lastPlainClickTick">Метка последнего обычного клика (единые часы Environment.TickCount; 0 — кликов не было).</param>
+    /// <param name="menuCloseTick">Метка закрытия меню дерева (Environment.TickCount).</param>
+    /// <param name="nowTick">Текущая метка времени (Environment.TickCount).</param>
+    /// <param name="windowMs">Окно «недавний клик», мс (по умолчанию <see cref="MenuCloseRecentMouseActivityWindowMs"/>).</param>
+    public static bool ShouldRestoreSelectionForRowUnderCursor(
+        bool overTreeRow,
+        bool overMenuItem,
+        bool snapshotPresent,
+        bool recentClickWasPlainLeftWithoutModifiers,
+        long lastPlainClickTick,
+        long menuCloseTick,
+        long nowTick,
+        long windowMs)
+    {
+        if (!overTreeRow || overMenuItem)
+            return false;
+        if (snapshotPresent)
+            return false;
+        if (!recentClickWasPlainLeftWithoutModifiers)
+            return false;
+        if (lastPlainClickTick <= 0 || menuCloseTick <= 0)
+            return false;
+        if (nowTick < menuCloseTick)
+            return false;
+        // Клик ПОСЛЕ закрытия меню — новое действие пользователя, обрабатывается штатно
+        // (ShouldStabilizeAfterMenuClose): восстановление по строке под курсором не нужно.
+        if (lastPlainClickTick >= menuCloseTick)
+            return false;
+        return menuCloseTick - lastPlainClickTick <= windowMs;
+    }
+
+    /// <summary>
     /// Действия стабилизации выделения после клика, которым закрыли контекстное меню
     /// (issue #340, новая стратегия). Список намеренно минимален: только установка
     /// одиночного выбора по данным (SelectTreeRowByData/SelectRow). Действий «сбросить
