@@ -770,6 +770,62 @@ public sealed class BatchSelectionHelperTests
             windowMs: StabilizeWindowMs));
     }
 
+    // ============ Клик ПЕРЕД закрытием меню (issue #340, 0.3.9.314) ============
+    // Второй реальный trace.json (0.3.9.311): MouseDown по строке приходит в дерево
+    // ДО MenuClosed (snapshot=False, redelivery=False) — снимок не записывается (кнопка
+    // отпущена к моменту закрытия), повторной доставки нет, и ни один штатный путь
+    // стабилизацию не запускает. Если последний обычный клик по строке был
+    // непосредственно перед закрытием меню дерева — стабилизацию нужно запускать
+    // по цели этого клика (EnsureSelectionStable, причина "clickBeforeMenuClose").
+
+    private const long PrecedingWindowMs = BatchSelectionHelper.MenuClosePrecedingClickWindowMs;
+
+    [Fact]
+    public void ShouldStabilizeForClickPrecedingMenuClose_WithinWindow_True()
+    {
+        // Клик по строке за ~200 мс до закрытия меню дерева — тот самый случай из
+        // trace.json (между MouseDown и MenuClosed ~555 мс): снимка нет, но клик был
+        // непосредственно перед закрытием — стабилизация нужна.
+        const long clickTick = 10_000;
+        Assert.True(BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
+            clickTick, menuCloseTick: clickTick + 200, windowMs: PrecedingWindowMs));
+
+        // Граница окна включительно (ровно 500 мс до закрытия — ещё «непосредственно»).
+        Assert.True(BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
+            clickTick, menuCloseTick: clickTick + PrecedingWindowMs, windowMs: PrecedingWindowMs));
+    }
+
+    [Fact]
+    public void ShouldStabilizeForClickPrecedingMenuClose_BeyondWindow_False()
+    {
+        // Клик был ДАВНО (3 с до закрытия) — это не «клик, которым закрыли меню»:
+        // стабилизация по нему не запускается (иначе вмешивалась бы в обычные клики).
+        const long clickTick = 10_000;
+        Assert.False(BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
+            clickTick, menuCloseTick: clickTick + 3_000, windowMs: PrecedingWindowMs));
+        Assert.False(BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
+            clickTick, menuCloseTick: clickTick + PrecedingWindowMs + 1, windowMs: PrecedingWindowMs));
+    }
+
+    [Fact]
+    public void ShouldStabilizeForClickPrecedingMenuClose_NoClick_False()
+    {
+        // Обычных кликов по строке дерева не было (метка 0) — стабилизировать нечего.
+        Assert.False(BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
+            0, menuCloseTick: 10_000, windowMs: PrecedingWindowMs));
+    }
+
+    [Fact]
+    public void ShouldStabilizeForClickPrecedingMenuClose_MenuClosedBeforeClick_False()
+    {
+        // Меню закрылось РАНЬШЕ клика (обычный клик ПОСЛЕ закрытия) — это уже штатный
+        // путь ShouldStabilizeAfterMenuClose («клик после закрытия», окно ~1,5 с), а не
+        // «клик перед закрытием»: предикат должен вернуть false.
+        const long clickTick = 10_000;
+        Assert.False(BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
+            clickTick, menuCloseTick: clickTick - 50, windowMs: PrecedingWindowMs));
+    }
+
     // ======================= Диагностика клика (issue #340, 0.3.9.311, B-6) =======================
 
     [Fact]

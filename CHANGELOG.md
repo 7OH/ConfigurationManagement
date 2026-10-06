@@ -9,6 +9,143 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.315] — 2026-10-06
+
+### Изменено
+
+- **Механизм отладочных флагов trace.json (issue #347 «Сказ о trace.json», кластер C)** —
+  файл **`trace.json`** рядом с настройками больше НЕ является JSONL-журналом: он стал
+  **JSON-конфигом отладочных флагов** `{"version":1,"CM_COLUMNS":false,"CM_MENUCLICK":false,
+  "CM_MENUCLOSE":false,"CM_REDIRECT":false}`. По умолчанию все флаги выключены — логи
+  закрытых тикетов перестают «капать» у всех пользователей, диагностика включается по
+  наставлению из тикета:
+  - **новый сервис**
+    [`TraceFlags`](Configuration%20Management/Services/TraceFlags.cs) (статический,
+    потокобезопасный) с чистым парсером/форматтером
+    [`TraceFlagsFormat`](Configuration%20Management/Services/TraceFlagsFormat.cs):
+    `EnsureExists()` создаёт конфиг при старте (обе платформы), `IsEnabled(f)` читает флаг
+    с mtime-кэшем — файл перечитывается при изменении времени последней записи, поэтому
+    пользователь включает флаг **без перезапуска приложения**; повреждённый JSON трактуется
+    как «все флаги выключены» с предупреждением в общий лог (файл не перезаписывается);
+    регистр имён безразличен, неизвестные флаги игнорируются (устойчивость к будущим версиям);
+  - **миграция старого журнала**: при первом старте новой версии `trace.json`, первая строка
+    которого начинается с `{"ts":` (JSONL-журнал 0.3.9.308–0.3.9.314), переименовывается в
+    **`trace_menuclose_legacy.json`** (история сохраняется), затем создаётся новый конфиг;
+    legacy `menuclose_trace.json` (0.3.9.306) не трогается;
+  - **журнал событий меню** ([`MenuCloseTrace`](Configuration%20Management/Services/MenuCloseTrace.cs))
+    пишется ТОЛЬКО при `CM_MENUCLOSE=true` (псевдоним `CM_MENUCLICK` — отладка правого клика
+    по тексту #347) и переехал в **`trace_menuclose.jsonl`** (~1 МБ, круговое усечение прежнее);
+    startup-запись — только под флагом, но `EnsureStarted` всегда гарантирует наличие конфига;
+    стабилизация выделения (`clickBeforeMenuClose`, `LastPlainClick` из 0.3.9.314) работает
+    ВСЕГДА — под флаг ушли только записи кликов/активаций;
+  - **диагностика колонок** ([`MainWindow.Columns.cs`](Configuration%20Management/Views/MainWindow.Columns.cs))
+    включается флагом `CM_COLUMNS` вместо безусловного чтения env; прежняя `CM_COLUMNS_TRACE=1`
+    остаётся только override включения — жалоба «логи колонок капают» закрыта;
+  - **INFO-диагностика редиректов/входа портала 1С**
+    ([`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs)):
+    `[Updates] Редирект…`, `Вход запущен…`, инвентаризация cookie, POST-диагностика — под
+    флагом `CM_REDIRECT` (единый для #323/#330/#334); итоговые WARN/ERROR пишутся всегда;
+  - **env-переменные остались только override включения** (`CM_COLUMNS=1`, `CM_MENUCLOSE=1`,
+    `CM_REDIRECT=1`, прежнее `CM_COLUMNS_TRACE=1`); выключить флаг через env нельзя;
+  - **тесты**: новый [`TraceFlagsTests.cs`](ConfigurationManagement.Tests/TraceFlagsTests.cs)
+    (+8: дефолты при отсутствии файла, регистронезависимый разбор, битый JSON без исключения,
+    игнорирование неизвестных флагов, сериализация версионированных дефолтов, миграция
+    JSONL → legacy, конфиг не переименовывается, перечитывание по mtime);
+    обновлён [`MenuCloseTraceFormatTests.cs`](ConfigurationManagement.Tests/MenuCloseTraceFormatTests.cs)
+    (+3: имя журнала `trace_menuclose.jsonl`, конфиг `trace.json`, резервное
+    `trace_menuclose_legacy.json`; legacy `menuclose_trace.json` продолжает дописываться).
+    Для тестов входа INFO-диагностика редиректов включена env-флагом тестового процесса
+    ([`TestEnvironment.cs`](ConfigurationManagement.Tests/TestEnvironment.cs)).
+
+Полный набор `dotnet test` зелёный, сборка Release без ошибок; кросс-сборка Linux
+(`dotnet build -p:BuildLinux=true`) — без ошибок.
+
+## [0.3.9.314] — 2026-10-06
+
+### Исправлено
+
+- **Выделение строки пропадает после закрытия контекстного меню кликом по другой строке
+  (issue #340, кластер B, девятая итерация)** — по второму реальному `trace.json` (0.3.9.311)
+  MouseDown по строке приходит в дерево **ДО** закрытия меню (`MenuClosed`), а не повторной
+  доставкой ПОСЛЕ: снимок клика по guard-цепочке `TryApplyTreeClickAfterMenuClosed` не
+  записывается (`snapshot=False` — к моменту закрытия левая кнопка уже отпущена), повторной
+  доставки «хвоста» нет (`redelivery=False`), поэтому ни один штатный путь стабилизацию
+  `IsSelected` не запускал, и переработка контейнеров виртуализацией
+  (`VirtualizingStackPanel`, `Recycling`) сбрасывала выделение «через мгновение»:
+  - **новый чистый предикат**
+    [`ShouldStabilizeForClickPrecedingMenuClose`](Configuration%20Management/Services/BatchSelectionHelper.cs)
+    + константа окна `MenuClosePrecedingClickWindowMs = 500` в
+    [`BatchSelectionHelper.cs`](Configuration%20Management/Services/BatchSelectionHelper.cs):
+    обычный клик по строке был непосредственно (≤500 мс) перед закрытием меню дерева —
+    стабилизацию нужно запускать по цели этого клика;
+  - **«последний обычный клик по строке»** (`_lastPlainTreeClick`: единые часы
+    `Environment.TickCount`, целевая база, секция) запоминается в ветке `ApplySelection`
+    WPF ([`MainWindow.Events.cs`](Configuration%20Management/Views/MainWindow.Events.cs)) и
+    в туннельной фазе `PointerPressed` Avalonia
+    ([`MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs));
+  - **в `OnContextMenuClosed`** (WPF,
+    [`MainWindow.Hotkeys.cs`](Configuration%20Management/Views/MainWindow.Hotkeys.cs)) и
+    **в `ContextMenu.IsOpenProperty.Changed`** (Avalonia,
+    [`MainWindow.Avalonia.Events.cs`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs)):
+    если снимок клика НЕ записан и последний обычный клик был ≤500 мс до закрытия меню
+    дерева — запускается `EnsureSelectionStable(reason="clickBeforeMenuClose")` отложенно
+    (`Dispatcher.BeginInvoke(Input)` / `Dispatcher.UIThread.Post`); стабилизация идемпотентна,
+    доводит выбор до сходимости (15 проходов / 1,5 с) и не трогает мультивыделение;
+  - существующий предикат `ShouldStabilizeAfterMenuClose` (клики ПОСЛЕ закрытия, окно ~1,5 с)
+    и безусловная трассировка меню (`MenuOpened`/`MenuClosed`/`MenuClosedCursor`,
+    `trace.json`) НЕ изменялись — диагностика 0.3.9.311 сохранена;
+  - **тесты**: +4 сценария нового предиката в
+    [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs)
+    (в окне 200 мс → true, граница 500 мс → true; за 3 с / за окном → false; без клика → false;
+    закрытие раньше клика → false); регресс существующих (идемпотентность
+    `DecideSelectionRestore`, стабилизация не трогает мультивыделение, `ShouldStabilizeAfterMenuClose`,
+    `ShouldRetryRestore*`) — без изменений.
+
+Полный набор `dotnet test` зелёный (**1813**), сборка Release без ошибок; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) — без ошибок.
+
+## [0.3.9.313] — 2026-10-06
+
+### Исправлено
+
+- **Программный вход на portal.1c.ru: кабинет распознаётся раньше формы входа, POST с service
+  (issue #323, кластер A, седьмая итерация)** — в логе 7OH на 0.3.9.310 вход фактически был
+  успешным (`Вход: POST status=200`, `<title>Личные данные</title>`, bodyLength=21690), но код
+  объявлял `AuthFailed` («в теле форма входа»). Общий корень с #330/#334 — правки только в общем
+  сервисе [`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs):
+  - **порядок интерпретации POST 2xx** в `TryLoginPortalAsync`: страница личного кабинета
+    ([`DetectPersonalAreaPage`](Configuration%20Management/Services/OneCUpdatesService.cs)) проверяется
+    РАНЬШЕ детектора формы входа ([`LooksLikeLoginForm`](Configuration%20Management/Services/OneCUpdatesService.cs)) —
+    кабинет с execution-формой смены аккаунта и JS-подсказкой «Неверный логин или пароль» больше
+    не даёт ложного AuthFailed, вход засчитывается как Success и повтор исходного запроса
+    каталога выполняется штатно;
+  - **сужен `LooksLikeLoginForm`**: фразы отказа ([`HasAuthFailureTextMarker`](Configuration%20Management/Services/OneCUpdatesService.cs))
+    учитываются ТОЛЬКО вместе с полями `username`+`password` (главный признак); во втором пути
+    (токены `execution`/`lt` как поля формы) остаются только структурные маркеры формы входа —
+    `action` с «login» либо id/class формы (фраза отказа в JS-валидаторе кабинета больше не
+    признак);
+  - **POST на полный URL GET-формы с `service=`** ([`ResolveFormPostUrl`](Configuration%20Management/Services/OneCUpdatesService.cs)):
+    если `action` формы не несёт собственного пути («/login», «/login?…») и у адреса GET-формы
+    есть параметр `service` — POST выполняется на полный URL GET-формы с `service=`, как в
+    эталоне рабочего кода 1С (комментарий 23): Spring Security CAS выпускает билет для указанного
+    service только при его наличии в POST; если `action` несёт собственный путь/параметры
+    («/login/cas?service=…») — приоритет action (прежнее поведение). Итоговый адрес POST и
+    причина выбора всегда пишутся в журнал (`Вход: POST на '<url>' (выбран: <причина>)`);
+  - **sticky-session cookie `SERVERID`** (балансировщик releases.1c.ru, см. эталон 1С) — мягкая
+    поддержка: сохраняется из `Set-Cookie` в контейнер и видна в инвентаризации
+    (`Вход: cookie контейнера: …`), но сессией портала НЕ считается;
+  - **тесты**: +6 сценариев в
+    [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs):
+    страница кабинета с execution и JS-фразой ≠ форма входа; реальная форма с фразой отказа =
+    форма входа (первый путь не сломан); регресс точного лога 7OH (POST 200, title «Личные
+    данные», поля формы кабинета) → Success и повтор исходного запроса; POST на полный URL
+    GET-формы с service при action без собственного пути; action с собственным путём приоритетен;
+    SERVERID из Set-Cookie видна в инвентаризации; обновлены существующие сценарии детектора
+    под новый порядок веток.
+
+Полный набор `dotnet test` зелёный (**1809**), сборка Release без ошибок; кросс-сборка
+Linux (`dotnet build -p:BuildLinux=true`) — без ошибок.
+
 ## [0.3.9.312] — 2026-10-05
 
 ### Добавлено

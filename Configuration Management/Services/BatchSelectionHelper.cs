@@ -329,6 +329,41 @@ public static class BatchSelectionHelper
     }
 
     /// <summary>
+    /// Окно «обычный клик предшествовал закрытию меню» (issue #340, 0.3.9.314): обычный
+    /// клик по строке дерева в этом окне (~500 мс) ДО закрытия контекстного меню дерева
+    /// сопровождается стабилизацией <c>IsSelected</c>. Общая константа для WPF и Avalonia.
+    /// </summary>
+    public const long MenuClosePrecedingClickWindowMs = 500;
+
+    /// <summary>
+    /// Нужно ли стабилизировать выделение для обычного клика по строке дерева, который
+    /// произошёл НЕПОСРЕДСТВЕННО ПЕРЕД закрытием контекстного меню (issue #340, 0.3.9.314).
+    /// По второму реальному trace.json (0.3.9.311) MouseDown по строке приходит в дерево
+    /// ДО MenuClosed: снимок клика по guard-цепочке TryApplyTreeClickAfterMenuClosed не
+    /// записывается (к моменту OnContextMenuClosed левая кнопка уже отпущена — снимок
+    /// требует Mouse.LeftButton == Pressed), повторной доставки «хвоста» нет, поэтому ни
+    /// один штатный путь (снимок пути A/C, fallback, <see cref="ShouldStabilizeAfterMenuClose"/>)
+    /// стабилизацию не запускает — переработка контейнеров виртуализацией
+    /// (VirtualizingStackPanel, Recycling) сбрасывает IsSelected «через мгновение».
+    /// Предикат закрывает это звено: обычный клик был в окне
+    /// <see cref="MenuClosePrecedingClickWindowMs"/> до закрытия меню — стабилизацию нужно
+    /// запустить по цели этого клика (см. EnsureSelectionStable, причина "clickBeforeMenuClose").
+    /// </summary>
+    /// <param name="lastPlainClickTick">Метка последнего обычного клика по строке дерева
+    /// (единые часы Environment.TickCount; 0 — обычных кликов не было).</param>
+    /// <param name="menuCloseTick">Метка закрытия контекстного меню дерева (Environment.TickCount).</param>
+    /// <param name="windowMs">Окно «клик перед закрытием», мс (по умолчанию <see cref="MenuClosePrecedingClickWindowMs"/>).</param>
+    public static bool ShouldStabilizeForClickPrecedingMenuClose(
+        long lastPlainClickTick, long menuCloseTick, long windowMs)
+    {
+        if (lastPlainClickTick <= 0)
+            return false;
+        if (menuCloseTick < lastPlainClickTick)
+            return false;
+        return menuCloseTick - lastPlainClickTick <= windowMs;
+    }
+
+    /// <summary>
     /// Действия стабилизации выделения после клика, которым закрыли контекстное меню
     /// (issue #340, новая стратегия). Список намеренно минимален: только установка
     /// одиночного выбора по данным (SelectTreeRowByData/SelectRow). Действий «сбросить

@@ -58,6 +58,26 @@ public sealed class OneCUpdatesLoginFlowTests
         </body></html>
         """;
 
+    /// <summary>Регресс ТОЧНОГО лога 7OH (issue #323, C-1/0.3.9.313): страница кабинета «Личные
+    /// данные» с execution-формой приглашения и JS-фразой «Неверный логин или пароль»
+    /// (валидатор формы смены аккаунта). В 0.3.9.310 фраза в скрипте + поле execution давали
+    /// ложное AuthFailed; форма приглашения при этом НЕ несёт структурных маркеров входа
+    /// (action/id/class без «login»).</summary>
+    private const string PersonalAreaWithJsFailureMarkerHtml = """
+        <html>
+        <head><title>Личные данные</title></head>
+        <body>
+          <script>const hint = "Неверный логин или пароль";</script>
+          <form id="inviteForm" action="/invite" method="post">
+            <input type="hidden" name="_eventId" value="submit" />
+            <input type="hidden" name="execution" value="e9s9" />
+            <input type="hidden" name="inviteCode" value="" />
+            <input type="checkbox" name="inviteType" value="on" />
+          </form>
+          <h1>Личные данные</h1>
+        </body></html>
+        """;
+
     /// <summary>Классическая форма входа CAS: username + password + execution + action на /login.</summary>
     private const string LoginFormWithUserPassHtml = """
         <html><body>
@@ -167,9 +187,11 @@ public sealed class OneCUpdatesLoginFlowTests
     [Fact]
     public async Task LoginPost_UsesFormActionUrl()
     {
-        // Третья итерация CAS (issue #323/#330/#334): POST формы должен идти на атрибут
-        // action формы, а не на URL GET-формы (Spring Security CAS часто указывает отдельный
-        // action «/login/cas?service=…»). GET-форма отдана по /login?service=…; action = «/cas».
+        // Третья итерация CAS (issue #323/#330/#334), подтверждено в 0.3.9.313 (C-2): POST
+        // формы должен идти на атрибут action формы, когда action несёт СОБСТВЕННЫЙ путь
+        // («/cas»/«/login/cas?service=…») — POST на URL GET-формы без service уходил не туда
+        // (Spring Security CAS). GET-форма отдана по /login?service=…; action = «/cas» —
+        // путь отличается от GET-формы, поэтому action приоритетен.
         const string formWithAction = """
             <html><body>
             <form id="fm1" action="/cas?service=https%3A%2F%2Freleases.1c.ru" method="post">
@@ -377,9 +399,12 @@ public sealed class OneCUpdatesLoginFlowTests
     [Fact]
     public void LooksLikeLoginForm_DetectsRealForms_NotPersonalAreaOrPlainExecution()
     {
-        // Детектор формы входа ужесточён (issue #323): форма распознаётся по полям
-        // username+password (главный признак) либо по токенам execution/lt КАК ПОЛЯМ ФОРМЫ
-        // вместе с маркером формы входа (action на login, фраза отказа/капча, id/class формы).
+        // Детектор формы входа ужесточён (issue #323, дополнительно сужен в 0.3.9.313/C-1):
+        // форма распознаётся по полям username+password (главный признак; фраза отказа
+        // учитывается ТОЛЬКО вместе с ними) либо по токенам execution/lt КАК ПОЛЯМ ФОРМЫ
+        // вместе со СТРУКТУРНЫМ маркером формы входа (action на login либо id/class формы).
+        // Фраза отказа/капча во втором пути больше НЕ участвует — на странице кабинета она
+        // встречается в JS-валидаторе формы смены аккаунта (ложное AuthFailed, лог 7OH).
         // Страница с execution без этих признаков (личный кабинет) формой НЕ считается.
         Assert.True(OneCUpdatesService.LooksLikeLoginForm(LoginFormWithUserPassHtml));
         Assert.True(OneCUpdatesService.LooksLikeLoginForm(FormWithHiddenFields)); // execution+lt, action=/login
@@ -387,13 +412,148 @@ public sealed class OneCUpdatesLoginFlowTests
             """<html><form id="login-form"><input type="hidden" name="execution" value="e"/></form></html>"""));
         Assert.True(OneCUpdatesService.LooksLikeLoginForm(
             """<html><form action="/login"><input type="hidden" name="execution" value="e"/></form></html>"""));
-        Assert.True(OneCUpdatesService.LooksLikeLoginForm(
+        // C-1: execution без username/password + фраза отказа и БЕЗ структурных маркеров —
+        // НЕ форма входа (раньше ложно True).
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(
             """<html><form><input type="hidden" name="execution" value="e"/><div>Неверный логин или пароль</div></form></html>"""));
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(SimpleForm));           // execution без маркеров формы
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(PersonalAreaPageHtml)); // кабинет с execution (лог 7OH)
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(VersionsTableHtml));
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(string.Empty));
         Assert.False(OneCUpdatesService.LooksLikeLoginForm(null!));
+    }
+
+    // ---------- C-1/C-2 (0.3.9.313): сужение детектора и POST с service (эталон 1С) ----------
+
+    [Fact]
+    public void LooksLikeLoginForm_PersonalAreaWithExecutionAndJsFailureMarker_False()
+    {
+        // C-1 (0.3.9.313): страница личного кабинета («Личные данные») с execution-формой
+        // приглашения и фразой «Неверный логин или пароль» в <script> НЕ является формой
+        // входа: фразы отказа учитываются только вместе с полями username+password (главный
+        // признак), а структурных маркеров формы входа (action на login / id,class с «login»)
+        // у формы приглашения кабинета нет.
+        Assert.False(OneCUpdatesService.LooksLikeLoginForm(PersonalAreaWithJsFailureMarkerHtml));
+        Assert.True(OneCUpdatesService.DetectPersonalAreaPage(PersonalAreaWithJsFailureMarkerHtml));
+    }
+
+    [Fact]
+    public void LooksLikeLoginForm_RealLoginFormWithFailureMarker_True()
+    {
+        // C-1 (0.3.9.313): первый путь детектора НЕ сломан — реальная форма входа
+        // (username+password) с фразой отказа распознаётся как форма входа (фраза учитывается
+        // именно вместе с полями логина/пароля).
+        var body = """
+            <html><body>
+            <form id="fm1" action="/login" method="post">
+              <input type="hidden" name="execution" value="e1" />
+              <input type="text" name="username" />
+              <input type="password" name="password" />
+              <div class="error">Неверный логин или пароль</div>
+            </form>
+            </body></html>
+            """;
+        Assert.True(OneCUpdatesService.LooksLikeLoginForm(body));
+    }
+
+    [Fact]
+    public async Task Post200PersonalArea_WithExecutionAndFailureMarker_Success()
+    {
+        // Регресс ТОЧНОГО лога 7OH (2026-10-05, issue #323): POST входа вернул 200,
+        // title='Личные данные', в теле — execution-форма кабинета и JS-фраза
+        // «Неверный логин или пароль» (валидатор формы смены аккаунта). В 0.3.9.310 такой
+        // ответ объявлялся AuthFailed; в 0.3.9.313 кабинет распознаётся РАНЬШЕ формы входа
+        // (C-1/A-3) — результат Success и повтор исходного запроса каталога.
+        var handler = new PersonalAreaLoginHandler(PersonalAreaWithJsFailureMarkerHtml);
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(1, handler.PostLoginCount);
+        Assert.Equal(2, handler.CatalogRequestCount); // повтор исходного запроса выполнен
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("страница личного кабинета", joined);
+        Assert.Contains("title='Личные данные'", joined);
+        Assert.DoesNotContain("Вход на portal.1c.ru не подтверждён", joined);
+    }
+
+    [Fact]
+    public async Task LoginPost_UsesFormUrlWithService_WhenActionIsPlainPath()
+    {
+        // C-2 (0.3.9.313): action формы — просто «/login» (БЕЗ собственного пути/параметров),
+        // у GET-формы есть service= — POST идёт на ПОЛНЫЙ URL GET-формы с service= (эталон
+        // рабочего кода 1С, комментарий 23 issue #323): Spring Security CAS выпускает билет
+        // для указанного service только при его наличии в POST.
+        const string formWithPlainLoginAction = """
+            <html><body>
+            <form id="fm1" action="/login" method="post">
+              <input type="hidden" name="execution" value="e1s2t3" />
+            </form>
+            </body></html>
+            """;
+        var handler = new LoginCaptureHandler(formWithPlainLoginAction, HttpStatusCode.Found,
+            location: new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.NotNull(handler.LastPostUri);
+        // POST на полный URL GET-формы с service (а НЕ на голый «https://login.1c.ru/login»).
+        Assert.Equal("https://login.1c.ru/login", handler.LastPostUri!.GetLeftPart(System.UriPartial.Path));
+        Assert.Contains("service=", handler.LastPostUri!.Query);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("полный URL GET-формы", joined); // причина выбора в журнале (критерий 3)
+    }
+
+    [Fact]
+    public async Task LoginPost_ActionWithOwnPath_StillPreferred()
+    {
+        // C-2 (0.3.9.313): action несёт СОБСТВЕННЫЙ путь (/login/cas?service=…) — POST идёт
+        // на action (прежнее поведение), а не на полный URL GET-формы.
+        const string formWithOwnPathAction = """
+            <html><body>
+            <form id="fm1" action="/login/cas?service=https%3A%2F%2Freleases.1c.ru" method="post">
+              <input type="hidden" name="execution" value="e1s2t3" />
+            </form>
+            </body></html>
+            """;
+        var handler = new LoginCaptureHandler(formWithOwnPathAction, HttpStatusCode.Found,
+            location: new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.NotNull(handler.LastPostUri);
+        Assert.Equal("https://login.1c.ru/login/cas", handler.LastPostUri!.GetLeftPart(System.UriPartial.Path));
+        Assert.Contains("service=https%3A%2F%2Freleases.1c.ru", handler.LastPostUri!.Query);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("выбран: action формы", joined);
+    }
+
+    [Fact]
+    public async Task PostSetCookie_ServerId_StoredAndVisibleInInventory()
+    {
+        // C-3 (0.3.9.313): sticky-session cookie балансировщика SERVERID из Set-Cookie
+        // сохраняется в контейнере и видна в инвентаризации (мягкая поддержка; эталон кода
+        // 1С передаёт её в запросы к releases.1c.ru), но сессией портала НЕ считается.
+        var handler = new Post200LoginHandler(postBody: "<html>session established</html>",
+            markLoginSucceeded: true,
+            postSetCookies: new[] { "JSESSIONID=abc; Path=/; HttpOnly", "SERVERID=node7; Domain=.1c.ru; Path=/" });
+        var service = CreateService(handler, login: "user1", password: "secret");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        var inventory = service.DescribeContainerCookies();
+        Assert.Contains("SERVERID", inventory);
+        Assert.DoesNotContain("node7", inventory); // значения cookie не выводятся
+        Assert.DoesNotContain("SERVERID", service.DescribeSessionCookies()); // не сессия
     }
 
     // ---------- Личный кабинет после POST (issue #323, лог 7OH) ----------

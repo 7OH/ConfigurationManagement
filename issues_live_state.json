@@ -1,21 +1,30 @@
 ﻿[
     {
+        "Number":  347,
+        "Title":  "Сказ о trace.json",
+        "CommentsCount":  0,
+        "UpdatedAt":  "2026-10-05T14:06:09Z",
+        "LastCommentAuthor":  "",
+        "LastCommentDate":  "",
+        "LastCommentPreview":  "(нет комментариев)"
+    },
+    {
         "Number":  346,
         "Title":  "База не связана",
-        "CommentsCount":  2,
-        "UpdatedAt":  "2026-10-05T13:03:47Z",
-        "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-05T13:03:33Z",
-        "LastCommentPreview":  "Отлично - теперь поиск нормально находит базу без привязки. Но есть ещё один момент. У меня есть привязанная база - для неё поиск отрабатывал и раньше, так как привязка была сделана. Собственно сам вопрос-предложение: В окне правки свойств базы, на вкладке Платформа ниже группы Конфигурация вывести ..."
+        "CommentsCount":  4,
+        "UpdatedAt":  "2026-10-06T03:07:55Z",
+        "LastCommentAuthor":  "sivatorov",
+        "LastCommentDate":  "2026-10-06T03:07:15Z",
+        "LastCommentPreview":  "Исправлено в версии **0.3.9.312** (Windows/WPF и Linux/Avalonia). **Что сделано по вашему предложению.** Привязка базы к типовой конфигурации теперь видна и управляется прямо в свойствах базы. На вкладке «Платформа», под..."
     },
     {
         "Number":  340,
         "Title":  "Снятие выделения после контекстного меню ",
-        "CommentsCount":  20,
-        "UpdatedAt":  "2026-10-05T11:58:08Z",
+        "CommentsCount":  23,
+        "UpdatedAt":  "2026-10-05T18:34:25Z",
         "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-05T11:58:02Z",
-        "LastCommentPreview":  "Появился файл trace.json (потом отдельно обсудим его начальную идею) Вот содержимое {\"ts\":\"2026-10-05T14:23:39.123+03:00\",\"thread\":2,\"event\":\"startup\",\"data\":{\"version\":\"0.3.9.308\",\"platform\":\"WPF\",\"os\":\"Microsoft Windows 10.0.26300\",\"appDataDir\":\"C:\\Users\\Semion\\AppData\\Roaming\\ConfigurationManagem..."
+        "LastCommentDate":  "2026-10-05T18:34:25Z",
+        "LastCommentPreview":  "{\"ts\":\"2026-10-05T21:32:26.050+03:00\",\"thread\":2,\"event\":\"log\",\"data\":{\"message\":\"Activated: openMenusCount=0, timeSinceMenuCloseMs=1106531\"}} {\"ts\":\"2026-10-05T21:32:28.091+03:00\",\"thread\":2,\"event\":\"log\",\"data\":{\"messa..."
     },
     {
         "Number":  334,
@@ -24,7 +33,7 @@
         "UpdatedAt":  "2026-10-05T11:30:14Z",
         "LastCommentAuthor":  "sivatorov",
         "LastCommentDate":  "2026-10-05T11:30:14Z",
-        "LastCommentPreview":  "Исправлено в версии **0.3.9.307** (Windows/WPF и Linux/Avalonia; пятая итерация программного входа). **Что было.** В последнем логе (2026-10-05, ~09:06–09:08 МСК) для окна «Обновление платформы 1С» (Ctrl+F9, каталог `releases.1c.ru/project/Platform83`): ``` [Updates] Вход запущен: результат=Success,..."
+        "LastCommentPreview":  "Исправлено в версии **0.3.9.307** (Windows/WPF и Linux/Avalonia; пятая итерация программного входа). **Что было.** В последнем логе (2026-10-05, ~09:06–09:08 МСК) для окна «Обновление платформы 1С» (Ctrl+F9, каталог `rel..."
     },
     {
         "Number":  330,
@@ -33,15 +42,15 @@
         "UpdatedAt":  "2026-10-05T11:30:12Z",
         "LastCommentAuthor":  "sivatorov",
         "LastCommentDate":  "2026-10-05T11:30:12Z",
-        "LastCommentPreview":  "Исправлено в версии **0.3.9.307** (Windows/WPF и Linux/Avalonia; пятая итерация программного входа). **Что было.** В последнем логе (2026-10-05, ~09:06–09:08 МСК) для окна «Скачивание версии платформы 1С» (Утилиты, каталог `releases.1c.ru/project/Platform83`): ``` [Updates] Вход запущен: результат=S..."
+        "LastCommentPreview":  "Исправлено в версии **0.3.9.307** (Windows/WPF и Linux/Avalonia; пятая итерация программного входа). **Что было.** В последнем логе (2026-10-05, ~09:06–09:08 МСК) для окна «Скачивание версии платформы 1С» (Утилиты, катал..."
     },
     {
         "Number":  323,
         "Title":  "Окно Проверка обновлений",
-        "CommentsCount":  20,
-        "UpdatedAt":  "2026-10-05T11:56:32Z",
+        "CommentsCount":  23,
+        "UpdatedAt":  "2026-10-05T21:06:37Z",
         "LastCommentAuthor":  "7OH",
-        "LastCommentDate":  "2026-10-05T11:56:24Z",
-        "LastCommentPreview":  "2026-10-05 14:27:08.634 [INFO] [Updates] Проверка: config=\u0027Бухгалтерия предприятия\u0027, url=[releases.1c.ru/project/Accounting30](https://releases.1c.ru/project/Accounting30) 2026-10-05 14:27:08.676 [INFO] [Updates] Вход запущен: reason=redirect-login, url=\u0027[releases.1c.ru/project/Accounting30](https:/..."
+        "LastCommentDate":  "2026-10-05T21:06:37Z",
+        "LastCommentPreview":  "Нашел рабочий код в 1С - возможно и тут чем-то поможет с редиректом -- \u0026НаСервере Функция РаспарситьinviteCode(Текст) ЧтениеHTML = Новый ЧтениеHTML; ЧтениеHTML.УстановитьСтроку(Текст); Построитель = Новый ПостроительDOM;..."
     }
 ]

@@ -8,9 +8,10 @@ using Xunit;
 namespace ConfigurationManagement.Tests;
 
 /// <summary>
-/// Тесты чистой сериализации/усечения диагностики <c>menuclose_trace.json</c>
-/// (issue #340, план 0.3.9.306, раздел 2.6): одна JSONL-запись — валидный JSON
-/// с ключами латиницей; круговое усечение при превышении лимита (остаётся хвост +
+/// Тесты чистой сериализации/усечения журнала событий меню <c>trace_menuclose.jsonl</c>
+/// (issue #340, план 0.3.9.306, раздел 2.6; с 0.3.9.315 журнал ушёл из <c>trace.json</c> —
+/// issue #347: этот файл стал конфигом отладочных флагов): одна JSONL-запись — валидный
+/// JSON с ключами латиницей; круговое усечение при превышении лимита (остаётся хвост +
 /// маркер <c>truncated</c> первой строкой); startup-запись содержит версию/платформу;
 /// чувствительные поля (пароли/токены) в записи не выводятся.
 /// </summary>
@@ -231,29 +232,46 @@ public sealed class MenuCloseTraceFormatTests
         Assert.Equal("***", maskedData.GetProperty("token").GetString());
     }
 
-    // ============ Выбор имени файла: trace.json / legacy menuclose_trace.json (0.3.9.308) ============
+    // ============ Выбор имени файла: trace_menuclose.jsonl / конфиг trace.json / legacy (issue #347) ============
 
     [Fact]
-    public void PrimaryFileName_MatchesUserConvention_TraceJson()
+    public void PrimaryFileName_IsMenuCloseJsonl()
     {
-        // Соглашение с пользователем (issue #340, последний комментарий 7OH): основной
-        // файл диагностики называется trace.json, а не menuclose_trace.json (0.3.9.306).
-        Assert.Equal("trace.json", MenuCloseTraceFormat.PrimaryFileName);
-        Assert.Equal("trace.json", MenuCloseTrace.FileName);
+        // issue #347: журнал меню больше НЕ пишется в trace.json (этот файл стал конфигом
+        // флагов) — основной файл журнала называется trace_menuclose.jsonl.
+        Assert.Equal("trace_menuclose.jsonl", MenuCloseTraceFormat.PrimaryFileName);
+        Assert.Equal("trace_menuclose.jsonl", MenuCloseTrace.FileName);
+    }
+
+    [Fact]
+    public void ConfigFileName_IsTraceJson()
+    {
+        // trace.json (рядом с настройками) — конфиг отладочных флагов (issue #347), не журнал.
+        Assert.Equal("trace.json", MenuCloseTraceFormat.ConfigFileName);
+        Assert.Equal("trace.json", MenuCloseTrace.ConfigFileName);
+    }
+
+    [Fact]
+    public void LegacyJsonlBackupName_IsTraceMenuCloseLegacyJson()
+    {
+        // Старый JSONL-журнал 0.3.9.308–0.3.9.314 при миграции переименовывается в
+        // trace_menuclose_legacy.json (история диагностики сохраняется, issue #347).
+        Assert.Equal("trace_menuclose_legacy.json", MenuCloseTraceFormat.LegacyJsonlBackupFileName);
     }
 
     [Fact]
     public void LegacyFileName_IsMenuCloseTraceJson()
     {
+        // Прежний файл 0.3.9.306 (menuclose_trace.json) продолжает дописываться при наличии.
         Assert.Equal("menuclose_trace.json", MenuCloseTraceFormat.LegacyFileName);
         Assert.Equal("menuclose_trace.json", MenuCloseTrace.LegacyFileName);
     }
 
     [Fact]
-    public void ResolveFileName_NoLegacyFile_UsesPrimaryTraceJson()
+    public void ResolveFileName_NoLegacyFile_UsesMenuCloseJsonl()
     {
-        // Нет legacy-файла от 0.3.9.306 — журнал пишется в основной trace.json.
-        Assert.Equal("trace.json", MenuCloseTraceFormat.ResolveFileName(legacyExists: false));
+        // Нет legacy-файла от 0.3.9.306 — журнал пишется в основной trace_menuclose.jsonl.
+        Assert.Equal("trace_menuclose.jsonl", MenuCloseTraceFormat.ResolveFileName(legacyExists: false));
     }
 
     [Fact]

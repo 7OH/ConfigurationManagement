@@ -2,11 +2,11 @@
 
 - Author: 7OH
 - Created: 2026-09-29T17:28:36Z
-- Updated: 2026-10-05T11:56:32Z
+- Updated: 2026-10-05T21:06:37Z
 - State: open
 - Labels: 
 
-## Описание
+## РћРїРёСЃР°РЅРёРµ
 
 <img width="766" height="742" alt="Image" src="https://github.com/user-attachments/assets/64ebd142-edec-439b-bb3a-56508d8b6495" />
 
@@ -18,7 +18,7 @@
 
 ---
 
-## Комментарий 1 от sivatorov (2026-09-29T21:02:31Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 1 РѕС‚ sivatorov (2026-09-29T21:02:31Z)
 
 Исправлено в версии **0.3.9.158** (Windows/WPF и Linux/Avalonia).
 
@@ -93,7 +93,7 @@
 
 ---
 
-## Комментарий 2 от 7OH (2026-09-30T05:55:00Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 2 РѕС‚ 7OH (2026-09-30T05:55:00Z)
 
 1. Если связывать надо вручную - зачем тогда было определять свойства конфигурации ?
 Вполне логично брать информацию из тех свойств, которые указаны на вкладке Платформа
@@ -107,7 +107,7 @@
 
 ---
 
-## Комментарий 3 от sivatorov (2026-10-01T15:04:53Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 3 РѕС‚ sivatorov (2026-10-01T15:04:53Z)
 
 Исправлено в версии **0.3.9.246** (Windows/WPF и Linux/Avalonia).
 
@@ -133,7 +133,7 @@
 
 ---
 
-## Комментарий 4 от 7OH (2026-10-01T20:25:16Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 4 РѕС‚ 7OH (2026-10-01T20:25:16Z)
 
 <img width="646" height="192" alt="Image" src="https://github.com/user-attachments/assets/64db513e-608d-4ce3-b84a-9f809230a85d" />
 
@@ -143,7 +143,7 @@
 
 ---
 
-## Комментарий 5 от sivatorov (2026-10-02T09:08:21Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 5 РѕС‚ sivatorov (2026-10-02T09:08:21Z)
 
 Исправлено в версии **0.3.9.268** (Windows/WPF и Linux/Avalonia).
 
@@ -171,7 +171,7 @@
 
 ---
 
-## Комментарий 6 от 7OH (2026-10-02T11:38:35Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 6 РѕС‚ 7OH (2026-10-02T11:38:35Z)
 
 Всё ещё статус 302
 
@@ -183,7 +183,7 @@
 
 ---
 
-## Комментарий 7 от sivatorov (2026-10-02T19:08:51Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 7 РѕС‚ sivatorov (2026-10-02T19:08:51Z)
 
 Исправлено в версии **0.3.9.287** (Windows/WPF и Linux/Avalonia).
 
@@ -207,7 +207,7 @@
 
 ---
 
-## Комментарий 8 от 7OH (2026-10-02T20:36:13Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 8 РѕС‚ 7OH (2026-10-02T20:36:13Z)
 
 Пока всё так же
 
@@ -222,7 +222,7 @@
 
 ---
 
-## Комментарий 9 от sivatorov (2026-10-03T06:21:37Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 9 РѕС‚ sivatorov (2026-10-03T06:21:37Z)
 
 Исправлено в версии **0.3.9.297** (Windows/WPF и Linux/Avalonia).
 
@@ -268,7 +268,7 @@
 
 ---
 
-## Комментарий 10 от 7OH (2026-10-03T18:49:46Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 10 РѕС‚ 7OH (2026-10-03T18:49:46Z)
 
 2026-10-03 21:48:46.441 [INFO] [Updates] Проверка: config='Бухгалтерия предприятия', url=https://releases.1c.ru/project/Accounting30
 2026-10-03 21:48:46.546 [INFO] [Updates] Редирект 302 (шаг 0): 'https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check' для 'https://releases.1c.ru/project/Accounting30'
@@ -278,7 +278,7 @@
 
 ---
 
-## Комментарий 11 от sivatorov (2026-10-04T09:16:47Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 11 РѕС‚ sivatorov (2026-10-04T09:16:47Z)
 
 Исправлено в версии **0.3.9.301** (Windows/WPF и Linux/Avalonia).
 
@@ -303,7 +303,7 @@
 
 ---
 
-## Комментарий 12 от 7OH (2026-10-04T10:23:22Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 12 РѕС‚ 7OH (2026-10-04T10:23:22Z)
 
 2026-10-04 13:23:03.181 [INFO] [Updates] Проверка: config='Бухгалтерия предприятия', url=https://releases.1c.ru/project/Accounting30
 2026-10-04 13:23:03.234 [WARN] [Updates] Превышен лимит попыток входа на portal.1c.ru за сессию (лимит 3); дальнейший вход возможен после смены учётной записи.
@@ -313,7 +313,7 @@
 
 ---
 
-## Комментарий 13 от sivatorov (2026-10-04T13:44:43Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 13 РѕС‚ sivatorov (2026-10-04T13:44:43Z)
 
 Исправлено в версии **0.3.9.303**.
 
@@ -357,7 +357,7 @@ portal.1c.ru». Общий корень с issues #334/#330 — программ
 
 ---
 
-## Комментарий 14 от 7OH (2026-10-04T16:26:42Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 14 РѕС‚ 7OH (2026-10-04T16:26:42Z)
 
 2026-10-04 19:25:43.462 [INFO] [Updates] Проверка: config='Бухгалтерия предприятия', url=https://releases.1c.ru/project/Accounting30
 2026-10-04 19:25:43.637 [INFO] [Updates] Редирект 302 (шаг 1): 'https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check' для 'https://releases.1c.ru/project/Accounting30'
@@ -366,7 +366,7 @@ portal.1c.ru». Общий корень с issues #334/#330 — программ
 
 ---
 
-## Комментарий 15 от sivatorov (2026-10-04T19:09:54Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 15 РѕС‚ sivatorov (2026-10-04T19:09:54Z)
 
 Исправлено в версии **0.3.9.305** (Windows/WPF и Linux/Avalonia; третья итерация программного входа).
 
@@ -385,7 +385,7 @@ portal.1c.ru». Общий корень с issues #334/#330 — программ
 
 ---
 
-## Комментарий 16 от 7OH (2026-10-04T20:21:22Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 16 РѕС‚ 7OH (2026-10-04T20:21:22Z)
 
 026-10-04 23:23:13.695 [INFO] [Updates] Проверка: config='Бухгалтерия предприятия', url=https://releases.1c.ru/project/Accounting30
 2026-10-04 23:23:13.824 [INFO] [Updates] Вход запущен: reason=redirect-login, url='https://releases.1c.ru/project/Accounting30', location='https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check'
@@ -396,7 +396,7 @@ portal.1c.ru». Общий корень с issues #334/#330 — программ
 
 ---
 
-## Комментарий 17 от sivatorov (2026-10-05T06:09:01Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 17 РѕС‚ sivatorov (2026-10-05T06:09:01Z)
 
 Исправлено в версии **0.3.9.306** (Windows/WPF и Linux/Avalonia; четвёртая итерация программного входа).
 
@@ -416,7 +416,7 @@ portal.1c.ru». Общий корень с issues #334/#330 — программ
 
 ---
 
-## Комментарий 18 от 7OH (2026-10-05T06:14:26Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 18 РѕС‚ 7OH (2026-10-05T06:14:26Z)
 
 2026-10-05 09:06:21.067 [INFO] [Updates] Проверка: config='Бухгалтерия предприятия', url=[releases.1c.ru/project/Accounting30](https://releases.1c.ru/project/Accounting30)
 2026-10-05 09:06:21.187 [INFO] [Updates] Вход запущен: reason=redirect-login, url='[releases.1c.ru/project/Accounting30](https://releases.1c.ru/project/Accounting30)', location='[login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check](https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check)'
@@ -427,7 +427,7 @@ portal.1c.ru». Общий корень с issues #334/#330 — программ
 
 ---
 
-## Комментарий 19 от sivatorov (2026-10-05T11:30:11Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 19 РѕС‚ sivatorov (2026-10-05T11:30:11Z)
 
 Исправлено в версии **0.3.9.307** (Windows/WPF и Linux/Avalonia; пятая итерация программного входа).
 
@@ -502,7 +502,7 @@ cookie-заглушка не даёт ложного Success; мусорная c
 
 ---
 
-## Комментарий 20 от 7OH (2026-10-05T11:56:24Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 20 РѕС‚ 7OH (2026-10-05T11:56:24Z)
 
 2026-10-05 14:27:08.634 [INFO] [Updates] Проверка: config='Бухгалтерия предприятия', url=[releases.1c.ru/project/Accounting30](https://releases.1c.ru/project/Accounting30)
 2026-10-05 14:27:08.676 [INFO] [Updates] Вход запущен: reason=redirect-login, url='[releases.1c.ru/project/Accounting30](https://releases.1c.ru/project/Accounting30)', location='[login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check](https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check)'
@@ -523,5 +523,260 @@ cookie-заглушка не даёт ложного Success; мусорная c
 
 ---
 
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 21 РѕС‚ sivatorov (2026-10-05T16:38:15Z)
+
+Исправлено в версии **0.3.9.310** (Windows/WPF и Linux/Avalonia; шестая итерация программного входа).
+
+**Что было.**
+
+В вашем логе на 0.3.9.308 (комментарий от 2026-10-05) после отправки формы входа сервер вернул
+HTTP 200 со страницей **личного кабинета** — `<title>Личные данные</title>` — то есть вход фактически
+был успешным. Но код ошибочно объявлял «вход не подтверждён (AuthFailed)»:
+
+```
+[Updates] Вход: POST status=200, location='<нет>', sessionCookie=True
+[Updates] Вход: POST 2xx диагностика status=200, contentType='text/html; charset=UTF-8', bodyLength=21690,
+          bodyPreview=' <title>Личные данные</title> …'
+[WARN] Вход на portal.1c.ru не подтверждён (status=200: в теле форма входа).
+→ AuthFailed / «Требуется вход на portal.1c.ru»
+```
+
+Причина — ложное срабатывание детектора формы входа: страница считалась «формой входа» при любом
+поле `execution` (оно присутствует и на странице личного кабинета во встроенных формах), а маркеры
+причины («неверный логин/пароль», «incorrect», «execution») искались подстрокой по всему HTML,
+включая JS-скрипты и подсказки валидации.
+
+**Что сделано** (общий корень #323/#334/#330 — в общем сервисе
+[`OneCUpdatesService.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Services/OneCUpdatesService.cs)):
+
+1. **Уточнён детектор формы входа** ([`LooksLikeLoginForm`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Services/OneCUpdatesService.cs)):
+   главный признак — поля ввода логина и пароля (`name="username"` + `name="password"`); скрытые токены
+   CAS (`execution`/`lt`) учитываются только как поля формы и только вместе с маркером формы входа.
+   Страница с полем `execution`, но без полей логина/пароля формой входа больше не считается.
+2. **Страница личного кабинета = успешный вход**: добавлено распознавание
+   ([`DetectPersonalAreaPage`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Services/OneCUpdatesService.cs):
+   «Личные данные», «Личный кабинет», «Главная», «Профиль», «Мои данные»). В POST-ветке такая страница
+   трактуется как успешный вход — счётчик попыток сбрасывается и выполняется повтор исходного запроса
+   каталога.
+3. **Сужены маркеры причины отказа** ([`DetectAuthFailureMarkers`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Services/OneCUpdatesService.cs)):
+   «execution» ищется как поле формы (`name="execution"`), а не как любое вхождение в HTML; фразы
+   «неверный логин/пароль» — только точные фразы отказа. JS-подсказки личного кабинета больше не дают
+   ложных признаков.
+4. **Новый признак капчи**: если портал запросил подтверждение, показывается понятное сообщение
+   с советом выполнить вход в браузере на login.1c.ru (`Updates.CaptchaRequired`; ключ добавлен в
+   [`ru.json`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Localization/Languages/ru.json)
+   / [`en.json`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Localization/Languages/en.json)).
+5. **Диагностика**: в журнал POST 2xx добавлен `<title>` страницы ответа и домены сессионных cookie —
+   по логу сразу видно «Личные данные» vs «Вход».
+
+**Как проверить.**
+
+1. Установите **0.3.9.310** (Windows или Linux) и повторите «Проверку обновлений» (F9) по базе
+   с типовой конфигурацией (например «Бухгалтерия предприятия» → `Accounting30`).
+2. Ожидание: в окне «Последняя версия» и кликабельная ссылка каталога; в журнале — строка
+   `Вход на portal.1c.ru выполнен`, БЕЗ `Вход на portal.1c.ru не подтверждён (status=200: в теле форма входа)`.
+3. Если снова появится `AuthFailed` — теперь в логе будет виден `<title>` страницы ответа: это сразу
+   покажет, вернул ли сервер форму входа или личный кабинет.
+4. Если портал запросит капчу — приложение покажет сообщение `Updates.CaptchaRequired` с советом
+   выполнить вход в браузере, а не техническую строку.
+5. Повторите шаги на Windows и Linux — вход реализован в общем сервисе, обе платформы используют его напрямую.
+
+**Тесты.** 7 новых сценариев в
+[`OneCUpdatesLoginFlowTests.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs),
+включая «POST 200 → страница „Личные данные" → Success (не AuthFailed)» и цепочку из вашего лога
+(повторный вход при повторном 302 после личного кабинета). Полный набор `dotnet test` зелёный
+(**1787**, 0 не пройдено); кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок;
+регрессия статусных цепочек #334/#330 пройдена без правок кода.
+
+**Запрос к вам:** проверьте ту же пару логин/пароль учётной записи ИТС на **login.1c.ru в браузере
+в режиме инкогнито** и сообщите результат — входит ли портал вручную, просит ли капчу, отклоняет ли
+пароль. Это позволит отличить ошибку кода от неверного пароля/блокировки/капчи на стороне 1С.
+
+Версия **0.3.9.310** входит в релиз v0.3.9.310:
+[CHANGELOG](https://github.com/sivatorov/ConfigurationManagement/blob/main/CHANGELOG.md),
+[релиз v0.3.9.310](https://github.com/sivatorov/ConfigurationManagement/releases/tag/v0.3.9.310).
+
+---
+
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 22 РѕС‚ 7OH (2026-10-05T18:08:10Z)
+
+2026-10-05 21:05:56.770 [INFO] [Updates] Проверка: config='Бухгалтерия предприятия', url=https://releases.1c.ru/project/Accounting30
+2026-10-05 21:05:56.897 [INFO] [Updates] Вход запущен: reason=redirect-login, url='https://releases.1c.ru/project/Accounting30', location='https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check'
+2026-10-05 21:05:56.901 [INFO] [Updates] Вход: cookie контейнера: login.1c.ru=__ddg8_{Path=/,Domain=.1c.ru}|__ddg10_{Path=/,Domain=.1c.ru}|__ddg9_{Path=/,Domain=.1c.ru}|__ddg1_{HttpOnly,Path=/,Domain=.1c.ru}; releases.1c.ru=SESSION{Secure,HttpOnly,Path=/,Domain=releases.1c.ru}|__ddg8_{Path=/,Domain=.1c.ru}|__ddg10_{Path=/,Domain=.1c.ru}|__ddg9_{Path=/,Domain=.1c.ru}|__ddg1_{HttpOnly,Path=/,Domain=.1c.ru}
+2026-10-05 21:05:56.943 [INFO] [Updates] Вход: пробная проверка живой сессии 'https://releases.1c.ru/project/Accounting30' => status=302, bodyLength=0, loginForm=нет, alive=False
+2026-10-05 21:05:56.944 [WARN] [Updates] Вход: сессионная cookie в контейнере, но пробный GET показал мёртвую сессию — cookie портала удаляются, выполняется полный вход со свежей формой.
+2026-10-05 21:05:56.946 [INFO] [Updates] Вход на portal.1c.ru: учётная запись 'Основная', credsPresent=True, форма: https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check
+2026-10-05 21:05:57.107 [INFO] [Updates] Вход: GET формы status=200, execution=есть, lt=нет, action='/login', поля: _eventId,anotherComputer,execution,geolocation,inviteCode,inviteType,rememberMe
+2026-10-05 21:05:57.108 [INFO] [Updates] Вход: POST на action формы 'https://login.1c.ru/login' (GET-форма: https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check)
+2026-10-05 21:05:57.177 [INFO] [Updates] Вход: POST status=200, location='<нет>', sessionCookie=True
+2026-10-05 21:05:57.178 [INFO] [Updates] Вход: POST Set-Cookie: __ddg8_; Domain=.1c.ru; Path=/ | __ddg10_; Domain=.1c.ru; Path=/ | __ddg9_; Domain=.1c.ru; Path=/
+2026-10-05 21:05:57.181 [INFO] [Updates] Вход: POST 2xx диагностика status=200, contentType='text/html; charset=UTF-8', bodyLength=21690, title='Личные данные', bodyPreview='<!DOCTYPE html><html> <head>     <title>Личные данные</title>     <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="MobileOptimized" content="320"/><meta name="HandheldFriendly" content="true"/><meta name="ctx" /><link rel="stylesheet" type="text'
+2026-10-05 21:05:57.181 [INFO] [Updates] Вход: POST Set-Cookie: __ddg8_; Domain=.1c.ru; Path=/ | __ddg10_; Domain=.1c.ru; Path=/ | __ddg9_; Domain=.1c.ru; Path=/
+2026-10-05 21:05:57.183 [WARN] [Updates] Вход на portal.1c.ru не подтверждён (status=200: в теле форма входа). (body_len=21690, title='Личные данные', признаки: неверный логин/пароль, execution, поля формы: _eventId, anotherComputer, execution, geolocation, inviteCode, inviteType, rememberMe).
+2026-10-05 21:05:57.184 [INFO] [Updates] Вход запущен: результат=AuthFailed (попытка 1/2), повтор исходного запроса=False
+2026-10-05 21:05:57.184 [INFO] [Updates] Редирект 302 (шаг 0): 'https://login.1c.ru/login?service=https%3A%2F%2Freleases.1c.ru%2Fpublic%2Fsecurity_check' для 'https://releases.1c.ru/project/Accounting30'
+2026-10-05 21:05:57.185 [WARN] [Updates] Требуется вход на portal.1c.ru (запрос ушёл на https://releases.1c.ru/project/Accounting30) для 'https://releases.1c.ru/project/Accounting30'
+
+
+---
+
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 23 РѕС‚ 7OH (2026-10-05T21:06:37Z)
+
+Нашел рабочий код в 1С - возможно и тут чем-то поможет с редиректом
+
+--
+
+&НаСервере
+Функция РаспарситьinviteCode(Текст)
+	
+	ЧтениеHTML = Новый ЧтениеHTML;
+	ЧтениеHTML.УстановитьСтроку(Текст);
+	
+	Построитель = Новый ПостроительDOM;
+	ДокументHTML = Построитель.Прочитать(ЧтениеHTML);
+	
+	loginForm = ДокументHTML.ПолучитьЭлементПоИдентификатору("loginForm");
+	execution = "";
+	Для Каждого Итератор Из loginForm.Элементы Цикл
+		Если Итератор.Имя = "execution" Тогда
+	    	execution = Итератор.Значение;
+			Прервать;
+		КонецЕсли;
+	КонецЦикла;
+	inviteCode = "inviteCode=&username=" + Объект.Логин
+				+ "&password=" + Объект.Пароль
+				+ "&execution=" + execution
+				+ "&_eventId=submit"
+				+ "&geolocation="
+				+ "&submit=Войти"
+				+ "&rememberMe=on"
+				;
+				
+	Возврат inviteCode;
+	
+КонецФункции
+
+&НаСервере
+Функция ПолучитьЗаголовок(Знач ЗаголовкиОтвета, Заголовок) Экспорт
+	ЗначениеСоответствия = Неопределено;
+	                            
+	Для Каждого ЭлементСоответствия Из ЗаголовкиОтвета Цикл
+		Если ВРег(ЭлементСоответствия.Ключ) = ВРег(Заголовок) Тогда
+			ЗначениеСоответствия = ЭлементСоответствия.Значение;
+		КонецЕсли;
+	КонецЦикла;
+	
+	Возврат ЗначениеСоответствия
+	
+КонецФункции
+
+&НаСервере
+Функция ПолучитьТекстСтраницы(АдресРесурса, JSESSIONID)
+	
+	Запрос = Новый HTTPЗапрос;
+	Запрос.Заголовки.Вставить("Connection", "keep-alive");
+	Запрос.Заголовки.Вставить("Cookie", JSESSIONID);
+	Запрос.АдресРесурса = АдресРесурса;
+	
+	Соединение2 = Новый HTTPСоединение("releases.1c.ru",,,,Новый ИнтернетПрокси,,Новый ЗащищенноеСоединениеOpenSSL);
+	
+	ОтветHTTP = Соединение2.Получить(Запрос);
+	
+	Возврат ОтветHTTP.ПолучитьТелоКакСтроку();
+
+КонецФункции
+
+&НаСервере
+Функция НайтиJSESSIONID(JSESSIONID, Знач Хост = "releases.1c.ru", Знач АдресРесурса = "/") Экспорт
+	
+	Попытка
+			
+		//для GET-запросов
+		HTTPЗапрос1 = Новый HTTPЗапрос;
+		HTTPЗапрос1.Заголовки.Вставить("Connection", "keep-alive");
+		
+		//для POST-запросов
+		HTTPЗапрос2 = Новый HTTPЗапрос;
+		HTTPЗапрос2.Заголовки.Вставить("Connection", "keep-alive");
+		HTTPЗапрос2.Заголовки.Вставить("Content-Type", "application/x-www-form-urlencoded");
+		
+		Соединение1 = Новый HTTPСоединение("login.1c.ru",,,,Новый ИнтернетПрокси,,Новый ЗащищенноеСоединениеOpenSSL);
+		Соединение2 = Новый HTTPСоединение(Хост,,,,Новый ИнтернетПрокси,,Новый ЗащищенноеСоединениеOpenSSL);
+		
+		
+		//Запрос 1
+		HTTPЗапрос1.АдресРесурса = АдресРесурса;
+		ОтветHTTP1 = Соединение2.Получить(HTTPЗапрос1);
+		Cookie = ПолучитьЗаголовок(ОтветHTTP1.Заголовки, "Set-Cookie");
+		
+		Если СтрНайти(Cookie, "JSESSIONID") >= 1 Тогда
+			JSESSIONID = Прав(Cookie, СтрДлина(Cookie) - СтрНайти(Cookie, "JSESSIONID") + 1);
+			JSESSIONID = Лев(JSESSIONID, Найти(JSESSIONID, ";") - 1);
+		ИначеЕсли СтрНайти(Cookie, "SESSION") >= 1 Тогда
+			JSESSIONID = Прав(Cookie, СтрДлина(Cookie) - СтрНайти(Cookie, "SESSION") + 1);
+			JSESSIONID = Лев(JSESSIONID, Найти(JSESSIONID, ";") - 1);
+		Иначе
+			JSESSIONID = Лев(Cookie, Найти(Cookie, ";") - 1);
+		КонецЕсли;
+		
+		LOCATION1 = СтрЗаменить(ПолучитьЗаголовок(ОтветHTTP1.Заголовки, "Location"), "https://login.1c.ru", "");
+		
+		SERVERID = Прав(Cookie, СтрДлина(Cookie) - СтрНайти(Cookie, "SERVERID") + 1);
+		SERVERID = Лев(SERVERID, Найти(SERVERID, ";") - 1);
+		
+		Если СтрНайти(SERVERID, "SERVERID") > 0 Тогда
+			JSESSIONID = JSESSIONID + ";" + SERVERID;
+		КонецЕсли;
+		
+		//Запрос 2
+		HTTPЗапрос1.АдресРесурса = LOCATION1;
+		ОтветHTTP2 = Соединение1.Получить(HTTPЗапрос1);
+		JSESSIONID1 = ПолучитьЗаголовок(ОтветHTTP2.Заголовки, "Set-Cookie");
+		JSESSIONID1 = Прав(JSESSIONID1,  СтрДлина(JSESSIONID1) - Найти(JSESSIONID1, "SESSION") + 1);
+		JSESSIONID1 = Лев(JSESSIONID1, Найти(JSESSIONID1, ";") - 1);
+		inviteCode = РаспарситьinviteCode(ОтветHTTP2.ПолучитьТелоКакСтроку());
+
+		//Запрос 3
+		
+		HTTPЗапрос2.АдресРесурса = LOCATION1;
+		HTTPЗапрос2.Заголовки.Вставить("Cookie", JSESSIONID1);
+		HTTPЗапрос2.УстановитьТелоИзСтроки(inviteCode);
+		ОтветHTTP3 = Соединение1.ОтправитьДляОбработки(HTTPЗапрос2);
+		LOCATION3 = СтрЗаменить(ПолучитьЗаголовок(ОтветHTTP3.Заголовки, "Location"), "https://" + Хост, "");
+		
+		//Запрос 4
+		HTTPЗапрос1.АдресРесурса = LOCATION3;
+		HTTPЗапрос1.Заголовки.Вставить("Cookie", JSESSIONID);
+		ОтветHTTP4 = Соединение2.Получить(HTTPЗапрос1);
+		
+	Исключение
+		
+		Возврат Ложь;
+		
+	КонецПопытки;
+	
+	Возврат Истина;
+	
+КонецФункции
+
+&НаКлиенте
+Процедура ТестЧтения(Команда)
+	
+	JSESSIONID = "";
+	Если НЕ НайтиJSESSIONID(JSESSIONID) Тогда
+		
+		Сообщить("Ошибка!");
+		Возврат;
+		
+	КонецЕсли;
+	
+	// Объект.СсылкаДляЗагрузки = "project/Platform83";
+	ТекстСайта = ПолучитьТекстСтраницы(Объект.СсылкаДляЗагрузки, JSESSIONID);
+	
+КонецПроцедуры
+
+
+
+---
 
 

@@ -784,6 +784,20 @@ namespace Configuration_Management
                     _viewModel.ClearBatchSelection();
                     ApplySelection(treeViewItem, infobase);
 
+                    // issue #340 (0.3.9.314): запоминаем «последний обычный клик по строке
+                    // дерева» — единые часы Environment.TickCount, целевая база и секция.
+                    // Второй реальный trace.json показал: клик по строке может прийти в
+                    // дерево ДО закрытия контекстного меню (MouseDown → MenuClosed,
+                    // snapshot=False, redelivery=False) — снимок по guard-цепочке
+                    // TryApplyTreeClickAfterMenuClosed не записывается (кнопка отпущена
+                    // к моменту OnContextMenuClosed), повторной доставки нет, и ни один
+                    // штатный путь стабилизацию не запускает. Цель этого клика используется
+                    // в OnContextMenuClosed (ShouldStabilizeForClickPrecedingMenuClose):
+                    // если клик был ≤500 мс до закрытия меню — стабилизация по нему.
+                    _lastPlainTreeClick = (Environment.TickCount, infobase, isPinnedSection);
+                    MenuCloseTrace.Log($"LastPlainClick: target={infobase.Id}, " +
+                                       $"tick={_lastPlainTreeClick.Value.Tick}, pinned={isPinnedSection}");
+
                     // issue #340 (F1): клик, которым закрыли контекстное меню, после штатного
                     // применения выбора дополнительно «стабилизируется» — подписка на
                     // LayoutUpdated чинит последствия переработки контейнеров

@@ -8,28 +8,32 @@ namespace Configuration_Management.Services;
 
 /// <summary>
 /// Диагностическая трассировка клика, закрывающего контекстное меню дерева
-/// (issue #340, девятая попытка). Пишется ВСЕГДА (без env-гейта) в файл
-/// <c>trace.json</c> РЯДОМ с настройками приложения — в каталоге
-/// <see cref="PlatformPaths.AppDataDirectory"/> (Windows: %APPDATA%\ConfigurationManagement\,
-/// Linux: ~/.config/ConfigurationManagement/), тот же каталог, что и settings.json.
-/// Имя файла — по соглашению с пользователем (0.3.9.308): основной <c>trace.json</c>;
-/// legacy <c>menuclose_trace.json</c> от 0.3.9.306 продолжает дописываться, если уже
-/// существует (непрерывность диагностики, см. <see cref="ResolvePath"/>).
+/// (issue #340, девятая попытка; issue #347 «Сказ о trace.json» — с 0.3.9.315 пишется
+/// ТОЛЬКО при включённом флаге <c>CM_MENUCLOSE</c> в конфиге <c>trace.json</c>, псевдоним —
+/// <c>CM_MENUCLICK</c>). Журнал лежит в <c>trace_menuclose.jsonl</c> РЯДОМ с настройками
+/// приложения — в каталоге <see cref="PlatformPaths.AppDataDirectory"/> (Windows:
+/// %APPDATA%\ConfigurationManagement\, Linux: ~/.config/ConfigurationManagement/),
+/// тот же каталог, что settings.json и конфиг флагов.
+/// Имя файла — по соглашению с пользователем (0.3.9.308–0.3.9.314 это был основной
+/// <c>trace.json</c>; с 0.3.9.315 — <c>trace_menuclose.jsonl</c>, чтобы не конфликтовать
+/// с конфигом); legacy <c>menuclose_trace.json</c> от 0.3.9.306 продолжает дописываться,
+/// если уже существует (непрерывность диагностики, см. <see cref="ResolvePath"/>).
 /// Формат — JSON Lines: одна JSON-запись на строку (валидный JSON, ключи латиницей).
-/// При превышении ~1 МБ (0.3.9.311: лимит увеличен с 512 КБ — трассировка стала
-/// плотнее за счёт безусловных записей кликов/активаций) файл усекается по кругу:
+/// При превышении ~1 МБ (0.3.9.311: лимит увеличен с 512 КБ) файл усекается по кругу:
 /// остаётся хвост последних записей и первой строкой дописывается маркер
 /// <c>{"event":"truncated","ts":...}</c>.
-/// Файл создаётся при КАЖДОМ старте приложения через <see cref="EnsureStarted"/>
-/// (startup-запись пишется вне зависимости от действий пользователя), а не только
-/// при первом событии меню, как было в 0.3.9.306. Запись под lock;
+/// <see cref="EnsureStarted"/> всегда гарантирует наличие конфига флагов <c>trace.json</c>,
+/// но startup-запись пишется только при включённом флаге. Запись под lock;
 /// ошибки записи игнорируются — трассировка не должна влиять на работу приложения.
 /// Общий для WPF и Avalonia.
 /// </summary>
 public static class MenuCloseTrace
 {
-    /// <summary>Основное имя файла трассировки (JSONL; расширение .json по просьбе пользователя).</summary>
+    /// <summary>Основное имя журнала событий меню (JSONL; issue #347 — отдельно от конфига trace.json).</summary>
     public const string FileName = MenuCloseTraceFormat.PrimaryFileName;
+
+    /// <summary>Имя конфига отладочных флагов (trace.json; issue #347).</summary>
+    public const string ConfigFileName = MenuCloseTraceFormat.ConfigFileName;
 
     /// <summary>Прежнее имя файла трассировки 0.3.9.306 (дописывается при наличии).</summary>
     public const string LegacyFileName = MenuCloseTraceFormat.LegacyFileName;
@@ -39,10 +43,11 @@ public static class MenuCloseTrace
     private static bool _startupWritten;
 
     /// <summary>
-    /// Гарантирует создание файла трассировки при старте приложения (issue #340, 0.3.9.308):
-    /// startup-запись пишется БЕЗ какого-либо события меню — чтобы пользователь всегда видел
-    /// файл рядом с настройками и мог убедиться, что диагностика активна (в 0.3.9.306 файл
-    /// не появлялся, т.к. startup-запись выполнялась только внутри <see cref="Log"/>).
+    /// Гарантирует наличие конфига флагов <c>trace.json</c> при старте приложения (issue #347):
+    /// сам конфиг создаётся всегда (даже при выключенном флаге — пользователь видит файл
+    /// рядом с настройками), а startup-запись журнала выполняется ТОЛЬКО при включённом
+    /// <c>CM_MENUCLOSE</c>/<c>CM_MENUCLICK</c>. В 0.3.9.308–0.3.9.314 запись была безусловной —
+    /// «логи капали» у всех пользователей, теперь журнал ведётся по запросу из тикета.
     /// Вызывается из конструктора/OnLoaded главного окна (WPF и Avalonia). Идемпотентна.
     /// </summary>
     public static void EnsureStarted()
@@ -51,6 +56,11 @@ public static class MenuCloseTrace
         {
             lock (Lock)
             {
+                // Конфиг флагов гарантированно существует при каждом старте (issue #347),
+                // даже если журнал меню выключен.
+                TraceFlags.EnsureExists();
+                if (!TraceFlags.IsMenuEnabled())
+                    return;
                 WriteStartupIfNeeded(ResolvePath());
             }
         }
@@ -61,7 +71,9 @@ public static class MenuCloseTrace
     }
 
     /// <summary>
-    /// Пишет одну запись в trace.json (или legacy menuclose_trace.json при его наличии).
+    /// Пишет одну запись в журнал меню (trace_menuclose.jsonl, либо legacy menuclose_trace.json
+    /// при его наличии) — ТОЛЬКО при включённом флаге <c>CM_MENUCLOSE</c> или его псевдониме
+    /// <c>CM_MENUCLICK</c> (issue #347; при выключенном флаге — no-op, файл не растёт).
     /// Сигнатура сохранена прежней — все существующие вызовы НЕ меняются; текст сообщения
     /// сохраняется в <c>data.message</c>. Ошибки записи игнорируются.
     /// </summary>
@@ -71,6 +83,8 @@ public static class MenuCloseTrace
         {
             lock (Lock)
             {
+                if (!TraceFlags.IsMenuEnabled())
+                    return;
                 var path = ResolvePath();
                 WriteStartupIfNeeded(path);
                 var line = MenuCloseTraceFormat.BuildLine(
@@ -88,11 +102,11 @@ public static class MenuCloseTrace
     }
 
     /// <summary>
-    /// Полный путь к файлу трассировки (в каталоге данных приложения). Выбор имени
+    /// Полный путь к журналу (в каталоге данных приложения). Выбор имени
     /// (issue #340, 0.3.9.308): если рядом с настройками уже существует legacy-файл
     /// <c>menuclose_trace.json</c> (от 0.3.9.306) — журнал дописывается в него
-    /// (непрерывность диагностики); иначе — основной <c>trace.json</c>. Путь
-    /// кэшируется на время сессии.
+    /// (непрерывность диагностики); иначе — основной <c>trace_menuclose.jsonl</c> (issue #347).
+    /// Путь кэшируется на время сессии.
     /// </summary>
     private static string ResolvePath()
     {

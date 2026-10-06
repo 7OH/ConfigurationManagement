@@ -1043,15 +1043,15 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // по журналу должно быть видно, на каком звене CAS-цепочка рвётся.
                 var reason = status is 401 or 403 ? $"http-{status}" : "redirect-login";
                 var locText = response.Headers.Location?.ToString() ?? "<нет>";
-                _logger.Info($"[Updates] Вход запущен: reason={reason}, url='{current.RequestUri}', location='{locText}'");
+                LogRedirectInfo($"[Updates] Вход запущен: reason={reason}, url='{current.RequestUri}', location='{locText}'");
                 // Передаём полный URL редиректа (login.1c.ru/login?service=...): форма входа
                 // получит service= исходного каталога, и CAS после входа вернёт верный адрес.
                 // probeUrl (исходный URL операции) позволяет проверить «живость» уже установленной
                 // сессии (A-1): если сессия жива — вход не выполняется и лимит не тратится.
                 var loginResult = await TryLoginPortalAsync(response.Headers.Location?.ToString(), ct,
                     current.RequestUri?.ToString()).ConfigureAwait(false);
-                _logger.Info($"[Updates] Вход запущен: результат={loginResult} (попытка {loginTriedCount}/{MaxLoginAttemptsPerOperation}), " +
-                             $"повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
+                LogRedirectInfo($"[Updates] Вход запущен: результат={loginResult} (попытка {loginTriedCount}/{MaxLoginAttemptsPerOperation}), " +
+                                $"повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
                 if (loginResult == PortalLoginResult.Success)
                 {
                     response.Dispose();
@@ -1068,7 +1068,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             if (status is >= 300 and < 400)
             {
                 var locText = response.Headers.Location?.ToString() ?? "<нет Location>";
-                _logger.Info($"[Updates] Редирект {status} (шаг {i}): '{locText}' для '{current.RequestUri}'");
+                LogRedirectInfo($"[Updates] Редирект {status} (шаг {i}): '{locText}' для '{current.RequestUri}'");
             }
 
             // releases.1c.ru при отсутствии сессии может вернуть 302 БЕЗ заголовка Location
@@ -1083,11 +1083,11 @@ public class OneCUpdatesService : IOneCUpdatesService
                 loginTriedCount++;
                 // Диагностика (issue #323/#330/#334): циклический/пустой редирект — тот же
                 // признак требования авторизации, что и прямой редирект на login.1c.ru.
-                _logger.Info($"[Updates] Вход запущен: reason={(response.Headers.Location is null ? "redirect-no-location" : "self-redirect")}, url='{current.RequestUri}'");
+                LogRedirectInfo($"[Updates] Вход запущен: reason={(response.Headers.Location is null ? "redirect-no-location" : "self-redirect")}, url='{current.RequestUri}'");
                 // Location отсутствует (302 без заголовка) — форма входа по базовому адресу.
                 var loginResult = await TryLoginPortalAsync(null, ct, current.RequestUri?.ToString()).ConfigureAwait(false);
-                _logger.Info($"[Updates] Вход запущен: результат={loginResult} (попытка {loginTriedCount}/{MaxLoginAttemptsPerOperation}), " +
-                             $"повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
+                LogRedirectInfo($"[Updates] Вход запущен: результат={loginResult} (попытка {loginTriedCount}/{MaxLoginAttemptsPerOperation}), " +
+                                $"повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
                 if (loginResult == PortalLoginResult.Success)
                 {
                     response.Dispose();
@@ -1202,7 +1202,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     {
         // A-6 (0.3.9.307): инвентаризация cookie до принятия решения — по журналу видно, какая
         // cookie присутствовала в контейнере и почему вход был/не был запущен (issue #323/#330/#334).
-        _logger.Info($"[Updates] Вход: cookie контейнера: {DescribeContainerCookies()}");
+        LogRedirectInfo($"[Updates] Вход: cookie контейнера: {DescribeContainerCookies()}");
 
         // Новая попытка входа обнуляет ранее найденную причину отказа (капча и пр., issue #323):
         // ключ локализации выбирается по причине ПОСЛЕДНЕЙ попытки.
@@ -1220,8 +1220,8 @@ public class OneCUpdatesService : IOneCUpdatesService
             var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
             if (alive)
             {
-                _logger.Info("[Updates] Вход: сессионная cookie жива (пробный GET вернул контент " +
-                             "каталога) — полный вход не выполняется, лимит попыток не тратится.");
+                LogRedirectInfo("[Updates] Вход: сессионная cookie жива (пробный GET вернул контент " +
+                                "каталога) — полный вход не выполняется, лимит попыток не тратится.");
                 _portalLoginAttempts = 0;
                 _lastLoginResult = PortalLoginResult.Success;
                 LogPortalCookieInventory();
@@ -1244,8 +1244,8 @@ public class OneCUpdatesService : IOneCUpdatesService
         try
         {
             var formUrl = ResolveLoginFormUrl(loginUrl);
-            _logger.Info($"[Updates] Вход на portal.1c.ru: учётная запись '{ResolveAccountName()}', " +
-                         $"credsPresent={!string.IsNullOrEmpty(login)}, форма: {formUrl}");
+            LogRedirectInfo($"[Updates] Вход на portal.1c.ru: учётная запись '{ResolveAccountName()}', " +
+                            $"credsPresent={!string.IsNullOrEmpty(login)}, форма: {formUrl}");
 
             // Шаг 1: GET формы входа — получаем HTML и все скрытые поля Spring Security CAS
             // (execution, lt, CSRF и пр.). Запрос идёт по HTTP/1.1: часть CAS-серверов некорректно
@@ -1263,8 +1263,8 @@ public class OneCUpdatesService : IOneCUpdatesService
                 var fieldNames = fields.Count == 0
                     ? "<нет>"
                     : string.Join(",", fields.Keys.OrderBy(k => k, StringComparer.Ordinal));
-                _logger.Info($"[Updates] Вход: GET формы status={formStatus}, execution={(hasExecution ? "есть" : "нет")}, " +
-                             $"lt={(hasLt ? "есть" : "нет")}, action='{formAction ?? "<нет>"}', поля: {fieldNames}");
+                LogRedirectInfo($"[Updates] Вход: GET формы status={formStatus}, execution={(hasExecution ? "есть" : "нет")}, " +
+                                $"lt={(hasLt ? "есть" : "нет")}, action='{formAction ?? "<нет>"}', поля: {fieldNames}");
 
                 if (!hasExecution)
                 {
@@ -1289,11 +1289,13 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // Набор полей строится ДИНАМИЧЕСКИ из фактической формы (execution, lt, CSRF
                 // и пр.) + обязательные username/password/_eventId=submit — жёсткий список
                 // 0.3.9.297 отклоняется сервером 401 при изменении формы входа (issue #334).
-                var postUrl = ResolveFormPostUrl(formUrl, formAction);
-                if (!string.Equals(postUrl, formUrl, StringComparison.Ordinal))
-                {
-                    _logger.Info($"[Updates] Вход: POST на action формы '{postUrl}' (GET-форма: {formUrl})");
-                }
+                // C-2 (0.3.9.313): выбор адреса POST (эталон рабочего кода 1С, комментарий 23
+                // issue #323): если action не несёт собственного пути и у GET-формы есть параметр
+                // service — POST на ПОЛНЫЙ URL GET-формы с service= (Spring Security CAS выпускает
+                // билет для указанного service только при его наличии в POST); иначе — на action.
+                // Причина выбора всегда пишется в журнал — по нему видно поведение (критерий 3).
+                var (postUrl, postUrlReason) = ResolveFormPostUrl(formUrl, formAction);
+                LogRedirectInfo($"[Updates] Вход: POST на '{postUrl}' (выбран: {postUrlReason}; GET-форма: {formUrl})");
                 var form = new Dictionary<string, string>(fields, StringComparer.Ordinal)
                 {
                     ["username"] = login,
@@ -1319,9 +1321,9 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // уже обрабатывает Set-Cookie; повторное добавление той же cookie безопасно).
                 // После этого sessionCookie корректно отражает факт установки сессии.
                 ApplySetCookieToContainer(postResponse, postRequest.RequestUri ?? new Uri(postUrl));
-                _logger.Info($"[Updates] Вход: POST status={postStatus}, location='{postLocation}', " +
-                             $"sessionCookie={HasPortalSessionCookie()}");
-                _logger.Info($"[Updates] Вход: POST Set-Cookie: {DescribeSetCookies(postResponse)}");
+                LogRedirectInfo($"[Updates] Вход: POST status={postStatus}, location='{postLocation}', " +
+                                $"sessionCookie={HasPortalSessionCookie()}");
+                LogRedirectInfo($"[Updates] Вход: POST Set-Cookie: {DescribeSetCookies(postResponse)}");
 
                 // Шаг 3: доводим CAS-цепочку до конца. После успешного входа сервер отвечает
                 // 302 на releases.1c.ru/public/security_check?ticket=ST-…; сессионная cookie
@@ -1331,11 +1333,11 @@ public class OneCUpdatesService : IOneCUpdatesService
                 {
                     var completed = await FollowLoginRedirectsAsync(
                         postResponse.Headers.Location, ct).ConfigureAwait(false);
-                    _logger.Info($"[Updates] Вход: FollowLoginRedirectsAsync={completed}, " +
-                                 $"sessionCookie={HasPortalSessionCookie()}");
+                    LogRedirectInfo($"[Updates] Вход: FollowLoginRedirectsAsync={completed}, " +
+                                    $"sessionCookie={HasPortalSessionCookie()}");
                     if (completed)
                     {
-                        _logger.Info("[Updates] Вход на portal.1c.ru выполнен (цепочка редиректов пройдена).");
+                        LogRedirectInfo("[Updates] Вход на portal.1c.ru выполнен (цепочка редиректов пройдена).");
                         // Успешный вход сбрасывает счётчик попыток (issue #334/#330/#323):
                         // сессия установлена, следующие операции могут входить заново.
                         _portalLoginAttempts = 0;
@@ -1361,6 +1363,25 @@ public class OneCUpdatesService : IOneCUpdatesService
                     // длина тела, превью (без секретов) и Set-Cookie только именами/флагами.
                     LogPost2xxDiagnostics(postStatus, postResponse, postBody, fields, login, password);
 
+                    // Страница ЛИЧНОГО КАБИНЕТА после POST — вход фактически УСПЕШЕН (issue #323):
+                    // сервер принял креды и открыл кабинет («Личные данные», лог 7OH), а не форму
+                    // входа с ошибкой. В 0.3.9.313 детектор кабинета вызывается РАНЬШЕ детектора
+                    // формы входа (C-1/A-3 плана): страница кабинета содержит execution-форму смены
+                    // аккаунта и JS-подсказку «Неверный логин или пароль», из-за которых
+                    // LooksLikeLoginForm ложно объявлял AuthFailed (лог 7OH 2026-10-05: status=200,
+                    // title='Личные данные'). Кабинет → Success; повтор исходного запроса каталога
+                    // штатно выполняется в SendWithAuthAsync после Success; при 302 там сработает
+                    // повторный вход.
+                    if (DetectPersonalAreaPage(postBody))
+                    {
+                        LogRedirectInfo("[Updates] Вход на portal.1c.ru выполнен (POST 200: страница личного кабинета), " +
+                                        $"sessionCookie={HasPortalSessionCookie()} ({DescribeSessionCookies()}).");
+                        _portalLoginAttempts = 0;
+                        _lastLoginResult = PortalLoginResult.Success;
+                        LogPortalCookieInventory();
+                        return PortalLoginResult.Success;
+                    }
+
                     if (LooksLikeLoginForm(postBody))
                     {
                         LogAnonymizedAuthFailure(
@@ -1370,38 +1391,22 @@ public class OneCUpdatesService : IOneCUpdatesService
                         return PortalLoginResult.AuthFailed;
                     }
 
-                    // Страница ЛИЧНОГО КАБИНЕТА после POST — вход фактически УСПЕШЕН (issue #323):
-                    // сервер принял креды и открыл кабинет («Личные данные», лог 7OH), а не форму
-                    // входа с ошибкой. Раньше ложный детектор формы (поле execution на странице
-                    // кабинета) объявлял AuthFailed, и повтор исходного запроса каталога не
-                    // выполнялся. Критерий успеха — повторный запрос каталога штатно выполняется
-                    // в SendWithAuthAsync после Success; при 302 там сработает повторный вход.
-                    if (DetectPersonalAreaPage(postBody))
-                    {
-                        _logger.Info("[Updates] Вход на portal.1c.ru выполнен (POST 200: страница личного кабинета), " +
-                                     $"sessionCookie={HasPortalSessionCookie()} ({DescribeSessionCookies()}).");
-                        _portalLoginAttempts = 0;
-                        _lastLoginResult = PortalLoginResult.Success;
-                        LogPortalCookieInventory();
-                        return PortalLoginResult.Success;
-                    }
-
                     // Следование JS/meta-refresh-редиректу в теле 2xx (issue #323/#330/#334):
                     // CAS-цепочка часто доводится до releases.1c.ru/public/security_check?ticket=…
                     // именно JS-редиректом, и сессионная cookie выставляется на этом звене.
                     var bodyRedirect = ExtractBodyRedirectUrl(postBody);
                     if (bodyRedirect is not null)
                     {
-                        _logger.Info($"[Updates] Вход: в теле 2xx найден JS/meta-refresh редирект на '{bodyRedirect}' — следуем.");
+                        LogRedirectInfo($"[Updates] Вход: в теле 2xx найден JS/meta-refresh редирект на '{bodyRedirect}' — следуем.");
                         var target = ResolveBodyRedirectTarget(postUrl, bodyRedirect);
                         if (target is not null)
                         {
                             var jsCompleted = await FollowLoginRedirectsAsync(target, ct).ConfigureAwait(false);
-                            _logger.Info($"[Updates] Вход: FollowLoginRedirectsAsync(js)={jsCompleted}, " +
-                                         $"sessionCookie={HasPortalSessionCookie()}");
+                            LogRedirectInfo($"[Updates] Вход: FollowLoginRedirectsAsync(js)={jsCompleted}, " +
+                                            $"sessionCookie={HasPortalSessionCookie()}");
                             if (jsCompleted)
                             {
-                                _logger.Info("[Updates] Вход на portal.1c.ru выполнен (JS/meta-refresh цепочка пройдена).");
+                                LogRedirectInfo("[Updates] Вход на portal.1c.ru выполнен (JS/meta-refresh цепочка пройдена).");
                                 _portalLoginAttempts = 0;
                                 _lastLoginResult = PortalLoginResult.Success;
                                 LogPortalCookieInventory();
@@ -1421,7 +1426,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                     // POST — SESSION Domain=login.1c.ru (сессия страницы входа) НЕ означает
                     // авторизованную сессию каталога (там домен .1c.ru / releases.1c.ru).
                     if (hasSession)
-                        _logger.Info($"[Updates] Вход: POST session-cookie: {DescribeSessionCookies()}");
+                        LogRedirectInfo($"[Updates] Вход: POST session-cookie: {DescribeSessionCookies()}");
                     if (!hasSession && !hasSetCookie)
                     {
                         _logger.Warn("[Updates] Вход на portal.1c.ru не подтверждён: сервер вернул 200 " +
@@ -1431,8 +1436,8 @@ public class OneCUpdatesService : IOneCUpdatesService
                         return PortalLoginResult.AuthFailed;
                     }
 
-                    _logger.Info($"[Updates] Вход на portal.1c.ru выполнен (status={postStatus}), " +
-                                 $"sessionCookie={hasSession}, setCookie={hasSetCookie}.");
+                    LogRedirectInfo($"[Updates] Вход на portal.1c.ru выполнен (status={postStatus}), " +
+                                    $"sessionCookie={hasSession}, setCookie={hasSetCookie}.");
                     _portalLoginAttempts = 0;
                     _lastLoginResult = PortalLoginResult.Success;
                     LogPortalCookieInventory();
@@ -1446,7 +1451,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                     ? await ReadBodyQuietlyAsync(postResponse, ct).ConfigureAwait(false)
                     : string.Empty;
                 LogAnonymizedAuthFailure($"[Updates] Вход на portal.1c.ru не подтверждён (status={postStatus}).", body, fields);
-                _logger.Info($"[Updates] Вход: итог=AuthFailed, status={postStatus}");
+                LogRedirectInfo($"[Updates] Вход: итог=AuthFailed, status={postStatus}");
                 _lastLoginResult = PortalLoginResult.AuthFailed;
                 return PortalLoginResult.AuthFailed;
             }
@@ -1469,7 +1474,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (string.IsNullOrWhiteSpace(probeUrl) ||
             !Uri.TryCreate(probeUrl, UriKind.Absolute, out var probeUri))
         {
-            _logger.Info("[Updates] Вход: пробный GET живости сессии пропущен (URL не задан) — выполняется полный вход.");
+            LogRedirectInfo("[Updates] Вход: пробный GET живости сессии пропущен (URL не задан) — выполняется полный вход.");
             return false;
         }
 
@@ -1484,8 +1489,8 @@ public class OneCUpdatesService : IOneCUpdatesService
             var body = await ReadBodyQuietlyAsync(response, ct).ConfigureAwait(false);
             var isLoginForm = LooksLikeLoginForm(body);
             var alive = status is >= 200 and < 300 && !isLoginForm;
-            _logger.Info($"[Updates] Вход: пробная проверка живой сессии '{probeUri}' => status={status}, " +
-                         $"bodyLength={body.Length}, loginForm={(isLoginForm ? "да" : "нет")}, alive={alive}");
+            LogRedirectInfo($"[Updates] Вход: пробная проверка живой сессии '{probeUri}' => status={status}, " +
+                            $"bodyLength={body.Length}, loginForm={(isLoginForm ? "да" : "нет")}, alive={alive}");
             return alive;
         }
         catch (Exception ex)
@@ -1625,6 +1630,10 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <see cref="HasPortalSessionCookie"/> корректно отражал факт установки сессии. Повторное
     /// добавление той же cookie в контейнер безопасно (заменяет предыдущую). Некорректные
     /// заголовки игнорируются — вход не роняется.
+    /// Сюда же попадает sticky-session cookie балансировщика <c>SERVERID</c> (домен <c>.1c.ru</c>,
+    /// Path=/; эталон кода 1С передаёт её в запросы к releases.1c.ru, issue #323, п.2.3): она
+    /// сохраняется в контейнере и видна в инвентаризации, хотя сессией портала НЕ является
+    /// (<see cref="HasPortalSessionCookie"/> её не учитывает).
     /// </summary>
     private void ApplySetCookieToContainer(HttpResponseMessage response, Uri requestUri)
     {
@@ -1783,7 +1792,7 @@ public class OneCUpdatesService : IOneCUpdatesService
 
             if (status is >= 300 and < 400 && next is not null)
             {
-                _logger.Info($"[Updates] Редирект входа (шаг {i + 1}): {status} '{next}' для '{current}'");
+                LogRedirectInfo($"[Updates] Редирект входа (шаг {i + 1}): {status} '{next}' для '{current}'");
                 current = next.IsAbsoluteUri ? next : new Uri(current, next);
                 continue;
             }
@@ -1899,20 +1908,52 @@ public class OneCUpdatesService : IOneCUpdatesService
         new(@"<form\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
     /// <summary>
-    /// Адрес POST формы входа: атрибут <c>action</c> формы, резолвленный относительно адреса
-    /// GET-формы, либо сам адрес GET-формы, если action отсутствует/пуст/"#" (прежнее поведение).
+    /// Выбирает адрес POST формы входа и причину выбора (issue #323, седьмая итерация, C-2).
+    /// Эталон рабочего кода 1С (комментарий 23): POST уходит на ПОЛНЫЙ URL GET-формы с
+    /// <c>service=</c>, а не на атрибут action, когда action не несёт собственного пути
+    /// («/login», «/login?…») — Spring Security CAS выпускает билет для указанного service
+    /// только если service присутствует в POST. Правила:
+    /// <list type="bullet">
+    /// <item>action отсутствует/пуст/"#" — адрес GET-формы (прежнее поведение);</item>
+    /// <item>action ведёт на ТОТ ЖЕ путь, что и GET-форма, БЕЗ собственных параметров, и у
+    /// GET-формы есть параметр <c>service</c> — полный URL GET-формы с service=;</item>
+    /// <item>иначе (action несёт собственный путь/параметры, например "/login/cas?service=…") —
+    /// резолвленный action (прежнее поведение).</item>
+    /// </list>
     /// Referer/Origin при этом остаются на адресе GET-формы — часть CAS-развёртываний проверяет
-    /// их при POST (см. TryLoginPortalAsync).
+    /// их при POST (см. TryLoginPortalAsync). Возвращает кортеж (адрес, причина выбора) — причина
+    /// логируется в журнал, чтобы по нему было видно поведение (критерий приёмки плана 0.3.9.313).
     /// </summary>
-    private static string ResolveFormPostUrl(string formUrl, string? action)
+    internal static (string Url, string Reason) ResolveFormPostUrl(string formUrl, string? action)
     {
         if (string.IsNullOrWhiteSpace(action))
-            return formUrl;
+            return (formUrl, "action отсутствует — адрес GET-формы");
+
+        Uri? target = null;
         if (Uri.TryCreate(action, UriKind.Absolute, out var abs))
-            return abs.AbsoluteUri;
-        if (Uri.TryCreate(new Uri(formUrl), action, out var rel))
-            return rel.AbsoluteUri;
-        return formUrl;
+            target = abs;
+        else if (Uri.TryCreate(new Uri(formUrl), action, out var rel))
+            target = rel;
+        if (target is null)
+            return (formUrl, "action нерезолвен — адрес GET-формы");
+
+        // C-2: action без собственного пути (тот же путь, что и GET-форма) при наличии
+        // service у GET-формы — POST на полный URL GET-формы (эталон 1С).
+        if (Uri.TryCreate(formUrl, UriKind.Absolute, out var form))
+        {
+            var hasServiceInForm = form.Query.TrimStart('?')
+                .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Any(pair => pair.Split('=')[0].Equals("service", StringComparison.OrdinalIgnoreCase));
+            if (hasServiceInForm &&
+                string.Equals(target.AbsolutePath, form.AbsolutePath, StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrEmpty(target.Query))
+            {
+                return (form.AbsoluteUri,
+                    "action без собственного пути, у GET-формы есть service — полный URL GET-формы");
+            }
+        }
+
+        return (target.AbsoluteUri, "action формы");
     }
 
     /// <summary>
@@ -1967,9 +2008,9 @@ public class OneCUpdatesService : IOneCUpdatesService
         var bodyLength = string.IsNullOrEmpty(body) ? 0 : body.Length;
         var title = ExtractPageTitle(body);
         var preview = SanitizeBodyPreview(body, fields, login, password);
-        _logger.Info($"[Updates] Вход: POST 2xx диагностика status={status}, contentType='{contentType}', " +
-                     $"bodyLength={bodyLength}, title='{title ?? "<нет>"}', bodyPreview='{preview}'");
-        _logger.Info($"[Updates] Вход: POST Set-Cookie: {DescribeSetCookies(response)}");
+        LogRedirectInfo($"[Updates] Вход: POST 2xx диагностика status={status}, contentType='{contentType}', " +
+                        $"bodyLength={bodyLength}, title='{title ?? "<нет>"}', bodyPreview='{preview}'");
+        LogRedirectInfo($"[Updates] Вход: POST Set-Cookie: {DescribeSetCookies(response)}");
     }
 
     /// <summary>Превью тела для журнала (первые ~300 символов) с удалением секретов:
@@ -2075,37 +2116,41 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// Определяет, является ли тело ответа страницей входа на portal.1c.ru (гибридная
-    /// авторизация CAS). Критерии ужесточены (issue #323), порядок проверки:
+    /// авторизация CAS). Критерии ужесточены (issue #323; дополнительно сужены в 0.3.9.313, C-1),
+    /// порядок проверки:
     /// <list type="number">
     /// <item>поля ввода логина И пароля (<c>name="username"</c> + <c>name="password"</c>) —
-    /// главный признак;</item>
+    /// главный признак; фразы отказа (<see cref="HasAuthFailureTextMarker"/>) учитываются ТОЛЬКО
+    /// в этом пути (вместе с полями логина/пароля);</item>
     /// <item>ИЛИ токены CAS (<c>execution</c>/<c>lt</c>) КАК ПОЛЯ ФОРМЫ (через
-    /// <see cref="ExtractFormFields"/>) И один из признаков: маркер отказа/капчи в разметке
-    /// (<see cref="HasAuthFailureTextMarker"/>), action формы с «login» либо id/class-маркер
-    /// формы входа (<see cref="ContainsLoginFormMarker"/>).</item>
+    /// <see cref="ExtractFormFields"/>) И один из СТРУКТУРНЫХ признаков: action формы с «login»
+    /// либо id/class-маркер формы входа (<see cref="ContainsLoginFormMarker"/>). Фраза отказа
+    /// в этом пути НЕ учитывается — на странице личного кабинета она встречается в JS-скриптах
+    /// валидации формы смены аккаунта и давала ложное AuthFailed (лог 7OH).</item>
     /// </list>
     /// Страница с полем <c>execution</c>, но БЕЗ <c>username</c>/<c>password</c> и БЕЗ
-    /// формы-входа (action не login) формой входа НЕ считается — такие формы приглашений/
-    /// смены аккаунта есть на странице личного кабинета после успешного входа (ложное
-    /// AuthFailed, лог 7OH). Используется для распознавания «фантомного успеха» при HTTP 200
-    /// с формой входа вместо целевого контента (issue #330/#334) и страницы входа при 200.
+    /// формы-входа (action не login, id/class без login-маркера) формой входа НЕ считается —
+    /// такие формы приглашений/смены аккаунта есть на странице личного кабинета после успешного
+    /// входа. Используется для распознавания «фантомного успеха» при HTTP 200 с формой входа
+    /// вместо целевого контента (issue #330/#334) и страницы входа при 200.
     /// </summary>
     internal static bool LooksLikeLoginForm(string body)
     {
         if (string.IsNullOrWhiteSpace(body))
             return false;
 
-        // Главный признак формы входа CAS: поля ввода логина и пароля.
+        // Главный признак формы входа CAS: поля ввода логина и пароля. Фраза отказа
+        // («Неверный логин или пароль») учитывается ТОЛЬКО вместе с этими полями.
         if (HasInputField(body, "username") && HasInputField(body, "password"))
             return true;
 
-        // Второстепенный признак: токены CAS как ПОЛЯ ФОРМЫ + маркер формы входа.
+        // Второстепенный признак: токены CAS как ПОЛЯ ФОРМЫ + структурный маркер формы входа
+        // (action на login либо id/class с login). Маркеры отказа здесь НЕ участвуют (C-1).
         var fields = ExtractFormFields(body);
         if (fields.ContainsKey("execution") || fields.ContainsKey("lt"))
         {
             var formAction = ExtractFormAction(body) ?? string.Empty;
             if (formAction.Contains("login", StringComparison.OrdinalIgnoreCase) ||
-                HasAuthFailureTextMarker(body) ||
                 ContainsLoginFormMarker(body))
                 return true;
         }
@@ -2235,11 +2280,15 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// True — в общем хранилище cookie есть сессионная cookie портала 1С
-    /// (<c>JSESSIONID</c>/<c>TGC</c>/<c>session_id</c>) с доменом <c>.1c.ru</c> и Path, покрывающим
-    /// корень. Является вспомогательным признаком; основной критерий успеха — результат пробной
-    /// проверки «живой» сессии (<see cref="IsPortalSessionAliveAsync"/>, A-1). Ужесточено по
-    /// атрибутам Domain/Path (issue #323/#330/#334): cookie-заглушки WAF/CDN с «подходящим»
-    /// именем, но чужим доменом/путём сессией портала не считаются.
+    /// (<c>JSESSIONID</c>/<c>TGC</c>/<c>session_id</c>/<c>SESSION</c>) с доменом <c>.1c.ru</c>
+    /// и Path, покрывающим корень. Sticky-session cookie балансировщика <c>SERVERID</c> (если
+    /// портал её выставит в <c>Set-Cookie</c>) сознательно НЕ входит в этот набор — она не
+    /// является сессией, а лишь привязывает к узлу; видна в инвентаризации
+    /// <see cref="DescribeContainerCookies"/> (issue #323, п.2.3). Является вспомогательным
+    /// признаком; основной критерий успеха — результат пробной проверки «живой» сессии
+    /// (<see cref="IsPortalSessionAliveAsync"/>, A-1). Ужесточено по атрибутам Domain/Path
+    /// (issue #323/#330/#334): cookie-заглушки WAF/CDN с «подходящим» именем, но чужим
+    /// доменом/путём сессией портала не считаются.
     /// </summary>
     private bool HasPortalSessionCookie()
     {
@@ -2272,7 +2321,11 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <summary>True — cookie принадлежит домену портала 1С и покрывает корневой путь:
     /// <c>Domain</c> оканчивается на <c>.1c.ru</c> (или равен <c>login.1c.ru</c>/<c>releases.1c.ru</c>),
     /// <c>Path</c> — «/» (или пуст — значение по умолчанию). Прочие cookie (например, WAF/CDN
-    /// с доменом другого сервиса либо путём /login) сессией портала не считаются.</summary>
+    /// с доменом другого сервиса либо путём /login) сессией портала не считаются.
+    /// По этому критерию проходит и sticky-session cookie <c>SERVERID</c> (домен .1c.ru, Path=/):
+    /// она сохраняется через <see cref="ApplySetCookieToContainer"/> и попадает в инвентаризацию
+    /// <see cref="DescribeContainerCookies"/>, но НЕ является сессией — <see cref="HasPortalSessionCookie"/>
+    /// по именам её не учитывает (issue #323, п.2.3 — мягкая поддержка).</summary>
     private static bool IsPortalDomainCookie(Cookie cookie)
     {
         var domain = cookie.Domain ?? string.Empty;
@@ -2334,10 +2387,26 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <summary>Логирует перечень cookie общего хранилища для хостов портала 1С (имена и
     /// атрибуты, БЕЗ значений) — диагностика входа (issue #323/#330/#334).</summary>
     private void LogPortalCookieInventory()
-        => _logger.Info($"[Updates] Вход: cookie контейнера: {DescribeContainerCookies()}");
+        => LogRedirectInfo($"[Updates] Вход: cookie контейнера: {DescribeContainerCookies()}");
+
+    /// <summary>
+    /// INFO-диагностика редиректов/входа портала 1С (issue #347, кластер C): пишется ТОЛЬКО
+    /// при включённом флаге <c>CM_REDIRECT</c> в конфиге trace.json (env <c>CM_REDIRECT=1</c> —
+    /// override включения), иначе INFO-записи входа/редиректов не «капают» в общий журнал.
+    /// Итоговые WARN/ERROR (результат входа) пишутся ВСЕГДА — прямые вызовы _logger.Warn
+    /// в этой ветке не гейтятся.
+    /// </summary>
+    private void LogRedirectInfo(string message)
+    {
+        if (!TraceFlags.IsEnabled(TraceFlags.RedirectFlag))
+            return;
+        _logger.Info(message);
+    }
 
     /// <summary>Имена и атрибуты (без значений) cookie в общем хранилище для hosts
-    /// <c>login.1c.ru</c>/<c>releases.1c.ru</c> — строка для журнала.</summary>
+    /// <c>login.1c.ru</c>/<c>releases.1c.ru</c> — строка для журнала. Выводятся ВСЕ cookie
+    /// хостов, включая WAF/CDN-заглушки и sticky-session <c>SERVERID</c> (issue #323, п.2.3) —
+    /// по инвентаризации видно, какие именно cookie получены из <c>Set-Cookie</c>.</summary>
     internal string DescribeContainerCookies()
     {
         var entries = new List<string>();

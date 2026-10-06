@@ -164,6 +164,21 @@ namespace Configuration_Management
         private long _lastMenuCloseTick;
 
         /// <summary>
+        /// Последний обычный клик по строке дерева (issue #340, 0.3.9.314): единые часы
+        /// <see cref="Environment.TickCount"/>, целевая база и секция строки. Записывается
+        /// в туннельной фазе PointerPressed (обычный левый клик без модификаторов по строке
+        /// базы, <see cref="OnTreeMenuCloseClickDedup_PointerPressed"/>) и используется при
+        /// закрытии меню дерева (<see cref="OnTreeContextMenuIsOpenChanged"/>): клик мог
+        /// прийти в дерево ДО закрытия меню (второй реальный trace.json: snapshot=False,
+        /// redelivery=False) — снимок не записывается (кнопка отпущена к моменту закрытия),
+        /// повторной доставки нет, и стабилизацию нужно запускать по цели этого клика
+        /// (BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose, причина
+        /// "clickBeforeMenuClose"). Очищается после использования либо перезаписывается
+        /// следующим кликом.
+        /// </summary>
+        private (long Tick, Infobase Base, bool IsPinnedSection)? _lastPlainTreeClick;
+
+        /// <summary>
         /// Последняя позиция указателя в координатах ДЕРЕВА (issue #340, 0.3.9.311, B-4):
         /// обновляется обработчиком <c>PointerMoved</c> окна (<see cref="AttachTreeMenuCloseClickDedup"/>)
         /// и используется в записи <c>MenuClosedCursor</c> — у
@@ -228,6 +243,31 @@ namespace Configuration_Management
                         ?.GetSelfAndVisualAncestors().OfType<TreeViewItem>().FirstOrDefault() is not null;
                 MenuCloseTrace.Log($"MenuClosedCursor: x={cursorX:0.#}, y={cursorY:0.#}, " +
                                    $"overTreeRow={overTreeRow}, keyboardFocusWithin={IsKeyboardFocusWithin}");
+
+                // issue #340 (0.3.9.314): клик по строке мог прийти в дерево ДО закрытия
+                // меню (второй реальный trace.json: PointerPressed → MenuClosed,
+                // snapshot=False, redelivery=False) — снимок не записывается (кнопка
+                // отпущена к моменту закрытия), повторной доставки «хвоста» нет, и ни один
+                // штатный путь стабилизацию не запускает. Если последний обычный клик по
+                // строке был непосредственно (≤500 мс, окно MenuClosePrecedingClickWindowMs)
+                // перед закрытием меню ДЕРЕВА — стабилизируем выбор по цели этого клика.
+                // Отложенный запуск (Post): компоновка после закрытия попапа устаканится;
+                // стабилизация идемпотентна, доводит выбор до сходимости (15 проходов /
+                // 1,5 с) и не трогает мультивыделение.
+                if (_menuCloseClickSnapshot is null &&
+                    _lastPlainTreeClick is { } precedingClick &&
+                    BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
+                        precedingClick.Tick,
+                        _lastMenuCloseTick,
+                        BatchSelectionHelper.MenuClosePrecedingClickWindowMs))
+                {
+                    var stabilizeTarget = precedingClick.Base;
+                    var stabilizePinned = precedingClick.IsPinnedSection;
+                    _lastPlainTreeClick = null;
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        EnsureSelectionStable(stabilizeTarget, stabilizePinned,
+                            reason: "clickBeforeMenuClose"));
+                }
             }
         }
 
@@ -285,6 +325,25 @@ namespace Configuration_Management
                 menuCloseSnapshotPresent,
                 isMenuCloseRedelivery,
                 BatchSelectionHelper.IsPinnedSection(rowItem?.DataContext)));
+
+            // issue #340 (0.3.9.314): запоминаем «последний обычный клик по строке дерева».
+            // Клик мог прийти в дерево ДО закрытия контекстного меню (второй реальный
+            // trace.json: PointerPressed → MenuClosed, snapshot=False, redelivery=False) —
+            // снимок не записывается (кнопка отпущена к моменту закрытия), повторной
+            // доставки нет; цель этого клика используется в OnTreeContextMenuIsOpenChanged
+            // (ShouldStabilizeForClickPrecedingMenuClose) для запуска стабилизации, если
+            // клик был ≤500 мс до закрытия меню.
+            if (rowItem is not null &&
+                rowItem.DataContext is Infobase or PinnedInfobaseItem &&
+                e.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed &&
+                (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) == 0 &&
+                BatchSelectionHelper.Unwrap(rowItem.DataContext) is { } plainClickBase)
+            {
+                var plainClickPinned = BatchSelectionHelper.IsPinnedSection(rowItem.DataContext);
+                _lastPlainTreeClick = (Environment.TickCount, plainClickBase, plainClickPinned);
+                MenuCloseTrace.Log($"LastPlainClick: target={plainClickBase.Id}, " +
+                                   $"tick={_lastPlainTreeClick.Value.Tick}, pinned={plainClickPinned}");
+            }
 
             // Первичный клик по строке базы при ОТКРЫТОМ контекстном меню: меню закрывается
             // этим кликом, его повторная доставка в дерево (после освобождения попапа)

@@ -6,10 +6,11 @@ using System.Text;
 namespace Configuration_Management.Services;
 
 /// <summary>
-/// Чистое форматирование/усечение записей диагностики <c>trace.json</c>
-/// (issue #340, девятая попытка). Без файлового I/O и платформенных зависимостей —
-/// вынесено из <see cref="MenuCloseTrace"/>, чтобы покрыть юнит-тестами: построение
-/// одной JSONL-строки (валидный JSON, ключи латиницей), круговое усечение при
+/// Чистое форматирование/усечение записей журнала событий меню <c>trace_menuclose.jsonl</c>
+/// (issue #340, девятая попытка; с 0.3.9.315 журнал ушёл из <c>trace.json</c> — issue #347:
+/// этот файл стал конфигом отладочных флагов). Без файлового I/O и платформенных
+/// зависимостей — вынесено из <see cref="MenuCloseTrace"/>, чтобы покрыть юнит-тестами:
+/// построение одной JSONL-строки (валидный JSON, ключи латиницей), круговое усечение при
 /// превышении лимита и маскирование чувствительных полей (пароли/токены).
 /// </summary>
 internal static class MenuCloseTraceFormat
@@ -24,12 +25,28 @@ internal static class MenuCloseTraceFormat
     public const long MaxFileBytes = 1024 * 1024;
 
     /// <summary>
-    /// Основное имя файла трассировки (соглашение с пользователем, issue #340, 0.3.9.308):
-    /// <c>trace.json</c> РЯДОМ с настройками приложения (тот же каталог, что settings.json).
-    /// Содержимое — JSON Lines (одна JSON-запись на строку); расширение .json по просьбе
-    /// пользователя (семантика «файл-флаг», которого нет в механизме env-переменной).
+    /// Основное имя журнала событий меню (issue #347, кластер C): <c>trace_menuclose.jsonl</c>.
+    /// С 0.3.9.315 журнал НЕ пишется в <c>trace.json</c> — этот файл стал конфигом отладочных
+    /// флагов (<see cref="TraceFlagsFormat.ConfigFileName"/>), а прежний JSONL-журнал при
+    /// первом старте новой версии переименован в <c>trace_menuclose_legacy.json</c>.
+    /// Содержимое — JSON Lines (одна JSON-запись на строку).
     /// </summary>
-    public const string PrimaryFileName = "trace.json";
+    public const string PrimaryFileName = "trace_menuclose.jsonl";
+
+    /// <summary>
+    /// Имя конфига отладочных флагов (issue #347): <c>trace.json</c> РЯДОМ с настройками
+    /// приложения — JSON-объект флагов диагностики, а не журнал. Совпадает с
+    /// <see cref="TraceFlagsFormat.ConfigFileName"/>.
+    /// </summary>
+    public const string ConfigFileName = "trace.json";
+
+    /// <summary>
+    /// Имя резервной копии старого JSONL-журнала (issue #347): <c>trace_menuclose_legacy.json</c>.
+    /// Старый <c>trace.json</c>-журнал 0.3.9.308–0.3.9.314 переименовывается в него при первом
+    /// старте новой версии (история диагностики сохраняется). Совпадает с
+    /// <see cref="TraceFlagsFormat.LegacyJsonlBackupFileName"/>.
+    /// </summary>
+    public const string LegacyJsonlBackupFileName = "trace_menuclose_legacy.json";
 
     /// <summary>
     /// Прежнее имя файла трассировки версии 0.3.9.306 (<c>menuclose_trace.json</c>).
@@ -40,10 +57,10 @@ internal static class MenuCloseTraceFormat
     public const string LegacyFileName = "menuclose_trace.json";
 
     /// <summary>
-    /// Выбор имени файла трассировки (issue #340, 0.3.9.308): при наличии legacy-файла
+    /// Выбор имени файла журнала (issue #340/#347): при наличии legacy-файла
     /// <c>menuclose_trace.json</c> от 0.3.9.306 журнал дописывается в него (непрерывность
-    /// диагностики), иначе — основной <c>trace.json</c>. Чистая функция выбора пути
-    /// для юнит-тестов (сам путь строит <see cref="MenuCloseTrace"/> через
+    /// диагностики), иначе — основной <c>trace_menuclose.jsonl</c>. Чистая функция выбора
+    /// пути для юнит-тестов (сам путь строит <see cref="MenuCloseTrace"/> через
     /// <see cref="PlatformPaths.AppDataDirectory"/>).
     /// </summary>
     public static string ResolveFileName(bool legacyExists)

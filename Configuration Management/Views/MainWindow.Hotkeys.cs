@@ -715,6 +715,21 @@ namespace Configuration_Management
         /// </summary>
         private long _lastMenuCloseTick;
 
+        /// <summary>
+        /// Последний обычный клик по строке дерева (issue #340, 0.3.9.314): единые часы
+        /// <see cref="Environment.TickCount"/>, целевая база и секция строки. Записывается
+        /// в ветке обычного клика <c>OnInfobaseTree_PreviewMouseLeftButtonDown</c>
+        /// (MainWindow.Events.cs, после ApplySelection) и используется при закрытии меню
+        /// дерева в <see cref="OnContextMenuClosed"/>: клик мог прийти в дерево ДО закрытия
+        /// меню (второй реальный trace.json: MouseDown → MenuClosed, snapshot=False,
+        /// redelivery=False) — снимок не записывается (кнопка отпущена к моменту закрытия),
+        /// повторной доставки нет, и стабилизацию нужно запускать по цели этого клика
+        /// (BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose, причина
+        /// "clickBeforeMenuClose"). Очищается после использования либо перезаписывается
+        /// следующим кликом.
+        /// </summary>
+        private (long Tick, Infobase Base, bool IsPinnedSection)? _lastPlainTreeClick;
+
         private void OnContextMenuOpened(object sender, RoutedEventArgs e)
         {
             if (sender is ContextMenu menu)
@@ -765,6 +780,36 @@ namespace Configuration_Management
                 // перехватывается попапом меню и «проглатывается» — выбор строки и
                 // снятие мультивыделения не выполняются. Повторяем обработку клика.
                 TryApplyTreeClickAfterMenuClosed(menu);
+
+                // issue #340 (0.3.9.314): клик по строке мог прийти в дерево ДО закрытия
+                // меню (второй реальный trace.json: MouseDown → MenuClosed, snapshot=False,
+                // redelivery=False) — снимок по guard-цепочке TryApplyTreeClickAfterMenuClosed
+                // не записывается (левая кнопка к моменту закрытия уже отпущена), повторной
+                // доставки «хвоста» нет, и ни один штатный путь стабилизацию не запускает.
+                // Если последний обычный клик по строке был непосредственно (≤500 мс, окно
+                // MenuClosePrecedingClickWindowMs) перед закрытием меню ДЕРЕВА — стабилизируем
+                // выбор по цели этого клика. Отложенный запуск (приоритет Input): компоновка
+                // после закрытия попапа устаканится; сама стабилизация идемпотентна, доводит
+                // выбор до сходимости (15 проходов / 1,5 с) и не трогает мультивыделение.
+                if (isTreeMenu)
+                {
+                    var precedingClick = _lastPlainTreeClick;
+                    _lastPlainTreeClick = null;
+                    if (_menuCloseClickSnapshot is null &&
+                        precedingClick is { } lastPlainClick &&
+                        BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
+                            lastPlainClick.Tick,
+                            _lastMenuCloseTick,
+                            BatchSelectionHelper.MenuClosePrecedingClickWindowMs))
+                    {
+                        var stabilizeTarget = lastPlainClick.Base;
+                        var stabilizePinned = lastPlainClick.IsPinnedSection;
+                        Dispatcher.BeginInvoke(
+                            System.Windows.Threading.DispatcherPriority.Input,
+                            new Action(() => EnsureSelectionStable(stabilizeTarget, stabilizePinned,
+                                reason: "clickBeforeMenuClose")));
+                    }
+                }
             }
         }
 

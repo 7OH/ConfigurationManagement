@@ -2,11 +2,11 @@
 
 - Author: 7OH
 - Created: 2026-10-02T11:29:09Z
-- Updated: 2026-10-05T11:58:08Z
+- Updated: 2026-10-05T18:34:25Z
 - State: open
 - Labels: 
 
-## Описание
+## РћРїРёСЃР°РЅРёРµ
 
 Выделяем несколько строк - не важно с контролом или шифтом и не важно в какой секции
 Нажимаем правую кнопку и передумываем что-то делать
@@ -15,7 +15,7 @@
 
 ---
 
-## Комментарий 1 от sivatorov (2026-10-02T19:08:00Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 1 РѕС‚ sivatorov (2026-10-02T19:08:00Z)
 
 Исправлено в версии **0.3.9.277** (Windows/WPF).
 
@@ -48,7 +48,7 @@
 
 ---
 
-## Комментарий 2 от 7OH (2026-10-02T20:04:22Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 2 РѕС‚ 7OH (2026-10-02T20:04:22Z)
 
 Ещё раз - после выделения, нажатия правой кнопки, а потом нажатия левой в другом месте:
 выделяется другая строка и через секунду нет текущей строки
@@ -57,7 +57,7 @@
 
 ---
 
-## Комментарий 3 от sivatorov (2026-10-03T03:43:21Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 3 РѕС‚ sivatorov (2026-10-03T03:43:21Z)
 
 Исправлено в версии **0.3.9.291**.
 
@@ -71,7 +71,7 @@
 
 ---
 
-## Комментарий 4 от 7OH (2026-10-03T11:58:07Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 4 РѕС‚ 7OH (2026-10-03T11:58:07Z)
 
 Ещё раз повторю кейс
 Выделили несколько - нажали правую кнопку - появилось меню - нажали на другую строку
@@ -79,7 +79,7 @@
 
 ---
 
-## Комментарий 5 от sivatorov (2026-10-03T14:31:37Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 5 РѕС‚ sivatorov (2026-10-03T14:31:37Z)
 
 Исправлено в версии **0.3.9.299**.
 
@@ -93,14 +93,14 @@
 
 ---
 
-## Комментарий 6 от 7OH (2026-10-03T18:24:09Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 6 РѕС‚ 7OH (2026-10-03T18:24:09Z)
 
 Поведение не изменилось - текущая строка сбрасывает после исчезновения контекстного меню
 Можно даже не выделять несколько - хватает просто вызвать контекстное меню и потом нажать на другую строку - она сначала становится активной, а потом выделение пропадает.
 
 ---
 
-## Комментарий 7 от sivatorov (2026-10-03T20:54:37Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 7 РѕС‚ sivatorov (2026-10-03T20:54:37Z)
 
 Исправлено в версии **0.3.9.300** по последним замечаниям.
 
@@ -123,13 +123,13 @@
 
 ---
 
-## Комментарий 8 от 7OH (2026-10-04T08:58:06Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 8 РѕС‚ 7OH (2026-10-04T08:58:06Z)
 
 Баг на месте - выделение пропадает
 
 ---
 
-## Комментарий 9 от sivatorov (2026-10-04T11:00:46Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 9 РѕС‚ sivatorov (2026-10-04T11:00:46Z)
 
 Исправлено в версии **0.3.9.302**.
 
@@ -152,14 +152,14 @@
 
 ---
 
-## Комментарий 10 от 7OH (2026-10-04T11:21:31Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 10 РѕС‚ 7OH (2026-10-04T11:21:31Z)
 
 Не помогло
 Выделение всё ещё пропадает после закрытия контекстного меню при клике мышью на другой строке
 
 ---
 
-## Комментарий 11 от sivatorov (2026-10-04T13:44:44Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 11 РѕС‚ sivatorov (2026-10-04T13:44:44Z)
 
 Исправлено в версии **0.3.9.304**.
 
@@ -226,13 +226,13 @@
 
 ---
 
-## Комментарий 12 от 7OH (2026-10-04T16:24:03Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 12 РѕС‚ 7OH (2026-10-04T16:24:03Z)
 
 Баг на месте
 
 ---
 
-## Комментарий 13 от sivatorov (2026-10-04T19:10:19Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 13 РѕС‚ sivatorov (2026-10-04T19:10:19Z)
 
 Исправлено в версии **0.3.9.305** (Windows/WPF и Linux/Avalonia; седьмая итерация).
 
@@ -256,7 +256,7 @@
 
 ---
 
-## Комментарий 14 от 7OH (2026-10-04T20:18:22Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 14 РѕС‚ 7OH (2026-10-04T20:18:22Z)
 
 Переменную создал для пользователя, запустил
 
@@ -272,14 +272,14 @@
 
 ---
 
-## Комментарий 15 от 7OH (2026-10-04T20:29:08Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 15 РѕС‚ 7OH (2026-10-04T20:29:08Z)
 
 Лучше сделать файл trace.json рядом с настройками и в нём иметь вот такие переменные
 И на будущее пригодится и точно ни с кем не пересечемся
 
 ---
 
-## Комментарий 16 от sivatorov (2026-10-05T06:08:59Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 16 РѕС‚ sivatorov (2026-10-05T06:08:59Z)
 
 Исправлено в версии **0.3.9.306** (Windows/WPF и Linux/Avalonia; восьмая попытка исправления).
 
@@ -301,14 +301,14 @@
 
 ---
 
-## Комментарий 17 от 7OH (2026-10-05T06:11:53Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 17 РѕС‚ 7OH (2026-10-05T06:11:53Z)
 
 Файл не появился (см. выше).
 Текущая строка всё ещё исчезает
 
 ---
 
-## Комментарий 18 от 7OH (2026-10-05T06:15:18Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 18 РѕС‚ 7OH (2026-10-05T06:15:18Z)
 
 (Идея была в файле trace.json видеть доступные переменные, по которым в логи будут писаться дополнительные отладочные информации, в частности по колонкам уже бы отключить отладку)
 
@@ -317,7 +317,7 @@
 
 ---
 
-## Комментарий 19 от sivatorov (2026-10-05T11:30:15Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 19 РѕС‚ sivatorov (2026-10-05T11:30:15Z)
 
 Исправлено в версии **0.3.9.308** (Windows/WPF и Linux/Avalonia).
 
@@ -394,7 +394,7 @@ Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Поведени�
 
 ---
 
-## Комментарий 20 от 7OH (2026-10-05T11:58:02Z)
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 20 РѕС‚ 7OH (2026-10-05T11:58:02Z)
 
 Появился файл trace.json (потом отдельно обсудим его начальную идею)
 Вот содержимое
@@ -407,5 +407,111 @@ Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Поведени�
 
 ---
 
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 21 РѕС‚ 7OH (2026-10-05T18:10:35Z)
+
+{"ts":"2026-10-05T21:09:23.984+03:00","thread":2,"event":"log","data":{"message":"Activated: openMenusCount=0, timeSinceMenuCloseMs=34593"}}
+{"ts":"2026-10-05T21:09:25.222+03:00","thread":2,"event":"log","data":{"message":"MenuOpened: menuId=ContextMenu, isTreeMenu=True"}}
+{"ts":"2026-10-05T21:09:26.206+03:00","thread":2,"event":"log","data":{"message":"MouseDown: x=128.8, y=134.61, modifiers=None, target=721110b1-9ae9-4df0-8293-ef0611a01369, snapshot=False, redelivery=False, pinned=True"}}
+{"ts":"2026-10-05T21:09:26.701+03:00","thread":2,"event":"log","data":{"message":"MenuClosed: menuId=ContextMenu, isTreeMenu=True"}}
+{"ts":"2026-10-05T21:09:26.702+03:00","thread":2,"event":"log","data":{"message":"MenuClosedCursor: x=128,8, y=134,6, overTreeRow=True, overMenuItem=False, keyboardFocusWithin=True"}}
+{"ts":"2026-10-05T21:09:27.842+03:00","thread":2,"event":"log","data":{"message":"Deactivated: openMenusCount=0, timeSinceMenuCloseMs=1141"}}
+
+
+---
+
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 22 РѕС‚ sivatorov (2026-10-05T18:16:41Z)
+
+Расширенная диагностика в версии **0.3.9.311** (Windows/WPF и Linux/Avalonia; issue #340, кластер B).
+
+**Что было.**
+
+В присланном `trace.json` на 0.3.9.308 (комментарий от 2026-10-05) оказались только startup-запись
+и 4 записи `MenuOpened`/`MenuClosed` — **ни одного события клика**. Причина: трассировка мыши была
+условной — `MouseDown` писался только при записанном снимке клика, а `TryApply`/`Fallback`/
+`EnsureStable`/`Dump500ms` — только при срабатывании соответствующих веток стабилизации. Если
+снимок не записывался (обычный клик вне окна стабилизации, Ctrl/Shift-клик, промах мимо строки),
+клик по дереву вообще не оставлял следов в файле, и по такому логу нельзя определить, какое звено
+рвётся.
+
+**Что сделано в 0.3.9.311** — правки только диагностические, поведение выбора НЕ менялось:
+
+1. **Клики по дереву пишутся безусловно.** `MouseDown`/`MouseUp` (WPF,
+   [`MainWindow.Events.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Views/MainWindow.Events.cs))
+   и `PointerPressed`/`PointerReleased` (Avalonia,
+   [`MainWindow.Avalonia.Events.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Views/MainWindow.Avalonia.Events.cs))
+   — при ЛЮБОМ клике, включая «пути без снимка»: координаты (`x`, `y`), модификаторы, `target`
+   (база под курсором или `null` при промахе), `snapshot`, `redelivery`, `pinned`. Единый формат
+   записи — чистый метод
+   [`BuildClickTraceLine`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Services/BatchSelectionHelper.cs)
+   + [`FormatModifiers`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Services/BatchSelectionHelper.cs)
+   в [`BatchSelectionHelper.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Services/BatchSelectionHelper.cs) —
+   используется И WPF, И Avalonia, записи платформ симметричны.
+2. **`Activated`/`Deactivated` окна записываются всегда** (прежде — только при pending-состоянии):
+   число открытых меню и время с последнего закрытия меню дерева
+   ([`MainWindow.xaml.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Views/MainWindow.xaml.cs) /
+   [`MainWindow.Avalonia.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Views/MainWindow.Avalonia.cs)).
+3. **`MenuClosedCursor`** при закрытии меню дерева
+   ([`MainWindow.Hotkeys.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Views/MainWindow.Hotkeys.cs)):
+   координаты курсора, признак «курсор над строкой дерева» (hit-test), «над пунктом меню», фокус
+   окна — видно, ЧЕМ именно закрыто меню (кликом по строке / кликом мимо / выбором пункта / ESC).
+4. **Стабилизация**: стартовая запись `EnsureStableStart` (причина `snapshot`|`recentMenuClose`,
+   целевая база) и поля каждого прохода — `SelectedInfobase`, `containerIsSelected`,
+   `selectedByData`, `containerFound`
+   ([`MainWindow.Tree.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Views/MainWindow.Tree.cs) /
+   [`MainWindow.Avalonia.Events.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Views/MainWindow.Avalonia.Events.cs)).
+5. **Лимит файла увеличен до 1 МБ** (круговое усечение, было 512 КБ) —
+   [`MenuCloseTraceFormat.MaxFileBytes`](https://github.com/sivatorov/ConfigurationManagement/blob/main/Configuration%20Management/Services/MenuCloseTraceFormat.cs) —
+   трассировка стала плотнее.
+
+**Как воспроизвести — точная инструкция** (нужно, чтобы в логе появились события клика):
+
+1. Установите **0.3.9.311** (Windows или Linux).
+2. Запустите приложение и **не трогайте ничего** — дождитесь появления файла **`trace.json`**
+   рядом с настройками (Windows: `%APPDATA%\ConfigurationManagement\`,
+   Linux: `~/.config/ConfigurationManagement/`). Файл создаётся при старте сам, включать его нигде
+   не нужно.
+3. Воспроизведите сценарий **10+ раз подряд**: мультивыделение (Ctrl/Shift) → правый клик по
+   любой строке (контекстное меню) → левый клик по **другой** строке дерева. Между повторами
+   делайте паузу **~2–3 секунды**.
+4. **Закройте приложение** (важно: записи сбрасываются в файл по ходу, но закрытие фиксирует
+   последние события).
+5. Пришлите **полный** `trace.json` — приложите к комментарию целиком (до 1 МБ файл усекается
+   сам; если размер близок к лимиту — можно упаковать архивом, но лучше файл как есть).
+
+Ожидаемая цепочка для каждого повтора: `MenuOpened` → `MenuClosed` + `MenuClosedCursor` →
+`MouseDown` (или `PointerPressed`) с `target=<id>` → `EnsureStableStart` → проходы `EnsureStable` →
+`Dump500ms`. Также укажите, в скольких из 10 повторов выделение пропало и в какой секции
+(обычный список / «Закреплённые»). По этим данным определим звено, где рвётся выбор, и выпустим
+исправление.
+
+**Тесты.** Полный набор `dotnet test` зелёный — **1792** (0 не пройдено), из них **5 новых** для
+#340: единый формат строки клика WPF/Avalonia, форматирование модификаторов, `target=null` при
+промахе, новый лимит усечения 1 МБ, валидная JSON-сериализация полей события клика без секретов
+([`BatchSelectionHelperTests.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/ConfigurationManagement.Tests/BatchSelectionHelperTests.cs),
+[`MenuCloseTraceFormatTests.cs`](https://github.com/sivatorov/ConfigurationManagement/blob/main/ConfigurationManagement.Tests/MenuCloseTraceFormatTests.cs)).
+
+Версия **0.3.9.311** опубликована:
+[CHANGELOG](https://github.com/sivatorov/ConfigurationManagement/blob/main/CHANGELOG.md),
+[релиз v0.3.9.311](https://github.com/sivatorov/ConfigurationManagement/releases/tag/v0.3.9.311)
+(assets: ConfigurationManagement.exe, ConfigurationManagement Linux x64, .deb).
+
+---
+
+## РљРѕРјРјРµРЅС‚Р°СЂРёР№ 23 РѕС‚ 7OH (2026-10-05T18:34:25Z)
+
+{"ts":"2026-10-05T21:32:26.050+03:00","thread":2,"event":"log","data":{"message":"Activated: openMenusCount=0, timeSinceMenuCloseMs=1106531"}}
+{"ts":"2026-10-05T21:32:28.091+03:00","thread":2,"event":"log","data":{"message":"Deactivated: openMenusCount=0, timeSinceMenuCloseMs=1108578"}}
+{"ts":"2026-10-05T21:32:32.277+03:00","thread":2,"event":"log","data":{"message":"Activated: openMenusCount=0, timeSinceMenuCloseMs=1112765"}}
+{"ts":"2026-10-05T21:32:35.392+03:00","thread":2,"event":"log","data":{"message":"Deactivated: openMenusCount=0, timeSinceMenuCloseMs=1115875"}}
+{"ts":"2026-10-05T21:32:37.153+03:00","thread":2,"event":"log","data":{"message":"Activated: openMenusCount=0, timeSinceMenuCloseMs=1117640"}}
+{"ts":"2026-10-05T21:32:47.892+03:00","thread":2,"event":"log","data":{"message":"MouseDown: x=12.8, y=319.41, modifiers=None, target=null, snapshot=False, redelivery=False, pinned=False"}}
+{"ts":"2026-10-05T21:32:47.995+03:00","thread":2,"event":"log","data":{"message":"MouseUp: x=12.8, y=319.41, modifiers=None, target=null, snapshot=False, redelivery=False, pinned=False"}}
+{"ts":"2026-10-05T21:32:49.195+03:00","thread":2,"event":"log","data":{"message":"MenuOpened: menuId=ContextMenu, isTreeMenu=True"}}
+{"ts":"2026-10-05T21:32:50.056+03:00","thread":2,"event":"log","data":{"message":"MouseDown: x=119.2, y=281.81, modifiers=None, target=966d0df4-129b-48fa-99c0-815220362eeb, snapshot=False, redelivery=False, pinned=False"}}
+{"ts":"2026-10-05T21:32:50.611+03:00","thread":2,"event":"log","data":{"message":"MenuClosed: menuId=ContextMenu, isTreeMenu=True"}}
+{"ts":"2026-10-05T21:32:50.611+03:00","thread":2,"event":"log","data":{"message":"MenuClosedCursor: x=119,2, y=281,8, overTreeRow=True, overMenuItem=False, keyboardFocusWithin=True"}}
+{"ts":"2026-10-05T21:32:52.785+03:00","thread":2,"event":"log","data":{"message":"Deactivated: openMenusCount=0, timeSinceMenuCloseMs=2172"}}
+
+---
 
 

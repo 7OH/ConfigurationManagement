@@ -1,6 +1,6 @@
 # Управление конфигурациями 1С
 
-![Версия](https://img.shields.io/badge/Версия-0.3.9.312-1F6FEB) ![.NET](https://img.shields.io/badge/.NET-10-512BD4) ![Windows/WPF](https://img.shields.io/badge/Windows-WPF-4B8BBE) ![Linux/Avalonia](https://img.shields.io/badge/Linux-Avalonia%2011-8B5CF6) ![Лицензия](https://img.shields.io/badge/Лицензия-Open%20Source-success)
+![Версия](https://img.shields.io/badge/Версия-0.3.9.315-1F6FEB) ![.NET](https://img.shields.io/badge/.NET-10-512BD4) ![Windows/WPF](https://img.shields.io/badge/Windows-WPF-4B8BBE) ![Linux/Avalonia](https://img.shields.io/badge/Linux-Avalonia%2011-8B5CF6) ![Лицензия](https://img.shields.io/badge/Лицензия-Open%20Source-success)
 
 > **Кроссплатформенное десктопное приложение на .NET для управления информационными базами 1С:Предприятие 8.3**, заменяющее стандартный список баз 1С современным интерфейсом. Одна кодовая база собирается под обе ОС: **WPF** на Windows и **Avalonia 11** на Linux.
 
@@ -93,20 +93,37 @@
 - **Системные уведомления ОС о завершении фоновых операций** — при свёрнутом в трей приложении завершение резервной копии (успех/ошибка, имя базы и сценария), задания по расписанию (успех/ошибка, имя задания и тип) и обнаружение новой версии приложения показываются системным уведомлением (Windows — balloon-tip значка трея, Linux — `notify-send`); отключаются в настройках (Настройки → Настройки → «Системные уведомления»).
 - **Системный трей**, компактный режим интерфейса (сжимает отступы строк списка и высоту
   собственного заголовка окна), виртуализация списков.
-- **Диагностика выделения и контекстного меню (issue #340)** — файл **`trace.json`** (JSON Lines,
-  ~1 МБ с круговым усечением, 0.3.9.311) рядом с настройками приложения
-  (Windows: `%APPDATA%\ConfigurationManagement\`, Linux: `~/.config/ConfigurationManagement\`,
-  в портативном режиме — каталог данных рядом с exe). Создаётся при **каждом старте**
-  (startup-запись с версией/платформой/ОС) и наполняется при каждом открытии/закрытии
-  контекстного меню (`MenuOpened`/`MenuClosed` + `MenuClosedCursor` с координатами курсора
-  и признаком «над строкой дерева»), а также **безусловно** при каждом клике по дереву
-  (`MouseDown`/`MouseUp` — WPF, `PointerPressed`/`PointerReleased` — Avalonia; поля:
-  координаты, модификаторы, целевая база, наличие снимка, повторная доставка, секция),
-  при активации/деактивации окна (`Activated`/`Deactivated` — всегда) и при применении и
-  стабилизации выделения (`TryApply`/`Fallback`/`Dump500ms`/`EnsureStableStart`/`EnsureStable`
-  с полями `SelectedInfobase`/`containerIsSelected`) — по журналу видно, какое звено снимает
-  выделение, даже когда снимок клика не записан. Включать/создавать файл вручную НЕ нужно;
-  прежний `menuclose_trace.json` (0.3.9.306) продолжает дописываться, если уже существует
+- **Механизм отладочных флагов (issue #347, 0.3.9.315)** — файл-конфиг **`trace.json`** рядом
+  с настройками приложения (Windows: `%APPDATA%\ConfigurationManagement\`,
+  Linux: `~/.config/ConfigurationManagement\`, в портативном режиме — каталог данных рядом
+  с exe) несёт флажки диагностики. По умолчанию **все флаги выключены** — логи закрытых
+  тикетов больше не «капают». Файл создаётся при каждом старте (если отсутствует); старый
+  JSONL-журнал 0.3.9.308–0.3.9.314 (первая строка `{"ts":…`) при первом старте новой версии
+  переименовывается в `trace_menuclose_legacy.json` (история сохраняется). Конфиг
+  перечитывается при изменении файла **без перезапуска**:
+
+  ```json
+  {
+    "version": 1,
+    "CM_COLUMNS": false,
+    "CM_MENUCLICK": false,
+    "CM_MENUCLOSE": false,
+    "CM_REDIRECT": false
+  }
+  ```
+
+  | Флаг | Что включает | Файл/куда пишется |
+  |---|---|---|
+  | `CM_COLUMNS` | Диагностику колонок списка (стартовый дамп + изменения ширины, issue #309/#343); прежняя env `CM_COLUMNS_TRACE=1` остаётся override включения | Общий журнал приложения (logs) |
+  | `CM_MENUCLOSE` | Журнал событий меню/кликов дерева: `MenuOpened`/`MenuClosed`/`MenuClosedCursor`, `MouseDown`/`MouseUp` (WPF), `PointerPressed`/`PointerReleased` (Avalonia), `Activated`/`Deactivated`, `TryApply`/`Fallback`/`Dump500ms`/`EnsureStableStart`/`EnsureStable`, с 0.3.9.314 также `LastPlainClick` и стабилизация `clickBeforeMenuClose` — стабилизация выделения работает всегда, лог — под флагом | `trace_menuclose.jsonl` (~1 МБ, круговое усечение) |
+  | `CM_MENUCLICK` | Отладку правого клика/открытия контекстного меню (по тексту #347); в этой версии — псевдоним на `CM_MENUCLOSE` | там же |
+  | `CM_REDIRECT` | INFO-диагностику редиректов/входа портала 1С (`[Updates] Редирект…`, `Вход запущен…`, инвентаризация cookie, POST-диагностика, issue #323/#330/#334); итоговые WARN/ERROR пишутся всегда | Общий журнал приложения (logs) |
+
+  Включить флаг: открыть `trace.json` в редакторе, заменить `false` на `true` для нужного
+  флага и сохранить — приложение подхватит значение при следующем обращении (перечитывание
+  по времени изменения файла). Окружение (`CM_COLUMNS=1`, `CM_MENUCLOSE=1`, `CM_REDIRECT=1`,
+  прежнее `CM_COLUMNS_TRACE=1`) — только override **включения** (выключить через env нельзя).
+  Прежний `menuclose_trace.json` (0.3.9.306) продолжает дописываться, если уже существует
   (обе платформы).
 
 [![Infostart](https://infostart.ru/bitrix/templates/sandbox_empty/assets/tpl/abo/img/logo.svg)](https://infostart.ru/1c/articles/2764888/)

@@ -745,10 +745,11 @@ namespace Configuration_Management
 
         /// <summary>
         /// Постоянная диагностика колонок (issue #309/#343): по умолчанию выключена.
-        /// Включается env-переменной CM_COLUMNS_TRACE=1 (по образцу CM_TOOLTIP_TRACE).
+        /// Включается флагом <c>CM_COLUMNS</c> в конфиге trace.json (issue #347); прежняя
+        /// env-переменная CM_COLUMNS_TRACE=1 остаётся только как override включения.
+        /// Свойство читает флаг динамически — правка trace.json применяется без перезапуска.
         /// </summary>
-        private static readonly bool _columnsTraceEnabled =
-            string.Equals(Environment.GetEnvironmentVariable("CM_COLUMNS_TRACE"), "1", StringComparison.OrdinalIgnoreCase);
+        private static bool ColumnsTraceEnabled => TraceFlags.IsEnabled(TraceFlags.ColumnsFlag);
 
         /// <summary>Признак однократного стартового дампа диагностики (issue #309).</summary>
         private bool _columnsTraceDumped;
@@ -867,7 +868,7 @@ namespace Configuration_Management
         /// </summary>
         private void LogColumnsDiagnostics(double total, bool allowStartupDump = false)
         {
-            if (!_columnsTraceEnabled)
+            if (!ColumnsTraceEnabled)
             {
                 if (!allowStartupDump || _columnsTraceDumped)
                     return;
