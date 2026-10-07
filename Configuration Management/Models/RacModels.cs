@@ -185,6 +185,12 @@ public sealed class RacConnectionInfo
 
     /// <summary>Длительность соединения, мс (колонка «duration»).</summary>
     public long Duration { get; set; }
+
+    /// <summary>
+    /// Описание соединения (колонка «descr» в новом формате вывода rac «ключ : значение»,
+    /// issue #324). В табличном выводе старых версий колонки может не быть — пусто.
+    /// </summary>
+    public string Descr { get; set; } = string.Empty;
 }
 
 /// <summary>

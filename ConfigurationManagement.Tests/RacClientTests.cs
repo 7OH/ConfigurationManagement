@@ -259,4 +259,34 @@ public sealed class RacClientTests
         Assert.Equal(string.Empty, RacClient.DecodeRacOutput(Array.Empty<byte>()));
         Assert.Equal(string.Empty, RacClient.DecodeRacOutput(null!));
     }
+
+    // ---------- EnsureParsedOrThrow (issue #324: непустой нераспознанный вывод = ошибка) ----------
+
+    [Fact]
+    public void EnsureParsedOrThrow_NonEmptyUnparsedOutput_ThrowsRacOutputParseException()
+    {
+        // rac завершился с кодом 0 и вернул НЕпустой вывод, но ни табличный разбор, ни блоки
+        // «ключ : значение» не дали ни одной строки данных — новая версия формата. Монитор
+        // должен показать понятную ошибку и ОСТАНОВИТЬ автообновление (без повторов каждые 5 с).
+        var ex = Assert.Throws<RacOutputParseException>(
+            () => RacClient.EnsureParsedOrThrow("some future format output\n", 0, "process list"));
+
+        Assert.Contains("process list", ex.Message);
+    }
+
+    [Fact]
+    public void EnsureParsedOrThrow_EmptyOutput_DoesNotThrow()
+    {
+        // Пустой вывод — легитимный случай «данных нет» (регресс): исключения быть не должно.
+        RacClient.EnsureParsedOrThrow(string.Empty, 0, "process list");
+        RacClient.EnsureParsedOrThrow(null!, 0, "process list");
+        RacClient.EnsureParsedOrThrow("   \n\t ", 0, "process list");
+    }
+
+    [Fact]
+    public void EnsureParsedOrThrow_ParsedRows_DoesNotThrow()
+    {
+        // Разбор дал строки данных — правило не срабатывает даже при непустом выводе.
+        RacClient.EnsureParsedOrThrow("cluster\tname\n", 1, "process list");
+    }
 }

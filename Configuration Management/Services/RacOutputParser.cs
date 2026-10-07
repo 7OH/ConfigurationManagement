@@ -303,6 +303,41 @@ public static class RacOutputParser
         return blocks;
     }
 
+    /// <summary>
+    /// Разбирает вывод rac в блоки «ключ : значение» (формат НОВЫХ версий rac для list-команд,
+    /// issue #324). Публичная обёртка над <see cref="TryParseKeyValueBlocks"/>: используется
+    /// тестами и key-value fallback'ами остальных list-методов (<c>ToProcesses</c>,
+    /// <c>ToSessions</c>, <c>ToConnections</c>, <c>ToLocks</c>, <c>ToInfobaseSummaries</c>,
+    /// <c>ToJobs</c>). Новый блок начинается со строки, где ключ равен
+    /// <paramref name="blockStartKey"/>. Возвращает пустой список, если блоков не найдено.
+    /// </summary>
+    public static IReadOnlyList<IReadOnlyDictionary<string, string>> ParseKeyValueBlocks(
+        string output, string blockStartKey)
+        => TryParseKeyValueBlocks(output, blockStartKey);
+
+    /// <summary>
+    /// Признак вывода rac в формате блоков «ключ : значение» (новые версии, issue #324):
+    /// первая непустая строка содержит разделитель «:» И не содержит табуляций (табличный
+    /// вывод всегда с \t либо выровнен пробелами с заголовком-таблицей). Используется как
+    /// условие включения key-value fallback в list-методах, чтобы не тратить попытку разбора
+    /// впустую и не ломать табличные регрессии.
+    /// </summary>
+    internal static bool LooksLikeKeyValueOutput(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+            return false;
+        foreach (var rawLine in output.Split('\n'))
+        {
+            var line = rawLine.TrimEnd('\r');
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+            if (line.IndexOf('\t') >= 0)
+                return false;
+            return line.IndexOf(':') > 0;
+        }
+        return false;
+    }
+
     /// <summary>Признак того, что значение является корректным GUID (для маркера блока кластера).</summary>
     private static bool IsGuid(string value) =>
         Guid.TryParse(value.Trim(), out _);
@@ -344,6 +379,35 @@ public static class RacOutputParser
                 Running = ParseBool(Col(row, 13)),
                 Infobases = ParseInt(Col(row, 14))
             });
+        }
+
+        // issue #324: новые версии rac отдают «process list» блоками «ключ : значение».
+        if (processes.Count == 0 && LooksLikeKeyValueOutput(output))
+        {
+            foreach (var block in TryParseKeyValueBlocks(output, "process"))
+            {
+                var id = ParseGuid(Get(block, "process"));
+                if (id == Guid.Empty)
+                    continue; // блок без валидного идентификатора — пропускаем
+
+                processes.Add(new RacProcessInfo
+                {
+                    Id = id,
+                    Host = Unquote(Get(block, "host")),
+                    Pid = ParseInt(Get(block, "pid")),
+                    Port = ParseInt(Get(block, "port")),
+                    StartedAt = ParseDateTime(Get(block, "started-at")),
+                    MemorySize = ParseLong(Get(block, "memory-size")),
+                    MemoryTotal = ParseLong(Get(block, "memory-total")),
+                    MemoryAvailable = ParseLong(Get(block, "memory-available")),
+                    MemoryExcess = ParseLong(Get(block, "memory-excess")),
+                    Threads = ParseInt(Get(block, "threads")),
+                    Cpu = ParseDouble(Get(block, "cpu")),
+                    AvailablePerformances = ParseDouble(Get(block, "available-performances")),
+                    Running = ParseBool(Get(block, "running")),
+                    Infobases = ParseInt(Get(block, "infobases"))
+                });
+            }
         }
 
         return processes;
@@ -398,6 +462,44 @@ public static class RacOutputParser
             });
         }
 
+        // issue #324: новые версии rac отдают «session list» блоками «ключ : значение».
+        if (sessions.Count == 0 && LooksLikeKeyValueOutput(output))
+        {
+            foreach (var block in TryParseKeyValueBlocks(output, "session"))
+            {
+                var id = ParseGuid(Get(block, "session"));
+                if (id == Guid.Empty)
+                    continue;
+
+                sessions.Add(new RacSessionInfo
+                {
+                    Id = id,
+                    InfobaseId = ParseNullableGuid(Get(block, "infobase")),
+                    User = Unquote(Get(block, "user-name")),
+                    Host = Unquote(Get(block, "host")),
+                    AppId = Unquote(Get(block, "app-id")),
+                    StartedAt = ParseDateTime(Get(block, "started-at")),
+                    LastActiveAt = ParseDateTime(Get(block, "last-active-at")),
+                    BlockedByLs = ParseBool(Get(block, "blocked-by-ls")),
+                    BlockedByDeadlock = ParseBool(Get(block, "blocked-by-deadlock")),
+                    DbProcDuration = ParseLong(Get(block, "db-proc-duration")),
+                    DurationAll = ParseLong(Get(block, "duration-all")),
+                    DurationCurrent = ParseLong(Get(block, "duration-current")),
+                    DurationDbms = ParseLong(Get(block, "duration-dbms")),
+                    DurationCpu = ParseLong(Get(block, "duration-cpu")),
+                    DurationWait = ParseLong(Get(block, "duration-wait")),
+                    Memory = ParseLong(Get(block, "memory")),
+                    Bytes = ParseLong(Get(block, "bytes")),
+                    Position = ParseLong(Get(block, "position")),
+                    Read = ParseLong(Get(block, "read")),
+                    Write = ParseLong(Get(block, "write")),
+                    ConnectionId = ParseGuid(Get(block, "connection")),
+                    Hibernate = ParseBool(Get(block, "hibernate")),
+                    State = Unquote(Get(block, "state"))
+                });
+            }
+        }
+
         return sessions;
     }
 
@@ -435,6 +537,34 @@ public static class RacOutputParser
             });
         }
 
+        // issue #324: новые версии rac отдают «connection list» блоками «ключ : значение»
+        // (реальный вывод 7OH: connection/session/blocked/connector/process/host/port/
+        // established-at/last-connection-time/duration/descr).
+        if (connections.Count == 0 && LooksLikeKeyValueOutput(output))
+        {
+            foreach (var block in TryParseKeyValueBlocks(output, "connection"))
+            {
+                var id = ParseGuid(Get(block, "connection"));
+                if (id == Guid.Empty)
+                    continue;
+
+                connections.Add(new RacConnectionInfo
+                {
+                    Id = id,
+                    SessionId = ParseGuid(Get(block, "session")),
+                    Blocked = ParseBool(Get(block, "blocked")),
+                    Connector = Unquote(Get(block, "connector")),
+                    ProcessId = ParseGuid(Get(block, "process")),
+                    Host = Unquote(Get(block, "host")),
+                    Port = ParseInt(Get(block, "port")),
+                    EstablishedAt = ParseDateTime(Get(block, "established-at")),
+                    LastConnectionTime = ParseDateTime(Get(block, "last-connection-time")),
+                    Duration = ParseLong(Get(block, "duration")),
+                    Descr = Unquote(Get(block, "descr"))
+                });
+            }
+        }
+
         return connections;
     }
 
@@ -468,6 +598,29 @@ public static class RacOutputParser
                 Blocking = ParseBool(Col(row, 7)),
                 Object = Col(row, 8).Trim()
             });
+        }
+
+        // issue #324: новые версии rac отдают «lock list» блоками «ключ : значение».
+        if (locks.Count == 0 && LooksLikeKeyValueOutput(output))
+        {
+            foreach (var block in TryParseKeyValueBlocks(output, "lock"))
+            {
+                var id = ParseGuid(Get(block, "lock"));
+                if (id == Guid.Empty)
+                    continue;
+
+                locks.Add(new RacLockInfo
+                {
+                    Id = id,
+                    SessionId = ParseGuid(Get(block, "session")),
+                    InfobaseId = ParseGuid(Get(block, "infobase")),
+                    ConnectionId = ParseGuid(Get(block, "connection")),
+                    TransactionId = ParseGuid(Get(block, "transaction")),
+                    Waiting = ParseBool(Get(block, "waiting")),
+                    Blocking = ParseBool(Get(block, "blocking")),
+                    Object = Unquote(Get(block, "object"))
+                });
+            }
         }
 
         return locks;
@@ -506,6 +659,31 @@ public static class RacOutputParser
                 SecurityLevel = ParseInt(Col(row, 8)),
                 Licensed = ParseBool(Col(row, 9))
             });
+        }
+
+        // issue #324: новые версии rac отдают «infobase summary list» блоками «ключ : значение».
+        if (infobases.Count == 0 && LooksLikeKeyValueOutput(output))
+        {
+            foreach (var block in TryParseKeyValueBlocks(output, "infobase"))
+            {
+                var id = ParseGuid(Get(block, "infobase"));
+                if (id == Guid.Empty)
+                    continue;
+
+                infobases.Add(new RacInfobaseSummary
+                {
+                    InfobaseId = id,
+                    Name = Unquote(Get(block, "name")),
+                    Descr = Unquote(Get(block, "descr")),
+                    Dbms = Unquote(Get(block, "dbms")),
+                    DbServer = Unquote(Get(block, "db-server")),
+                    DbName = Unquote(Get(block, "db-name")),
+                    DbUser = Unquote(Get(block, "db-user")),
+                    Locale = Unquote(Get(block, "locale")),
+                    SecurityLevel = ParseInt(Get(block, "security-level")),
+                    Licensed = ParseBool(Get(block, "licensed"))
+                });
+            }
         }
 
         return infobases;
@@ -553,6 +731,37 @@ public static class RacOutputParser
                 ProcessId = ParseGuid(Col(row, 15)),
                 Result = Unquote(Col(row, 21))
             });
+        }
+
+        // issue #324: новые версии rac отдают «job list» блоками «ключ : значение».
+        if (jobs.Count == 0 && LooksLikeKeyValueOutput(output))
+        {
+            foreach (var block in TryParseKeyValueBlocks(output, "job"))
+            {
+                var id = ParseGuid(Get(block, "job"));
+                if (id == Guid.Empty)
+                    continue;
+
+                jobs.Add(new RacJobInfo
+                {
+                    Id = id,
+                    InfobaseId = ParseNullableGuid(Get(block, "infobase")),
+                    Name = Unquote(Get(block, "name")),
+                    MethodName = Unquote(Get(block, "method-name")),
+                    Predefined = ParseBool(Get(block, "predefined")),
+                    Schedule = Unquote(Get(block, "schedule")),
+                    State = Unquote(Get(block, "state")),
+                    StartedAt = ParseDateTime(Get(block, "started-at")),
+                    NextStart = ParseDateTime(Get(block, "next-start")),
+                    LastStart = ParseDateTime(Get(block, "last-start")),
+                    LastEnd = ParseDateTime(Get(block, "last-end")),
+                    LastSuccess = ParseBool(Get(block, "last-success")),
+                    LastError = ParseBool(Get(block, "last-error")),
+                    LastErrorDescr = Unquote(Get(block, "last-error-descr")),
+                    ProcessId = ParseGuid(Get(block, "process")),
+                    Result = Unquote(Get(block, "result"))
+                });
+            }
         }
 
         return jobs;

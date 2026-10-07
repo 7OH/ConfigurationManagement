@@ -790,4 +790,196 @@ public sealed class RacOutputParserTests
 
         Assert.NotNull(RacOutputParser.ToClusterInfo("только текст без двоеточия\n"));
     }
+
+    // ---------- Key-value блоки (issue #324, новые версии rac) ----------
+
+    [Fact]
+    public void ToConnections_ParsesKeyValueBlocks_WithDescr()
+    {
+        // Реальный вывод 7OH (комментарий 16/18): новые версии rac отдают «connection list»
+        // блоками «ключ : значение» — connection/session/blocked/connector/process/host/port/
+        // established-at/last-connection-time/duration/descr. «Ключ вместо значения» больше
+        // не появляется: descr извлекается в отдельное поле и показывается колонкой.
+        const string output =
+            "connection                                : 97ec4a09-12a1-4b3c-8f2e-9c0d1e2f3a4b\n" +
+            "session                                   : 5b4c3d2e-1111-2222-3333-444455556666\n" +
+            "blocked                                   : 0\n" +
+            "connector                                 : 1CV8\n" +
+            "process                                   : a1b2c3d4-aaaa-bbbb-cccc-ddddeeeeffff\n" +
+            "host                                      : WS-USER-01\n" +
+            "port                                      : 37105\n" +
+            "established-at                            : 2026-10-04T10:15:00\n" +
+            "last-connection-time                      : 2026-10-04T10:15:30\n" +
+            "duration                                  : 30000\n" +
+            "descr                                     : \"1CV8 8.3.27.2214 (клиент, толстый)\"\n";
+
+        var connection = Assert.Single(RacOutputParser.ToConnections(output));
+
+        Assert.Equal(Guid.Parse("97ec4a09-12a1-4b3c-8f2e-9c0d1e2f3a4b"), connection.Id);
+        Assert.Equal(Guid.Parse("5b4c3d2e-1111-2222-3333-444455556666"), connection.SessionId);
+        Assert.False(connection.Blocked);
+        Assert.Equal("1CV8", connection.Connector);
+        Assert.Equal("WS-USER-01", connection.Host);
+        Assert.Equal(37105, connection.Port);
+        Assert.Equal("1CV8 8.3.27.2214 (клиент, толстый)", connection.Descr);
+    }
+
+    [Fact]
+    public void ToProcesses_ParsesKeyValueBlocks()
+    {
+        const string output =
+            "process                       : 11111111-2222-3333-4444-555566667777\n" +
+            "host                          : SRV-1C-01\n" +
+            "pid                           : 12345\n" +
+            "port                          : 1560\n" +
+            "started-at                    : 2026-10-04T06:00:00\n" +
+            "memory-size                   : 1048576\n" +
+            "memory-total                  : 2097152\n" +
+            "memory-available              : 3145728\n" +
+            "memory-excess                 : 0\n" +
+            "threads                       : 12\n" +
+            "cpu                           : 3.5\n" +
+            "available-performances        : 100\n" +
+            "running                       : 1\n" +
+            "infobases                     : 4\n";
+
+        var process = Assert.Single(RacOutputParser.ToProcesses(output));
+
+        Assert.Equal(Guid.Parse("11111111-2222-3333-4444-555566667777"), process.Id);
+        Assert.Equal("SRV-1C-01", process.Host);
+        Assert.Equal(12345, process.Pid);
+        Assert.Equal(1560, process.Port);
+        Assert.Equal(12, process.Threads);
+        Assert.Equal(3.5, process.Cpu, precision: 3);
+        Assert.True(process.Running);
+        Assert.Equal(4, process.Infobases);
+    }
+
+    [Fact]
+    public void ToSessions_ParsesKeyValueBlocks()
+    {
+        const string output =
+            "session           : 22222222-3333-4444-5555-666677778888\n" +
+            "infobase          : 99999999-aaaa-bbbb-cccc-ddddeeeeffff\n" +
+            "user-name         : \"Иванов Иван\"\n" +
+            "host              : WS-USER-01\n" +
+            "app-id            : 1CV8\n" +
+            "started-at        : 2026-10-04T08:00:00\n" +
+            "last-active-at    : 2026-10-04T09:00:00\n" +
+            "blocked-by-ls     : 0\n" +
+            "blocked-by-deadlock : 0\n" +
+            "duration-all      : 3600000\n" +
+            "memory            : 268435456\n" +
+            "connection        : 97ec4a09-12a1-4b3c-8f2e-9c0d1e2f3a4b\n" +
+            "hibernate         : 0\n" +
+            "state             : active\n";
+
+        var session = Assert.Single(RacOutputParser.ToSessions(output));
+
+        Assert.Equal(Guid.Parse("22222222-3333-4444-5555-666677778888"), session.Id);
+        Assert.Equal(Guid.Parse("99999999-aaaa-bbbb-cccc-ddddeeeeffff"), session.InfobaseId);
+        Assert.Equal("Иванов Иван", session.User);
+        Assert.Equal("1CV8", session.AppId);
+        Assert.Equal("active", session.State);
+        Assert.Equal(3_600_000, session.DurationAll);
+    }
+
+    [Fact]
+    public void ToLocks_ParsesKeyValueBlocks()
+    {
+        const string output =
+            "lock              : 33333333-4444-5555-6666-777788889999\n" +
+            "session           : 22222222-3333-4444-5555-666677778888\n" +
+            "infobase          : 99999999-aaaa-bbbb-cccc-ddddeeeeffff\n" +
+            "connection        : 97ec4a09-12a1-4b3c-8f2e-9c0d1e2f3a4b\n" +
+            "transaction       : aaaabbbb-cccc-dddd-eeee-ffff00001111\n" +
+            "waiting           : 0\n" +
+            "blocking          : 1\n" +
+            "object            : \"Справочник.Контрагенты\"\n";
+
+        var lockRow = Assert.Single(RacOutputParser.ToLocks(output));
+
+        Assert.Equal(Guid.Parse("33333333-4444-5555-6666-777788889999"), lockRow.Id);
+        Assert.True(lockRow.Blocking);
+        Assert.False(lockRow.Waiting);
+        Assert.Equal("Справочник.Контрагенты", lockRow.Object);
+    }
+
+    [Fact]
+    public void ToInfobaseSummaries_ParsesKeyValueBlocks()
+    {
+        const string output =
+            "infobase           : 99999999-aaaa-bbbb-cccc-ddddeeeeffff\n" +
+            "name               : \"Бухгалтерия предприятия\"\n" +
+            "descr              : \"Рабочая база\"\n" +
+            "dbms               : MSSQLServer\n" +
+            "db-server          : SQL-SRV-01\n" +
+            "db-name            : base_1c\n" +
+            "db-user            : 1c_user\n" +
+            "locale             : ru_RU\n" +
+            "security-level     : 0\n" +
+            "licensed           : 1\n";
+
+        var infobase = Assert.Single(RacOutputParser.ToInfobaseSummaries(output));
+
+        Assert.Equal(Guid.Parse("99999999-aaaa-bbbb-cccc-ddddeeeeffff"), infobase.InfobaseId);
+        Assert.Equal("Бухгалтерия предприятия", infobase.Name);
+        Assert.Equal("Рабочая база", infobase.Descr);
+        Assert.Equal("MSSQLServer", infobase.Dbms);
+        Assert.True(infobase.Licensed);
+    }
+
+    [Fact]
+    public void ToJobs_ParsesKeyValueBlocks()
+    {
+        const string output =
+            "job                  : 44444444-5555-6666-7777-88889999aaaa\n" +
+            "infobase             : 99999999-aaaa-bbbb-cccc-ddddeeeeffff\n" +
+            "name                 : \"Обмен с банком\"\n" +
+            "method-name          : ОбменСБанком.Выполнить\n" +
+            "predefined           : 1\n" +
+            "schedule             : \"Повторяющийся день в течение дня\"\n" +
+            "state                : scheduled\n" +
+            "next-start           : 2026-10-04T12:00:00\n" +
+            "last-success         : 1\n" +
+            "last-error           : 0\n" +
+            "process              : 11111111-2222-3333-4444-555566667777\n";
+
+        var job = Assert.Single(RacOutputParser.ToJobs(output));
+
+        Assert.Equal(Guid.Parse("44444444-5555-6666-7777-88889999aaaa"), job.Id);
+        Assert.Equal(Guid.Parse("99999999-aaaa-bbbb-cccc-ddddeeeeffff"), job.InfobaseId);
+        Assert.Equal("Обмен с банком", job.Name);
+        Assert.Equal("scheduled", job.State);
+        Assert.True(job.Predefined);
+        Assert.True(job.LastSuccess);
+    }
+
+    [Fact]
+    public void ParseKeyValueBlocks_PublicWrapper_ReturnsBlocks()
+    {
+        const string output =
+            "connection : aaaa\n" +
+            "descr      : bbbb\n" +
+            "connection : cccc\n" +
+            "descr      : dddd\n";
+
+        var blocks = RacOutputParser.ParseKeyValueBlocks(output, "connection");
+
+        Assert.Equal(2, blocks.Count);
+        Assert.Equal("aaaa", blocks[0]["connection"]);
+        Assert.Equal("bbbb", blocks[0]["descr"]);
+        Assert.Equal("cccc", blocks[1]["connection"]);
+    }
+
+    [Fact]
+    public void LooksLikeKeyValueOutput_DetectsBlocksVsTable()
+    {
+        // Строка вида «ключ : значение» без табуляций — это блоки.
+        Assert.True(RacOutputParser.LooksLikeKeyValueOutput("connection : aaaa\n"));
+        // Табличный вывод с табуляцией — НЕ блоки.
+        Assert.False(RacOutputParser.LooksLikeKeyValueOutput("cluster\tname\tport\n"));
+        Assert.False(RacOutputParser.LooksLikeKeyValueOutput(null));
+        Assert.False(RacOutputParser.LooksLikeKeyValueOutput(string.Empty));
+    }
 }

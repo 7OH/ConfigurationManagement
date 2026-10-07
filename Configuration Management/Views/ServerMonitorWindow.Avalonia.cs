@@ -100,13 +100,35 @@ namespace Configuration_Management
             var diagnosticsButton = BuildActionButton(
                 LocalizationManager.T("ServerMonitor.NetworkDiagnostics"), "🛜", OpenNetworkDiagnostics);
 
+            // Автообновление (issue #324, комментарий 17/18): переключатель вкл/выкл + интервал.
+            var autoRefreshCheck = new CheckBox
+            {
+                Content = LocalizationManager.T("ServerMonitor.AutoRefreshToggle"),
+                VerticalAlignment = VerticalAlignment.Center,
+                IsChecked = _vm.IsAutoRefreshEnabled
+            };
+            autoRefreshCheck.IsCheckedChanged += (_, _) => _vm.SetAutoRefreshEnabled(autoRefreshCheck.IsChecked == true);
+            var intervalLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("ServerMonitor.AutoRefreshInterval"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var intervalBox = new ComboBox { Width = 72, VerticalAlignment = VerticalAlignment.Center };
+            intervalBox.ItemsSource = new[] { 5, 10, 15, 30, 60 };
+            intervalBox.SelectedItem = _vm.AutoRefreshIntervalSeconds;
+            intervalBox.SelectionChanged += (_, _) =>
+            {
+                if (intervalBox.SelectedItem is int seconds)
+                    _vm.AutoRefreshIntervalSeconds = seconds;
+            };
+
             var buttons = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Spacing = 8,
                 Margin = new Thickness(0, 10, 0, 0),
-                Children = { connectButton, refreshButton, diagnosticsButton, closeButton }
+                Children = { connectButton, refreshButton, autoRefreshCheck, intervalLabel, intervalBox, diagnosticsButton, closeButton }
             };
 
             // ---- Выбор кластера + статус. ----
@@ -530,6 +552,7 @@ namespace Configuration_Management
                     new ColumnDefinition(new GridLength(130)),
                     new ColumnDefinition(new GridLength(130)),
                     new ColumnDefinition(new GridLength(100)),
+                    new ColumnDefinition(new GridLength(1.3, GridUnitType.Star)),
                     new ColumnDefinition(new GridLength(110))
                 }
             };
@@ -539,7 +562,8 @@ namespace Configuration_Management
             AddCell(grid, CellText("EstablishedAtText"), 3);
             AddCell(grid, CellText("LastConnectionTimeText"), 4);
             AddCell(grid, CellText("DurationText"), 5);
-            AddCell(grid, CellText("BlockedText", colorHex: row.BlockedColorHex), 6);
+            AddCell(grid, CellText("Descr"), 6);
+            AddCell(grid, CellText("BlockedText", colorHex: row.BlockedColorHex), 7);
             return grid;
         }
 

@@ -59,6 +59,9 @@ public sealed class RacConnectionRow
     public string DurationText =>
         TimeSpan.FromMilliseconds(_info.Duration).ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
 
+    /// <summary>Описание соединения (descr из нового формата вывода rac, issue #324).</summary>
+    public string Descr => _info.Descr;
+
     /// <summary>Цвет признака блокировки: жёлтый — заблокировано, нейтральный — нет.</summary>
     public string BlockedColorHex => _info.Blocked ? "#D97706" : "#64748B";
 }

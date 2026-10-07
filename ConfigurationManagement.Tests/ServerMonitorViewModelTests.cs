@@ -562,6 +562,66 @@ public sealed class ServerMonitorViewModelTests
         Assert.Equal("—", new RacConnectionRow(new RacConnectionInfo()).EstablishedAtText);
     }
 
+    // ---------- issue #324: автовыбор кластера, ошибка разбора, автообновление ----------
+
+    [Fact]
+    public async Task Connect_SingleCluster_AutoSelectedImmediately()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(singleCluster: true), new RecordingDialogs());
+
+        await vm.ConnectAsync();
+
+        Assert.Single(vm.ClusterRows);
+        Assert.Equal(FakeRacClient.FirstClusterId, vm.SelectedClusterId);
+    }
+
+    [Fact]
+    public async Task LoadClusterData_ParseError_SetsErrorAndStopsAutoRefresh()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(throwOnParse: true), new RecordingDialogs());
+        await vm.ConnectAsync();
+        // Фоновая загрузка первого кластера споткнётся об ошибку разбора; ждём её завершения
+        // (перекрытие запросов исключено флагом занятости), затем явная загрузка.
+        await Task.Delay(50);
+        await vm.LoadClusterDataAsync(FakeRacClient.FirstClusterId);
+
+        // Бесконечный ретрай каждые 5 с прекращён: таймер остановлен, ошибка показана.
+        Assert.False(vm.AutoRefreshActive);
+        Assert.False(string.IsNullOrEmpty(vm.ErrorMessage));
+        Assert.False(string.IsNullOrEmpty(vm.StatusText));
+    }
+
+    [Fact]
+    public async Task SetAutoRefreshEnabled_TurnsOffAndOn_Timer()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
+        await vm.ConnectAsync();
+        Assert.True(vm.AutoRefreshActive);
+
+        vm.SetAutoRefreshEnabled(false);
+        Assert.False(vm.AutoRefreshActive);
+        Assert.False(vm.IsAutoRefreshEnabled);
+
+        vm.SetAutoRefreshEnabled(true);
+        Assert.True(vm.IsAutoRefreshEnabled);
+        Assert.True(vm.AutoRefreshActive);
+    }
+
+    [Fact]
+    public void AutoRefreshIntervalSeconds_ClampsToRange()
+    {
+        var vm = new ServerMonitorViewModel(new FakeRacClient(), new RecordingDialogs());
+
+        vm.AutoRefreshIntervalSeconds = 0;
+        Assert.Equal(1, vm.AutoRefreshIntervalSeconds);
+
+        vm.AutoRefreshIntervalSeconds = 999;
+        Assert.Equal(60, vm.AutoRefreshIntervalSeconds);
+
+        vm.AutoRefreshIntervalSeconds = 10;
+        Assert.Equal(10, vm.AutoRefreshIntervalSeconds);
+    }
+
     // ===================== Fakes =====================
 
     /// <summary>Fake-клиент rac для тестов: два кластера, по одной строке данных.</summary>
@@ -583,15 +643,20 @@ public sealed class ServerMonitorViewModelTests
         private readonly bool _throwOnAction;
         private readonly bool _actionFails;
         private readonly TimeSpan _delay;
+        private readonly bool _throwOnParse;
+        private readonly bool _singleCluster;
 
         public FakeRacClient(
             bool throwOnClusters = false, bool throwOnAction = false,
-            bool actionFails = false, TimeSpan? delay = null)
+            bool actionFails = false, TimeSpan? delay = null,
+            bool throwOnParse = false, bool singleCluster = false)
         {
             _throwOnClusters = throwOnClusters;
             _throwOnAction = throwOnAction;
             _actionFails = actionFails;
             _delay = delay ?? TimeSpan.Zero;
+            _throwOnParse = throwOnParse;
+            _singleCluster = singleCluster;
         }
 
         /// <summary>Текст последней ошибки действия (как в реальном клиенте).</summary>
@@ -621,6 +686,13 @@ public sealed class ServerMonitorViewModelTests
             LastParams = parameters;
             if (_throwOnClusters)
                 throw new RacClientException("rac not found");
+            if (_singleCluster)
+            {
+                return Task.FromResult<IReadOnlyList<RacCluster>>(new[]
+                {
+                    new RacCluster { Id = FirstClusterId, Name = "Главный кластер", Port = 1541 }
+                });
+            }
             return Task.FromResult<IReadOnlyList<RacCluster>>(new[]
             {
                 new RacCluster { Id = FirstClusterId, Name = "Главный кластер", Port = 1541 },
@@ -649,6 +721,8 @@ public sealed class ServerMonitorViewModelTests
             RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
         {
             ProcessCalls++;
+            if (_throwOnParse)
+                throw new RacOutputParseException("тест: вывод rac не распознан");
             if (_delay > TimeSpan.Zero)
                 await Task.Delay(_delay, cancellationToken).ConfigureAwait(false);
             return new[]

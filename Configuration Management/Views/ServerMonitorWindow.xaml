@@ -78,6 +78,20 @@
                     <TextBlock Text="{loc:Loc ServerMonitor.Refresh}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
+            <!-- Автообновление (issue #324, комментарий 17/18): переключатель вкл/выкл и интервал. -->
+            <CheckBox x:Name="AutoRefreshCheckBox" Content="{loc:Loc ServerMonitor.AutoRefreshToggle}"
+                      IsChecked="{Binding IsAutoRefreshEnabled, Mode=TwoWay}"
+                      VerticalAlignment="Center" Margin="14,0,8,0"/>
+            <TextBlock Text="{loc:Loc ServerMonitor.AutoRefreshInterval}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox x:Name="AutoRefreshIntervalCombo" Width="64" Style="{StaticResource ModernComboBox}"
+                      SelectedValuePath="Tag" SelectedValue="{Binding AutoRefreshIntervalSeconds, Mode=TwoWay}"
+                      VerticalContentAlignment="Center" Padding="6,2">
+                <ComboBoxItem Content="5" Tag="5"/>
+                <ComboBoxItem Content="10" Tag="10"/>
+                <ComboBoxItem Content="15" Tag="15"/>
+                <ComboBoxItem Content="30" Tag="30"/>
+                <ComboBoxItem Content="60" Tag="60"/>
+            </ComboBox>
             <!-- Диагностика сети до сервера 1С (функция 12): DNS/ICMP/TCP-проверка адреса:порт
                  монитора и стандартных портов 1540/1541/1545. Работает до подключения rac. -->
             <Button x:Name="DiagnosticsButton" Style="{StaticResource ModernButton}"
@@ -273,6 +287,8 @@
                                             Binding="{Binding LastConnectionTimeText}" ElementStyle="{StaticResource CenteredCellText}"/>
                         <DataGridTextColumn Width="100" Header="{loc:Loc ServerMonitor.Columns.Connection.Duration}"
                                             Binding="{Binding DurationText}" ElementStyle="{StaticResource CenteredCellText}"/>
+                        <DataGridTextColumn Width="1.3*" Header="{loc:Loc ServerMonitor.Columns.Connection.Descr}"
+                                            Binding="{Binding Descr}" ElementStyle="{StaticResource CenteredCellText}"/>
                         <DataGridTextColumn Width="110" Header="{loc:Loc ServerMonitor.Columns.Connection.Blocked}"
                                             Binding="{Binding BlockedText}">
                             <DataGridTextColumn.ElementStyle>

@@ -9,6 +9,21 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.318] — 2026-10-07
+
+### Исправлено
+
+- **Монитор серверов 1С: новые версии rac отдают list-команды блоками «ключ : значение» (issue #324, комментарии 15/18–17/18)** — раньше парсер понимал key-value блоки только для `cluster list`, остальные вкладки (процессы/сеансы/соединения/блокировки/базы/задания) на новых платформах оставались пустыми, а в списке показывались ключи вместо значений:
+  - **key-value разбор для всех list-команд** ([`RacOutputParser.ParseKeyValueBlocks`](Configuration%20Management/Services/RacOutputParser.cs)) — публичная обёртка над блочным разбором, признак формата [`LooksLikeKeyValueOutput`](Configuration%20Management/Services/RacOutputParser.cs) (первая строка «ключ : значение» без табуляций); fallback в `ToProcesses`/`ToSessions`/`ToConnections`/`ToLocks`/`ToInfobaseSummaries`/`ToJobs` включается ТОЛЬКО если табличный разбор дал 0 строк (табличные регрессии исключены);
+  - **`descr` соединения** — новое поле [`RacConnectionInfo.Descr`](Configuration%20Management/Models/RacModels.cs), свойство [`RacConnectionRow.Descr`](Configuration%20Management/ViewModels/RacConnectionRow.cs) и колонка «Описание» во вкладке «Соединения» (WPF [`ServerMonitorWindow.xaml`](Configuration%20Management/Views/ServerMonitorWindow.xaml) и Avalonia [`ServerMonitorWindow.Avalonia.cs`](Configuration%20Management/Views/ServerMonitorWindow.Avalonia.cs)) — «значение, а не ключ»;
+  - **остановка бесконечного ретрая** ([`RacClient`](Configuration%20Management/Services/RacClient.cs)) — при непустом выводе rac и 0 распознанных строках бросается [`RacOutputParseException`](Configuration%20Management/Services/RacOutputParseException.cs) (новый тип); монитор показывает «Ошибка разбора данных от кластера…» и **останавливает автообновление** ([`ServerMonitorViewModel.LoadClusterDataAsync`](Configuration%20Management/ViewModels/ServerMonitorViewModel.cs)) — повторов каждые 5 с больше нет, прежние данные не очищаются, ручное «Обновить» доступно и после успеха возобновляет автообновление;
+  - **автовыбор единственного кластера** — в [`ApplyClusters`](Configuration%20Management/ViewModels/ServerMonitorViewModel.cs) при одном кластере выбор устанавливается сразу (до завершения подключения), при нескольких — прежнее поведение (первый), при отсутствии — сброс;
+  - **переключатель автообновления и интервал на форме** (комментарий 17/18 «как отключить Автообновления вкл (5с)?») — CheckBox «Автообновление» и выбор интервала 5/10/15/30/60 с (`IsAutoRefreshEnabled`, `AutoRefreshIntervalSeconds` 1–60 с clamp, `ToggleAutoRefreshCommand`/`SetAutoRefreshEnabled`) в WPF и Avalonia; подсказка показывает текущий интервал.
+
+### Тесты
+
+Полный набор `dotnet test` зелёный; кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Новые/обновлённые: [`RacOutputParserTests.cs`](ConfigurationManagement.Tests/RacOutputParserTests.cs) (+8: key-value блоки для всех шести list-команд с реальным образцом `connection list` 7OH и `descr`, публичная обёртка, детектор формата), [`RacClientTests.cs`](ConfigurationManagement.Tests/RacClientTests.cs) (+3: непустой нераспознанный вывод → `RacOutputParseException`, пустой вывод — без исключения, разобранные строки — без исключения), [`ServerMonitorViewModelTests.cs`](ConfigurationManagement.Tests/ServerMonitorViewModelTests.cs) (+4: автовыбор единственного кластера, остановка автообновления при ошибке разбора, переключатель вкл/выкл, clamp интервала).
+
 ## [0.3.9.317] — 2026-10-06
 
 ### Исправлено

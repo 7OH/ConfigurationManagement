@@ -84,7 +84,9 @@ public sealed class RacClient : IRacClient
         var output = await RunAsync(parameters, cancellationToken, "process", "list",
                 $"--cluster={clusterId}")
             .ConfigureAwait(false);
-        return RacOutputParser.ToProcesses(output);
+        var processes = RacOutputParser.ToProcesses(output);
+        EnsureParsedOrThrow(output, processes.Count, "process list");
+        return processes;
     }
 
     /// <inheritdoc />
@@ -94,7 +96,9 @@ public sealed class RacClient : IRacClient
         var output = await RunAsync(parameters, cancellationToken, "session", "list",
                 $"--cluster={clusterId}")
             .ConfigureAwait(false);
-        return RacOutputParser.ToSessions(output);
+        var sessions = RacOutputParser.ToSessions(output);
+        EnsureParsedOrThrow(output, sessions.Count, "session list");
+        return sessions;
     }
 
     /// <inheritdoc />
@@ -104,7 +108,9 @@ public sealed class RacClient : IRacClient
         var output = await RunAsync(parameters, cancellationToken, "connection", "list",
                 $"--cluster={clusterId}")
             .ConfigureAwait(false);
-        return RacOutputParser.ToConnections(output);
+        var connections = RacOutputParser.ToConnections(output);
+        EnsureParsedOrThrow(output, connections.Count, "connection list");
+        return connections;
     }
 
     /// <inheritdoc />
@@ -114,7 +120,9 @@ public sealed class RacClient : IRacClient
         var output = await RunAsync(parameters, cancellationToken, "lock", "list",
                 $"--cluster={clusterId}")
             .ConfigureAwait(false);
-        return RacOutputParser.ToLocks(output);
+        var locks = RacOutputParser.ToLocks(output);
+        EnsureParsedOrThrow(output, locks.Count, "lock list");
+        return locks;
     }
 
     /// <inheritdoc />
@@ -124,7 +132,9 @@ public sealed class RacClient : IRacClient
         var output = await RunAsync(parameters, cancellationToken, "infobase", "summary", "list",
                 $"--cluster={clusterId}")
             .ConfigureAwait(false);
-        return RacOutputParser.ToInfobaseSummaries(output);
+        var infobases = RacOutputParser.ToInfobaseSummaries(output);
+        EnsureParsedOrThrow(output, infobases.Count, "infobase summary list");
+        return infobases;
     }
 
     /// <inheritdoc />
@@ -134,7 +144,27 @@ public sealed class RacClient : IRacClient
         var output = await RunAsync(parameters, cancellationToken, "job", "list",
                 $"--cluster={clusterId}")
             .ConfigureAwait(false);
-        return RacOutputParser.ToJobs(output);
+        var jobs = RacOutputParser.ToJobs(output);
+        EnsureParsedOrThrow(output, jobs.Count, "job list");
+        return jobs;
+    }
+
+    /// <summary>
+    /// Нераспознанный вывод rac (issue #324): rac завершился с кодом 0 и вернул НЕпустой вывод,
+    /// но ни табличный разбор, ни формат блоков «ключ : значение» не дали ни одной строки
+    /// данных — вероятно, новая версия формата. Бросаем <see cref="RacOutputParseException"/>,
+    /// чтобы монитор показал понятную ошибку и ОСТАНОВИЛ автообновление вместо тихих повторов
+    /// каждые 5 с. Пустой вывод — легитимный случай (данных нет) и ошибкой не считается.
+    /// Internal — для юнит-тестов правила «непустой вывод + 0 строк» без запуска процесса rac.
+    /// </summary>
+    internal static void EnsureParsedOrThrow(string output, int rowCount, string commandName)
+    {
+        if (!string.IsNullOrWhiteSpace(output) && rowCount == 0)
+        {
+            throw new RacOutputParseException(
+                $"Вывод rac «{commandName}» не распознан (возможно, новая версия формата): " +
+                $"код 0, но 0 строк данных при непустом выводе.");
+        }
     }
 
     /// <inheritdoc />

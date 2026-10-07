@@ -49,6 +49,13 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     private ICommand? _disconnectConnectionCommand;
     private ICommand? _pauseJobCommand;
     private ICommand? _resumeJobCommand;
+    private ICommand? _toggleAutoRefreshCommand;
+
+    /// <summary>Переключатель автообновления (issue #324): включено по умолчанию.</summary>
+    private bool _isAutoRefreshEnabled = true;
+
+    /// <summary>Интервал автообновления, секунды (по умолчанию 5; диапазон 1–60).</summary>
+    private int _autoRefreshIntervalSeconds = AutoRefreshIntervalMs / 1000;
 
     /// <summary>
     /// Кэш имён информационных баз выбранного кластера (GUID из «job list» → имя из
@@ -271,9 +278,59 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     /// <summary>Запущен ли таймер автообновления (после успешного подключения).</summary>
     public bool AutoRefreshActive => _autoRefreshTimer is not null;
 
-    /// <summary>Подпись состояния автообновления для подсказки окна.</summary>
+    /// <summary>Переключатель автообновления (issue #324): вкл/выкл на форме монитора.</summary>
+    public bool IsAutoRefreshEnabled
+    {
+        get => _isAutoRefreshEnabled;
+        set => SetAutoRefreshEnabled(value);
+    }
+
+    /// <summary>
+    /// Интервал автообновления, секунды (1–60; по умолчанию 5). Смена значения при работающем
+    /// таймере перезапускает его (issue #324, комментарий 17/18: «как отключить Автообновления»).
+    /// </summary>
+    public int AutoRefreshIntervalSeconds
+    {
+        get => _autoRefreshIntervalSeconds;
+        set
+        {
+            var clamped = Math.Clamp(value, 1, 60);
+            if (!SetProperty(ref _autoRefreshIntervalSeconds, clamped))
+                return;
+            if (_autoRefreshTimer is not null && IsAutoRefreshEnabled)
+            {
+                StopAutoRefresh();
+                StartAutoRefresh();
+            }
+        }
+    }
+
+    /// <summary>Команда переключения автообновления (вкл/выкл).</summary>
+    public ICommand ToggleAutoRefreshCommand =>
+        _toggleAutoRefreshCommand ??= new RelayCommand(() => SetAutoRefreshEnabled(!IsAutoRefreshEnabled));
+
+    /// <summary>
+    /// Включает/выключает автообновление. Выключение останавливает таймер; включение
+    /// запускает его только при установленном подключении (ручное «Обновить» доступно всегда).
+    /// </summary>
+    public void SetAutoRefreshEnabled(bool enabled)
+    {
+        if (!SetProperty(ref _isAutoRefreshEnabled, enabled))
+            return;
+        if (enabled)
+        {
+            if (HasConnected && _autoRefreshTimer is null)
+                StartAutoRefresh();
+        }
+        else
+        {
+            StopAutoRefresh();
+        }
+    }
+
+    /// <summary>Подпись состояния автообновления для подсказки окна (с текущим интервалом).</summary>
     public string AutoRefreshText => AutoRefreshActive
-        ? LocalizationManager.T("ServerMonitor.AutoRefreshOn")
+        ? string.Format(LocalizationManager.T("ServerMonitor.AutoRefreshOnFormat"), AutoRefreshIntervalSeconds)
         : LocalizationManager.T("ServerMonitor.AutoRefreshOff");
 
     // ===================== Статус =====================
@@ -398,10 +455,25 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
             StatusText = string.Format(
                 LocalizationManager.T("ServerMonitor.Status.LoadedFormat"),
                 processes.Count, sessions.Count, connections.Count, locks.Count, jobs.Count);
+
+            // issue #324: после УСПЕШНОЙ загрузки автообновление возобновляется, если
+            // переключатель включён (например, ручное «Обновить» после ошибки разбора).
+            if (IsAutoRefreshEnabled && _autoRefreshTimer is null)
+                StartAutoRefresh();
         }
         catch (OperationCanceledException)
         {
             StatusText = LocalizationManager.T("ServerMonitor.Status.Cancelled");
+        }
+        catch (RacOutputParseException ex)
+        {
+            // issue #324: формат вывода rac не распознан (новая версия платформы) — повторять
+            // каждые 5 с бессмысленно: таймер останавливается, прежние данные НЕ очищаются,
+            // ручное «Обновить» остаётся доступным (после успеха автообновление вернётся).
+            ErrorMessage = LocalizationManager.T("ServerMonitor.Status.ParseFailedDetail") +
+                           " " + BuildErrorMessage(ex);
+            StatusText = LocalizationManager.T("ServerMonitor.Status.ParseFailed");
+            StopAutoRefresh();
         }
         catch (Exception ex)
         {
@@ -610,10 +682,11 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void StartAutoRefresh()
     {
-        _autoRefreshTimer ??= new Timer(
-            _ => Refresh(), null, AutoRefreshIntervalMs, AutoRefreshIntervalMs);
+        var intervalMs = AutoRefreshIntervalSeconds * 1000;
+        _autoRefreshTimer ??= new Timer(_ => Refresh(), null, intervalMs, intervalMs);
         OnPropertyChanged(nameof(AutoRefreshActive));
         OnPropertyChanged(nameof(AutoRefreshText));
+        OnPropertyChanged(nameof(IsAutoRefreshEnabled));
     }
 
     /// <summary>Останавливает таймер автообновления (Dispose окна, ошибка подключения).</summary>
@@ -623,6 +696,7 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
         _autoRefreshTimer = null;
         OnPropertyChanged(nameof(AutoRefreshActive));
         OnPropertyChanged(nameof(AutoRefreshText));
+        OnPropertyChanged(nameof(IsAutoRefreshEnabled));
     }
 
     /// <inheritdoc />
@@ -657,6 +731,14 @@ public sealed class ServerMonitorViewModel : ViewModelBase, IDisposable
                 .ToList();
             OnPropertyChanged(nameof(Clusters));
             OnPropertyChanged(nameof(ClusterRows));
+
+            // issue #324: единственный кластер выбирается в списке СРАЗУ (до завершения
+            // ConnectAsync); при нескольких — выбор не навязывается (прежнее поведение);
+            // при отсутствии — сбрасывается.
+            if (ClusterRows.Count == 1)
+                SelectedClusterId = ClusterRows[0].Id;
+            else if (ClusterRows.Count == 0)
+                SelectedClusterId = null;
         }
 
         if (_dispatchToUi is null)
