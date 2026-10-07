@@ -591,6 +591,19 @@ public static class BatchSelectionHelper
         bool containerRealized, bool userReselected, int elapsedMs, int maxChaseMs)
         => !containerRealized && !userReselected && elapsedMs >= 0 && elapsedMs < maxChaseMs;
 
+    /// <summary>
+    /// Нужно ли продолжить восстановление выбора цели стабилизации (issue #340, 0.3.9.322).
+    /// По трассе 0.3.9.319 самый частый сценарий пользователя — клик по строке дерева при
+    /// ОТКРЫТОМ контекстном меню (reason "clickBeforeMenuClose"): попап «проглатывает»
+    /// клик, выбор не применяется вовсе (<c>SelectedInfobase == null</c>), а прежнее
+    /// условие «!ReferenceEquals(null, target)» ошибочно считало это перевыбором и выходило
+    /// с userReselected — выделение терялось. Продолжаем восстановление, когда выбор ПУСТ
+    /// (цель известна — строка реального клика) или равен цели; прекращаем только при
+    /// выборе ДРУГОЙ базы (пользователь сам перевыбрал — не вмешиваемся).
+    /// </summary>
+    public static bool ShouldContinueRestore(Infobase? currentSelection, Infobase target)
+        => currentSelection is null || ReferenceEquals(currentSelection, target);
+
     private static int IndexOf(IReadOnlyList<string> list, string value)
     {
         for (var i = 0; i < list.Count; i++)

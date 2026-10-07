@@ -141,9 +141,39 @@ public sealed class RacClient : IRacClient
     public async Task<IReadOnlyList<RacJobInfo>> GetJobsAsync(
         RacConnectionParams parameters, Guid clusterId, CancellationToken cancellationToken = default)
     {
-        var output = await RunAsync(parameters, cancellationToken, "job", "list",
-                $"--cluster={clusterId}")
-            .ConfigureAwait(false);
+        // issue #324: rac 8.5.4.1878 отклоняет «job list --cluster=<uuid>» (код -1,
+        // «Ошибка разбора параметра: --cluster=…»), хотя остальные list-команды с тем же
+        // параметром работают. Пробуем форматы по очереди: прежний --cluster=<uuid> и
+        // --cluster <uuid> (двумя токенами); первый успешный (exit=0) используется.
+        // Точная причина на rac 8.5.4 уточняется у пользователя (вывод job list --help);
+        // здесь — устойчивость без дополнительных запросов.
+        (string Name, string[] Args)[] attempts =
+        {
+            ("--cluster=<uuid>", new[] { "job", "list", $"--cluster={clusterId}" }),
+            ("--cluster <uuid>", new[] { "job", "list", "--cluster", clusterId.ToString() })
+        };
+
+        string? output = null;
+        RacClientException? lastError = null;
+        foreach (var attempt in attempts)
+        {
+            try
+            {
+                output = await RunAsync(parameters, cancellationToken, attempt.Args).ConfigureAwait(false);
+                lastError = null;
+                break;
+            }
+            catch (RacClientException ex)
+            {
+                lastError = ex;
+                _logger.Warn(
+                    $"RAC: job list (формат '{attempt.Name}') завершился ошибкой: {ex.Message} — пробуем следующий формат.");
+            }
+        }
+
+        if (output is null)
+            throw lastError ?? new RacClientException("job list: не удалось получить вывод rac.");
+
         var jobs = RacOutputParser.ToJobs(output);
         EnsureParsedOrThrow(output, jobs.Count, "job list");
         return jobs;

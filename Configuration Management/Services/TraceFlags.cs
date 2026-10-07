@@ -206,11 +206,15 @@ public static class TraceFlags
 
     /// <summary>
     /// Перенос существующего <c>trace.json</c> из прежнего расположения в каталог активного
-    /// профиля (issue #347, замечание 3): при первом старте новой версии конфиг, созданный
-    /// до выбора профиля в корне каталога данных, переезжает рядом с <c>settings.json</c>.
-    /// Если в профильном каталоге файл уже есть — не трогаем (не затираем). Прежний
-    /// JSONL-журнал 0.3.9.308–0.3.9.314 в корне НЕ переносится как конфиг — он остаётся
-    /// на месте (его обрабатывает <see cref="EnsureExistsCore"/>). Вызывается под lock.
+    /// профиля (issue #347, замечание 3; issue #349): при первом старте новой версии конфиг,
+    /// созданный до выбора профиля в корне каталога данных, переезжает рядом с
+    /// <c>settings.json</c>. Если в профильном каталоге файл УЖЕ есть — корневой файл
+    /// является бесполезным дублем (EnsureExists до выбора профиля создал его заново при
+    /// каждом запуске, читается всегда профильный файл — приоритет в ConfigFilePath),
+    /// поэтому дубль УДАЛЯЕТСЯ, а не остаётся мусором рядом с profiles.json (issue #349).
+    /// Прежний JSONL-журнал 0.3.9.308–0.3.9.314 НЕ переносится и НЕ удаляется — он
+    /// остаётся на месте (его обрабатывает <see cref="EnsureExistsCore"/>). Вызывается
+    /// под lock.
     /// </summary>
     private static void MigrateConfigFromRootCore(string? sourcePath)
     {
@@ -228,12 +232,25 @@ public static class TraceFlags
             var targetPath = Path.Combine(targetDir, fileName);
             if (string.Equals(targetPath, sourcePath, StringComparison.OrdinalIgnoreCase))
                 return;
-            if (!File.Exists(sourcePath) || File.Exists(targetPath))
+            if (!File.Exists(sourcePath))
                 return;
-            // Старый JSONL-журнал не является конфигом флагов — оставляем в корне
-            // (при следующем обращении его переименует EnsureExistsCore).
+
+            // Старый JSONL-журнал не является конфигом флагов — не трогаем (в корне или
+            // в профиле его обрабатывает EnsureExistsCore).
             if (TraceFlagsFormat.ShouldMigrateLegacyJsonl(ReadAllTextQuietly(sourcePath)))
                 return;
+
+            if (File.Exists(targetPath))
+            {
+                // Конфиг в профиле уже есть (создан/перенесён в предыдущих запусках),
+                // а EnsureExists в этом старте заново создал trace.json в корне каталога
+                // данных ДО выбора профиля. Чтение всегда идёт из профильного файла,
+                // корневой — мусор рядом с profiles.json (issue #349): удаляем дубль,
+                // чтобы он не накапливался при каждом запуске. Имя строго trace.json —
+                // журналы (trace_menuclose.json и legacy-файлы) не затрагиваются.
+                TryDeleteQuietly(sourcePath);
+                return;
+            }
 
             Directory.CreateDirectory(targetDir);
             File.Move(sourcePath, targetPath);
@@ -242,6 +259,14 @@ public static class TraceFlags
         {
             // Миграция не должна ломать запуск: файл останется в прежнем расположении.
         }
+    }
+
+    /// <summary>Тихое удаление файла; ошибки игнорируются — диагностика не должна
+    /// ломать запуск (issue #349).</summary>
+    private static void TryDeleteQuietly(string path)
+    {
+        try { File.Delete(path); }
+        catch { /* файл останется — это не критично */ }
     }
 
     /// <summary>

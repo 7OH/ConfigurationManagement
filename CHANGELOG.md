@@ -9,6 +9,60 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.323] — 2026-10-07
+
+### Исправлено
+
+- **Проверка обновлений: вход на portal.1c.ru, 10-я итерация (issue #323)** — по логу 0.3.9.319 (7OH): releases.1c.ru отвечает 302 с заголовком Location **и для живой сессии** («сайт релизов возвращает один заголовок с Большой буквой — а именно Location»), а POST входа даёт 200 кабинет без CAS-билета (`location='<нет>'`, билет в теле не найден) → запасной голый `security_check` → 302 → `/error/403` → RedirectFailed. В [`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs):
+  - **[`IsPortalSessionAliveAsync`](Configuration%20Management/Services/OneCUpdatesService.cs) — следование за 302 в пробной проверке (A-1)** — редирект вне `login.1c.ru` и вне `/error/403` больше не считается мёртвой сессией: probe идёт по цепочке до `MaxRedirects` (10) шагов, применяя Set-Cookie через `ApplySetCookieToContainer`, и оценивает ФИНАЛЬНЫЙ ответ (2xx вне страницы входа → `alive=True`, вход не выполняется); редирект на `login.1c.ru` или `/error/403` — по-прежнему признак мёртвой сессии (вход выполняется);
+  - **диагностика ответа POST** — в журнал добавлены `POST поля: …` (после построения тела) и `POST заголовки ответа: …` (новый [`DescribeResponseHeaders`](Configuration%20Management/Services/OneCUpdatesService.cs): имена ВСЕХ заголовков + `Location`) — видно, приходит ли Location и под каким именем, без гаданий по статусу;
+  - **[`BuildLoginPostBody`](Configuration%20Management/Services/OneCUpdatesService.cs) — классическая CAS-форма** — для формы с `execution` и хотя бы одним из `inviteCode`/`geolocation`/`rememberMe`/`submit` тело собирается СТРОГО как в рабочем коде 1С (комментарий 23): ровно 8 полей (`inviteCode=`(пусто), `username`, `password`, `execution`, `_eventId=submit`, `geolocation=`(пусто), `submit=Войти`, `rememberMe=on`), лишние hidden-поля формы (`lt`, `anotherComputer`, `inviteType`) не отправляются — на них Spring Security CAS отвечает 200 кабинетом вместо 302 с билетом; для неклассических форм — прежний динамический набор;
+  - **[`ExtractBodyRedirectUrl`](Configuration%20Management/Services/OneCUpdatesService.cs)** — JS-регекс расширен на `window.location.assign(...)`, добавлена ветка `<iframe src="…">` (промежуточная страница кабинета может доводить CAS-цепочку iframe-загрузкой до ticket-URL).
+
+### Тесты
+
+Полный набор `dotnet test` зелёный; кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Новые/обновлённые: [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs) (+7: A-1 — probe следует за 302 на канонический URL и признаёт живую сессию (вход не выполняется, 0 POST); probe 302 на `login.1c.ru` — мёртвая сессия, полный вход; probe 302 на `/error/403` — мёртвая сессия, полный вход; `BuildLoginPostBody` классической формы — ровно 8 полей без `lt`/`anotherComputer`/`inviteType`; `ExtractBodyRedirectUrl` — `iframe src` и `window.location.assign`).
+
+## [0.3.9.322] — 2026-10-07
+
+### Исправлено
+
+- **Снятие выделения после контекстного меню, 12-я итерация (issue #340)** — по трассе `trace_menuclose.json` на 0.3.9.319 (7OH, «Улучшений не замечено») самый частый сценарий — клик левой кнопкой по строке дерева при ОТКРЫТОМ контекстном меню (reason `clickBeforeMenuClose`, 5 повторов с `SelectedInfobase=null`): попап «проглатывает» клик, выбор не применяется вовсе, а стабилизация выходила с `userReselected=true, selectedItemId=null`, потому что условие «пользователь перевыбрал» срабатывало и при ПУСТОМ выборе (`!ReferenceEquals(null, target)`).
+  - **[`BatchSelectionHelper.ShouldContinueRestore`](Configuration%20Management/Services/BatchSelectionHelper.cs)** — чистый предикат: восстановление продолжается при пустом выборе (цель известна — строка реального клика) или при совпадении с целью; прекращается только при выборе ДРУГОЙ базы (не вмешиваемся в перевыбор);
+  - **[`EnsureSelectionStable`](Configuration%20Management/Views/MainWindow.Tree.cs) (WPF)** и **[Avalonia-версия](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs)** — условие выхода заменено на предикат: при `SelectedInfobase == null` первый же проход применяет выбор цели по данным (`SelectTreeRowByData`/`SelectRowByData`), дальше — сходимость; то же в «догоняющем» таймере (~800 мс).
+
+### Тесты
+
+Полный набор `dotnet test` зелёный; кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Новые/обновлённые: [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs) (+3: продолжение при `null`-выборе, при совпадении с целью, остановка при выборе другой базы). Само оконное поведение WPF/Avalonia, как и прежде, юнит-тестами не покрывается — проверяется пользователем по сценарию из issue.
+
+## [0.3.9.321] — 2026-10-07
+
+### Исправлено
+
+- **Монитор серверов 1С: схемы вывода rac 8.5.4.1878 (issue #324, комментарий 7OH от 2026-10-07)** — по логу 0.3.9.319 соединения распознавались, но почти все поля были пустыми («Данные распарсить не смогло»), блокировки не разбирались вовсе (`RacOutputParseException` → остановка автообновления), а `job list` падал с кодом -1 «Ошибка разбора параметра: --cluster=…»:
+  - **[`RacOutputParser`](Configuration%20Management/Services/RacOutputParser.cs) — алиасы ключей `GetAny`** для схем разных версий rac: соединения читают `connected-at`/`blocked-by-ls`/`application` (8.5.4.1878) наравне с прежними `established-at`/`blocked`/`connector`; время установления, тип коннектора и описание заполняются из реального вывода `connection list`;
+  - **блокировки 8.5.4** — блоки `lock list` стартуют строкой `connection : GUID` (как у `connection list`), ключи `connection`/`session`/`object`/`locked`/`descr`; блоки блокировок отличаются от соединений маркерными ключами `object`/`locked`, человекочитаемое описание берётся из `descr`;
+  - **имя кластера** — добавлен юнит-тест на точный вывод `cluster list` из комментария 7OH (включая пустые поля `restart-schedule`/`security-profile-name` и имя в кавычках): значение «name» извлекается как есть, «ключ вместо значения» исключено;
+  - **[`RacClient.GetJobsAsync`](Configuration%20Management/Services/RacClient.cs) — устойчивый вызов `job list`** — при ошибке формата `--cluster=<uuid>` пробуется `--cluster <uuid>` (два токена); первый успешный (exit=0) используется, при неуспехе обоих — понятная ошибка rac с текстом.
+
+### Тесты
+
+Полный набор `dotnet test` зелёный; кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Новые/обновлённые: [`RacOutputParserTests.cs`](ConfigurationManagement.Tests/RacOutputParserTests.cs) (+4: соединения по схеме 8.5.4 из `connection_list.log` 7OH с алиасами `connected-at`/`blocked-by-ls`/`application`; блокировки 8.5.4 со стартером `connection` + `descr`; блокировки не путаются с блоками соединений; точный вывод `cluster list` с именем «Локальный кластер»).
+
+## [0.3.9.320] — 2026-10-07
+
+### Исправлено
+
+- **Лишний trace.json рядом с profiles.json (issue #349)** — при каждом запуске приложение
+  создавало конфиг отладочных флагов `trace.json` в корне каталога данных ДО выбора профиля,
+  а при переносе в папку профиля, где конфиг уже был, корневой дубль оставался мусором
+  (читается всегда профильный файл — приоритет в `ConfigFilePath`). В
+  [`TraceFlags.cs`](Configuration%20Management/Services/TraceFlags.cs): [`MigrateConfigFromRootCore`](Configuration%20Management/Services/TraceFlags.cs) теперь **удаляет корневой дубль**, когда в профильном каталоге конфиг уже существует (имя строго `trace.json`; прежний JSONL-журнал 0.3.9.308–0.3.9.314 и файлы журналов не затрагиваются).
+
+### Тесты
+
+Полный набор `dotnet test` зелёный; кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Новые/обновлённые: [`TraceFlagsTests.cs`](ConfigurationManagement.Tests/TraceFlagsTests.cs) (+3: повторный запуск — корневой дубль удаляется, профильный конфиг с пользовательской правкой не изменяется; legacy JSONL в корне при существующем профильном конфиге не удаляется; legacy-режим без профиля — совпадение каталогов, файл не трогается).
+
 ## [0.3.9.319] — 2026-10-07
 
 ### Исправлено

@@ -236,6 +236,74 @@ public sealed class TraceFlagsTests
             "конфиг должен создаться в каталоге профиля, а не в корне");
     }
 
+    [Fact]
+    public void ProfileMigration_ProfileConfigExists_RemovesRootDuplicate()
+    {
+        // issue #349: на повторном запуске EnsureExists (вызывается до выбора профиля)
+        // заново создаёт trace.json в корне каталога данных рядом с profiles.json, хотя
+        // в папке профиля конфиг уже есть. Дубль должен удаляться, а не копиться.
+        // Корневой файл создаём ВРУЧНУЮ (эмуляция результата EnsureExists) — прямое
+        // обращение к глобальному ConfigFilePath в параллельном прогоне может попасть
+        // в момент, когда другой тестовый класс меняет ConfigDirectoryOverride.
+        using var dir = new TempDir();
+        var profileDir = Path.Combine(dir.Path, "profiles", "p1");
+        var rootPath = Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName);
+        var profilePath = Path.Combine(profileDir, TraceFlagsFormat.ConfigFileName);
+
+        // Профильный конфиг с пользовательской правкой (флаг включён) — существовал
+        // с прошлого запуска; его содержимое не должно измениться.
+        Directory.CreateDirectory(profileDir);
+        File.WriteAllText(profilePath, "{\"version\":1,\"CM_COLUMNS\":true}", System.Text.Encoding.UTF8);
+
+        // До выбора профиля приложение создало trace.json в корне (дефолты, все false).
+        File.WriteAllText(rootPath, TraceFlagsFormat.SerializeDefaults(), System.Text.Encoding.UTF8);
+
+        TraceFlags.SetProfileDataDirectory(profileDir);
+
+        Assert.False(File.Exists(rootPath), "корневой дубль trace.json должен удаляться (issue #349)");
+        Assert.True(File.Exists(profilePath), "профильный конфиг остаётся на месте");
+        Assert.Contains("\"CM_COLUMNS\":true", File.ReadAllText(profilePath), StringComparison.Ordinal);
+        Assert.True(TraceFlags.IsEnabled(TraceFlags.ColumnsFlag));
+    }
+
+    [Fact]
+    public void ProfileMigration_LegacyJsonlInRoot_WithProfileConfig_IsNotDeleted()
+    {
+        // issue #349: в корне лежит старый JSONL-журнал (0.3.9.308–0.3.9.314, первая
+        // строка {"ts":...) — это НЕ дубль конфига: его не удаляем (обрабатывает
+        // EnsureExistsCore — переименование в trace_menuclose_legacy.json).
+        using var dir = new TempDir();
+        var profileDir = Path.Combine(dir.Path, "profiles", "p1");
+        var rootLegacy = Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName);
+        var profilePath = Path.Combine(profileDir, TraceFlagsFormat.ConfigFileName);
+
+        Directory.CreateDirectory(profileDir);
+        File.WriteAllText(profilePath, TraceFlagsFormat.SerializeDefaults(), System.Text.Encoding.UTF8);
+        File.WriteAllText(
+            rootLegacy,
+            MenuCloseTraceFormat.BuildStartupLine("0.3.9.314", "WPF", "Windows", dir.Path, Ts, threadId: 1) + "\n",
+            System.Text.Encoding.UTF8);
+
+        TraceFlags.SetProfileDataDirectory(profileDir);
+
+        Assert.True(File.Exists(rootLegacy), "legacy JSONL-журнал в корне не должен удаляться");
+        Assert.True(File.Exists(profilePath), "профильный конфиг не затронут");
+    }
+
+    [Fact]
+    public void ProfileMigration_SameDirectoryAsRoot_NoDeletion()
+    {
+        // Легаси-режим без профиля: CurrentProfileDataDirectory == корню каталога данных.
+        // sourcePath == targetPath — метод выходит раньше любой работы с файлами.
+        using var dir = new TempDir();
+        var rootPath = Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName);
+        File.WriteAllText(rootPath, TraceFlagsFormat.SerializeDefaults(), System.Text.Encoding.UTF8);
+
+        TraceFlags.SetProfileDataDirectory(dir.Path);
+
+        Assert.True(File.Exists(rootPath), "при совпадении каталогов файл не должен удаляться");
+    }
+
     // ============ Перечитывание конфига по mtime (без перезапуска) ============
 
     [Fact]

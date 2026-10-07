@@ -686,6 +686,40 @@ public sealed class BatchSelectionHelperTests
             containerRealized: false, userReselected: false, elapsedMs: -1, maxChaseMs: 800));
     }
 
+    // ============ Стабилизация при ПУСТОМ выборе (issue #340, 0.3.9.322) ============
+
+    [Fact]
+    public void ShouldContinueRestore_NullSelection_ReturnsTrue()
+    {
+        // Трасса 0.3.9.319: клик по строке при открытом меню «проглочен» попапом —
+        // SelectedInfobase == null, выбор не применён вовсе. Цель известна (строка клика),
+        // восстановление нужно продолжить (раньше выходили с userReselected и теряли выбор).
+        var target = new Infobase { Id = "b1", Name = "База" };
+
+        Assert.True(BatchSelectionHelper.ShouldContinueRestore(null, target));
+    }
+
+    [Fact]
+    public void ShouldContinueRestore_SameSelection_ReturnsTrue()
+    {
+        // Цель уже выбрана в модели — продолжаем: следующий проход проверит подсветку
+        // контейнера (matches) и при расхождении восстановит её по данным.
+        var target = new Infobase { Id = "b1", Name = "База" };
+
+        Assert.True(BatchSelectionHelper.ShouldContinueRestore(target, target));
+    }
+
+    [Fact]
+    public void ShouldContinueRestore_DifferentSelection_ReturnsFalse()
+    {
+        // Пользователь успел перевыбрать ДРУГУЮ строку (не-null и не цель) — стабилизация
+        // не вмешивается (это «перевыбор», а не потерянный клик).
+        var target = new Infobase { Id = "b1", Name = "База" };
+        var other = new Infobase { Id = "b2", Name = "Другая" };
+
+        Assert.False(BatchSelectionHelper.ShouldContinueRestore(other, target));
+    }
+
     // ============ Расширенный признак стабилизации после закрытия меню (issue #340, 0.3.9.308) ============
 
     private const long StabilizeWindowMs = BatchSelectionHelper.MenuCloseStabilizeWindowMs;

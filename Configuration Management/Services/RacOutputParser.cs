@@ -537,9 +537,12 @@ public static class RacOutputParser
             });
         }
 
-        // issue #324: новые версии rac отдают «connection list» блоками «ключ : значение»
-        // (реальный вывод 7OH: connection/session/blocked/connector/process/host/port/
-        // established-at/last-connection-time/duration/descr).
+        // issue #324: новые версии rac отдают «connection list» блоками «ключ : значение».
+        // Схемы ключей различаются между версиями rac: прежняя — connection/session/
+        // blocked/connector/process/host/port/established-at/last-connection-time/duration/
+        // descr; 8.5.4.1878 (лог 7OH connection_list.log) — connection/conn-id/host/
+        // process/infobase/application/connected-at/session-number/blocked-by-ls.
+        // Читаем через GetAny-алиасы, чтобы обе схемы ложились в одну модель.
         if (connections.Count == 0 && LooksLikeKeyValueOutput(output))
         {
             foreach (var block in TryParseKeyValueBlocks(output, "connection"))
@@ -551,16 +554,16 @@ public static class RacOutputParser
                 connections.Add(new RacConnectionInfo
                 {
                     Id = id,
-                    SessionId = ParseGuid(Get(block, "session")),
-                    Blocked = ParseBool(Get(block, "blocked")),
-                    Connector = Unquote(Get(block, "connector")),
+                    SessionId = ParseGuid(GetAny(block, "session", "session-number")),
+                    Blocked = ParseBool(GetAny(block, "blocked-by-ls", "blocked")),
+                    Connector = Unquote(GetAny(block, "connector", "application")),
                     ProcessId = ParseGuid(Get(block, "process")),
                     Host = Unquote(Get(block, "host")),
                     Port = ParseInt(Get(block, "port")),
-                    EstablishedAt = ParseDateTime(Get(block, "established-at")),
-                    LastConnectionTime = ParseDateTime(Get(block, "last-connection-time")),
+                    EstablishedAt = ParseDateTime(GetAny(block, "established-at", "connected-at")),
+                    LastConnectionTime = ParseDateTime(GetAny(block, "last-connection-time", "connected-at")),
                     Duration = ParseLong(Get(block, "duration")),
-                    Descr = Unquote(Get(block, "descr"))
+                    Descr = Unquote(GetAny(block, "descr", "application"))
                 });
             }
         }
@@ -601,13 +604,31 @@ public static class RacOutputParser
         }
 
         // issue #324: новые версии rac отдают «lock list» блоками «ключ : значение».
+        // Схемы: прежняя — старт блока «lock», ключи session/infobase/connection/
+        // transaction/waiting/blocking/object; 8.5.4.1878 (комментарий 7OH) — блоки
+        // стартуют строкой «connection : GUID» (так же, как у connection list!), ключи
+        // connection/session/object/locked/descr. Блоки блокировок отличаем от блоков
+        // соединений по маркерным ключам object/locked (у соединений их нет).
         if (locks.Count == 0 && LooksLikeKeyValueOutput(output))
         {
-            foreach (var block in TryParseKeyValueBlocks(output, "lock"))
+            // Явный List: в 8.5.4 к блокам «lock» добавляются блоки со стартером
+            // «connection» (фильтр по маркерным ключам ниже).
+            var blocks = new List<IReadOnlyDictionary<string, string>>(TryParseKeyValueBlocks(output, "lock"));
+            if (blocks.Count == 0)
+            {
+                foreach (var block in TryParseKeyValueBlocks(output, "connection"))
+                {
+                    if (!block.ContainsKey("object") && !block.ContainsKey("locked"))
+                        continue; // это блоки connection list, а не блокировки
+                    blocks.Add(block);
+                }
+            }
+
+            foreach (var block in blocks)
             {
                 var id = ParseGuid(Get(block, "lock"));
                 if (id == Guid.Empty)
-                    continue;
+                    id = ParseGuid(Get(block, "connection")); // 8.5.4: uuid блокировки в выводе отсутствует
 
                 locks.Add(new RacLockInfo
                 {
@@ -618,7 +639,9 @@ public static class RacOutputParser
                     TransactionId = ParseGuid(Get(block, "transaction")),
                     Waiting = ParseBool(Get(block, "waiting")),
                     Blocking = ParseBool(Get(block, "blocking")),
-                    Object = Unquote(Get(block, "object"))
+                    // В схеме 8.5.4 «object» — GUID ссылки на объект (часто пустой), а
+                    // человекочитаемое описание — «descr»: предпочитаем его.
+                    Object = Unquote(GetAny(block, "descr", "object"))
                 });
             }
         }
@@ -799,6 +822,22 @@ public static class RacOutputParser
         {
             if (string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase))
                 return pair.Value;
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>Значение по ПЕРВОМУ найденному ключу из списка алиасов (регистронезависимо)
+    /// или пустая строка. Схемы вывода rac разных версий отличаются именами ключей
+    /// (issue #324): новые 8.5.4.1878 (connected-at / blocked-by-ls / application) и
+    /// прежние (established-at / blocked / connector / descr) читаются одним маппингом.</summary>
+    private static string GetAny(IReadOnlyDictionary<string, string> properties, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = Get(properties, key);
+            if (value.Length > 0)
+                return value;
         }
 
         return string.Empty;

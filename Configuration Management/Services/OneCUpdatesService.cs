@@ -1302,6 +1302,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // geolocation (пусто), submit=Войти, rememberMe=on — если их нет в форме.
                 // Без них Spring Security CAS может отвечать 200 кабинетом вместо 302 с билетом.
                 var form = BuildLoginPostBody(fields, login, password);
+                LogRedirectInfo($"[Updates] Вход: POST поля: {string.Join(",", form.Keys.OrderBy(k => k, StringComparer.Ordinal))}");
 
                 using var postRequest = new HttpRequestMessage(HttpMethod.Post, postUrl) { Version = LoginHttpVersion };
                 postRequest.Content = new FormUrlEncodedContent(form);
@@ -1324,6 +1325,10 @@ public class OneCUpdatesService : IOneCUpdatesService
                 LogRedirectInfo($"[Updates] Вход: POST status={postStatus}, location='{postLocation}', " +
                                 $"sessionCookie={HasPortalSessionCookie()}");
                 LogRedirectInfo($"[Updates] Вход: POST Set-Cookie: {DescribeSetCookies(postResponse)}");
+                // issue #323 (0.3.9.323): по списку имён заголовков ответа видно, приходит ли
+                // Location (7OH: «сайт релизов возвращает один заголовок с Большой буквой —
+                // а именно Location») и с каким фактическим именем — без гаданий по статусу.
+                LogRedirectInfo($"[Updates] Вход: POST заголовки ответа: {DescribeResponseHeaders(postResponse)}");
 
                 // Шаг 3: доводим CAS-цепочку до конца. После успешного входа сервер отвечает
                 // 302 на releases.1c.ru/public/security_check?ticket=ST-…; сессионная cookie
@@ -1697,18 +1702,46 @@ public class OneCUpdatesService : IOneCUpdatesService
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, probeUri);
-            AddBasicAuth(request);
-            using var response =
-                await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            var current = probeUri;
+            for (var i = 0; i <= MaxRedirects; i++)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, current);
+                AddBasicAuth(request);
+                using var response =
+                    await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
 
-            var status = (int)response.StatusCode;
-            var body = await ReadBodyQuietlyAsync(response, ct).ConfigureAwait(false);
-            var isLoginForm = LooksLikeLoginForm(body);
-            var alive = status is >= 200 and < 300 && !isLoginForm;
-            LogRedirectInfo($"[Updates] Вход: пробная проверка живой сессии '{probeUri}' => status={status}, " +
-                            $"bodyLength={body.Length}, loginForm={(isLoginForm ? "да" : "нет")}, alive={alive}");
-            return alive;
+                var status = (int)response.StatusCode;
+                var body = await ReadBodyQuietlyAsync(response, ct).ConfigureAwait(false);
+                var isLoginForm = LooksLikeLoginForm(body);
+                var finalHost = response.RequestMessage?.RequestUri?.Host ?? current.Host;
+                var isLoginHost = finalHost.Contains("login.1c.ru", StringComparison.OrdinalIgnoreCase);
+                var isError403 = response.RequestMessage?.RequestUri?.AbsolutePath
+                                     .Contains("/error/403", StringComparison.OrdinalIgnoreCase) == true;
+
+                // issue #323 (0.3.9.323, десятая итерация): releases.1c.ru отвечает 302
+                // с Location и для ЖИВОЙ сессии (редирект на канонический URL — то самое
+                // «один заголовок с Большой буквой — Location», о котором пишет 7OH).
+                // Следуем за редиректом (до MaxRedirects шагов) и оцениваем ФИНАЛЬНЫЙ
+                // ответ; 2xx вне страницы входа/ошибки => сессия жива (вход не нужен).
+                // Редирект на login.1c.ru или /error/403 — признак мёртвой сессии (не следуем).
+                if (status is >= 300 and < 400 && response.Headers.Location is not null &&
+                    !isLoginHost && !isError403)
+                {
+                    var loc = response.Headers.Location;
+                    LogRedirectInfo($"[Updates] Вход: probe редирект {status} (шаг {i}): '{loc}' для '{current}'");
+                    ApplySetCookieToContainer(response, current);
+                    current = loc.IsAbsoluteUri ? loc : new Uri(current, loc);
+                    continue;
+                }
+
+                var alive = status is >= 200 and < 300 && !isLoginForm && !isLoginHost;
+                LogRedirectInfo($"[Updates] Вход: пробная проверка живой сессии '{probeUri}' => status={status}, " +
+                                $"bodyLength={body.Length}, loginForm={(isLoginForm ? "да" : "нет")}, alive={alive}");
+                return alive;
+            }
+
+            LogRedirectInfo($"[Updates] Вход: пробная проверка живой сессии '{probeUri}' => слишком много редиректов, alive=False");
+            return false;
         }
         catch (Exception ex)
         {
@@ -1974,18 +2007,60 @@ public class OneCUpdatesService : IOneCUpdatesService
         return name.Length == 0 ? "<безымянная>" : flags.Count == 0 ? name : $"{name}; {string.Join("; ", flags)}";
     }
 
+    /// <summary>Имена всех заголовков ответа (с фактическим регистром) и значение Location —
+    /// диагностика issue #323 (десятая итерация): 7OH подозревает, что releases.1c.ru
+    /// «возвращает один заголовок с Большой буквой — а именно Location»; по списку имён
+    /// видно, какие заголовки реально пришли в ответ POST и есть ли среди них Location.</summary>
+    internal static string DescribeResponseHeaders(HttpResponseMessage response)
+    {
+        if (response is null)
+            return "<нет>";
+        var names = response.Headers.Select(h => h.Key).ToList();
+        var location = response.Headers.Location?.ToString() ?? "<нет>";
+        return $"имена=[{string.Join(",", names)}], Location={location}";
+    }
+
     /// <summary>
-    /// Строит тело POST формы входа на portal.1c.ru (issue #323, девятая итерация): динамический
-    /// набор полей из GET-формы (execution, lt, CSRF и пр.) + username/password/_eventId=submit +
-    /// обязательные поля эталона рабочего кода 1С (@7OH, комментарий 23), если их нет в форме:
-    /// <c>inviteCode</c> (пусто), <c>geolocation</c> (пусто), <c>submit=Войти</c>,
-    /// <c>rememberMe=on</c>. Без этих полей Spring Security CAS может отвечать 200 страницей
-    /// личного кабинета вместо 302-редиректа с CAS-билетом — звено security_check тогда не
-    /// отрабатывает (лог 7OH 0.3.9.316).
+    /// Строит тело POST формы входа на portal.1c.ru (issue #323, девятая/десятая итерации).
+    /// Для КЛАССИЧЕСКОЙ CAS-формы login.1c.ru (execution + inviteCode/geolocation/rememberMe/
+    /// submit) — тело СТРОГО как в рабочем коде 1С (@7OH, комментарий 23): inviteCode(пусто),
+    /// username, password, execution, _eventId=submit, geolocation(пусто), submit=Войти,
+    /// rememberMe=on — без прочих hidden-полей формы (anotherComputer, inviteType и пр.),
+    /// на которые CAS может отвечать 200 кабинетом вместо 302 с билетом (лог 7OH 0.3.9.319:
+    /// POST status=200, location='<нет>'). Для НЕ-классической формы — прежний
+    /// динамический набор (поля формы + username/password/_eventId + эталонные поля при
+    /// отсутствии; страховка issue #334/#330).
     /// </summary>
     internal static Dictionary<string, string> BuildLoginPostBody(
         IReadOnlyDictionary<string, string> formFields, string login, string password)
     {
+        // issue #323 (0.3.9.323, десятая итерация): классическая CAS-форма (login.1c.ru
+        // с execution + полями приглашений/геолокации) — тело СТРОГО как в рабочем коде 1С
+        // (комментарий 23): inviteCode(пусто), username, password, execution, _eventId=submit,
+        // geolocation(пусто), submit=Войти, rememberMe=on. Лишние hidden-поля формы
+        // (anotherComputer, inviteType и пр.) НЕ отправляются: Spring Security CAS на их
+        // наличие может отвечать 200 кабинетом вместо 302 с билетом (лог 7OH 0.3.9.319:
+        // POST status=200, location='<нет>').
+        if (IsClassicCasForm(formFields))
+        {
+            var execution = formFields.TryGetValue("execution", out var exec) ? exec : string.Empty;
+            return new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["inviteCode"] = string.Empty,
+                ["username"] = login ?? string.Empty,
+                ["password"] = password ?? string.Empty,
+                ["execution"] = execution,
+                ["_eventId"] = "submit",
+                ["geolocation"] = string.Empty,
+                ["submit"] = "Войти",
+                ["rememberMe"] = "on"
+            };
+        }
+
+        // Не-классическая форма (иная разметка/токены) — прежний динамический набор:
+        // поля формы + username/password/_eventId + эталонные поля при отсутствии
+        // (страховка для неклассических форм, issue #334/#330: жёсткий список
+        // отклоняется сервером 401 при изменении формы).
         var form = new Dictionary<string, string>(
             formFields ?? new Dictionary<string, string>(StringComparer.Ordinal),
             StringComparer.Ordinal)
@@ -1995,7 +2070,6 @@ public class OneCUpdatesService : IOneCUpdatesService
             ["_eventId"] = "submit"
         };
 
-        // Эталон рабочего кода 1С: добавляем ТОЛЬКО отсутствующие в форме поля.
         foreach (var (name, value) in ReferenceLoginFields)
         {
             if (!form.ContainsKey(name))
@@ -2005,7 +2079,22 @@ public class OneCUpdatesService : IOneCUpdatesService
         return form;
     }
 
-    /// <summary>Поля POST входа из эталона рабочего кода 1С (issue #323, девятая итерация).</summary>
+    /// <summary>Признак классической CAS-формы portal.1c.ru (issue #323, десятая итерация):
+    /// есть токен <c>execution</c> И хотя бы одно из полей приглашений/геолокации —
+    /// <c>inviteCode</c>/<c>geolocation</c>/<c>rememberMe</c>/<c>submit</c>. Для такой формы
+    /// тело POST собирается ТОЧНО как в рабочем коде 1С (см. <see cref="BuildLoginPostBody"/>).</summary>
+    private static bool IsClassicCasForm(IReadOnlyDictionary<string, string>? formFields)
+    {
+        if (formFields is null || !formFields.ContainsKey("execution"))
+            return false;
+        return formFields.ContainsKey("inviteCode") ||
+               formFields.ContainsKey("geolocation") ||
+               formFields.ContainsKey("rememberMe") ||
+               formFields.ContainsKey("submit");
+    }
+
+    /// <summary>Поля POST входа из эталона рабочего кода 1С (issue #323, девятая итерация);
+    /// используются для не-классических форм.</summary>
     private static readonly (string Name, string Value)[] ReferenceLoginFields =
     {
         ("inviteCode", string.Empty),
@@ -2513,13 +2602,21 @@ public class OneCUpdatesService : IOneCUpdatesService
                 return WebUtility.HtmlDecode(urlMatch.Groups["url"].Value.Trim());
         }
 
-        // 2) JS-редирект: window.location[.href|.replace](...) / document.location /
+        // 2) JS-редирект: window.location[.href|.replace|.assign](...) / document.location /
         //    top.location / location.href — присваивание или вызов.
         var js = Regex.Match(body,
-            @"(?:\b(?:window|document|top)\s*\.\s*location|\blocation)(?:\s*\.\s*(?:href|replace))?\s*[=(]\s*[""'](?<url>[^""']+)[""']",
+            @"(?:\b(?:window|document|top)\s*\.\s*location|\blocation)(?:\s*\.\s*(?:href|replace|assign))?\s*[=(]\s*[""'](?<url>[^""']+)[""']",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (js.Success)
             return WebUtility.HtmlDecode(js.Groups["url"].Value.Trim());
+
+        // 3) <iframe src="..."> — кабинет/промежуточная страница может доводить CAS-цепочку
+        //    до ticket-URL iframe-загрузкой (issue #323, десятая итерация).
+        var frame = Regex.Match(body,
+            @"<iframe\b[^>]*\bsrc\s*=\s*[""'](?<url>[^""']+)[""'][^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (frame.Success)
+            return WebUtility.HtmlDecode(frame.Groups["url"].Value.Trim());
 
         return null;
     }

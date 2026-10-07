@@ -973,6 +973,132 @@ public sealed class RacOutputParserTests
     }
 
     [Fact]
+    public void ToConnections_ParsesRac854Blocks()
+    {
+        // Реальный вывод rac 8.5.4.1878 (issue #324, connection_list.log 7OH):
+        // блоки «ключ : значение» со схемой connection/conn-id/host/process/infobase/
+        // application/connected-at/session-number/blocked-by-ls — ключи НЕ совпадают с
+        // прежней схемой (session/blocked/connector/established-at), читаются алиасами.
+        const string output =
+            "connection     : eb58bad9-537c-4bf5-b6b7-86969badb834\n" +
+            "conn-id        : 0\n" +
+            "host           : ALF\n" +
+            "process        : e8fd61c0-2028-41fc-8b9c-0b33199fa8ba\n" +
+            "infobase       : 00000000-0000-0000-0000-000000000000\n" +
+            "application    : \"JobScheduler\"\n" +
+            "connected-at   : 2026-10-07T12:03:36\n" +
+            "session-number : 0\n" +
+            "blocked-by-ls  : 0\n" +
+            "\n" +
+            "connection     : 583c6b7c-dac3-4613-a225-52e8aec45352\n" +
+            "conn-id        : 0\n" +
+            "host           : ALF\n" +
+            "process        : e8fd61c0-2028-41fc-8b9c-0b33199fa8ba\n" +
+            "infobase       : 00000000-0000-0000-0000-000000000000\n" +
+            "application    : \"AgentStandardCall\"\n" +
+            "connected-at   : 2026-10-07T12:03:39\n" +
+            "session-number : 0\n" +
+            "blocked-by-ls  : 0\n";
+
+        var connections = RacOutputParser.ToConnections(output);
+
+        Assert.Equal(2, connections.Count);
+
+        var first = connections[0];
+        Assert.Equal(Guid.Parse("eb58bad9-537c-4bf5-b6b7-86969badb834"), first.Id);
+        Assert.Equal("ALF", first.Host);
+        Assert.Equal(Guid.Parse("e8fd61c0-2028-41fc-8b9c-0b33199fa8ba"), first.ProcessId);
+        Assert.False(first.Blocked);              // blocked-by-ls = 0
+        Assert.Equal("JobScheduler", first.Connector);  // application → алиас
+        Assert.Equal("JobScheduler", first.Descr);
+        Assert.Equal(new DateTime(2026, 10, 7, 12, 3, 36), first.EstablishedAt); // connected-at → алиас
+        Assert.Equal(Guid.Empty, first.SessionId); // session-number не GUID
+        Assert.Equal(0, first.Port);
+
+        Assert.Equal("AgentStandardCall", connections[1].Connector);
+    }
+
+    [Fact]
+    public void ToLocks_ParsesRac854BlocksStartingWithConnection()
+    {
+        // Реальный вывод rac 8.5.4.1878 (issue #324, комментарий 7OH): блоки lock list
+        // стартуют строкой «connection : GUID» (как у connection list), ключи
+        // connection/session/object/locked/descr.
+        const string output =
+            "connection : 00000000-0000-0000-0000-000000000000\n" +
+            "session    : 00000000-0000-0000-0000-000000000000\n" +
+            "object     : 00000000-0000-0000-0000-000000000000\n" +
+            "locked     : 2026-10-04T11:48:12\n" +
+            "descr      : \"Менеджер кластера(ALF,27541,0)\"\n" +
+            "\n" +
+            "connection : 098cd8e9-28c1-47b0-bf54-c09f66b7e093\n" +
+            "session    : 00000000-0000-0000-0000-000000000000\n" +
+            "object     : 00000000-0000-0000-0000-000000000000\n" +
+            "locked     : 2026-10-04T11:48:16\n" +
+            "descr      : \"Соединение(ServerJobExecutorContext,ALF,JobScheduler)\"\n";
+
+        var locks = RacOutputParser.ToLocks(output);
+
+        Assert.Equal(2, locks.Count);
+        Assert.Equal(Guid.Empty, locks[0].Id); // uuid блокировки в выводе 8.5.4 отсутствует
+        Assert.Equal("Менеджер кластера(ALF,27541,0)", locks[0].Object);
+        Assert.Equal(Guid.Parse("098cd8e9-28c1-47b0-bf54-c09f66b7e093"), locks[1].Id);
+        Assert.Equal("Соединение(ServerJobExecutorContext,ALF,JobScheduler)", locks[1].Object);
+        Assert.Equal(Guid.Empty, locks[0].SessionId);
+    }
+
+    [Fact]
+    public void ToLocks_IgnoresConnectionListBlocks()
+    {
+        // Блоки connection list (connection/conn-id/host/application/...) не содержат
+        // маркерных ключей object/locked — в блокировки они не попадают.
+        const string output =
+            "connection     : eb58bad9-537c-4bf5-b6b7-86969badb834\n" +
+            "conn-id        : 0\n" +
+            "host           : ALF\n" +
+            "process        : e8fd61c0-2028-41fc-8b9c-0b33199fa8ba\n" +
+            "application    : \"JobScheduler\"\n";
+
+        Assert.Empty(RacOutputParser.ToLocks(output));
+    }
+
+    [Fact]
+    public void ToClusters_ParsesExactCommentOutput()
+    {
+        // Точный вывод «rac.exe localhost:27545 cluster list» из комментария 7OH
+        // (0.3.9.300): key-value с пустыми полями (restart-schedule/security-profile-name)
+        // и именем кластера в кавычках — «ключ вместо значения» (issue #324, 0.3.9.319).
+        const string output =
+            "cluster                                   : cbc95ef0-99c9-4b1a-909f-cff4c8de61d9\n" +
+            "host                                      : ALF\n" +
+            "port                                      : 27541\n" +
+            "name                                      : \"Локальный кластер\"\n" +
+            "expiration-timeout                        : 60\n" +
+            "lifetime-limit                            : 0\n" +
+            "max-memory-size                           : 0\n" +
+            "max-memory-time-limit                     : 0\n" +
+            "security-level                            : 0\n" +
+            "session-fault-tolerance-level             : 0\n" +
+            "load-balancing-mode                       : performance\n" +
+            "errors-count-threshold                    : 0\n" +
+            "kill-problem-processes                    : 1\n" +
+            "kill-by-memory-with-dump                  : 0\n" +
+            "allow-access-right-audit-events-recording : 0\n" +
+            "ping-period                               : 0\n" +
+            "ping-timeout                              : 0\n" +
+            "restart-schedule                          :\n" +
+            "security-profile-name                     :\n" +
+            "max-auth-attempts                         : 10\n" +
+            "auth-lock-duration                        : 900\n";
+
+        var cluster = Assert.Single(RacOutputParser.ToClusters(output));
+
+        Assert.Equal(Guid.Parse("cbc95ef0-99c9-4b1a-909f-cff4c8de61d9"), cluster.Id);
+        Assert.Equal("Локальный кластер", cluster.Name);
+        Assert.Equal(27541, cluster.Port);
+    }
+
+    [Fact]
     public void LooksLikeKeyValueOutput_DetectsBlocksVsTable()
     {
         // Строка вида «ключ : значение» без табуляций — это блоки.

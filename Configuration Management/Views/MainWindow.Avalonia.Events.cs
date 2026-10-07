@@ -832,8 +832,10 @@ namespace Configuration_Management
                     return;
                 }
 
-                // Пользователь перевыбрал другую строку — не вмешиваемся.
-                if (!ReferenceEquals(_vm.SelectedInfobase, target))
+                // issue #340 (0.3.9.322): «перевыбрал ДРУГУЮ строку» — только когда выбор
+                // ЕСТЬ и не совпадает с целью; при ПУСТОМ выборе (клик «проглочен» попапом,
+                // выбор не применён) продолжаем и восстанавливаем цель по данным ниже.
+                if (!BatchSelectionHelper.ShouldContinueRestore(_vm.SelectedInfobase, target))
                 {
                     _tree.LayoutUpdated -= onLayoutUpdated;
                     MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, userReselected=true, " +
@@ -885,8 +887,9 @@ namespace Configuration_Management
                     var timeSinceStartMs = Environment.TickCount - startTick;
                     if (_tree is null || _vm is null || target is null)
                         return;
-                    // Пользователь перевыбрал другую строку — не вмешиваемся.
-                    if (!ReferenceEquals(_vm.SelectedInfobase, target))
+                    // Пользователь перевыбрал другую строку — не вмешиваемся
+                    // (при ПУСТОМ выборе цель ещё не восстановлена — продолжаем, issue #340).
+                    if (!BatchSelectionHelper.ShouldContinueRestore(_vm.SelectedInfobase, target))
                         return;
 
                     var row = _tree.FindRowForData(target, isPinnedSection);

@@ -894,9 +894,13 @@ namespace Configuration_Management
                     return;
                 }
 
-                // Пользователь перевыбрал другую строку (или снял выбор) — не вмешиваемся:
-                // стабилизация отвечает только за целевой клик.
-                if (!ReferenceEquals(_viewModel.SelectedInfobase, target))
+                // issue #340 (0.3.9.322): «перевыбрал ДРУГУЮ строку» — только когда выбор
+                // ЕСТЬ и не совпадает с целью. При SelectedInfobase == null клик по целевой
+                // строке был «проглочен» попапом меню (выбор не применён вовсе — трасса
+                // 0.3.9.319: clickBeforeMenuClose, selectedItemId=null) — стабилизация НЕ
+                // выходит, а восстанавливает цель ниже по данным (первый проход:
+                // matches=false → SelectTreeRowByData применяет выбор).
+                if (!BatchSelectionHelper.ShouldContinueRestore(_viewModel.SelectedInfobase, target))
                 {
                     MainTree.LayoutUpdated -= onLayoutUpdated;
                     MenuCloseTrace.Log($"EnsureStable: target={target.Id}, pass={passes}, userReselected=true, " +
@@ -960,8 +964,9 @@ namespace Configuration_Management
                     var timeSinceStartMs = Environment.TickCount - startTick;
                     if (MainTree is null || _viewModel is null || target is null)
                         return;
-                    // Пользователь перевыбрал другую строку — не вмешиваемся.
-                    if (!ReferenceEquals(_viewModel.SelectedInfobase, target))
+                    // Пользователь перевыбрал другую строку — не вмешиваемся
+                    // (при ПУСТОМ выборе цель ещё не восстановлена — продолжаем, issue #340).
+                    if (!BatchSelectionHelper.ShouldContinueRestore(_viewModel.SelectedInfobase, target))
                         return;
 
                     var item = isPinnedSection

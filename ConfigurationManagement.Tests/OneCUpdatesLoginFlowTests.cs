@@ -170,6 +170,10 @@ public sealed class OneCUpdatesLoginFlowTests
     [Fact]
     public async Task LoginPost_IncludesAllHiddenFormFields()
     {
+        // Классическая CAS-форма (execution + rememberMe/submit) — тело СТРОГО как в рабочем
+        // коде 1С (issue #323, десятая итерация): 8 полей эталона, лишние hidden-поля формы
+        // (lt, anotherComputer) НЕ отправляются — на них Spring Security CAS отвечает 200
+        // кабинетом вместо 302 с билетом.
         var handler = new LoginCaptureHandler(FormWithHiddenFields, postStatus: HttpStatusCode.Found,
             location: new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
         var service = CreateService(handler, login: "user1", password: "p@ss word");
@@ -181,8 +185,14 @@ public sealed class OneCUpdatesLoginFlowTests
         Assert.Contains("username=user1", handler.LastPostBody!);
         Assert.Contains("password=p%40ss+word", handler.LastPostBody!);
         Assert.Contains("execution=e1s2t3", handler.LastPostBody!);
-        Assert.Contains("lt=LT-123-abc", handler.LastPostBody!);
         Assert.Contains("_eventId=submit", handler.LastPostBody!);
+        Assert.Contains("inviteCode=", handler.LastPostBody!);
+        Assert.Contains("geolocation=", handler.LastPostBody!);
+        Assert.Contains("submit=%D0%92%D0%BE%D0%B9%D1%82%D0%B8", handler.LastPostBody!); // «Войти»
+        Assert.Contains("rememberMe=on", handler.LastPostBody!);
+        // Лишние hidden-поля формы исключены из классического тела (эталон 1С).
+        Assert.DoesNotContain("lt=", handler.LastPostBody!);
+        Assert.DoesNotContain("anotherComputer", handler.LastPostBody!);
     }
 
     [Fact]
@@ -1023,6 +1033,72 @@ public sealed class OneCUpdatesLoginFlowTests
         Assert.Contains("alive=True", joined);
     }
 
+    // ---------- A-1 (0.3.9.323, десятая итерация): 302-редиректы в пробной проверке ----------
+
+    [Fact]
+    public async Task LiveSessionProbe_302ToCanonicalUrl_IsAlive_SkipsLogin()
+    {
+        // releases.1c.ru отвечает 302 с Location И для живой сессии — редирект на канонический
+        // URL (7OH: «сайт релизов возвращает один заголовок с Большой буквой — а именно
+        // Location»). Probe СЛЕДУЕТ за 302 (до MaxRedirects шагов) и по финальному 200 каталога
+        // признаёт сессию живой: полный вход НЕ выполняется (0 POST), лимит не тратится
+        // (issue #323, десятая итерация).
+        var handler = new LiveSessionCanonicalRedirectHandler(
+            new Uri("https://releases.1c.ru/project/Platform83/index.html"));
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+        service.SeedPortalCookieForTesting("JSESSIONID", "live", "login.1c.ru");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.Equal(0, handler.PostLoginCount);
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("probe редирект", joined);
+        Assert.Contains("alive=True", joined);
+    }
+
+    [Fact]
+    public async Task LiveSessionProbe_302ToLoginHost_IsDead_FullLoginRuns()
+    {
+        // Редирект probe на login.1c.ru — мёртвая сессия: за таким редиректом НЕ следуем,
+        // cookie портала снимаются и выполняется полный вход (POST) — исходный запрос повторяется
+        // с сессией и отдаёт версии (issue #323, десятая итерация).
+        var handler = new LoginCaptureHandler(FormWithHiddenFields, HttpStatusCode.Found,
+            location: new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+        service.SeedPortalCookieForTesting("JSESSIONID", "dead", "login.1c.ru");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.True(handler.PostLoginCount >= 1,
+            "должен выполняться полный вход после мёртвого probe (302 на login.1c.ru)");
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("alive=False", joined);
+    }
+
+    [Fact]
+    public async Task LiveSessionProbe_302ToError403_IsDead_FullLoginRuns()
+    {
+        // Probe получил 302 на /error/403 (CAS-обрыв, голый security_check) — сессия мертва:
+        // за таким редиректом НЕ следуем (иначе ловим 403/цикл), выполняем полный вход
+        // (issue #323, десятая итерация).
+        var handler = new Error403RedirectLoginHandler();
+        var logger = new CollectingLogger();
+        var service = CreateService(handler, logger, login: "user1", password: "secret");
+        service.SeedPortalCookieForTesting("JSESSIONID", "dead", "login.1c.ru");
+
+        var result = await service.FetchPageAsync("https://releases.1c.ru/project/Platform83");
+
+        Assert.Equal(PortalFetchStatus.Ok, result.Status);
+        Assert.True(handler.PostLoginCount >= 1,
+            "должен выполняться полный вход после мёртвого probe (302 на /error/403)");
+        var joined = string.Join("\n", logger.Messages);
+        Assert.Contains("alive=False", joined);
+    }
+
     // ---------- Страница входа при HTTP 200 по содержимому (Причина 4) ----------
 
     [Fact]
@@ -1149,6 +1225,60 @@ public sealed class OneCUpdatesLoginFlowTests
         Assert.Equal(string.Empty, body["geolocation"]);
         // execution, rememberMe, submit, username, password, _eventId, inviteCode, geolocation
         Assert.Equal(8, body.Count);
+    }
+
+    [Fact]
+    public void BuildLoginPostBody_ClassicCasForm_UsesExactReferenceBody()
+    {
+        // Классическая CAS-форма login.1c.ru (execution + поля приглашений/геолокации) — тело
+        // СТРОГО как в рабочем коде 1С (комментарий 23): РОВНО 8 полей, БЕЗ лишних hidden-полей
+        // формы (lt, anotherComputer, inviteType), на наличие которых Spring Security CAS может
+        // отвечать 200 кабинетом вместо 302 с билетом (лог 7OH 0.3.9.319: POST status=200,
+        // location='<нет>') — issue #323, десятая итерация.
+        var body = OneCUpdatesService.BuildLoginPostBody(
+            new Dictionary<string, string>
+            {
+                ["execution"] = "e-classic",
+                ["lt"] = "LT-999",
+                ["anotherComputer"] = "false",
+                ["inviteType"] = "1",
+                ["rememberMe"] = "on",
+                ["submit"] = "Войти"
+            },
+            "user1", "p@ss");
+
+        Assert.Equal(8, body.Count);
+        Assert.DoesNotContain("lt", body.Keys);
+        Assert.DoesNotContain("anotherComputer", body.Keys);
+        Assert.DoesNotContain("inviteType", body.Keys);
+        Assert.Equal(string.Empty, body["inviteCode"]);
+        Assert.Equal("user1", body["username"]);
+        Assert.Equal("p@ss", body["password"]);
+        Assert.Equal("e-classic", body["execution"]);
+        Assert.Equal("submit", body["_eventId"]);
+        Assert.Equal(string.Empty, body["geolocation"]);
+        Assert.Equal("Войти", body["submit"]);
+        Assert.Equal("on", body["rememberMe"]);
+    }
+
+    [Fact]
+    public void ExtractBodyRedirectUrl_IframeSrc_ReturnsUrl()
+    {
+        // Промежуточная страница кабинета может доводить CAS-цепочку iframe-загрузкой до
+        // ticket-URL (issue #323, десятая итерация).
+        var html = """<html><body><iframe src="/public/security_check?ticket=ST-42"></iframe></body></html>""";
+        var url = OneCUpdatesService.ExtractBodyRedirectUrl(html);
+        Assert.Equal("/public/security_check?ticket=ST-42", url);
+    }
+
+    [Fact]
+    public void ExtractBodyRedirectUrl_LocationAssign_ReturnsUrl()
+    {
+        // JS-редирект через window.location.assign — расширенный регекс (issue #323,
+        // десятая итерация): раньше распознавались только href/replace/присваивание.
+        var html = """<script>window.location.assign("https://releases.1c.ru/public/security_check?ticket=ST-43");</script>""";
+        var url = OneCUpdatesService.ExtractBodyRedirectUrl(html);
+        Assert.Equal("https://releases.1c.ru/public/security_check?ticket=ST-43", url);
     }
 
     [Fact]
@@ -1657,6 +1787,116 @@ public sealed class OneCUpdatesLoginFlowTests
                 if (request.Method == HttpMethod.Post)
                     PostLoginCount++;
                 response = Ok(SimpleForm);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик регресса issue #323 (десятая итерация): releases.1c.ru отвечает 302
+    /// с Location (канонический URL) и для ЖИВОЙ сессии — «один заголовок с Большой буквой —
+    /// а именно Location» (7OH). Исходный запрос и probe оба получают 302 на канонический URL;
+    /// probe следует за 302 (новая ветка IsPortalSessionAliveAsync) и получает 200 каталога →
+    /// alive=True; после успеха каталог отдаёт версии. Проверяет, что 302 вне login.1c.ru
+    /// НЕ считается мёртвой сессией.</summary>
+    private sealed class LiveSessionCanonicalRedirectHandler : HttpMessageHandler
+    {
+        private readonly Uri _canonical;
+        private int _catalogRequestCount;
+
+        public int PostLoginCount { get; private set; }
+
+        public LiveSessionCanonicalRedirectHandler(Uri canonical) => _canonical = canonical;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/index.html", StringComparison.OrdinalIgnoreCase))
+            {
+                // Канонический URL (финальный адрес после редиректа) — каталог с версиями.
+                response = Ok(VersionsTableHtml);
+            }
+            else if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                // 1-й запрос (исходный) → 302 login: запускает программный вход; 2-й (probe,
+                // уже с сессионной cookie) → 302 на канонический URL (реальный releases.1c.ru
+                // так отвечает и для живой сессии); после «успешного» probe каталог отдаёт версии.
+                _catalogRequestCount++;
+                response = _catalogRequestCount switch
+                {
+                    1 => Found(new Uri("https://login.1c.ru/login?service=x")),
+                    2 => Found(_canonical),
+                    _ => Ok(VersionsTableHtml)
+                };
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                    PostLoginCount++;
+                response = Ok(SimpleForm);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Обработчик регресса issue #323 (десятая итерация): probe получает 302 на
+    /// /error/403 (CAS-обрыв, голый security_check) — за таким редиректом НЕ следуем (иначе
+    /// 403/цикл), сессия признаётся мёртвой; выполняется полный вход: GET формы → POST →
+    /// 302 ticket → security_check → каталог отдаёт версии.</summary>
+    private sealed class Error403RedirectLoginHandler : HttpMessageHandler
+    {
+        private int _catalogRequestCount;
+
+        public int PostLoginCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                // 1-й запрос (исходный) → 302 login (запуск входа с probeUrl=исходный URL);
+                // 2-й (probe) → 302 на /error/403 (мёртвая сессия); после успешного входа
+                // каталог отдаёт версии.
+                _catalogRequestCount++;
+                response = _catalogRequestCount switch
+                {
+                    1 => Found(new Uri("https://login.1c.ru/login?service=x")),
+                    2 => Found(new Uri("https://releases.1c.ru/error/403")),
+                    _ => Ok(VersionsTableHtml)
+                };
+            }
+            else if (path.Contains("/public/security_check", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok("<html>session established</html>");
+            }
+            else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    PostLoginCount++;
+                    response = Found(new Uri("https://releases.1c.ru/public/security_check?ticket=ST-1"));
+                }
+                else
+                {
+                    response = Ok(SimpleForm);
+                }
             }
             else
             {
