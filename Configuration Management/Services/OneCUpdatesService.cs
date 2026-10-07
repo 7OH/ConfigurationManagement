@@ -1296,12 +1296,12 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // Причина выбора всегда пишется в журнал — по нему видно поведение (критерий 3).
                 var (postUrl, postUrlReason) = ResolveFormPostUrl(formUrl, formAction);
                 LogRedirectInfo($"[Updates] Вход: POST на '{postUrl}' (выбран: {postUrlReason}; GET-форма: {formUrl})");
-                var form = new Dictionary<string, string>(fields, StringComparer.Ordinal)
-                {
-                    ["username"] = login,
-                    ["password"] = password,
-                    ["_eventId"] = "submit",
-                };
+                // issue #323 (0.3.9.319, девятая итерация): тело POST приводится к эталону
+                // рабочего кода 1С (комментарий 23): динамический набор полей формы +
+                // username/password/_eventId=submit + обязательные inviteCode (пусто),
+                // geolocation (пусто), submit=Войти, rememberMe=on — если их нет в форме.
+                // Без них Spring Security CAS может отвечать 200 кабинетом вместо 302 с билетом.
+                var form = BuildLoginPostBody(fields, login, password);
 
                 using var postRequest = new HttpRequestMessage(HttpMethod.Post, postUrl) { Version = LoginHttpVersion };
                 postRequest.Content = new FormUrlEncodedContent(form);
@@ -1331,22 +1331,33 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // запрос каталога снова уходил бы в 302 (issue #323/#334).
                 if (postStatus is >= 300 and < 400 && postResponse.Headers.Location is not null)
                 {
+                    // issue #323 (0.3.9.319): Location после POST — это URL с CAS-билетом
+                    // (эталон рабочего кода 1С): GET по нему с cookie login.1c.ru доводит сессию
+                    // releases.1c.ru до живой. AllowAutoRedirect=false, поэтому Location читается
+                    // из ответа до какого-либо следования.
                     var completed = await FollowLoginRedirectsAsync(
                         postResponse.Headers.Location, ct).ConfigureAwait(false);
                     LogRedirectInfo($"[Updates] Вход: FollowLoginRedirectsAsync={completed}, " +
                                     $"sessionCookie={HasPortalSessionCookie()}");
                     if (completed)
                     {
-                        LogRedirectInfo("[Updates] Вход на portal.1c.ru выполнен (цепочка редиректов пройдена).");
-                        // Успешный вход сбрасывает счётчик попыток (issue #334/#330/#323):
-                        // сессия установлена, следующие операции могут входить заново.
-                        _portalLoginAttempts = 0;
-                        _lastLoginResult = PortalLoginResult.Success;
-                        LogPortalCookieInventory();
-                        return PortalLoginResult.Success;
+                        // «Успех цепочки» ещё не гарантирует живую сессию каталога (SESSION
+                        // для login.1c.ru ≠ сессии releases.1c.ru) — честная alive-проверка.
+                        var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
+                        LogRedirectInfo($"[Updates] Вход: alive={(alive ? "True" : "False")} после цепочки редиректов POST");
+                        if (alive)
+                        {
+                            LogRedirectInfo("[Updates] Вход на portal.1c.ru выполнен (цепочка редиректов пройдена, сессия жива).");
+                            // Успешный вход сбрасывает счётчик попыток (issue #334/#330/#323):
+                            // сессия установлена, следующие операции могут входить заново.
+                            _portalLoginAttempts = 0;
+                            _lastLoginResult = PortalLoginResult.Success;
+                            LogPortalCookieInventory();
+                            return PortalLoginResult.Success;
+                        }
                     }
 
-                    _logger.Warn("[Updates] Вход на portal.1c.ru не подтверждён: цепочка редиректов завершилась на странице входа.");
+                    _logger.Warn("[Updates] Вход на portal.1c.ru не подтверждён: цепочка редиректов завершилась на странице входа/без живой сессии.");
                     _lastLoginResult = PortalLoginResult.RedirectFailed;
                     return PortalLoginResult.RedirectFailed;
                 }
@@ -1383,7 +1394,14 @@ public class OneCUpdatesService : IOneCUpdatesService
                         // кода 1С, комментарий 23 в #323). Без этого звена повтор исходного
                         // запроса каталога снова даёт 302 на login (retryAfterLoginStill302),
                         // и после исчерпания повторов пользователь видит «Требуется вход».
-                        var securityCheckOk = await RunSecurityCheckAsync(formUrl, probeUrl, ct).ConfigureAwait(false);
+                        // issue #323 (0.3.9.319, девятая итерация): билет CAS приходит через
+                        // Location POST (эталон 1С) либо meta-refresh/JS в теле кабинета.
+                        // GET по ticket-URL (а не голый security_check) доводит сессию
+                        // releases.1c.ru; голый security_check БЕЗ билета остался только
+                        // запасным путём (когда билета нет вовсе) — в живом сценарии он не
+                        // выполняется (лог 7OH 0.3.9.316: 302 → /error/403).
+                        var securityCheckOk = await RunTicketSecurityCheckAsync(
+                            postBody, postUrl, formUrl, probeUrl, ct).ConfigureAwait(false);
                         if (securityCheckOk)
                         {
                             _portalLoginAttempts = 0;
@@ -1393,9 +1411,9 @@ public class OneCUpdatesService : IOneCUpdatesService
                         }
 
                         _logger.Warn("[Updates] Вход на portal.1c.ru не подтверждён: POST 200 со страницей " +
-                                     "личного кабинета, но звено security_check не установило живую сессию " +
-                                     "для releases.1c.ru — повтор исходного запроса не выполняется " +
-                                     "(честный AuthFailed, issue #323).");
+                                     "личного кабинета, но билет CAS не получен/звено security_check не " +
+                                     "установило живую сессию для releases.1c.ru — повтор исходного запроса " +
+                                     "не выполняется (честный AuthFailed, issue #323).");
                         _lastLoginResult = PortalLoginResult.RedirectFailed;
                         return PortalLoginResult.RedirectFailed;
                     }
@@ -1560,6 +1578,55 @@ public class OneCUpdatesService : IOneCUpdatesService
 
         var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
         LogRedirectInfo($"[Updates] Вход: alive={(alive ? "True" : "False")} после security_check");
+        return alive;
+    }
+
+    /// <summary>
+    /// Звено CAS после «кабинетного» успеха POST (issue #323, девятая итерация): билет CAS
+    /// приходит через Location ответа POST (эталон рабочего кода 1С, комментарий 23) ЛИБО
+    /// через meta-refresh/JS в теле страницы кабинета. Здесь POST уже вернул 200 без Location —
+    /// ищем билет в теле: <c>https://releases.1c.ru/public/security_check?ticket=ST-…</c>.
+    /// GET по ticket-URL с cookie login.1c.ru устанавливает SESSION/JSESSIONID для
+    /// releases.1c.ru; затем alive-проверка. Голый GET security_check БЕЗ билета выполняется
+    /// только как ЗАПАСНОЙ путь, когда билета в теле нет вовсе (в живом сценарии не достигается —
+    /// лог 7OH 0.3.9.316: голый security_check → 302 → /error/403).
+    /// </summary>
+    private async Task<bool> RunTicketSecurityCheckAsync(
+        string postBody, string postUrl, string? formUrl, string? probeUrl, CancellationToken ct)
+    {
+        // ВАЖНО: ticket-URL берётся ТОЛЬКО при реально найденном билете. Передача пустой
+        // строки в ResolveBodyRedirectTarget НЕ является «билетом»: new Uri(base, "") в .NET
+        // резолвится в сам base-URL, и ветка «билета нет» молча превращалась бы в
+        // FollowLoginRedirectsAsync(postUrl) — GET формы входа вместо запасного пути
+        // security_check (регресс тестов кабинета 0.3.9.316).
+        var rawTicket = ExtractBodyRedirectUrl(postBody);
+        var ticketTarget = rawTicket is null
+            ? null
+            : ResolveBodyRedirectTarget(postUrl, rawTicket);
+        if (ticketTarget is not null)
+        {
+            LogRedirectInfo($"[Updates] Вход: ticket-URL из тела кабинета '{ticketTarget}'");
+            var completed = await FollowLoginRedirectsAsync(ticketTarget, ct).ConfigureAwait(false);
+            LogRedirectInfo($"[Updates] Вход: FollowLoginRedirectsAsync(ticket)={completed}, " +
+                            $"sessionCookie={HasPortalSessionCookie()}");
+            if (!completed)
+            {
+                LogRedirectInfo("[Updates] Вход: ticket-цепочка не завершилась на целевом контенте — живая сессия не подтверждена.");
+                return false;
+            }
+        }
+        else
+        {
+            // Запасной путь: билет в теле не найден — пробуем прежнее звено security_check
+            // (service GET-формы или корень releases.1c.ru). В живом сценарии с билетом
+            // через Location/meta-refresh эта ветка не достигается.
+            LogRedirectInfo("[Updates] Вход: билет CAS в теле кабинета не найден — запасной путь звена security_check.");
+            var fallbackOk = await RunSecurityCheckAsync(formUrl, probeUrl, ct).ConfigureAwait(false);
+            return fallbackOk;
+        }
+
+        var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
+        LogRedirectInfo($"[Updates] Вход: alive={(alive ? "True" : "False")} после ticket-звена");
         return alive;
     }
 
@@ -1908,6 +1975,46 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <summary>
+    /// Строит тело POST формы входа на portal.1c.ru (issue #323, девятая итерация): динамический
+    /// набор полей из GET-формы (execution, lt, CSRF и пр.) + username/password/_eventId=submit +
+    /// обязательные поля эталона рабочего кода 1С (@7OH, комментарий 23), если их нет в форме:
+    /// <c>inviteCode</c> (пусто), <c>geolocation</c> (пусто), <c>submit=Войти</c>,
+    /// <c>rememberMe=on</c>. Без этих полей Spring Security CAS может отвечать 200 страницей
+    /// личного кабинета вместо 302-редиректа с CAS-билетом — звено security_check тогда не
+    /// отрабатывает (лог 7OH 0.3.9.316).
+    /// </summary>
+    internal static Dictionary<string, string> BuildLoginPostBody(
+        IReadOnlyDictionary<string, string> formFields, string login, string password)
+    {
+        var form = new Dictionary<string, string>(
+            formFields ?? new Dictionary<string, string>(StringComparer.Ordinal),
+            StringComparer.Ordinal)
+        {
+            ["username"] = login ?? string.Empty,
+            ["password"] = password ?? string.Empty,
+            ["_eventId"] = "submit"
+        };
+
+        // Эталон рабочего кода 1С: добавляем ТОЛЬКО отсутствующие в форме поля.
+        foreach (var (name, value) in ReferenceLoginFields)
+        {
+            if (!form.ContainsKey(name))
+                form[name] = value;
+        }
+
+        return form;
+    }
+
+    /// <summary>Поля POST входа из эталона рабочего кода 1С (issue #323, девятая итерация).</summary>
+    private static readonly (string Name, string Value)[] ReferenceLoginFields =
+    {
+        ("inviteCode", string.Empty),
+        ("geolocation", string.Empty),
+        ("submit", "Войти"),
+        ("rememberMe", "on")
+    };
+
+    /// <summary>
     /// Выбирает адрес формы входа: полный URL редиректа сервера (<c>login.1c.ru/login?service=…</c>),
     /// если он валиден и ведёт на login.1c.ru, иначе базовый <see cref="PortalLoginUrl"/>.
     /// </summary>
@@ -1937,6 +2044,10 @@ public class OneCUpdatesService : IOneCUpdatesService
             using var request = new HttpRequestMessage(HttpMethod.Get, current);
             using var response =
                 await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            // issue #323 (0.3.9.319): Set-Cookie каждого шага цепочки (SESSION/JSESSIONID для
+            // releases.1c.ru — билет принимается именно на ticket-звене) сохраняются в общий
+            // контейнер через ApplySetCookieToContainer (важно и для тестов с fake-обработчиками).
+            ApplySetCookieToContainer(response, request.RequestUri ?? current);
             var status = (int)response.StatusCode;
             var next = response.Headers.Location;
 
@@ -2418,9 +2529,14 @@ public class OneCUpdatesService : IOneCUpdatesService
         new(@"<meta\b[^>]*http-equiv\s*=\s*[""']refresh[""'][^>]*>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-    /// <summary>Резолвит URL из JS/meta-refresh-редиректа относительно адреса POST формы.</summary>
+    /// <summary>Резолвит URL из JS/meta-refresh-редиректа относительно адреса POST формы.
+    /// Пустая строка НЕ является редиректом: new Uri(base, "") в .NET резолвится в сам
+    /// base-URL (пустой относительный путь), что превратило бы «билета нет» в
+    /// FollowLoginRedirectsAsync(base) — поэтому для пустой строки возвращается null.</summary>
     private static Uri? ResolveBodyRedirectTarget(string baseUrl, string rawUrl)
     {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+            return null;
         if (Uri.TryCreate(rawUrl, UriKind.Absolute, out var abs))
             return abs;
         if (Uri.TryCreate(new Uri(baseUrl), rawUrl, out var rel))

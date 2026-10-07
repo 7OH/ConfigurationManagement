@@ -9,6 +9,22 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.319] — 2026-10-07
+
+### Исправлено
+
+- **Окно «Проверка обновлений» — вход на portal.1c.ru, 9-я итерация (issue #323)** — по логу
+  0.3.9.316 (7OH): POST кабинета «Личные данные» успешен (SESSION для login.1c.ru выпущена),
+  но голый GET `security_check` БЕЗ билета CAS даёт 302 → `/error/403` → alive=False →
+  RedirectFailed/AuthRequired. В [`OneCUpdatesService.cs`](Configuration%20Management/Services/OneCUpdatesService.cs):
+  - **тело POST формы входа приведено к эталону рабочего кода 1С** ([`BuildLoginPostBody`](Configuration%20Management/Services/OneCUpdatesService.cs)) — к динамическому набору полей формы добавляются `inviteCode=` (пусто), `geolocation=` (пусто), `submit=Войти`, `rememberMe=on` (только если их нет в форме); без них Spring Security CAS отвечает 200 кабинетом вместо 302 с билетом;
+  - **CAS-билет теперь берётся из Location ответа POST** (ветка 3xx, эталон 1С) — `FollowLoginRedirectsAsync(location)` идёт по цепочке редиректов до ticket-URL и накапливает Set-Cookie в контейнер через `ApplySetCookieToContainer` (в т.ч. SESSION/JSESSIONID для releases.1c.ru), затем честная alive-проверка;
+  - **fallback мета-refresh/JS в теле 200-кабинета** — [`RunTicketSecurityCheckAsync`](Configuration%20Management/Services/OneCUpdatesService.cs) извлекает ticket-URL из тела (`ExtractBodyRedirectUrl`) и выполняет GET по нему с cookie login.1c.ru; билета нет вовсе — запасной путь прежнего `security_check` с честным RedirectFailed при мёртвой сессии (в живом сценарии голый `security_check` больше не выполняется — он давал /error/403).
+
+### Тесты
+
+Полный набор `dotnet test` зелёный; кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без ошибок. Новые/обновлённые: [`OneCUpdatesLoginFlowTests.cs`](ConfigurationManagement.Tests/OneCUpdatesLoginFlowTests.cs) (+регресс точного лога 0.3.9.316: POST → 302 с Location ticket=ST-… → GET ticket-URL → alive=True → Success; вариант 200-кабинет + meta-refresh с билетом; контроль отсутствия голого `security_check` при живом билете; состав POST-тела: `inviteCode`/`geolocation`/`submit=Войти`/`rememberMe=on`; unit-тесты `BuildLoginPostBody` — добавление полей эталона при отсутствии, без дублирования существующих).
+
 ## [0.3.9.318] — 2026-10-07
 
 ### Исправлено

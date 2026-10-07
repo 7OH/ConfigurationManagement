@@ -1108,6 +1108,63 @@ public sealed class OneCUpdatesLoginFlowTests
 
     /// <summary>Обработчик: первый запрос каталога → 302 на login.1c.ru → форма → POST
     /// (настраиваемый статус/тело/редирект), после успешного входа повторный запрос каталога
+    // ---------- 9-я итерация (0.3.9.319): состав тела POST по эталону 1С ----------
+
+    [Fact]
+    public void BuildLoginPostBody_AddsReferenceFields_WhenAbsent()
+    {
+        // Эталон рабочего кода 1С (@7OH, комментарий 23): inviteCode= (пусто),
+        // geolocation= (пусто), submit=Войти, rememberMe=on — добавляются к динамическому
+        // набору полей формы, если их в форме нет.
+        var body = OneCUpdatesService.BuildLoginPostBody(
+            new Dictionary<string, string> { ["execution"] = "e1", ["lt"] = "LT-1" },
+            "user1", "p@ss");
+
+        Assert.Equal("user1", body["username"]);
+        Assert.Equal("p@ss", body["password"]);
+        Assert.Equal("submit", body["_eventId"]);
+        Assert.Equal(string.Empty, body["inviteCode"]);
+        Assert.Equal(string.Empty, body["geolocation"]);
+        Assert.Equal("Войти", body["submit"]);
+        Assert.Equal("on", body["rememberMe"]);
+    }
+
+    [Fact]
+    public void BuildLoginPostBody_KeepsFormFields_AndDoesNotDuplicateReferenceOnes()
+    {
+        // Поля, уже присутствующие в форме (rememberMe/submit), не дублируются — набор
+        // строится от фактической формы, жёсткой перезаписи нет.
+        var body = OneCUpdatesService.BuildLoginPostBody(
+            new Dictionary<string, string>
+            {
+                ["execution"] = "e1",
+                ["rememberMe"] = "on",
+                ["submit"] = "Войти"
+            },
+            "user1", "secret");
+
+        Assert.Equal("on", body["rememberMe"]);
+        Assert.Equal("Войти", body["submit"]);
+        Assert.Equal(string.Empty, body["inviteCode"]);
+        Assert.Equal(string.Empty, body["geolocation"]);
+        // execution, rememberMe, submit, username, password, _eventId, inviteCode, geolocation
+        Assert.Equal(8, body.Count);
+    }
+
+    [Fact]
+    public void BuildLoginPostBody_NullFormFields_ProducesCredentialsOnlyPlusReference()
+    {
+        var body = OneCUpdatesService.BuildLoginPostBody(null!, "u", "p");
+
+        Assert.Equal("u", body["username"]);
+        Assert.Equal("p", body["password"]);
+        Assert.Equal("submit", body["_eventId"]);
+        Assert.True(body.ContainsKey("inviteCode"));
+        Assert.True(body.ContainsKey("geolocation"));
+        Assert.True(body.ContainsKey("submit"));
+        Assert.True(body.ContainsKey("rememberMe"));
+    }
+
     /// → 200 с версиями. Считает POST-ы входа и фиксирует тело последнего POST.</summary>
     private sealed class LoginCaptureHandler : HttpMessageHandler
     {
@@ -1403,7 +1460,12 @@ public sealed class OneCUpdatesLoginFlowTests
     private sealed class ChainedLoginHandler : HttpMessageHandler
     {
         private readonly IReadOnlySet<int> _failPostNumbers;
-        private bool _loginSucceeded;
+        // Доступ к каталогу выдаётся конечным числом запросов после входа (0.3.9.319:
+        // успех 3xx-ветки теперь подтверждается alive-проверкой И повтор исходного запроса
+        // выполняется после неё — на два обращения каталога). По исчерпании грантов
+        // следующий ВЫЗОВ снова уходит на login — тест проверяет сброс счётчика попыток,
+        // а не сохранение сессии обработчиком.
+        private int _grantsRemaining;
 
         public int PostLoginCount { get; private set; }
 
@@ -1418,18 +1480,19 @@ public sealed class OneCUpdatesLoginFlowTests
 
             if (path.Contains("/project/", StringComparison.OrdinalIgnoreCase))
             {
-                // «Сессия» действует только внутри одного вызова: первый запрос каталога
-                // каждого НОВОГО вызова снова редиректит на login — так тест проверяет
-                // именно сброс счётчика попыток, а не сохранение сессии обработчиком.
-                var granted = _loginSucceeded;
-                _loginSucceeded = false;
+                var granted = _grantsRemaining > 0;
+                if (granted)
+                    _grantsRemaining--;
                 response = granted
                     ? Ok(VersionsTableHtml)
                     : Found(new Uri("https://login.1c.ru/login?service=x"));
             }
             else if (path.Contains("/public/security_check", StringComparison.OrdinalIgnoreCase))
             {
-                _loginSucceeded = true;
+                // Ровно 2 гранта: alive-проверка (IsPortalSessionAliveAsync) + повтор исходного
+                // запроса после Success. Больше нельзя — иначе следующий вызов (r4) получил бы
+                // Ok, а не 302, и сброс счётчика не был бы проверен.
+                _grantsRemaining = 2;
                 response = Ok("<html>session established</html>");
             }
             else if (path.Contains("/login", StringComparison.OrdinalIgnoreCase))
