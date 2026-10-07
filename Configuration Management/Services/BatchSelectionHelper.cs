@@ -433,6 +433,104 @@ public static class BatchSelectionHelper
     }
 
     /// <summary>
+    /// Нужно ли восстановить выбор строки ПОД КУРСОРОМ после закрытия контекстного меню
+    /// (issue #340, 11-я итерация): НЕЗАВИСИМО от давности клика. Новый надёжный сигнал —
+    /// «клик по ПОПАПУ самого меню»: обычный левый клик во время открытого меню попадает
+    /// в попап (ContextMenu WPF / ContextMenu Avalonia) ДО того, как будет проглочен или
+    /// доставлен дальше, поэтому факт «пользователь кликнул, пока меню было открыто»
+    /// фиксируется без привязки к окну давности. Четвёртый реальный лог (0.3.9.316, 7OH):
+    /// клик, закрывший меню, полностью проглочен попапом (ни MouseDown, ни MouseUp в дерево
+    /// не пришли), последний зафиксированный обычный клик лежал за окном
+    /// <see cref="MenuCloseRecentMouseActivityWindowMs"/> (2000 мс) — любой путь с окнами
+    /// давности не срабатывает в принципе. Исключения: курсор над пунктом меню
+    /// (overMenuItem — выбор пункта строку не меняет), наличие снимка клика (работают
+    /// штатные пути A/C/snapshot), отсутствие попап-клика (ESC/программное закрытие/
+    /// потеря фокуса окна).
+    /// </summary>
+    /// <param name="overTreeRow">Курсор в момент закрытия над строкой дерева (hit-test по координатам).</param>
+    /// <param name="overMenuItem">Курсор в момент закрытия над пунктом меню.</param>
+    /// <param name="snapshotPresent">Присутствовал ли снимок клика, закрывавшего меню (путь A/C).</param>
+    /// <param name="clickDuringMenuOpen">
+    /// Признак того, что во время открытого меню был обычный левый клик по ПОПАПУ меню дерева
+    /// (метка Environment.TickCount из обработчика PreviewMouseLeftButtonDown/PointerPressed,
+    /// подписанного на само меню при открытии).
+    /// </param>
+    public static bool ShouldRestoreSelectionAfterMenuClose(
+        bool overTreeRow,
+        bool overMenuItem,
+        bool snapshotPresent,
+        bool clickDuringMenuOpen)
+    {
+        if (!overTreeRow || overMenuItem)
+            return false;
+        if (snapshotPresent)
+            return false;
+        if (!clickDuringMenuOpen)
+            return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Нужно ли вернуть клавиатурный фокус дереву после закрытия контекстного меню
+    /// (issue #340, 11-я итерация). Комментарий 7OH 28/28: после пропажи выделения дерево
+    /// теряет клавиатурный фокус — стрелки не работают, TAB уходит на кнопку сворачивания.
+    /// Фокус возвращаем, когда закрылось меню ДЕРЕВА, окно сохраняет клавиатурный фокус
+    /// (IsKeyboardFocusWithin) и до открытия меню фокус был в дереве; либо пользователь
+    /// явно кликал по попапу с курсором над строкой (восстановление выбора подразумевает
+    /// и возврат управления деревом). Открытое модальное окно — фокус не трогаем.
+    /// </summary>
+    /// <param name="isTreeMenuClosed">Закрылось ли контекстное меню ДЕРЕВА.</param>
+    /// <param name="focusWasInTreeBeforeMenuOpen">Был ли клавиатурный фокус в дереве до открытия меню.</param>
+    /// <param name="focusStillWithinWindow">Остался ли клавиатурный фокус в пределах окна (IsKeyboardFocusWithin).</param>
+    /// <param name="modalDialogOpen">Открыто ли модальное диалоговое окно (фокус не отбираем).</param>
+    /// <param name="clickDuringMenuOpen">Был ли обычный левый клик по попапу меню (признак работы с деревом).</param>
+    /// <param name="overTreeRow">Курсор в момент закрытия над строкой дерева.</param>
+    public static bool ShouldReturnKeyboardFocusToTree(
+        bool isTreeMenuClosed,
+        bool focusWasInTreeBeforeMenuOpen,
+        bool focusStillWithinWindow,
+        bool modalDialogOpen,
+        bool clickDuringMenuOpen = false,
+        bool overTreeRow = false)
+    {
+        if (!isTreeMenuClosed || modalDialogOpen || !focusStillWithinWindow)
+            return false;
+        if (focusWasInTreeBeforeMenuOpen)
+            return true;
+        // Меню открыто не из дерева (например, с кнопки с собственным меню), но пользователь
+        // кликал по попапу с курсором над строкой — он работал с деревом, возвращаем фокус.
+        return clickDuringMenuOpen && overTreeRow;
+    }
+
+    /// <summary>
+    /// Единая строка решения восстановления после закрытия меню дерева (issue #340,
+    /// 11-я итерация): пишется в журнал MenuCloseTrace в момент MenuClosed. Поля: итоговое
+    /// решение (restore), причина (rowUnderCursor / esc / menuItem / snapshot / noClick /
+    /// notOverRow), сигналы (clickDuringOpen, overTreeRow, overMenuItem) и решение по
+    /// возврату клавиатурного фокуса (focusRestore). Общий формат для WPF и Avalonia.
+    /// </summary>
+    /// <param name="restore">Принято ли решение восстанавливать выбор строки под курсором.</param>
+    /// <param name="reason">Короткая причина решения (для разбора по логу).</param>
+    /// <param name="clickDuringOpen">Был ли клик по попапу меню во время открытого меню.</param>
+    /// <param name="overTreeRow">Курсор в момент закрытия над строкой дерева.</param>
+    /// <param name="overMenuItem">Курсор в момент закрытия над пунктом меню.</param>
+    /// <param name="focusRestore">Нужно ли вернуть клавиатурный фокус дереву.</param>
+    public static string BuildMenuCloseDecisionLine(
+        bool restore,
+        string reason,
+        bool clickDuringOpen,
+        bool overTreeRow,
+        bool overMenuItem,
+        bool focusRestore)
+    {
+        return $"MenuCloseDecision: restore={(restore ? "true" : "false")}, reason={reason}, " +
+               $"clickDuringOpen={(clickDuringOpen ? "true" : "false")}, " +
+               $"overTreeRow={(overTreeRow ? "true" : "false")}, " +
+               $"overMenuItem={(overMenuItem ? "true" : "false")}, " +
+               $"focusRestore={(focusRestore ? "true" : "false")}";
+    }
+
+    /// <summary>
     /// Действия стабилизации выделения после клика, которым закрыли контекстное меню
     /// (issue #340, новая стратегия). Список намеренно минимален: только установка
     /// одиночного выбора по данным (SelectTreeRowByData/SelectRow). Действий «сбросить

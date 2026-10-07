@@ -1040,4 +1040,158 @@ public sealed class BatchSelectionHelperTests
         Assert.Contains("target=null", line, StringComparison.Ordinal);
         Assert.DoesNotContain("password", line, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ---------- ShouldRestoreSelectionAfterMenuClose (issue #340, 11-я итерация) ----------
+
+    [Fact]
+    public void ShouldRestoreSelectionAfterMenuClose_OverRowWithPopupClick_True_RegardlessOfRecency()
+    {
+        // Четвёртый реальный лог (0.3.9.316): клик, закрывший меню, полностью проглочен
+        // попапом; последний обычный клик был ~2,9 с назад (за окном 2000 мс). Сигнал
+        // «клик по попапу меню» НЕ зависит от давности — восстановление выполняется.
+        Assert.True(BatchSelectionHelper.ShouldRestoreSelectionAfterMenuClose(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            clickDuringMenuOpen: true));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionAfterMenuClose_CursorOverMenuItem_False()
+    {
+        // Выбор пункта меню строку не меняет — восстановление не запускается, даже если
+        // клик по попапу был.
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionAfterMenuClose(
+            overTreeRow: true,
+            overMenuItem: true,
+            snapshotPresent: false,
+            clickDuringMenuOpen: true));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionAfterMenuClose_NoPopupClick_EscOrProgrammatic_False()
+    {
+        // Закрытие ESC/программное не производит клика по попапу — восстановления нет.
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionAfterMenuClose(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: false,
+            clickDuringMenuOpen: false));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionAfterMenuClose_SnapshotPresent_False()
+    {
+        // Снимок клика есть — работают штатные пути A/C/snapshot, восстановление по
+        // строке под курсором не нужно (избегаем двойной работы).
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionAfterMenuClose(
+            overTreeRow: true,
+            overMenuItem: false,
+            snapshotPresent: true,
+            clickDuringMenuOpen: true));
+    }
+
+    [Fact]
+    public void ShouldRestoreSelectionAfterMenuClose_CursorNotOverRow_False()
+    {
+        Assert.False(BatchSelectionHelper.ShouldRestoreSelectionAfterMenuClose(
+            overTreeRow: false,
+            overMenuItem: false,
+            snapshotPresent: false,
+            clickDuringMenuOpen: true));
+    }
+
+    // ---------- ShouldReturnKeyboardFocusToTree (issue #340, 11-я итерация) ----------
+
+    [Fact]
+    public void ShouldReturnKeyboardFocusToTree_FocusWasInTreeBeforeOpen_True()
+    {
+        // Комментарий 7OH 28/28: после закрытия меню фокус возвращается дереву — стрелки
+        // снова работают, TAB уходит в список, а не на кнопку сворачивания.
+        Assert.True(BatchSelectionHelper.ShouldReturnKeyboardFocusToTree(
+            isTreeMenuClosed: true,
+            focusWasInTreeBeforeMenuOpen: true,
+            focusStillWithinWindow: true,
+            modalDialogOpen: false));
+    }
+
+    [Fact]
+    public void ShouldReturnKeyboardFocusToTree_FocusNotInTreeBeforeOpen_NoClick_False()
+    {
+        // Меню открыто не из дерева (кнопка с собственным меню), попап-клика не было —
+        // фокус не отбираем у других элементов.
+        Assert.False(BatchSelectionHelper.ShouldReturnKeyboardFocusToTree(
+            isTreeMenuClosed: true,
+            focusWasInTreeBeforeMenuOpen: false,
+            focusStillWithinWindow: true,
+            modalDialogOpen: false));
+    }
+
+    [Fact]
+    public void ShouldReturnKeyboardFocusToTree_FocusNotInTreeBeforeOpen_ButPopupClickOverRow_True()
+    {
+        // Пользователь явно работал с деревом (клик по попапу с курсором над строкой) —
+        // фокус возвращаем дереву.
+        Assert.True(BatchSelectionHelper.ShouldReturnKeyboardFocusToTree(
+            isTreeMenuClosed: true,
+            focusWasInTreeBeforeMenuOpen: false,
+            focusStillWithinWindow: true,
+            modalDialogOpen: false,
+            clickDuringMenuOpen: true,
+            overTreeRow: true));
+    }
+
+    [Fact]
+    public void ShouldReturnKeyboardFocusToTree_ModalDialogOpen_False()
+    {
+        // Открытое модальное окно — фокус не отбираем.
+        Assert.False(BatchSelectionHelper.ShouldReturnKeyboardFocusToTree(
+            isTreeMenuClosed: true,
+            focusWasInTreeBeforeMenuOpen: true,
+            focusStillWithinWindow: true,
+            modalDialogOpen: true));
+    }
+
+    [Fact]
+    public void ShouldReturnKeyboardFocusToTree_FocusLeftWindow_False()
+    {
+        // Фокус ушёл из окна (окно потеряло активность) — восстанавливать нечего.
+        Assert.False(BatchSelectionHelper.ShouldReturnKeyboardFocusToTree(
+            isTreeMenuClosed: true,
+            focusWasInTreeBeforeMenuOpen: true,
+            focusStillWithinWindow: false,
+            modalDialogOpen: false));
+    }
+
+    [Fact]
+    public void ShouldReturnKeyboardFocusToTree_NotTreeMenu_False()
+    {
+        Assert.False(BatchSelectionHelper.ShouldReturnKeyboardFocusToTree(
+            isTreeMenuClosed: false,
+            focusWasInTreeBeforeMenuOpen: true,
+            focusStillWithinWindow: true,
+            modalDialogOpen: false));
+    }
+
+    // ---------- BuildMenuCloseDecisionLine (issue #340, 11-я итерация) ----------
+
+    [Fact]
+    public void BuildMenuCloseDecisionLine_ContainsAllFields()
+    {
+        var line = BatchSelectionHelper.BuildMenuCloseDecisionLine(
+            restore: true,
+            reason: "rowUnderCursor",
+            clickDuringOpen: true,
+            overTreeRow: true,
+            overMenuItem: false,
+            focusRestore: true);
+
+        Assert.StartsWith("MenuCloseDecision:", line, StringComparison.Ordinal);
+        Assert.Contains("restore=true", line, StringComparison.Ordinal);
+        Assert.Contains("reason=rowUnderCursor", line, StringComparison.Ordinal);
+        Assert.Contains("clickDuringOpen=true", line, StringComparison.Ordinal);
+        Assert.Contains("overTreeRow=true", line, StringComparison.Ordinal);
+        Assert.Contains("overMenuItem=false", line, StringComparison.Ordinal);
+        Assert.Contains("focusRestore=true", line, StringComparison.Ordinal);
+    }
 }

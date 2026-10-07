@@ -207,6 +207,22 @@ namespace Configuration_Management
         private long _treeMenuOpenedTick;
 
         /// <summary>
+        /// Метка последнего левого клика по ПОПАПУ контекстного меню дерева (issue #340,
+        /// 11-я итерация): 0 — клика не было. Любой клик, пока меню открыто, попадает в попап
+        /// ДО того, как будет проглочен/доставлен дальше — надёжный сигнал «меню закрыто
+        /// кликом» БЕЗ привязки к давности (в отличие от окон 500/2000 мс; лог 0.3.9.316, 7OH).
+        /// </summary>
+        private long _treeMenuOpenClickTick;
+
+        /// <summary>
+        /// Был ли клавиатурный фокус в дереве ДО открытия контекстного меню дерева (issue #340,
+        /// 11-я итерация): после закрытия меню фокус возвращается дереву, если он был там до
+        /// открытия (комментарий 7OH 28/28: стрелки не работают, TAB уходит на кнопку
+        /// сворачивания).
+        /// </summary>
+        private bool _keyboardFocusWasInTreeBeforeMenuOpen;
+
+        /// <summary>
         /// Подписывает обработку клика, закрывшего контекстное меню строки (issue #340).
         /// Туннельная фаза ОКНА срабатывает раньше обработчиков контрола LeveledTreeView.
         /// Выбор применяет ШТАТНАЯ логика контрола (OnRowPointerPressed) — по живому
@@ -250,10 +266,22 @@ namespace Configuration_Management
                 ? $"MenuOpened: isTreeMenu={isTreeMenu}"
                 : $"MenuClosed: isTreeMenu={isTreeMenu}");
             if (isOpen && isTreeMenu)
+            {
                 _treeMenuOpenedTick = Environment.TickCount;
+                // issue #340 (0.3.9.317, 11-я итерация): сброс попап-клика, фиксация фокуса
+                // до открытия и подписка на левый клик по попапу меню (надёжный сигнал
+                // «меню закрыто кликом»).
+                _treeMenuOpenClickTick = 0;
+                _keyboardFocusWasInTreeBeforeMenuOpen = _tree?.IsKeyboardFocusWithin == true;
+                menu.PointerPressed += OnTreeMenuPopupPointerPressed;
+                MenuCloseTrace.Log($"MenuOpenedFocus: wasInTree={_keyboardFocusWasInTreeBeforeMenuOpen}, " +
+                                   $"tick={_treeMenuOpenedTick}");
+            }
             if (!isOpen && isTreeMenu)
             {
                 _lastMenuCloseTick = Environment.TickCount;
+                // issue #340 (0.3.9.317): отписка от кликов по попапу меню (см. выше).
+                menu.PointerPressed -= OnTreeMenuPopupPointerPressed;
 
                 // Строка базы ПОД УКАЗАТЕЛЕМ на момент закрытия меню дерева (issue #340,
                 // 0.3.9.316): цель восстановления выбором (MenuClosedOverRow), если меню
@@ -305,6 +333,12 @@ namespace Configuration_Management
                 // 1,5 с) и не трогает мультивыделение.
                 var precedingClick = _lastPlainTreeClick;
                 _lastPlainTreeClick = null;
+                // issue #340 (0.3.9.317, 11-я итерация): «клик по попапу меню» — надёжный
+                // сигнал того, что меню закрыто КЛИКОМ (а не ESC/программно), без привязки
+                // к давности клика (метка из OnTreeMenuPopupPointerPressed).
+                var clickDuringMenuOpen = _treeMenuOpenClickTick > _treeMenuOpenedTick;
+                var restoreScheduled = false;
+                var restoreReason = "none";
                 if (_menuCloseClickSnapshot is null &&
                     precedingClick is { } lastPlainClick &&
                     BatchSelectionHelper.ShouldStabilizeForClickPrecedingMenuClose(
@@ -312,6 +346,7 @@ namespace Configuration_Management
                         _lastMenuCloseTick,
                         BatchSelectionHelper.MenuClosePrecedingClickWindowMs))
                 {
+                    restoreReason = "clickBeforeMenuClose";
                     var stabilizeTarget = lastPlainClick.Base;
                     var stabilizePinned = lastPlainClick.IsPinnedSection;
                     Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -341,13 +376,72 @@ namespace Configuration_Management
                              windowMs: BatchSelectionHelper.MenuCloseRecentMouseActivityWindowMs) &&
                          cursorInfobase is not null)
                 {
+                    restoreScheduled = true;
+                    restoreReason = "menuClosedOverRow";
                     var restoreTarget = cursorInfobase;
                     var restorePinned = cursorPinnedSection;
                     var evidenceTick = activityEvidence.Tick;
                     Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                         ApplyRowUnderCursorRestore(restoreTarget, restorePinned, evidenceTick));
                 }
+                // issue #340 (0.3.9.317, 11-я итерация): четвёртый реальный лог (0.3.9.316)
+                // показал, что клик, закрывший меню, попап глотает ПОЛНОСТЬЮ, и НИ ОДИН путь
+                // с окнами давности (500/2000 мс) не может его увидеть — последний обычный
+                // клик был ~2,9 с назад (за пределами MenuCloseRecentMouseActivityWindowMs).
+                // Сигнал «клик по попапу меню» (OnTreeMenuPopupPointerPressed) фиксирует факт
+                // независимо от давности. Восстановление по строке ПОД УКАЗАТЕЛЕМ при
+                // overTreeRow && !overMenuItem && !snapshot && clickDuringMenuOpen.
+                else if (cursorInfobase is not null &&
+                         BatchSelectionHelper.ShouldRestoreSelectionAfterMenuClose(
+                             overTreeRow: overTreeRow,
+                             overMenuItem: overMenuItemApprox,
+                             snapshotPresent: _menuCloseClickSnapshot is not null,
+                             clickDuringMenuOpen: clickDuringMenuOpen))
+                {
+                    restoreScheduled = true;
+                    restoreReason = "rowUnderCursor";
+                    var restoreTarget = cursorInfobase;
+                    var restorePinned = cursorPinnedSection;
+                    var evidenceTick = _treeMenuOpenClickTick;
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        ApplyRowUnderCursorRestore(restoreTarget, restorePinned, evidenceTick));
+                }
+
+                // Возврат клавиатурного фокуса дереву после закрытия меню (issue #340,
+                // 11-я итерация, комментарий 7OH 28/28): после пропажи выделения дерево
+                // теряет фокус — стрелки не работают, TAB уходит на кнопку сворачивания.
+                var focusRestore = BatchSelectionHelper.ShouldReturnKeyboardFocusToTree(
+                    isTreeMenuClosed: true,
+                    focusWasInTreeBeforeMenuOpen: _keyboardFocusWasInTreeBeforeMenuOpen,
+                    focusStillWithinWindow: IsKeyboardFocusWithin,
+                    modalDialogOpen: HasOpenModalDialog(),
+                    clickDuringMenuOpen: clickDuringMenuOpen,
+                    overTreeRow: overTreeRow);
+                if (focusRestore)
+                    Avalonia.Threading.Dispatcher.UIThread.Post(FocusTreeAfterMenuClose);
+
+                MenuCloseTrace.Log(BatchSelectionHelper.BuildMenuCloseDecisionLine(
+                    restore: restoreScheduled,
+                    reason: restoreReason,
+                    clickDuringOpen: clickDuringMenuOpen,
+                    overTreeRow: overTreeRow,
+                    overMenuItem: overMenuItemApprox,
+                    focusRestore: focusRestore));
             }
+        }
+
+        /// <summary>
+        /// Левый клик по ПОПАПУ контекстного меню дерева (issue #340, 11-я итерация): обычный
+        /// клик во время открытого меню попадает в попап ДО того, как будет проглочен или
+        /// доставлен дальше. Метка — единые часы <see cref="Environment.TickCount"/>; надёжный
+        /// сигнал «меню закрыто кликом» независимо от давности клика.
+        /// </summary>
+        private void OnTreeMenuPopupPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            _treeMenuOpenClickTick = Environment.TickCount;
+            var pos = e.GetPosition(_tree);
+            MenuCloseTrace.Log($"MenuClickDuringOpen: tick={_treeMenuOpenClickTick}, " +
+                               $"x={pos.X:0.#}, y={pos.Y:0.#}, source=popup");
         }
 
         private void OnTreeMenuCloseClickDedup_PointerPressed(object? sender, PointerPressedEventArgs e)
@@ -641,6 +735,35 @@ namespace Configuration_Management
                                $"selected={(selectionChanged ? "applied" : "same")}, " +
                                $"precedingClickTick={evidenceTick}");
             EnsureSelectionStable(target, isPinnedSection, reason: "menuClosedOverRow");
+        }
+
+        /// <summary>
+        /// Возвращает клавиатурный фокус дереву после закрытия контекстного меню (issue #340,
+        /// 11-я итерация, Avalonia): комментарий 7OH 28/28 — после пропажи выделения стрелки
+        /// перестают работать, TAB уходит на кнопку сворачивания (дерево теряет клавиатурный
+        /// фокус). Фокус ставится на контейнер ТЕКУЩЕГО выбора (если реализован), иначе — на
+        /// само дерево. Идемпотентно; вызывается только при взведённом предикате
+        /// <see cref="BatchSelectionHelper.ShouldReturnKeyboardFocusToTree"/>.
+        /// </summary>
+        private void FocusTreeAfterMenuClose()
+        {
+            if (_tree is null || _vm is null)
+                return;
+
+            if (_vm.SelectedInfobase is { } selected)
+            {
+                var row = _tree.FindRowForData(selected, pinnedSection: false)
+                          ?? _tree.FindRowForData(selected, pinnedSection: true);
+                if (row is not null)
+                {
+                    row.Focus();
+                    MenuCloseTrace.Log($"MenuFocusRestore: restored=true, target={selected.Id}, focused=row");
+                    return;
+                }
+            }
+
+            _tree.Focus();
+            MenuCloseTrace.Log($"MenuFocusRestore: restored=true, target=MainTree, focused=tree");
         }
 
         /// <summary>

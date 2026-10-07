@@ -9,6 +9,32 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.9.317] — 2026-10-06
+
+### Исправлено
+
+- **Снятие выделения после контекстного меню, 11-я итерация (issue #340)** — по логу 0.3.9.316
+  (12:11:02Z): клик, закрывающий меню, попап «проглатывает» полностью, и ни один путь с окнами
+  давности (500/2000 мс) не может его увидеть — последний обычный клик был ~2,9 с назад.
+  Добавлен **новый надёжный сигнал «клик по попапу меню»** ([`OnTreeMenuPopupMouseLeftButtonDown`](Configuration%20Management/Views/MainWindow.Hotkeys.cs) /
+  [`OnTreeMenuPopupPointerPressed`](Configuration%20Management/Views/MainWindow.Avalonia.Events.cs)):
+  любой левый клик, пока меню открыто, попадает в попап самого меню — факт фиксируется БЕЗ
+  привязки к давности; предикат [`ShouldRestoreSelectionAfterMenuClose`](Configuration%20Management/Services/BatchSelectionHelper.cs)
+  восстанавливает выбор строки ПОД КУРСОРОМ (`overTreeRow && !overMenuItem && !snapshot &&
+  clickDuringMenuOpen`). ESC и выбор пункта меню исключаются естественно. Возврат
+  **клавиатурного фокуса дереву** после закрытия меню ([`FocusTreeAfterMenuClose`](Configuration%20Management/Views/MainWindow.Hotkeys.cs),
+  предикат [`ShouldReturnKeyboardFocusToTree`](Configuration%20Management/Services/BatchSelectionHelper.cs)):
+  стрелки ↑/↓ снова работают, TAB уходит в список, а не на кнопку сворачивания (комментарий
+  28/28). Новые записи журнала: `MenuClickDuringOpen` / `MenuOpenedFocus` / `MenuCloseDecision` /
+  `MenuFocusRestore`.
+
+### Тесты
+
+Полный набор `dotnet test` зелёный; кросс-сборка Linux (`dotnet build -p:BuildLinux=true`) без
+ошибок. Новые/обновлённые: [`BatchSelectionHelperTests.cs`](ConfigurationManagement.Tests/BatchSelectionHelperTests.cs)
+(+11: предикат восстановления без привязки к давности, предикат возврата фокуса, строка решения);
+контракт JSONL-журнала (`MenuCloseTraceFormatTests`) — новые записи без правок формата.
+
 ## [0.3.9.316] — 2026-10-06
 
 ### Исправлено
