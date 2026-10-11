@@ -676,6 +676,14 @@ public class AppSettings
     /// </summary>
     public string UpdateChainFolder { get; set; } = "";
 
+    /// <summary>
+    /// Папка последнего сохранения одиночного дистрибутива обновления (issue #352, 0.3.12.6):
+    /// запоминается после выбора каталога при «Скачать» и предлагается следующим диалогом.
+    /// Раздельна с <see cref="UpdateChainFolder"/> — «что для полной версии, что для цепочки»
+    /// (как у скачивания платформы). Пусто — папка ещё не выбиралась.
+    /// </summary>
+    public string UpdateDistributionFolder { get; set; } = "";
+
     /// <summary>Горячая клавиша «Выполнить сценарий резервирования» для выбранной ИБ (по умолчанию Ctrl+Shift+F5).</summary>
     public string HotkeyRunBackup { get; set; } = "Ctrl+Shift+F5";
 
@@ -839,6 +847,8 @@ public class AppSettings
         UpdatesPassword ??= string.Empty;
         ItsAccountId ??= string.Empty;
         PlatformDownloadDirectory ??= string.Empty;
+        UpdateChainFolder ??= string.Empty;
+        UpdateDistributionFolder ??= string.Empty;
         AfterLaunchAction = string.IsNullOrWhiteSpace(AfterLaunchAction) ? "None" : AfterLaunchAction;
         FunctionalMode = string.IsNullOrWhiteSpace(FunctionalMode)
             ? Models.FunctionalModes.Default

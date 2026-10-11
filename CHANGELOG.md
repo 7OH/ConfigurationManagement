@@ -9,6 +9,34 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.12.6] — 2026-10-11
+
+### Исправлено (issue #352)
+
+- **Имена скачиваемых файлов обновления сохраняют оригинальное имя**
+  (Windows/WPF и Linux/Avalonia): файл сохраняется как «<Имя>_<версия>_<оригинал>»
+  (например `УТ_11.5.26.118_Trade_11_5_26_118_updsetup.cf`), чтобы «полный дистрибутив»
+  и «дистрибутив обновления» различались и не перезаписывали друг друга
+  ([`UpdateDownloadNaming.cs`](Configuration%20Management/Services/UpdateDownloadNaming.cs)).
+- **Папка одиночного скачивания запоминается отдельно от папки цепочки**
+  («что для полной версии, что для цепочки»): новая настройка
+  `AppSettings.UpdateDistributionFolder` (пусто — прежняя папка цепочки);
+  диалог сохранения предлагает её же
+  ([`AppSettings.cs`](Configuration%20Management/Models/AppSettings.cs),
+   [`UpdateCheckWindow.xaml.cs`](Configuration%20Management/Views/UpdateCheckWindow.xaml.cs),
+   [`UpdateCheckWindow.Avalonia.cs`](Configuration%20Management/Views/UpdateCheckWindow.Avalonia.cs)).
+- **Окно проверки обновлений подхватывает активную загрузку при переоткрытии**
+  (Windows/WPF и Linux/Avalonia): клик по индикатору на главном окне возвращает
+  окно с реальным прогрессом уже идущей закачки (`update:`/`chain:`) для этой ИБ
+  ([`UpdateCheckWindow.xaml.cs`](Configuration%20Management/Views/UpdateCheckWindow.xaml.cs),
+   [`UpdateCheckWindow.Avalonia.cs`](Configuration%20Management/Views/UpdateCheckWindow.Avalonia.cs)).
+
+### Тесты
+
+Полный набор `dotnet test` зелёный (**2302**); сборка решения (`dotnet build`) и
+кросс-сборка Linux (`dotnet build -p:ForceLinux=true`) без ошибок. Новые тесты
+`UpdateDownloadNamingTests` (+4) покрывают имя сохранения одиночного дистрибутива.
+
 ## [0.3.12.5] — 2026-10-11
 
 ### Исправлено (issue #359)

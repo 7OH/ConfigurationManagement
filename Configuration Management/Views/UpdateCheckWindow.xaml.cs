@@ -69,6 +69,11 @@ public partial class UpdateCheckWindow : Window
         // Папка цепочки (issue #352.2): строка с путём и кнопкой «Открыть» над таблицей.
         UpdateChainFolderDisplay();
 
+        // issue #352 (0.3.12.6): при переоткрытии окна для ИБ с уже идущей фоновой
+        // закачкой (клик по индикатору главного окна) подхватываем активную запись
+        // менеджера — прогресс/кнопки отражают реальное состояние, а не «пустое» окно.
+        TryAttachActiveDownload();
+
         Loaded += async (_, _) => await RunCheckAsync();
     }
 
@@ -328,6 +333,48 @@ public partial class UpdateCheckWindow : Window
         }
     }
 
+    /// <summary>
+    /// Подхватывает активную фоновую закачку этой ИБ (issue #352, 0.3.12.6): при повторном
+    /// открытии окна (клик по индикатору) прогресс и состояние кнопок отражают уже идущую
+    /// загрузку из <see cref="BackgroundDownloadManager.Default"/>.
+    /// </summary>
+    private void TryAttachActiveDownload()
+    {
+        var name = _row.Name;
+        var snapshot = Services.BackgroundDownloadManager.Default.Snapshot();
+        var entry = snapshot.FirstOrDefault(d => d.IsActive && IsDownloadForInfobase(d.Id, name));
+        if (entry is null)
+            return;
+
+        if (entry.Id.StartsWith("update:", StringComparison.Ordinal))
+        {
+            _row.IsDownloading = true;
+            _row.Progress = entry.Progress;
+            UpdateProgressDisplay();
+        }
+        else if (entry.Id.StartsWith("chain:", StringComparison.Ordinal))
+        {
+            _row.IsChainDownloading = true;
+            _row.ChainProgress = entry.Progress;
+            UpdateChainDisplay();
+        }
+    }
+
+    /// <summary>Относится ли запись менеджера (id вида «update:ИМЯ:файл»/«chain:ИМЯ») к базе.</summary>
+    private static bool IsDownloadForInfobase(string id, string infobaseName)
+    {
+        if (id.StartsWith("update:", StringComparison.Ordinal))
+        {
+            var rest = id["update:".Length..];
+            var cut = rest.LastIndexOf(':');
+            var baseName = cut >= 0 ? rest[..cut] : rest;
+            return string.Equals(baseName, infobaseName, StringComparison.OrdinalIgnoreCase);
+        }
+        if (id.StartsWith("chain:", StringComparison.Ordinal))
+            return string.Equals(id["chain:".Length..], infobaseName, StringComparison.OrdinalIgnoreCase);
+        return false;
+    }
+
     private void UpdateProgressDisplay()
     {
         if (_row.IsDownloading)
@@ -442,28 +489,60 @@ public partial class UpdateCheckWindow : Window
     }
 
     /// <summary>Путь сохранения одиночного скачивания (issue #352.2, 0.3.12.2): при
-    /// существующей папке цепочки в настройках файл сохраняется в неё БЕЗ диалога
-    /// «куда скачать»; иначе диалог с начальным каталогом из настроек.</summary>
+    /// существующей папке одиночного дистрибутива в настройках файл сохраняется в неё БЕЗ
+    /// диалога; иначе — папка цепочки (совместимость), затем диалог с начальным каталогом.
+    /// Раздельна с цепочкой (issue #352, 0.3.12.6): «что для полной версии, что для цепочки».</summary>
     private string? ResolveSavePath(string fileName)
     {
-        var settingsFolder = _repository.LoadSettings().UpdateChainFolder;
-        var direct = UpdateChainDownloadPlanner.ResolveSaveTarget(settingsFolder, fileName);
+        var settings = _repository.LoadSettings();
+        var direct = UpdateChainDownloadPlanner.ResolveSaveTarget(
+            PickDistributionFolder(settings), fileName);
         if (!string.IsNullOrWhiteSpace(direct))
             return direct;
 
         return AskSavePath(fileName);
     }
 
+    /// <summary>Папка одиночного дистрибутива: отдельная настройка, при пустоте — папка цепочки.</summary>
+    private static string PickDistributionFolder(AppSettings settings)
+        => !string.IsNullOrWhiteSpace(settings.UpdateDistributionFolder)
+            ? settings.UpdateDistributionFolder
+            : settings.UpdateChainFolder;
+
     /// <summary>Диалог сохранения с фильтром известных расширений дистрибутивов;
-    /// начальный каталог — сохранённая папка цепочки (issue #352.2), иначе профиль.</summary>
+    /// начальный каталог — сохранённая папка одиночного дистрибутива (issue #352), иначе профиль.</summary>
     private string? AskSavePath(string fileName)
     {
-        var settingsFolder = _repository.LoadSettings().UpdateChainFolder;
-        return _dialogs.SaveFileDialog(
+        var settings = _repository.LoadSettings();
+        var initial = UpdateChainDownloadPlanner.GetChainInitialFolder(PickDistributionFolder(settings));
+        var path = _dialogs.SaveFileDialog(
             LocalizationManager.T("Updates.Download"),
             fileName,
             "Архивы (*.zip;*.rar;*.7z)|*.zip;*.rar;*.7z|Файлы 1С (*.cf;*.cfu)|*.cf;*.cfu|Все файлы (*.*)|*.*",
-            UpdateChainDownloadPlanner.GetChainInitialFolder(settingsFolder));
+            initial);
+        // issue #352 (0.3.12.6): запоминаем папку одиночного дистрибута (раздельно с цепочкой).
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(dir))
+                SaveDistributionFolder(dir);
+        }
+        return path;
+    }
+
+    /// <summary>Сохраняет папку одиночного дистрибутива в настройки (пустая папка не пишется).</summary>
+    private void SaveDistributionFolder(string folder)
+    {
+        try
+        {
+            var settings = _repository.LoadSettings();
+            settings.UpdateDistributionFolder = folder;
+            _repository.SaveSettings(settings);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn("Не удалось сохранить папку одиночного дистрибутива: " + ex.Message);
+        }
     }
 
     /// <summary>
@@ -891,19 +970,13 @@ public partial class UpdateCheckWindow : Window
         return (failed, total);
     }
 
-    /// <summary>Имя сохранения: «<Имя>_<версия><расширение>»; расширение берётся из
-    /// выбранного файла релиза (issue #352.1: .cf вместо фиксированного .zip).</summary>
+    /// <summary>Имя сохранения (issue #352, 0.3.12.6): «<Имя>_<версия>_<оригинальноеИмя>» —
+    /// оригинал файла дистрибутива (как у скачивания платформы) сохраняется в имени, чтобы
+    /// «полный дистрибутив» и «дистрибутив обновления» различались и не перезаписывали друг друга.
+    /// Без варианта (fallback по цепочке) — прежнее «<Имя>_<версия><расширение>».</summary>
     private static string BuildDownloadFileName(UpdateCheckRowViewModel row, UpdateFileChoice? choice)
-    {
-        var baseName = SanitizeFileName(row.Name);
-        var latest = string.IsNullOrWhiteSpace(row.LatestVersion) ? "update" : row.LatestVersion;
-        var extension = choice is not null && !string.IsNullOrWhiteSpace(choice.FileName)
-            ? Path.GetExtension(choice.FileName)
-            : string.Empty;
-        if (string.IsNullOrWhiteSpace(extension))
-            extension = ".zip";
-        return $"{baseName}_{latest}{extension}";
-    }
+        => Services.UpdateDownloadNaming.BuildDownloadFileName(
+            row.Name, row.LatestVersion, choice?.FileName, SanitizeFileName);
 
     // ===================== Папка цепочки обновлений (issue #352.2) =====================
 
