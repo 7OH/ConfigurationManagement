@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Input;
 using Configuration_Management.Localization;
+using Configuration_Management.Models;
 
 namespace Configuration_Management.ViewModels;
 
@@ -57,6 +58,105 @@ public partial class MainViewModel
         _cancelDownloadsCommand ??= new RelayCommand(
             () => Services.BackgroundDownloadManager.Default.CancelAll(),
             () => HasActiveDownloads);
+
+    /// <summary>Пункт выбора окна для активной фоновой загрузки (issue #359).</summary>
+    /// <param name="Id">Идентификатор записи менеджера загрузок.</param>
+    /// <param name="Title">Название скачиваемого файла.</param>
+    /// <param name="Progress">Прогресс 0..1.</param>
+    /// <param name="WindowKey">Ключ целевого окна (для группировки одинаковых окон).</param>
+    /// <param name="WindowLabel">Подпись целевого окна (локализована).</param>
+    public sealed record DownloadChoice(string Id, string Title, double Progress, string WindowKey, string WindowLabel);
+
+    /// <summary>Активные фоновые загрузки с привязкой к целевым окнам (issue #359).</summary>
+    public IReadOnlyList<DownloadChoice> DownloadChoices => BuildDownloadChoices();
+
+    /// <summary>
+    /// True — активные загрузки идут из разных окон: клик по индикатору показывает
+    /// выбор окна, а не открывает одно наугад (issue #359).
+    /// </summary>
+    public bool ShouldShowDownloadPicker =>
+        BuildDownloadChoices().Select(c => c.WindowKey).Distinct(StringComparer.Ordinal).Count() > 1;
+
+    /// <summary>Открывает окно первой активной загрузки; загрузок нет — окно скачивания платформы.</summary>
+    public void OpenFirstDownloadWindow()
+    {
+        var choices = BuildDownloadChoices();
+        if (choices.Count > 0)
+            OpenWindowForDownload(choices[0].Id);
+        else
+            ShowPlatformDownloadCommand.Execute(null);
+    }
+
+    /// <summary>Открывает окно, соответствующее активной загрузке с указанным id (issue #359).</summary>
+    public void OpenWindowForDownload(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return;
+
+        if (id.StartsWith("platform-update:", StringComparison.Ordinal))
+        {
+            ShowPlatformUpdateCommand.Execute(null);
+            return;
+        }
+        if (id.StartsWith("platform:", StringComparison.Ordinal))
+        {
+            ShowPlatformDownloadCommand.Execute(null);
+            return;
+        }
+
+        // update:{имя}:{файл} | chain:{имя} — окно проверки обновлений для этой ИБ.
+        var infobase = Infobases.FirstOrDefault(x =>
+            string.Equals(x.Name, ExtractDownloadBaseName(id), StringComparison.OrdinalIgnoreCase));
+        if (infobase is not null)
+            OpenUpdateCheckWindowFor(infobase);
+    }
+
+    /// <summary>Имя ИБ из id записи update:{имя}:{файл} / chain:{имя} (для platform: — хвост id).</summary>
+    private static string ExtractDownloadBaseName(string id)
+    {
+        var sep = id.IndexOf(':');
+        if (sep < 0 || sep == id.Length - 1)
+            return string.Empty;
+        var rest = id[(sep + 1)..];
+        if (!id.StartsWith("update:", StringComparison.Ordinal))
+            return rest;
+        var cut = rest.LastIndexOf(':');
+        return cut >= 0 ? rest[..cut] : rest;
+    }
+
+    /// <summary>Ключ группировки и локализованная подпись целевого окна для id записи (issue #359).</summary>
+    private (string Key, string Label) DescribeDownloadWindow(string id)
+    {
+        if (id.StartsWith("platform-update:", StringComparison.Ordinal))
+            return ("platform-update", LocalizationManager.T("PlatformUpdate.WindowTitle"));
+        if (id.StartsWith("platform:", StringComparison.Ordinal))
+            return ("platform", LocalizationManager.T("PlatformDownload.WindowTitle"));
+
+        var name = ExtractDownloadBaseName(id);
+        var checkTitle = LocalizationManager.T("Updates.CheckTitle");
+        var label = string.IsNullOrEmpty(name)
+            ? checkTitle
+            : string.Format("{0} — {1}", checkTitle, name);
+        return ("update-check:" + name, label);
+    }
+
+    /// <summary>Снимок активных загрузок менеджера в виде пунктов выбора окон.</summary>
+    private IReadOnlyList<DownloadChoice> BuildDownloadChoices()
+    {
+        var active = Services.BackgroundDownloadManager.Default.Snapshot()
+            .Where(d => d.IsActive)
+            .ToList();
+        var choices = new List<DownloadChoice>(active.Count);
+        foreach (var d in active)
+        {
+            var (key, label) = DescribeDownloadWindow(d.Id);
+            choices.Add(new DownloadChoice(d.Id, d.Title, d.Progress, key, label));
+        }
+        return choices;
+    }
+
+    /// <summary>Открывает окно проверки обновлений для указанной ИБ (реализация — в платформенной части VM).</summary>
+    partial void OpenUpdateCheckWindowFor(Infobase infobase);
 
     /// <summary>Подписка на менеджер фоновых загрузок (вызывается из конструктора).</summary>
     private void InitializeBackgroundDownloadsIndicator()

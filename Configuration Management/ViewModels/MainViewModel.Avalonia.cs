@@ -401,6 +401,10 @@ public partial class MainViewModel : ViewModelBase
         // Кэш пользовательских действий контекстного меню (функция 7): загружается при
         // старте, перечитывается после окна настроек (ReloadCustomActions).
         ReloadCustomActions();
+
+        // Индикатор фоновых загрузок (issue #334, #360, #359): подписка на общий
+        // менеджер загрузок, как в конструкторе MainViewModel.WPF.
+        InitializeBackgroundDownloadsIndicator();
     }
 
     // ======================= Коллекции =======================

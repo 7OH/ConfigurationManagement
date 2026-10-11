@@ -1124,6 +1124,54 @@ namespace Configuration_Management
                 // Не критично — индикатор останется в текущем состоянии.
             }
         }
+
+        /// <summary>
+        /// Клик по тексту индикатора фоновых загрузок (issue #359): если активные загрузки
+        /// идут из разных окон — небольшое всплывающее меню выбора окна над индикатором,
+        /// иначе сразу открывается окно этой загрузки (без случайного выбора).
+        /// </summary>
+        private void OnDownloadsIndicatorClick(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel is null || sender is not System.Windows.Controls.Button btn)
+                return;
+
+            if (!_viewModel.ShouldShowDownloadPicker)
+            {
+                _viewModel.OpenFirstDownloadWindow();
+                return;
+            }
+
+            var menu = new ContextMenu
+            {
+                Style = TryFindResource("ModernContextMenu") as Style,
+                PlacementTarget = btn,
+                // Меню раскрывается ВЫШЕ индикатора: он в нижней строке состояния (issue #359).
+                Placement = PlacementMode.Top,
+                DataContext = DataContext,
+            };
+            foreach (var choice in _viewModel.DownloadChoices)
+            {
+                var item = new MenuItem
+                {
+                    Header = string.Format("{0}: {1} ({2:P0})", choice.WindowLabel, choice.Title, choice.Progress),
+                    Style = TryFindResource("ModernMenuItem") as Style,
+                };
+                var id = choice.Id;
+                item.Click += (_, _) => _viewModel.OpenWindowForDownload(id);
+                menu.Items.Add(item);
+            }
+            if (menu.Items.Count == 0)
+            {
+                _viewModel.OpenFirstDownloadWindow();
+                return;
+            }
+
+            // Отложенное открытие (DispatcherPriority.Input), как в OnUtilitiesMenuButton_Click
+            // (issue #282): меню успевает измерить и отрисовать пункты.
+            Dispatcher.BeginInvoke(
+                new Action(() => menu.IsOpen = true),
+                System.Windows.Threading.DispatcherPriority.Input);
+        }
     }
 }
 #endif

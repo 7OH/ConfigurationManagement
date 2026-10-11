@@ -9,6 +9,35 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.12.5] — 2026-10-11
+
+### Исправлено (issue #359)
+
+- **Клик по тексту индикатора фоновых загрузок главного окна выбирает нужное окно**
+  (Windows/WPF и Linux/Avalonia): если активные скачивания идут из разных окон
+  (например, дистрибутив платформы + цепочка обновлений другой ИБ), над индикатором
+  всплывает небольшое меню выбора — «окно: файл (45 %)», пункт открывает
+  соответствующее окно. Если качается что-то одно — окно открывается сразу,
+  без случайного выбора (раньше клик всегда открывал окно скачивания платформы):
+  - `platform:` → окно «Скачивание версии платформы 1С»;
+  - `platform-update:` → окно «Обновление платформы 1С»;
+  - `update:`/`chain:` → окно «Проверка обновлений» соответствующей ИБ
+    ([`MainViewModel.Downloads.cs`](Configuration%20Management/ViewModels/MainViewModel.Downloads.cs),
+    [`MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml),
+    [`MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs)).
+- **Индикатор фоновых загрузок заработал на Linux**: общий partial-файл
+  `MainViewModel.Downloads.cs` не подключался к Linux-сборке (и подписка на
+  менеджер загрузок там не выполнялась) — панель индикатора в Avalonia оставалась
+  скрытой, хотя UI её собирался. Файл подключён к Linux-сборке, подписка добавлена
+  в конструктор `MainViewModel` (Avalonia), как в WPF
+  ([`Configuration Management.csproj`](Configuration%20Management/Configuration%20Management.csproj),
+    [`MainViewModel.Avalonia.cs`](Configuration%20Management/ViewModels/MainViewModel.Avalonia.cs)).
+
+### Тесты
+
+Полный набор `dotnet test` зелёный (**2298**); сборка решения (`dotnet build`) и
+кросс-сборка Linux (`dotnet build -p:ForceLinux=true`) без ошибок.
+
 ## [0.3.12.4] — 2026-10-11
 
 ### Добавлено (issue #360)

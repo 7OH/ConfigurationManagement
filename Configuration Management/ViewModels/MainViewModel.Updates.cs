@@ -82,6 +82,20 @@ public partial class MainViewModel
             System.Windows.Threading.DispatcherPriority.Input);
     }
 
+    /// <summary>
+    /// Открывает окно проверки обновлений для указанной ИБ (issue #359): выбор окна
+    /// из индикатора фоновых загрузок главного окна. Та же модальность и отложенность,
+    /// что и в ExecuteCheckUpdate (issue #288).
+    /// </summary>
+    partial void OpenUpdateCheckWindowFor(Infobase infobase)
+    {
+        var win = new Configuration_Management.UpdateCheckWindow(infobase);
+        win.Owner = Application.Current.MainWindow;
+        Application.Current.Dispatcher.BeginInvoke(
+            new Action(() => win.ShowDialog()),
+            System.Windows.Threading.DispatcherPriority.Input);
+    }
+
     /// <summary>Открывает окно «Актуальные релизы» (ALT+F9).</summary>
     private void ExecuteShowActualReleases()
     {

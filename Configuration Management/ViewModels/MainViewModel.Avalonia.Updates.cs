@@ -41,6 +41,17 @@ public partial class MainViewModel
         win.ShowSync(OwnerWindow());
     }
 
+    /// <summary>
+    /// Открывает окно проверки обновлений для указанной ИБ (issue #359): выбор окна
+    /// из индикатора фоновых загрузок главного окна. Та же модальная показ, что и в
+    /// ExecuteCheckUpdate.
+    /// </summary>
+    partial void OpenUpdateCheckWindowFor(Infobase infobase)
+    {
+        var win = new Configuration_Management.UpdateCheckWindow(infobase);
+        win.ShowSync(OwnerWindow());
+    }
+
     /// <summary>Открывает окно «Актуальные релизы» (ALT+F9).</summary>
     private void ExecuteShowActualReleases()
     {

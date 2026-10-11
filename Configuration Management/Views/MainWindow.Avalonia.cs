@@ -2047,11 +2047,15 @@ namespace Configuration_Management
                 FontSize = 12,
                 MaxWidth = 360,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = new Cursor(StandardCursorType.Hand)
             };
             ThemeBrushes.Bind(downloadsText, TextBlock.ForegroundProperty, "TextOnAccentBrush");
             downloadsText.Bind(TextBlock.TextProperty, new Binding("DownloadsStatusText"));
             downloadsText.Bind(ToolTip.TipProperty, new Binding("DownloadsStatusText"));
+            // Клик по тексту (паритет с разметкой WPF, issue #359): при загрузках из разных
+            // окон — всплывающий выбор окна над индикатором, иначе — окно этой загрузки.
+            downloadsText.PointerReleased += (_, _) => ShowDownloadsPicker(downloadsText);
             downloadsPanel.Children.Add(downloadsText);
 
             var downloadsBar = new ProgressBar
@@ -2092,6 +2096,46 @@ namespace Configuration_Management
             var bar = new Border { Child = grid, Name = "StatusBarBorder", Padding = new Thickness(12, 6) };
             ThemeBrushes.Bind(bar, Border.BackgroundProperty, "SidebarBrush");
             return bar;
+        }
+
+        /// <summary>
+        /// Клик по тексту индикатора фоновых загрузок (issue #359): если активные загрузки
+        /// идут из разных окон — небольшое всплывающее меню выбора окна над индикатором,
+        /// иначе сразу открывается окно этой загрузки (без случайного выбора).
+        /// </summary>
+        private void ShowDownloadsPicker(TextBlock anchor)
+        {
+            if (_vm is null)
+                return;
+
+            if (!_vm.ShouldShowDownloadPicker)
+            {
+                _vm.OpenFirstDownloadWindow();
+                return;
+            }
+
+            var menu = new ContextMenu().Styled(Themes.ControlThemes.ModernContextMenu);
+            foreach (var choice in _vm.DownloadChoices)
+            {
+                var item = new MenuItem
+                {
+                    Header = string.Format("{0}: {1} ({2:P0})", choice.WindowLabel, choice.Title, choice.Progress),
+                };
+                item.Styled(Themes.ControlThemes.ModernMenuItem);
+                var id = choice.Id;
+                item.Click += (_, _) => _vm.OpenWindowForDownload(id);
+                menu.Items.Add(item);
+            }
+            if (menu.ItemCount == 0)
+            {
+                _vm.OpenFirstDownloadWindow();
+                return;
+            }
+
+            // Меню раскрывается ВЫШЕ индикатора: он в нижней строке состояния (issue #359).
+            menu.PlacementTarget = anchor;
+            menu.Placement = PlacementMode.Top;
+            menu.Open(anchor);
         }
 
         /// <summary>

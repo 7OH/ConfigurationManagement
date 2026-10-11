@@ -3398,10 +3398,12 @@
                 </Button>
                 <!-- Индикатор фоновых загрузок (issue #334 п.1): скачивание платформы
                      и цепочек продолжается после закрытия окон; здесь — текст статуса
-                     и кнопка отмены. Клик по тексту открывает окно скачивания платформы. -->
+                     и кнопка отмены. Клик по тексту: если качаются файлы из разных
+                     окон — выбор нужного окна (ContextMenu над индикатором, issue #359),
+                     иначе сразу открывается окно этой загрузки. -->
                 <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"
                             Visibility="{Binding HasActiveDownloads, Converter={StaticResource BoolToVis}}">
-                    <Button Command="{Binding ShowPlatformDownloadCommand}"
+                    <Button Click="OnDownloadsIndicatorClick"
                             Style="{x:Null}" Background="Transparent" BorderThickness="0"
                             Cursor="Hand" Padding="0" VerticalAlignment="Center"
                             ToolTip="{Binding DownloadsStatusText}">

@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.12.4</Version>
-    <AssemblyVersion>0.3.12.4</AssemblyVersion>
-    <FileVersion>0.3.12.4</FileVersion>
-    <InformationalVersion>0.3.12.4</InformationalVersion>
+    <Version>0.3.12.5</Version>
+    <AssemblyVersion>0.3.12.5</AssemblyVersion>
+    <FileVersion>0.3.12.5</FileVersion>
+    <InformationalVersion>0.3.12.5</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -368,6 +368,10 @@
     <!-- Список учётных записей ИТС в MainViewModel (issue #333): общий partial-файл
          обеих платформ; подключается явно по той же причине. -->
     <Compile Include="ViewModels\MainViewModel.ItsAccounts.cs" />
+    <!-- Индикатор фоновых загрузок в MainViewModel (issue #334/#360/#359): общий
+         partial-файл обеих платформ (без WPF-зависимостей); подключается явно
+         (имя не совпадает с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\MainViewModel.Downloads.cs" />
     <!-- ViewModel и строка окна «Обновление платформы 1С» (0.3.9.213, функция 9): чистый
          .NET без WPF-зависимостей, используются обеими платформами — на Linux подключаются
          явно (имена не совпадают с глобом *.Avalonia.cs); WPF-окно собирается #if WINDOWS. -->
