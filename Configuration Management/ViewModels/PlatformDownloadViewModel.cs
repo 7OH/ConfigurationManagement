@@ -67,6 +67,8 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
     private PlatformDownloadRowViewModel? _selectedRelease;
     private bool _isBusy;
     private double _progress;
+    private string _etaText = string.Empty;
+    private Services.DownloadEtaTracker? _etaTracker;
     private bool _is64Bit;
     private PlatformDownloadType _downloadType;
     private IReadOnlyList<PlatformDownloadType> _availableDownloadTypes = new[] { PlatformDownloadType.Auto };
@@ -195,6 +197,14 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
     {
         get => _progress;
         set => SetProperty(ref _progress, Math.Clamp(value, 0, 1));
+    }
+
+    /// <summary>Оценка оставшегося времени загрузки (issue #360): «16:13» / «2:15:18»;
+    /// пусто — данных ещё мало или загрузка завершена.</summary>
+    public string EtaText
+    {
+        get => _etaText;
+        private set => SetProperty(ref _etaText, value);
     }
 
     /// <summary>True — целевая разрядность x64; false — x86.</summary>
@@ -655,6 +665,9 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
 
         IsBusy = true;
         Progress = 0;
+        // issue #360: оценка оставшегося времени рядом с полосой прогресса.
+        _etaTracker = new Services.DownloadEtaTracker();
+        EtaText = string.Empty;
         DownloadedPath = string.Empty;
         ResultText = string.Empty;
         var picked = PickedFile!;
@@ -693,6 +706,7 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
 
             var progress = new Progress<double>(v =>
             {
+                UpdateEta(v);
                 Progress = v;
                 OnPropertyChanged(nameof(LogText));
                 if (downloadId is not null)
@@ -753,7 +767,20 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+            // issue #360: оценка оставшегося времени актуальна только во время загрузки.
+            EtaText = string.Empty;
         }
+    }
+
+    /// <summary>Обновляет оценку оставшегося времени (issue #360) по отчёту прогресса.</summary>
+    private void UpdateEta(double progress)
+    {
+        if (_etaTracker is null)
+            return;
+        _etaTracker.Update(progress);
+        EtaText = _etaTracker.EstimatedRemaining is { } eta && eta > TimeSpan.Zero
+            ? Services.DownloadEta.Format(eta)
+            : string.Empty;
     }
 
     /// <summary>Открывает папку со скачанным файлом (проводник/файловый менеджер).</summary>

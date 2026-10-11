@@ -9,6 +9,45 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.12.4] — 2026-10-11
+
+### Добавлено (issue #360)
+
+- **Оценка оставшегося времени загрузок — у полос прогресса** (Windows/WPF
+  и Linux/Avalonia): рядом с полосой показывается, сколько осталось до окончания
+  — «00:25»/«16:13» (mm:ss) до часа, «2:15:18» (h:mm:ss) свыше часа. Оценка
+  появляется после первых секунд загрузки (пока данных мало — просто проценты),
+  сглаживается по скорости отчётов прогресса:
+  - **индикатор фоновых загрузок главного окна** — время рядом с агрегированной
+    полосой; для нескольких одновременных загрузок показывается максимальная
+    оценка (когда завершатся все) ([`MainViewModel.Downloads.cs`](Configuration%20Management/ViewModels/MainViewModel.Downloads.cs),
+    [`MainWindow.xaml`](Configuration%20Management/Views/MainWindow.xaml),
+    [`MainWindow.Avalonia.cs`](Configuration%20Management/Views/MainWindow.Avalonia.cs));
+  - **окно проверки обновлений** — одиночное скачивание («45 % · 16:13») и
+    загрузка цепочки обновлений (оценка агрегированного прогресса цепочки)
+    ([`UpdateCheckWindow.xaml.cs`](Configuration%20Management/Views/UpdateCheckWindow.xaml.cs),
+    [`UpdateCheckWindow.Avalonia.cs`](Configuration%20Management/Views/UpdateCheckWindow.Avalonia.cs));
+  - **окно «Скачивание версии платформы 1С»** — время после процентов
+    ([`PlatformDownloadViewModel.cs`](Configuration%20Management/ViewModels/PlatformDownloadViewModel.cs));
+  - **окно «Обновление платформы 1С»** — время под общей полосой прогресса
+    ([`PlatformUpdateViewModel.cs`](Configuration%20Management/ViewModels/PlatformUpdateViewModel.cs)).
+- **`Services/DownloadEta.cs`** — форматирование оценки (`Format`, `AppendSuffix`,
+  `FormatMax`) и трекер `DownloadEtaTracker` (сглаженная скорость, порог показа
+  2 с, часы инжектируются — тесты детерминированы). Менеджер фоновых загрузок
+  обогащает записи: `ActiveDownload.EstimatedRemaining` обновляется в
+  `ReportProgress`, сбрасывается при `Complete` (0) / `Fail` / `Cancel`
+  ([`BackgroundDownloadManager.cs`](Configuration%20Management/Services/BackgroundDownloadManager.cs)).
+
+### Тесты
+
+Полный набор `dotnet test` зелёный (**2298**); сборка решения (`dotnet build`) и
+кросс-сборка Linux (`dotnet build -p:ForceLinux=true`) без ошибок. Новые:
+[`DownloadEtaTests`](ConfigurationManagement.Tests/DownloadEtaTests.cs) (+13: форматирование
+mm:ss/h:mm:ss, суффикс, максимум по набору, порог показа, расчёт по стабильной
+скорости, ноль на 100%) и в
+[`BackgroundDownloadManagerTests`](ConfigurationManagement.Tests/BackgroundDownloadManagerTests.cs) (+3:
+ETA по инжектированным часам, сброс в `Complete`/`Fail`/`Cancel`).
+
 ## [0.3.12.3] — 2026-10-10
 
 ### Исправлено (issue #324)

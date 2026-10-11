@@ -3414,6 +3414,11 @@
                                  Foreground="{DynamicResource AccentBrush}"
                                  Background="#22000000"
                                  VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    <!-- Оценка оставшегося времени (issue #360): «16:13» / «2:15:18»;
+                         пусто, пока данных недостаточно. -->
+                    <TextBlock Text="{Binding DownloadsEtaText}" FontSize="12"
+                               Foreground="{DynamicResource TextOnAccentBrush}"
+                               VerticalAlignment="Center" Margin="6,0,0,0"/>
                     <Button Command="{Binding CancelDownloadsCommand}"
                             Style="{DynamicResource StatusBarIconButton}"
                             Margin="4,0,0,0"

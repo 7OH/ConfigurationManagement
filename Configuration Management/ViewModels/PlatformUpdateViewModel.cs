@@ -90,6 +90,8 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
     private IReadOnlyList<PlatformRelease> _availableReleases = new List<PlatformRelease>();
     private bool _isBusy;
     private double _progress;
+    private string _etaText = string.Empty;
+    private Services.DownloadEtaTracker? _etaTracker;
     private PlatformUpdateRowViewModel? _selectedRow;
     private bool _installHadWarnings;
 
@@ -112,6 +114,14 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
     {
         get => _progress;
         set => SetProperty(ref _progress, Math.Clamp(value, 0, 1));
+    }
+
+    /// <summary>Оценка оставшегося времени скачивания (issue #360): «16:13» / «2:15:18»;
+    /// пусто — данных ещё мало или загрузка завершена.</summary>
+    public string EtaText
+    {
+        get => _etaText;
+        private set => SetProperty(ref _etaText, value);
     }
 
     /// <summary>Текст журнала операции (строки добавляются через <see cref="AppendLog"/>).</summary>
@@ -398,8 +408,12 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
                 : _backgroundDownloads.Start($"platform-update:{row.Version}:{picked.FileName}", picked.FileName);
             var downloadCancellationToken = entry?.Cancellation.Token ?? CancellationToken.None;
             var downloadId = entry?.Id;
+            // issue #360: оценка оставшегося времени скачивания.
+            _etaTracker = new Services.DownloadEtaTracker();
+            EtaText = string.Empty;
             var progress = new Progress<double>(v =>
             {
+                UpdateEta(v);
                 row.Progress = v;
                 Progress = v;
                 if (downloadId is not null)
@@ -445,6 +459,8 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
 
             row.Progress = 1;
             Progress = 1;
+            // issue #360: оценка актуальна только во время скачивания.
+            EtaText = string.Empty;
             // issue #334: фактический размер скачанного файла — в журнал окна и файловый журнал.
             LogDownloadedSize(downloaded);
 
@@ -579,8 +595,12 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
             entry = downloadId is null ? null : _backgroundDownloads!.Start(downloadId, picked.FileName);
             var downloadCancellationToken = entry?.Cancellation.Token ?? CancellationToken.None;
 
+            // issue #360: оценка оставшегося времени скачивания.
+            _etaTracker = new Services.DownloadEtaTracker();
+            EtaText = string.Empty;
             var progress = new Progress<double>(v =>
             {
+                UpdateEta(v);
                 row.Progress = v;
                 Progress = v;
                 if (downloadId is not null)
@@ -608,6 +628,8 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
 
             row.Progress = 1;
             Progress = 1;
+            // issue #360: оценка актуальна только во время скачивания.
+            EtaText = string.Empty;
             // issue #334: фактический размер скачанного файла — в журнал окна и файловый журнал.
             LogDownloadedSize(saved);
             AppendLog(string.Format(LocalizationManager.T("PlatformUpdate.Progress.Done"), targetPath));
@@ -1163,6 +1185,17 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
             summary,
             NotificationKind.Error,
             NotificationEvent.Update);
+    }
+
+    /// <summary>Обновляет оценку оставшегося времени скачивания (issue #360) по отчёту прогресса.</summary>
+    private void UpdateEta(double progress)
+    {
+        if (_etaTracker is null)
+            return;
+        _etaTracker.Update(progress);
+        EtaText = _etaTracker.EstimatedRemaining is { } eta && eta > TimeSpan.Zero
+            ? Services.DownloadEta.Format(eta)
+            : string.Empty;
     }
 
     /// <summary>Обновляет доступность всех команд после изменения состояния.</summary>

@@ -365,14 +365,29 @@ namespace Configuration_Management
             progressPanel.Children.Add(progressBar);
             var progressText = new TextBlock
             {
-                Margin = new Thickness(10, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 FontSize = 11
             };
             progressText.Bind(TextBlock.TextProperty,
                 new Avalonia.Data.Binding(nameof(PlatformDownloadViewModel.Progress)) { Source = _viewModel, StringFormat = "{0:P0}" });
-            Grid.SetColumn(progressText, 1);
-            progressPanel.Children.Add(progressText);
+            // Оценка оставшегося времени (issue #360): «16:13» / «2:15:18».
+            var etaText = new TextBlock
+            {
+                Margin = new Thickness(6, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 11
+            };
+            etaText.Bind(TextBlock.TextProperty,
+                new Avalonia.Data.Binding(nameof(PlatformDownloadViewModel.EtaText)) { Source = _viewModel });
+            var progressLabels = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(10, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { progressText, etaText }
+            };
+            Grid.SetColumn(progressLabels, 1);
+            progressPanel.Children.Add(progressLabels);
             rightPanel.Children.Add(progressPanel);
 
             right.Content = rightPanel;

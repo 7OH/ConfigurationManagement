@@ -2066,6 +2066,18 @@ namespace Configuration_Management
             downloadsBar.Bind(ProgressBar.ValueProperty, new Binding("ActiveDownloadsProgress"));
             downloadsPanel.Children.Add(downloadsBar);
 
+            // Оценка оставшегося времени (issue #360): «16:13» / «2:15:18» рядом
+            // с полосой прогресса; пусто, пока данных недостаточно.
+            var downloadsEtaText = new TextBlock
+            {
+                FontSize = 12,
+                Margin = new Thickness(6, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ThemeBrushes.Bind(downloadsEtaText, TextBlock.ForegroundProperty, "TextOnAccentBrush");
+            downloadsEtaText.Bind(TextBlock.TextProperty, new Binding("DownloadsEtaText"));
+            downloadsPanel.Children.Add(downloadsEtaText);
+
             var cancelDownloadsBtn = StatusBarIconButton("IconClose");
             ToolTip.SetTip(cancelDownloadsBtn, LocalizationManager.T("Main.Downloads.Cancel"));
             cancelDownloadsBtn.Bind(Button.CommandProperty, new Binding("CancelDownloadsCommand"));

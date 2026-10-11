@@ -293,14 +293,20 @@
                         </Grid.ColumnDefinitions>
                         <ProgressBar Grid.Column="0" Height="6" Minimum="0" Maximum="1" Value="{Binding Progress}"
                                      Foreground="{DynamicResource AccentBrush}"/>
-                        <TextBlock Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="11"
-                                   Foreground="{DynamicResource TextSecondaryBrush}">
-                            <TextBlock.Text>
-                                <MultiBinding StringFormat="{}{0:P0}">
-                                    <Binding Path="Progress"/>
-                                </MultiBinding>
-                            </TextBlock.Text>
-                        </TextBlock>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0"
+                                    VerticalAlignment="Center">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="{}{0:P0}">
+                                        <Binding Path="Progress"/>
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                            <!-- Оценка оставшегося времени (issue #360): «16:13» / «2:15:18». -->
+                            <TextBlock FontSize="11" Margin="6,0,0,0"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="{Binding EtaText, Mode=OneWay}"/>
+                        </StackPanel>
                     </Grid>
                 </StackPanel>
             </ScrollViewer>

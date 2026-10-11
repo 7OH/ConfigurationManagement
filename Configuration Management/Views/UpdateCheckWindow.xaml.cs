@@ -32,6 +32,9 @@ public partial class UpdateCheckWindow : Window
     private readonly UpdateCheckRowViewModel _row;
     private CancellationTokenSource? _cts;
 
+    /// <summary>Оценщик оставшегося времени одиночного скачивания (issue #360).</summary>
+    private Services.DownloadEtaTracker? _singleDownloadEta;
+
     /// <summary>Активна ли ссылка каталога релизов (валидный http/https-адрес, issue #323).</summary>
     private bool _urlLinkEnabled;
 
@@ -330,7 +333,10 @@ public partial class UpdateCheckWindow : Window
         if (_row.IsDownloading)
         {
             ProgressPanel.Visibility = Visibility.Visible;
-            ProgressText.Text = $"{Math.Round(_row.Progress * 100, 0):0} %";
+            var percent = $"{Math.Round(_row.Progress * 100, 0):0} %";
+            // issue #360: «45 % · 16:13» — оценка оставшегося времени рядом с процентами.
+            ProgressText.Text = Services.DownloadEta.AppendSuffix(
+                percent, _singleDownloadEta?.EstimatedRemaining);
         }
         else
         {
@@ -475,8 +481,12 @@ public partial class UpdateCheckWindow : Window
         var downloadId = $"update:{row.Name}:{fileName}";
         var entry = Services.BackgroundDownloadManager.Default.Start(downloadId, fileName);
 
+        // issue #360: оценка оставшегося времени — обновляется ДО присваивания
+        // row.Progress: PropertyChanged синхронный, текст успевает увидеть новую оценку.
+        _singleDownloadEta = new Services.DownloadEtaTracker();
         var progress = new Progress<double>(v =>
         {
+            _singleDownloadEta.Update(v);
             row.Progress = Math.Clamp(v, 0, 1);
             Services.BackgroundDownloadManager.Default.ReportProgress(downloadId, row.Progress);
         });
@@ -821,6 +831,9 @@ public partial class UpdateCheckWindow : Window
         var ok = 0;
         var failed = 0;
 
+        // issue #360: единый оценщик на всю попытку — ETA агрегированного прогресса цепочки.
+        var chainEta = new Services.DownloadEtaTracker();
+
         for (var n = 0; n < total; n++)
         {
             var i = pending[n];
@@ -828,14 +841,19 @@ public partial class UpdateCheckWindow : Window
             var url = OneCUpdatesService.ToAbsoluteVersionFilesUrl(step.VersionFilesUrl, _row.Url);
             var targetPath = targetPaths[i];
 
-            _row.ChainProgressText = string.Format(
+            var baseText = string.Format(
                 LocalizationManager.T("Updates.Chain.DownloadProgress"), n + 1, total, step.Version);
+            _row.ChainProgressText = baseText;
             _row.ChainProgress = (double)n / total;
 
             var progress = new Progress<double>(p =>
             {
-                _row.ChainProgress = Math.Clamp((n + p) / total, 0, 1);
-                Services.BackgroundDownloadManager.Default.ReportProgress(chainId, _row.ChainProgress);
+                var aggregate = Math.Clamp((n + p) / total, 0, 1);
+                chainEta.Update(aggregate);
+                _row.ChainProgress = aggregate;
+                Services.BackgroundDownloadManager.Default.ReportProgress(chainId, aggregate);
+                _row.ChainProgressText = Services.DownloadEta.AppendSuffix(
+                    baseText, chainEta.EstimatedRemaining);
             });
             var saved = await Task.Run(() =>
                 _updates.DownloadUpdateAsync(url, targetPath, progress, downloadToken));

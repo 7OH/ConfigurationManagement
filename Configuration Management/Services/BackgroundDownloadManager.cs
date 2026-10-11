@@ -50,19 +50,27 @@ public sealed class BackgroundDownloadManager
         /// <summary>Ключ локализации ошибки (для состояния Failed) или null.</summary>
         public string? ErrorKey { get; internal set; }
 
+        /// <summary>Оценка оставшегося времени (issue #360): обновляется при каждом
+        /// отчёте прогресса; null — данных ещё мало.</summary>
+        public TimeSpan? EstimatedRemaining { get; internal set; }
+
         /// <summary>Источник отмены: отмена из индикатора главного окна пробрасывается
         /// в выполняющуюся загрузку через этот токен.</summary>
         public CancellationTokenSource Cancellation { get; } = new();
 
+        /// <summary>Оценщик оставшегося времени (см. <see cref="EstimatedRemaining"/>).</summary>
+        internal DownloadEtaTracker Eta { get; }
+
         /// <summary>True — загрузка ещё выполняется.</summary>
         public bool IsActive => State == BackgroundDownloadState.Active;
 
-        internal ActiveDownload(string id, string title)
+        internal ActiveDownload(string id, string title, Func<DateTime> utcNow)
         {
             Id = id;
             Title = title;
             State = BackgroundDownloadState.Active;
             Progress = 0;
+            Eta = new DownloadEtaTracker(utcNow);
         }
 
         /// <summary>Отображаемый текст (отладка/журналы).</summary>
@@ -81,10 +89,16 @@ public sealed class BackgroundDownloadManager
 
     private readonly object _lock = new();
     private readonly Dictionary<string, ActiveDownload> _downloads = new(StringComparer.Ordinal);
+    private readonly Func<DateTime> _utcNow;
 
     /// <summary>Общий экземпляр приложения: окна регистрируют загрузки в нём,
     /// главное окно подписывается на его события.</summary>
     public static BackgroundDownloadManager Default { get; } = new();
+
+    /// <summary>Часы для оценки оставшегося времени (issue #360) — инжектируются
+    /// в тестах; по умолчанию — реальное время.</summary>
+    internal BackgroundDownloadManager(Func<DateTime>? utcNow = null)
+        => _utcNow = utcNow ?? (static () => DateTime.UtcNow);
 
     /// <summary>Число активных (выполняющихся) загрузок.</summary>
     public int ActiveCount
@@ -117,7 +131,7 @@ public sealed class BackgroundDownloadManager
         {
             if (_downloads.TryGetValue(id, out var existing) && existing.IsActive)
                 return existing;
-            entry = new ActiveDownload(id, title ?? string.Empty);
+            entry = new ActiveDownload(id, title ?? string.Empty, _utcNow);
             _downloads[id] = entry;
         }
 
@@ -135,6 +149,7 @@ public sealed class BackgroundDownloadManager
             if (!_downloads.TryGetValue(id, out var entry) || !entry.IsActive)
                 return;
             entry.Progress = Math.Clamp(progress, 0, 1);
+            entry.EstimatedRemaining = entry.Eta.Update(entry.Progress);
         }
 
         RaiseChanged();
@@ -150,6 +165,7 @@ public sealed class BackgroundDownloadManager
                 return;
             entry.State = BackgroundDownloadState.Completed;
             entry.Progress = 1;
+            entry.EstimatedRemaining = TimeSpan.Zero;
         }
 
         RaiseChanged();
@@ -166,6 +182,7 @@ public sealed class BackgroundDownloadManager
                 return;
             entry.State = BackgroundDownloadState.Failed;
             entry.ErrorKey = errorKey;
+            entry.EstimatedRemaining = null;
         }
 
         RaiseChanged();
@@ -182,6 +199,7 @@ public sealed class BackgroundDownloadManager
             if (!_downloads.TryGetValue(id, out entry) || !entry.IsActive)
                 return false;
             entry.State = BackgroundDownloadState.Cancelled;
+            entry.EstimatedRemaining = null;
         }
 
         try
@@ -206,7 +224,10 @@ public sealed class BackgroundDownloadManager
         {
             toCancel = _downloads.Values.Where(d => d.IsActive).ToList();
             foreach (var entry in toCancel)
+            {
                 entry.State = BackgroundDownloadState.Cancelled;
+                entry.EstimatedRemaining = null;
+            }
         }
 
         foreach (var entry in toCancel)

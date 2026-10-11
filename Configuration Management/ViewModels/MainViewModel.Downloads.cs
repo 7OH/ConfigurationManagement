@@ -9,7 +9,8 @@ namespace Configuration_Management.ViewModels;
 /// <summary>
 /// Индикатор фоновых загрузок в главном окне (issue #334 п.1): подписка на
 /// <see cref="Services.BackgroundDownloadManager"/> (общий для приложения), агрегированный
-/// текст статуса («Скачивается: файл (45%)…» / «Скачивается файлов: N…») и команда отмены.
+/// текст статуса («Скачивается: файл (45%)…» / «Скачивается файлов: N…»), оценка
+/// оставшегося времени (issue #360) и команда отмены.
 /// Свойства обновляются из любого потока: WPF и Avalonia поддерживают PropertyChanged
 /// для скалярных свойств из фонового потока, коллекции здесь не используются.
 /// </summary>
@@ -17,6 +18,7 @@ public partial class MainViewModel
 {
     private bool _hasActiveDownloads;
     private string _downloadsStatusText = string.Empty;
+    private string _downloadsEtaText = string.Empty;
     private double _activeDownloadsProgress;
     private RelayCommand? _cancelDownloadsCommand;
 
@@ -39,6 +41,15 @@ public partial class MainViewModel
     {
         get => _activeDownloadsProgress;
         private set => SetProperty(ref _activeDownloadsProgress, value);
+    }
+
+    /// <summary>Оценка оставшегося времени активных загрузок (issue #360): «16:13» / «2:15:18»;
+    /// пусто — данных ещё мало. Для нескольких загрузок — максимальная оценка
+    /// (время, когда завершатся все).</summary>
+    public string DownloadsEtaText
+    {
+        get => _downloadsEtaText;
+        private set => SetProperty(ref _downloadsEtaText, value);
     }
 
     /// <summary>Команда «Отменить загрузки»: отменяет все активные фоновые загрузки.</summary>
@@ -77,6 +88,8 @@ public partial class MainViewModel
         ActiveDownloadsProgress = active.Count == 0
             ? 0
             : active.Average(d => d.Progress);
+        DownloadsEtaText = Services.DownloadEta.FormatMax(
+            active.Select(d => d.EstimatedRemaining));
 
         _cancelDownloadsCommand?.RaiseCanExecuteChanged();
     }

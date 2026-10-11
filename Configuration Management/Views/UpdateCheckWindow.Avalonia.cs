@@ -39,6 +39,9 @@ namespace Configuration_Management
         private readonly UpdateCheckRowViewModel _row;
         private CancellationTokenSource? _cts;
 
+        /// <summary>Оценщик оставшегося времени одиночного скачивания (issue #360).</summary>
+        private Services.DownloadEtaTracker? _singleDownloadEta;
+
         /// <summary>Активна ли ссылка каталога релизов (валидный http/https-адрес, issue #323).</summary>
         private bool _urlLinkEnabled;
 
@@ -415,7 +418,10 @@ namespace Configuration_Management
                 {
                     _progressPanel.IsVisible = true;
                     _progressBar.Value = Math.Clamp(_row.Progress, 0, 1);
-                    _progressText.Text = $"{Math.Round(_row.Progress * 100, 0):0} %";
+                    var percent = $"{Math.Round(_row.Progress * 100, 0):0} %";
+                    // issue #360: «45 % · 16:13» — оценка оставшегося времени рядом с процентами.
+                    _progressText.Text = Services.DownloadEta.AppendSuffix(
+                        percent, _singleDownloadEta?.EstimatedRemaining);
                 }
                 else
                 {
@@ -556,8 +562,12 @@ namespace Configuration_Management
             var downloadId = $"update:{row.Name}:{fileName}";
             var entry = Services.BackgroundDownloadManager.Default.Start(downloadId, fileName);
 
+            // issue #360: оценка оставшегося времени — обновляется ДО присваивания
+            // row.Progress: UpdateProgressDisplay читает её после маршала в UI-поток.
+            _singleDownloadEta = new Services.DownloadEtaTracker();
             var progress = new Progress<double>(v => Dispatcher.UIThread.Post(() =>
             {
+                _singleDownloadEta.Update(v);
                 row.Progress = Math.Clamp(v, 0, 1);
                 Services.BackgroundDownloadManager.Default.ReportProgress(downloadId, row.Progress);
             }));
@@ -1054,6 +1064,9 @@ namespace Configuration_Management
             var ok = 0;
             var failed = 0;
 
+            // issue #360: единый оценщик на всю попытку — ETA агрегированного прогресса цепочки.
+            var chainEta = new Services.DownloadEtaTracker();
+
             for (var n = 0; n < total; n++)
             {
                 var i = pending[n];
@@ -1061,14 +1074,19 @@ namespace Configuration_Management
                 var url = OneCUpdatesService.ToAbsoluteVersionFilesUrl(step.VersionFilesUrl, _row.Url);
                 var targetPath = targetPaths[i];
 
-                _row.ChainProgressText = string.Format(
+                var baseText = string.Format(
                     T("Updates.Chain.DownloadProgress"), n + 1, total, step.Version);
+                _row.ChainProgressText = baseText;
                 _row.ChainProgress = (double)n / total;
 
                 var progress = new Progress<double>(p => Dispatcher.UIThread.Post(() =>
                 {
-                    _row.ChainProgress = Math.Clamp((n + p) / total, 0, 1);
-                    Services.BackgroundDownloadManager.Default.ReportProgress(chainId, _row.ChainProgress);
+                    var aggregate = Math.Clamp((n + p) / total, 0, 1);
+                    chainEta.Update(aggregate);
+                    _row.ChainProgress = aggregate;
+                    Services.BackgroundDownloadManager.Default.ReportProgress(chainId, aggregate);
+                    _row.ChainProgressText = Services.DownloadEta.AppendSuffix(
+                        baseText, chainEta.EstimatedRemaining);
                 }));
                 var saved = await Task.Run(() =>
                     _updates.DownloadUpdateAsync(url, targetPath, progress, downloadToken));

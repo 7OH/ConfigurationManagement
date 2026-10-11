@@ -519,6 +519,15 @@ namespace Configuration_Management
             Themes.ThemeBrushes.Bind(_logBox, TextBox.BackgroundProperty, "CardBackgroundColorBrush");
             Themes.ThemeBrushes.Bind(_logBox, TextBox.BorderBrushProperty, "BorderColorBrush");
             _progressPanel.Children.Add(progressBar);
+            // Оценка оставшегося времени скачивания (issue #360): «16:13» / «2:15:18».
+            var etaText = new TextBlock { FontSize = 11, Margin = new Thickness(0, 4, 0, 0) };
+            Themes.ThemeBrushes.Bind(etaText, TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            etaText.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(PlatformUpdateViewModel.EtaText))
+            {
+                Source = _viewModel,
+                Mode = Avalonia.Data.BindingMode.OneWay
+            });
+            _progressPanel.Children.Add(etaText);
             _progressPanel.Children.Add(_logBox);
             Grid.SetRow(_progressPanel, 2);
             grid.Children.Add(_progressPanel);

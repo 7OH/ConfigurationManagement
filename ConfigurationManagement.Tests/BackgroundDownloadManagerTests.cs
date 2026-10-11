@@ -270,4 +270,61 @@ public sealed class BackgroundDownloadManagerTests
         Assert.False(entry.IsActive);
         Assert.Equal(0, manager.ActiveCount);
     }
+
+    [Fact]
+    public void ReportProgress_WithInjectedClock_UpdatesEstimatedRemaining()
+    {
+        // issue #360: отчёт прогресса обновляет оценку оставшегося времени записи.
+        var now = new DateTime(2026, 10, 11, 12, 0, 0, DateTimeKind.Utc);
+        var manager = new BackgroundDownloadManager(() => now);
+
+        var entry = manager.Start("platform:8.3.27.2214:file.zip", "file.zip");
+        manager.ReportProgress("platform:8.3.27.2214:file.zip", 0);
+
+        now = now.AddSeconds(10);
+        manager.ReportProgress("platform:8.3.27.2214:file.zip", 0.5);
+
+        Assert.NotNull(entry.EstimatedRemaining);
+        Assert.Equal(10, entry.EstimatedRemaining!.Value.TotalSeconds, precision: 0);
+    }
+
+    [Fact]
+    public void Complete_SetsEstimatedRemainingToZero()
+    {
+        var now = new DateTime(2026, 10, 11, 12, 0, 0, DateTimeKind.Utc);
+        var manager = new BackgroundDownloadManager(() => now);
+
+        var entry = manager.Start("id", "file.zip");
+        manager.ReportProgress("id", 0);
+        now = now.AddSeconds(10);
+        manager.ReportProgress("id", 0.5);
+        Assert.NotNull(entry.EstimatedRemaining);
+
+        manager.Complete("id");
+
+        Assert.Equal(TimeSpan.Zero, entry.EstimatedRemaining);
+    }
+
+    [Fact]
+    public void FailAndCancel_ClearEstimatedRemaining()
+    {
+        var now = new DateTime(2026, 10, 11, 12, 0, 0, DateTimeKind.Utc);
+        var manager = new BackgroundDownloadManager(() => now);
+
+        var failed = manager.Start("fail", "file.zip");
+        manager.ReportProgress("fail", 0);
+        now = now.AddSeconds(10);
+        manager.ReportProgress("fail", 0.5);
+        Assert.NotNull(failed.EstimatedRemaining);
+        manager.Fail("fail", "Updates.NetworkError");
+        Assert.Null(failed.EstimatedRemaining);
+
+        var cancelled = manager.Start("cancel", "file2.zip");
+        manager.ReportProgress("cancel", 0);
+        now = now.AddSeconds(10);
+        manager.ReportProgress("cancel", 0.5);
+        Assert.NotNull(cancelled.EstimatedRemaining);
+        manager.Cancel("cancel");
+        Assert.Null(cancelled.EstimatedRemaining);
+    }
 }
