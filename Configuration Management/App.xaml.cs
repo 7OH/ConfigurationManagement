@@ -18,8 +18,14 @@ namespace Configuration_Management
         private static bool _ownsInstanceMutex;
         private static EventWaitHandle? _activateEvent;
         private static CancellationTokenSource? _activateCts;
-        private const string MutexName = "Global\\ConfigurationManagement_1C_SingleInstance";
-        private const string ActivateEventName = "Global\\ConfigurationManagement_1C_Activate";
+        // Issue #362: пространство имен Local\ (а не Global\) — на сервере терминалов (RDS)
+        // именованные объекты Global\ видны во всех сессиях: второй пользователь получал
+        // UnauthorizedAccessException при создании мьютекса (фатальный диалог) либо тихо
+        // завершался, «активируя» окно первого пользователя. Local\ ограничивает область
+        // одной сессией: на обычном десктопе поведение не меняется, на RDS каждый
+        // пользователь получает свой single-instance scope.
+        private const string MutexName = "Local\\ConfigurationManagement_1C_SingleInstance";
+        private const string ActivateEventName = "Local\\ConfigurationManagement_1C_Activate";
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -193,23 +199,38 @@ namespace Configuration_Management
 
                 if (!settings.AllowMultipleInstances)
                 {
-                    _instanceMutex = new Mutex(true, MutexName, out var createdNew);
-                    // Владение мутексом получает только экземпляр, создавший его (createdNew == true).
-                    // Повторный запуск владение не получает, поэтому ReleaseMutex() в OnExit допустим
-                    // только при нашем владении: иначе он бросает ApplicationException
-                    // «Object synchronization method was called from an unsynchronized block of code»,
-                    // и под отладчиком с остановкой на исключениях это выглядит как падение.
-                    _ownsInstanceMutex = createdNew;
-                    if (!createdNew)
+                    // Issue #362: new Mutex может бросить UnauthorizedAccessException на сервере
+                    // терминалов (например, при конфликтующих правах доступа к именованным
+                    // объектам). Раньше исключение падало в общий catch старта и показывало
+                    // фатальный диалог «Не удалось запустить приложение». Теперь при отказе
+                    // доступа запускаемся без гейта второго экземпляра — приложение работает,
+                    // просто не подавляет второй запуск.
+                    try
                     {
-                        // Уже запущен другой экземпляр — просим его показать окно (в т.ч. из трея) и выходим.
-                        SignalExistingInstance();
-                        Shutdown();
-                        return;
-                    }
+                        _instanceMutex = new Mutex(true, MutexName, out var createdNew);
+                        // Владение мутексом получает только экземпляр, создавший его (createdNew == true).
+                        // Повторный запуск владение не получает, поэтому ReleaseMutex() в OnExit допустим
+                        // только при нашем владении: иначе он бросает ApplicationException
+                        // «Object synchronization method was called from an unsynchronized block of code»,
+                        // и под отладчиком с остановкой на исключениях это выглядит как падение.
+                        _ownsInstanceMutex = createdNew;
+                        if (!createdNew)
+                        {
+                            // Уже запущен другой экземпляр — просим его показать окно (в т.ч. из трея) и выходим.
+                            SignalExistingInstance();
+                            Shutdown();
+                            return;
+                        }
 
-                    // Слушаем сигнал от повторных запусков, чтобы поднять окно (в том числе из трея).
-                    StartActivationListener();
+                        // Слушаем сигнал от повторных запусков, чтобы поднять окно (в том числе из трея).
+                        StartActivationListener();
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        // Доступ к именованному объекту запрещён (возможен на RDS при
+                        // специфичных политиках безопасности) — запускаемся без гейта.
+                        _ownsInstanceMutex = false;
+                    }
                 }
 
                 base.OnStartup(e);
@@ -570,10 +591,24 @@ namespace Configuration_Management
                 try
                 {
                     var current = System.Diagnostics.Process.GetCurrentProcess();
+                    // Issue #362: фильтруем по SessionId — на сервере терминалов не трогаем
+                    // процессы из чужих сессий (иначе SetForegroundWindow достаёт окно
+                    // другого пользователя RDS).
+                    var currentSessionId = current.SessionId;
                     foreach (var process in System.Diagnostics.Process.GetProcessesByName(current.ProcessName))
                     {
                         if (process.Id == current.Id)
                             continue;
+
+                        try
+                        {
+                            if (process.SessionId != currentSessionId)
+                                continue;
+                        }
+                        catch
+                        {
+                            continue; // процесс мог завершиться между перечислениями
+                        }
 
                         var handle = process.MainWindowHandle;
                         if (handle == IntPtr.Zero)
