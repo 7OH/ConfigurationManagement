@@ -29,6 +29,11 @@ public static class PlatformUpdateMatcher
     /// (новые сборки в той же линии 8.3.26.x обновлением не считаются).</description></item>
     /// <item><description>Без compatible-баз — прежнее поведение: любая более новая версия
     /// (полное 4-сегментное сравнение).</description></item>
+    /// <item><description>Issue #361 (0.3.12.11): уже установленные версии исключаются из
+    /// кандидатов обновления — установленная версия (или её точный доступный дубль)
+    /// показывается как «Установлена», а не «Есть обновление».</description></item>
+    /// <item><description>Issue #361 (0.3.12.11): пины версий compatible-баз нормализуются
+    /// (Trim, суффиксы «(32)»/«(64)», префикс «V8.») при определении режима проверки.</description></item>
     /// </list>
     /// </summary>
     /// <param name="installed">Установленные версии платформы.</param>
@@ -57,6 +62,12 @@ public static class PlatformUpdateMatcher
             ? installedVersions.Select(v => FirstSegments(v, 3)).Min(StringComparer.OrdinalIgnoreCase)
             : null;
 
+        // Issue #361 (0.3.12.11): уже установленные версии исключаются из кандидатов
+        // обновления — установленная версия (или её точный доступный дубль) не должна
+        // получать «Есть обновление».
+        var installedVersionSet = new HashSet<string>(
+            installedVersions, StringComparer.OrdinalIgnoreCase);
+
         // Установленные версии: признак «есть обновление» с учётом закреплений баз (issue #361).
         foreach (var version in installedVersions)
         {
@@ -70,7 +81,8 @@ public static class PlatformUpdateMatcher
                     // Issue #361: обновление — только в более новую ЛИНИЮ (первые 3 сегмента строго больше).
                     var installedLine = FirstSegments(version, 3);
                     newest = availableReleases
-                        .Where(r => IsLineStrictlyNewer(r.Version, installedLine))
+                        .Where(r => IsLineStrictlyNewer(r.Version, installedLine)
+                            && !installedVersionSet.Contains(r.Version))
                         .OrderByDescending(r => r.Version, VersionComparer.Instance)
                         .Select(r => r.Version)
                         .FirstOrDefault();
@@ -79,7 +91,8 @@ public static class PlatformUpdateMatcher
                 {
                     // Без compatible-баз — прежнее полное сравнение (Full).
                     newest = availableReleases
-                        .Where(r => OneCPlatformCatalogParser.CompareVersions(r.Version, version) > 0)
+                        .Where(r => OneCPlatformCatalogParser.CompareVersions(r.Version, version) > 0
+                            && !installedVersionSet.Contains(r.Version))
                         .OrderByDescending(r => r.Version, VersionComparer.Instance)
                         .Select(r => r.Version)
                         .FirstOrDefault();
@@ -97,12 +110,6 @@ public static class PlatformUpdateMatcher
 
         // Issue #361: только доступные версии — максимум каждой линии (первые 3 сегмента),
         // не ниже минимальной установленной линии; линии, чей максимум уже установлен, пропускаем.
-        var installedLineSet = new HashSet<string>(
-            installedVersions.Select(v => FirstSegments(v, 3)),
-            StringComparer.OrdinalIgnoreCase);
-        var installedVersionSet = new HashSet<string>(
-            installedVersions, StringComparer.OrdinalIgnoreCase);
-
         foreach (var group in availableReleases
                      .GroupBy(r => FirstSegments(r.Version, 3), StringComparer.OrdinalIgnoreCase))
         {
@@ -117,15 +124,6 @@ public static class PlatformUpdateMatcher
 
             if (installedVersionSet.Contains(maxOfLine.Version))
                 continue; // максимум линии уже установлен — строка установлена выше
-
-            // Линия без установленных версий и без обновления для существующих —
-            // всё равно показываем её максимум как кандидата «Доступна» (только если
-            // линия новее какой-то установленной или установленных нет вовсе).
-            if (installedLineSet.Contains(line))
-            {
-                // Линия частично установлена (есть установленные версии этой линии),
-                // но максимум не установлен — показываем как цель обновления/доступную.
-            }
 
             result.Add(new PlatformUpdateMatch
             {
@@ -167,7 +165,10 @@ public static class PlatformUpdateMatcher
         var hasThreePartBase = false;
         foreach (var infobase in bases)
         {
-            var baseVersion = (infobase?.PlatformVersion ?? string.Empty).Trim();
+            // Issue #361 (0.3.12.11): пин нормализуется — снимаются Trim, суффиксы
+            // разрядности «(32)»/«(64)» и префикс «V8.» («8.3.26.1656 (64)» → «8.3.26.1656»),
+            // иначе «1656 (64)» не считалось сегментом и закрепление 4 сегментов не виделось.
+            var baseVersion = NormalizePinnedVersion(infobase?.PlatformVersion);
             if (baseVersion.Length == 0)
                 continue;
             if (!MatchesVersionPrefix(baseVersion, line))
@@ -181,6 +182,26 @@ public static class PlatformUpdateMatcher
         }
 
         return hasThreePartBase ? UpdateCheckMode.ThreePart : UpdateCheckMode.Full;
+    }
+
+    /// <summary>Нормализует версию-пин из <see cref="Infobase.PlatformVersion"/> для
+    /// определения режима проверки (issue #361): Trim, снятие суффикса разрядности
+    /// «(32)»/«(64)» (и «(x86)»/«(x64)») через
+    /// <see cref="PlatformVersionService.ParseVariantOptionalArch"/> и префикса «V8.»
+    /// («8.3.26.1656 (64)» → «8.3.26.1656», «V8.3.26» → «8.3.26»).</summary>
+    private static string NormalizePinnedVersion(string? version)
+    {
+        var normalized = (version ?? string.Empty).Trim();
+        if (normalized.Length == 0)
+            return string.Empty;
+
+        PlatformVersionService.ParseVariantOptionalArch(normalized, out var clean, out _);
+        normalized = clean.Trim();
+
+        if (normalized.StartsWith("V8.", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized.Substring(3).Trim();
+
+        return normalized;
     }
 
     /// <summary>Число числовых сегментов версии («8.3.26» → 3, «8.3.26.11540» → 4,

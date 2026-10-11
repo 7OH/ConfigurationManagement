@@ -207,6 +207,90 @@ public sealed class PlatformUpdateMatcherTests
         Assert.Equal("8.3.27.2214", matches[0].Version);
     }
 
+    // --- Merge: issue #361 (0.3.12.11) — установленная версия и нормализация пинов ---
+
+    [Fact]
+    public void Merge_InstalledVersionEqualsAvailable_NoUpdateFlag()
+    {
+        // Установленная версия равна доступной (точный дубль каталога) — «Установлена».
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656" },
+            Releases("8.3.26.1656"));
+
+        var installed = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(installed.IsInstalled);
+        Assert.False(installed.HasUpdate);
+        Assert.Null(installed.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_InstalledIsLineMax_NoNewerLines_NoUpdateFlag()
+    {
+        // Установленная — максимум своей линии без закрепления; каталог не содержит
+        // новее ни в этой линии, ни в других — HasUpdate=false («Установлена»).
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656" },
+            Releases("8.3.26.1656", "8.3.25.900"));
+
+        var installed = matches.Single(m => m.Version == "8.3.26.1656" && m.IsInstalled);
+        Assert.False(installed.HasUpdate);
+        Assert.Null(installed.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_NewerCatalogVersionAlreadyInstalled_NoFalseUpdateForLowerInstalled()
+    {
+        // Дефект A (0.3.12.11): кандидат newest не берётся из уже установленных версий —
+        // 8.3.27.2214 есть и в каталоге, и среди установленных, поэтому для 8.3.26.1656
+        // ложного «Есть обновление» на неё нет.
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656", "8.3.27.2214" },
+            Releases("8.3.27.2214"));
+
+        var lower = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(lower.IsInstalled);
+        Assert.False(lower.HasUpdate);
+        Assert.Null(lower.AvailableVersion);
+
+        var newest = matches.Single(m => m.Version == "8.3.27.2214");
+        Assert.True(newest.IsInstalled);
+        Assert.False(newest.HasUpdate);
+    }
+
+    [Fact]
+    public void Merge_FourSegmentPinWithArchSuffix_DisablesUpdateCheck()
+    {
+        // Дефект B (0.3.12.11): пин «8.3.26.1656 (64)» нормализуется до 4 сегментов
+        // → режим Disabled → «Установлена», хотя в каталоге есть 8.3.27.x.
+        var bases = new[] { NewBase("8.3.26.1656 (64)") };
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656" },
+            Releases("8.3.27.2214", "8.3.26.1890"),
+            bases);
+
+        var installed = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(installed.IsInstalled);
+        Assert.False(installed.HasUpdate);
+        Assert.Null(installed.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_ThreeSegmentPinWithArchSuffix_OnlyNewerLineCountsAsUpdate()
+    {
+        // Дефект B (0.3.12.11): пин «8.3.26 (64)» нормализуется до «8.3.26» → режим
+        // ThreePart: сборка 8.3.26.1890 той же линии — не обновление, 8.3.27.2214 — обновление.
+        var bases = new[] { NewBase("8.3.26 (64)") };
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656" },
+            Releases("8.3.27.2214", "8.3.26.1890"),
+            bases);
+
+        var installed = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(installed.IsInstalled);
+        Assert.True(installed.HasUpdate);
+        Assert.Equal("8.3.27.2214", installed.AvailableVersion);
+    }
+
     // --- CountCompatibleBases ---
 
     [Fact]
