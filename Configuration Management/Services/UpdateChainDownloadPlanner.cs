@@ -50,10 +50,13 @@ public static class UpdateChainDownloadPlanner
     /// если сохранённая папка цепочки существует — файл сохраняется в неё БЕЗ диалога
     /// «куда скачать» (вопрос задаётся только когда папка не задана/не существует).
     /// Null — показать диалог (папка не определена). Имя файла — результат
-    /// <c>BuildDownloadFileName</c> окна; partial-суффикс здесь не участвует.
+    /// <c>BuildDownloadFileName</c> окна (оригинальное имя дистрибутива, issue #352,
+    /// 0.3.12.12); если файл уже существует — добавляется номер в скобках
+    /// (<see cref="UpdateDownloadNaming.MakeUniquePath"/>), перезапись не выполняется
+    /// молча. Partial-суффикс здесь не участвует.
     /// Чистая логика без UI — покрыта юнит-тестами. Internal — для юнит-тестов.</summary>
     internal static string? ResolveSaveTarget(string? settingsFolder, string fileName)
         => !string.IsNullOrWhiteSpace(settingsFolder) && Directory.Exists(settingsFolder)
-            ? Path.Combine(settingsFolder, fileName)
+            ? UpdateDownloadNaming.MakeUniquePath(Path.Combine(settingsFolder, fileName))
             : null;
 }

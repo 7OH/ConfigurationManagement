@@ -970,10 +970,11 @@ public partial class UpdateCheckWindow : Window
         return (failed, total);
     }
 
-    /// <summary>Имя сохранения (issue #352, 0.3.12.6): «<Имя>_<версия>_<оригинальноеИмя>» —
-    /// оригинал файла дистрибутива (как у скачивания платформы) сохраняется в имени, чтобы
-    /// «полный дистрибутив» и «дистрибутив обновления» различались и не перезаписывали друг друга.
-    /// Без варианта (fallback по цепочке) — прежнее «<Имя>_<версия><расширение>».</summary>
+    /// <summary>Имя сохранения (issue #352, 0.3.12.12): оригинальное имя файла дистрибутива,
+    /// как на сайте (<c>Trade_11_5_27_98_setup1c.zip</c>), без префикса «&lt;Имя&gt;_&lt;версия&gt;_»
+    /// (пожелание 7OH от 2026-10-11). «Полный дистрибутив» и «Дистрибутив обновления»
+    /// различаются самими оригинальными именами файлов. Без варианта (fallback) — прежнее
+    /// «&lt;Имя&gt;_&lt;версия&gt;.zip».</summary>
     private static string BuildDownloadFileName(UpdateCheckRowViewModel row, UpdateFileChoice? choice)
         => Services.UpdateDownloadNaming.BuildDownloadFileName(
             row.Name, row.LatestVersion, choice?.FileName, SanitizeFileName);

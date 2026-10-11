@@ -375,6 +375,41 @@ public sealed class OneCUpdatesDistributionResolutionTests
         }
     }
 
+    // ======================= Временный файл .download и финальное имя (0.3.12.12) =======================
+
+    [Fact]
+    public async Task DownloadUpdateAsync_WhileDownloading_WritesPartialFile_RenamesOnSuccess()
+    {
+        // issue #352 (0.3.12.12): .download — КОНЕЧНЫЙ суффикс на время загрузки
+        // (Trade_…_setup1c.zip.download), по завершении файл атомарно переименовывается
+        // в финальное имя без суффикса и без префикса версии.
+        var dir = Path.Combine(Path.GetTempPath(), $"cm_drt_{Guid.NewGuid():N}");
+        var targetPath = Path.Combine(dir, "Trade_11_5_27_98_setup1c.zip");
+        var partialChecks = new List<bool>();
+        var handler = new RoutingHandler(_ => ProbingBinary(
+            DistributionBytes, "application/zip",
+            () => partialChecks.Add(File.Exists(targetPath + OneCUpdatesService.PartialSuffix))));
+        var service = CreateService(handler);
+
+        try
+        {
+            var saved = await service.DownloadUpdateAsync(
+                "https://releases.1c.ru/transfer_file?file=Trade_11_5_27_98_setup1c.zip", targetPath);
+
+            Assert.NotNull(saved);
+            Assert.Equal(targetPath, saved);
+            Assert.NotEmpty(partialChecks);
+            Assert.All(partialChecks, Assert.True);
+            Assert.Equal(DistributionBytes, await File.ReadAllBytesAsync(saved!));
+            // После успеха .download не остался: чистое финальное имя дистрибутива.
+            Assert.False(File.Exists(saved + OneCUpdatesService.PartialSuffix));
+        }
+        finally
+        {
+            TryDeleteDirectory(dir);
+        }
+    }
+
     [Fact]
     public async Task DownloadUpdateAsync_OnSaveError_RemovesTempFile()
     {
@@ -875,6 +910,48 @@ public sealed class OneCUpdatesDistributionResolutionTests
         var content = new StreamContent(new ThrowingReadStream(totalLength));
         content.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+    }
+
+    /// <summary>Бинарный ответ, чей поток при каждом чтении выполняет действие теста —
+    /// проверка состояния файловой системы во время загрузки (issue #352, 0.3.12.12).</summary>
+    private static HttpResponseMessage ProbingBinary(byte[] bytes, string mediaType, Action onRead)
+    {
+        var content = new StreamContent(new ProbingReadStream(bytes, onRead));
+        content.Headers.ContentType = new MediaTypeHeaderValue(mediaType);
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+    }
+
+    /// <summary>Поток, отдающий все байты, выполняя действие перед каждым чтением.</summary>
+    private sealed class ProbingReadStream : Stream
+    {
+        private readonly MemoryStream _inner;
+        private readonly Action _onRead;
+
+        public ProbingReadStream(byte[] data, Action onRead)
+        {
+            _inner = new MemoryStream(data);
+            _onRead = onRead;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            _onRead();
+            return _inner.Read(buffer, offset, count);
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>Поток, отдающий половину байтов, а затем бросающий IOException.</summary>
