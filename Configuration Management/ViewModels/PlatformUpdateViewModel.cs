@@ -1097,7 +1097,9 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
             AppendLog($"{LocalizationManager.T("PlatformUpdate.Error.Network")}: {ex.Message}");
         }
 
-        var matches = PlatformUpdateMatcher.Merge(installed, available);
+        // Issue #361 (0.3.12.10): bases передаются в Merge — закрепления версии платформы
+        // у баз (3/4 сегмента) определяют режим проверки обновления для линии.
+        var matches = PlatformUpdateMatcher.Merge(installed, available, bases);
         SelectedRow = null;
         Rows.Clear();
         foreach (var match in matches)

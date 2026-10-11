@@ -17,13 +17,14 @@ public sealed class PlatformUpdateMatcherTests
     // --- Merge ---
 
     [Fact]
-    public void Merge_InstalledIsNewest_NoUpdateFlagAndBothRowsPresent()
+    public void Merge_InstalledIsNewest_NoUpdateFlag_LowerLineHidden()
     {
+        // Issue #361: версии ниже установленной линии не показываются.
         var matches = PlatformUpdateMatcher.Merge(
             new[] { "8.3.27.2214" },
             Releases("8.3.27.2214", "8.3.26.1890"));
 
-        Assert.Equal(2, matches.Count);
+        Assert.Single(matches); // только установленная; 8.3.26.1890 — ниже линии, скрыта
         var installed = matches.Single(m => m.Version == "8.3.27.2214");
         Assert.True(installed.IsInstalled);
         Assert.False(installed.HasUpdate);
@@ -48,11 +49,12 @@ public sealed class PlatformUpdateMatcherTests
     {
         // Установленная 8.3.26.1890 отсутствует в каталоге, но для неё есть более новые
         // доступные версии — строка остаётся установленной с признаком обновления.
+        // Issue #361: показывается только максимум линии 8.3.27 (не все её версии).
         var matches = PlatformUpdateMatcher.Merge(
             new[] { "8.3.26.1890" },
             Releases("8.3.27.2214", "8.3.27.1688"));
 
-        Assert.Equal(3, matches.Count);
+        Assert.Equal(2, matches.Count); // установленная + максимум линии 8.3.27
         var installed = matches.Single(m => m.Version == "8.3.26.1890");
         Assert.True(installed.IsInstalled);
         Assert.True(installed.HasUpdate);
@@ -62,6 +64,7 @@ public sealed class PlatformUpdateMatcherTests
         Assert.All(availableOnly, m => Assert.False(m.IsInstalled));
         Assert.All(availableOnly, m => Assert.False(m.HasUpdate));
         Assert.All(availableOnly, m => Assert.Null(m.AvailableVersion));
+        Assert.Equal("8.3.27.2214", availableOnly.Single().Version); // только максимум линии
     }
 
     [Fact]
@@ -91,6 +94,117 @@ public sealed class PlatformUpdateMatcherTests
     {
         Assert.Empty(PlatformUpdateMatcher.Merge(null!, null!));
         Assert.Empty(PlatformUpdateMatcher.Merge(new List<string>(), null!));
+    }
+
+    // --- Merge: логика issue #361 (закрепления баз, линии, фильтр) ---
+
+    [Fact]
+    public void Merge_FourSegmentBasePin_DisablesUpdateCheck()
+    {
+        // База закреплена за 8.3.26.11540 (4 сегмента) — обновление не проверяется,
+        // даже если в каталоге есть 8.3.27.x.
+        var bases = new[] { NewBase("8.3.26.11540") };
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656" },
+            Releases("8.3.27.2214", "8.3.26.1890"),
+            bases);
+
+        var installed = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(installed.IsInstalled);
+        Assert.False(installed.HasUpdate); // закрепление 4 сегмента → проверка отключена
+        Assert.Null(installed.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_ThreeSegmentBasePin_OnlyNewerLineCountsAsUpdate()
+    {
+        // База указывает 8.3.26 (3 сегмента): 8.3.26.1890 (та же линия) — НЕ обновление;
+        // 8.3.27.2214 (новая линия) — обновление.
+        var bases = new[] { NewBase("8.3.26") };
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656" },
+            Releases("8.3.27.2214", "8.3.26.1890"),
+            bases);
+
+        var installed = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(installed.IsInstalled);
+        Assert.True(installed.HasUpdate);
+        Assert.Equal("8.3.27.2214", installed.AvailableVersion); // цель — новая линия
+    }
+
+    [Fact]
+    public void Merge_ThreeSegmentBasePin_NoNewerLine_NoUpdate()
+    {
+        // База 8.3.26 (3 сегмента), каталог содержит только 8.3.26.x — обновления нет
+        // (сборки в той же линии не считаются обновлением по правилу 3 сегментов).
+        var bases = new[] { NewBase("8.3.26") };
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656" },
+            Releases("8.3.26.1890", "8.3.26.1656"),
+            bases);
+
+        var installed = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(installed.IsInstalled);
+        Assert.False(installed.HasUpdate); // та же линия 8.3.26 — не обновление
+        Assert.Null(installed.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_NoBase_FullComparison_WithinLineCountsAsUpdate()
+    {
+        // Без баз — прежнее поведение: новая сборка в той же линии (8.3.26.1890 > 8.3.26.1656)
+        // считается обновлением.
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656" },
+            Releases("8.3.26.1890", "8.3.26.1656"));
+
+        var installed = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(installed.IsInstalled);
+        Assert.True(installed.HasUpdate);
+        Assert.Equal("8.3.26.1890", installed.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_HidesMaximalPerLine_NotAllHistoricalVersions()
+    {
+        // Issue #361: из линии 8.3.27 показывается только её максимум, не все версии.
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.25.1000" },
+            Releases("8.3.27.2214", "8.3.27.1688", "8.3.26.1890", "8.3.25.1000"));
+
+        // Установленная 8.3.25.1000 + максимумы линий 8.3.26 и 8.3.27 (не все версии).
+        Assert.Equal(3, matches.Count);
+        Assert.Contains(matches, m => m.Version == "8.3.25.1000" && m.IsInstalled);
+        Assert.Contains(matches, m => m.Version == "8.3.26.1890" && !m.IsInstalled);
+        Assert.Contains(matches, m => m.Version == "8.3.27.2214" && !m.IsInstalled);
+        Assert.DoesNotContain(matches, m => m.Version == "8.3.27.1688"); // не максимум линии
+    }
+
+    [Fact]
+    public void Merge_HidesLinesBelowAllInstalled()
+    {
+        // Issue #361: версии ниже установленной линии не показываются.
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.27.1688" },
+            Releases("8.3.27.2214", "8.3.26.1890", "8.3.25.1000"));
+
+        Assert.DoesNotContain(matches, m => m.Version == "8.3.26.1890");
+        Assert.DoesNotContain(matches, m => m.Version == "8.3.25.1000");
+        Assert.Contains(matches, m => m.Version == "8.3.27.1688" && m.IsInstalled);
+        Assert.Contains(matches, m => m.Version == "8.3.27.2214" && !m.IsInstalled);
+    }
+
+    [Fact]
+    public void Merge_SameLineMaxInstalled_NoDuplicateAvailableRow()
+    {
+        // Если максимум линии уже установлен — отдельная строка «Доступна» не создаётся.
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.27.2214" },
+            Releases("8.3.27.2214", "8.3.27.1688"));
+
+        Assert.Single(matches);
+        Assert.True(matches[0].IsInstalled);
+        Assert.Equal("8.3.27.2214", matches[0].Version);
     }
 
     // --- CountCompatibleBases ---

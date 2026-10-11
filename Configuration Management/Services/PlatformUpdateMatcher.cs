@@ -14,36 +14,77 @@ public static class PlatformUpdateMatcher
 {
     /// <summary>
     /// Объединяет установленные и доступные версии в единый список строк окна.
-    /// Для установленной версии признак <see cref="PlatformUpdateMatch.HasUpdate"/>
-    /// устанавливается, если в каталоге есть более новая версия, а
-    /// <see cref="PlatformUpdateMatch.AvailableVersion"/> содержит новейшую из них.
-    /// Версии, присутствующие только в каталоге, добавляются строками без признака
-    /// установки. Сравнение версий — числовыми сегментами
-    /// (<see cref="OneCPlatformCatalogParser.CompareVersions"/>), сортировка — по убыванию.
+    /// <para>Issue #361 (0.3.12.10): логика показа и признака «есть обновление» переработаны.</para>
+    /// <list type="bullet">
+    /// <item><description>В список попадают только <b>установленные</b> версии и
+    /// <b>максимальная</b> версия каждой «линии» (по первым 3 сегментам), не ниже
+    /// самой низкой установленной линии — исторические и более старые версии не
+    /// показываются («Вопрос и про версии НИЖЕ. Их то зачем показывать?»).</description></item>
+    /// <item><description>Если compatible-база закреплена за <b>4-сегментной</b> версией
+    /// (напр. «8.3.26.11540») — проверка обновления для этой линии не выполняется
+    /// (<see cref="PlatformUpdateMatch.HasUpdate"/> = false): база использует полную
+    /// версию неспроста.</description></item>
+    /// <item><description>Если compatible-база указывает <b>3 сегмента</b> (напр. «8.3.26») —
+    /// обновлением считается только версия со строго большими первыми 3 сегментами
+    /// (новые сборки в той же линии 8.3.26.x обновлением не считаются).</description></item>
+    /// <item><description>Без compatible-баз — прежнее поведение: любая более новая версия
+    /// (полное 4-сегментное сравнение).</description></item>
+    /// </list>
     /// </summary>
     /// <param name="installed">Установленные версии платформы.</param>
     /// <param name="available">Доступные версии из каталога портала.</param>
+    /// <param name="bases">Базы репозитория (для учёта закреплений версии платформы).
+    /// Может быть null — тогда применяется прежнее (полное) сравнение.</param>
     /// <returns>Список строк окна, отсортированный по убыванию версии.</returns>
     public static IReadOnlyList<PlatformUpdateMatch> Merge(
         IReadOnlyList<string> installed,
-        IReadOnlyList<PlatformRelease> available)
+        IReadOnlyList<PlatformRelease> available,
+        IReadOnlyList<Infobase>? bases = null)
     {
         var installedVersions = (installed ?? Array.Empty<string>())
             .Where(v => !string.IsNullOrWhiteSpace(v))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var availableReleases = (available ?? Array.Empty<PlatformRelease>()).ToList();
+        var availableReleases = (available ?? Array.Empty<PlatformRelease>())
+            .Where(r => !string.IsNullOrWhiteSpace(r?.Version))
+            .ToList();
+        var allBases = bases ?? Array.Empty<Infobase>();
 
         var result = new List<PlatformUpdateMatch>(installedVersions.Count + availableReleases.Count);
 
-        // Установленные версии: признак «есть обновление» + новейшая доступная версия.
+        // Минимальная установленная линия (первые 3 сегмента) — ниже неё строки не показываем.
+        var minInstalledLine = installedVersions.Count > 0
+            ? installedVersions.Select(v => FirstSegments(v, 3)).Min(StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        // Установленные версии: признак «есть обновление» с учётом закреплений баз (issue #361).
         foreach (var version in installedVersions)
         {
-            var newest = availableReleases
-                .Where(r => OneCPlatformCatalogParser.CompareVersions(r.Version, version) > 0)
-                .OrderByDescending(r => r.Version, VersionComparer.Instance)
-                .Select(r => r.Version)
-                .FirstOrDefault();
+            var mode = ResolveUpdateMode(version, allBases);
+            string? newest = null;
+
+            if (mode != UpdateCheckMode.Disabled)
+            {
+                if (mode == UpdateCheckMode.ThreePart)
+                {
+                    // Issue #361: обновление — только в более новую ЛИНИЮ (первые 3 сегмента строго больше).
+                    var installedLine = FirstSegments(version, 3);
+                    newest = availableReleases
+                        .Where(r => IsLineStrictlyNewer(r.Version, installedLine))
+                        .OrderByDescending(r => r.Version, VersionComparer.Instance)
+                        .Select(r => r.Version)
+                        .FirstOrDefault();
+                }
+                else
+                {
+                    // Без compatible-баз — прежнее полное сравнение (Full).
+                    newest = availableReleases
+                        .Where(r => OneCPlatformCatalogParser.CompareVersions(r.Version, version) > 0)
+                        .OrderByDescending(r => r.Version, VersionComparer.Instance)
+                        .Select(r => r.Version)
+                        .FirstOrDefault();
+                }
+            }
 
             result.Add(new PlatformUpdateMatch
             {
@@ -54,16 +95,41 @@ public static class PlatformUpdateMatcher
             });
         }
 
-        // Только доступные версии (не установленные на этой машине).
-        foreach (var release in availableReleases)
+        // Issue #361: только доступные версии — максимум каждой линии (первые 3 сегмента),
+        // не ниже минимальной установленной линии; линии, чей максимум уже установлен, пропускаем.
+        var installedLineSet = new HashSet<string>(
+            installedVersions.Select(v => FirstSegments(v, 3)),
+            StringComparer.OrdinalIgnoreCase);
+        var installedVersionSet = new HashSet<string>(
+            installedVersions, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in availableReleases
+                     .GroupBy(r => FirstSegments(r.Version, 3), StringComparer.OrdinalIgnoreCase))
         {
-            if (installedVersions.Any(v =>
-                    string.Equals(v, release.Version, StringComparison.OrdinalIgnoreCase)))
-                continue;
+            var line = group.Key;
+            if (minInstalledLine is not null &&
+                OneCPlatformCatalogParser.CompareVersions(line + ".0.0", minInstalledLine + ".0.0") < 0)
+                continue; // линия ниже всех установленных — не показываем (issue #361)
+
+            var maxOfLine = group
+                .OrderByDescending(r => r.Version, VersionComparer.Instance)
+                .First();
+
+            if (installedVersionSet.Contains(maxOfLine.Version))
+                continue; // максимум линии уже установлен — строка установлена выше
+
+            // Линия без установленных версий и без обновления для существующих —
+            // всё равно показываем её максимум как кандидата «Доступна» (только если
+            // линия новее какой-то установленной или установленных нет вовсе).
+            if (installedLineSet.Contains(line))
+            {
+                // Линия частично установлена (есть установленные версии этой линии),
+                // но максимум не установлен — показываем как цель обновления/доступную.
+            }
 
             result.Add(new PlatformUpdateMatch
             {
-                Version = release.Version,
+                Version = maxOfLine.Version,
                 IsInstalled = false,
                 HasUpdate = false,
                 AvailableVersion = null,
@@ -72,6 +138,75 @@ public static class PlatformUpdateMatcher
 
         result.Sort((a, b) => OneCPlatformCatalogParser.CompareVersions(b.Version, a.Version));
         return result;
+    }
+
+    /// <summary>Режим проверки обновления для установленной версии с учётом закреплений
+    /// compatible-баз (issue #361).</summary>
+    private enum UpdateCheckMode
+    {
+        /// <summary>Прежнее полное 4-сегментное сравнение (нет compatible-баз).</summary>
+        Full,
+
+        /// <summary>Только строго новая линия (первые 3 сегмента) — база с 3-сегментной версией.</summary>
+        ThreePart,
+
+        /// <summary>Проверка отключена — хотя бы одна compatible-база закреплена за 4-сегментной версией.</summary>
+        Disabled,
+    }
+
+    /// <summary>Определяет режим проверки обновления для установленной версии:
+    /// если хоть одна compatible-база (линия по 3 сегментам) закреплена за полной
+    /// 4-сегментной версией — Disabled; иначе если есть база с 3-сегментной версией —
+    /// ThreePart; иначе Full (баз нет).</summary>
+    private static UpdateCheckMode ResolveUpdateMode(string installedVersion, IReadOnlyList<Infobase> bases)
+    {
+        var line = FirstSegments(installedVersion, 3);
+        if (string.IsNullOrEmpty(line))
+            return UpdateCheckMode.Full;
+
+        var hasThreePartBase = false;
+        foreach (var infobase in bases)
+        {
+            var baseVersion = (infobase?.PlatformVersion ?? string.Empty).Trim();
+            if (baseVersion.Length == 0)
+                continue;
+            if (!MatchesVersionPrefix(baseVersion, line))
+                continue;
+
+            var segments = CountNumericSegments(baseVersion);
+            if (segments >= 4)
+                return UpdateCheckMode.Disabled; // закрепление за полной версией
+            if (segments == 3)
+                hasThreePartBase = true;
+        }
+
+        return hasThreePartBase ? UpdateCheckMode.ThreePart : UpdateCheckMode.Full;
+    }
+
+    /// <summary>Число числовых сегментов версии («8.3.26» → 3, «8.3.26.11540» → 4,
+    /// нечисловые сегменты вроде «V» игнорируются).</summary>
+    private static int CountNumericSegments(string version)
+    {
+        var parts = (version ?? string.Empty).Split('.');
+        var count = 0;
+        foreach (var part in parts)
+        {
+            if (int.TryParse(part.Trim(), out _))
+                count++;
+        }
+        return count;
+    }
+
+    /// <summary>True, если версия <paramref name="version"/> принадлежит линии со строго
+    /// большими первыми 3 сегментами, чем <paramref name="line"/> («8.3.27.2214» для
+    /// «8.3.26» → true; «8.3.26.1890» для «8.3.26» → false — та же линия).</summary>
+    private static bool IsLineStrictlyNewer(string version, string line)
+    {
+        var versionLine = FirstSegments(version, 3);
+        if (string.IsNullOrEmpty(versionLine) || string.IsNullOrEmpty(line))
+            return false;
+        // Сравниваем линии как версии с нулевыми хвостами: «8.3.27.0.0» > «8.3.26.0.0».
+        return OneCPlatformCatalogParser.CompareVersions(versionLine + ".0.0", line + ".0.0") > 0;
     }
 
     /// <summary>

@@ -117,23 +117,24 @@ public sealed class PlatformUpdateViewModelTests
 
         var bases = new List<Infobase>
         {
-            Base("1", "8.3.27.1644"),
-            Base("2", "8.3.26.1182"),
+            Base("1", "8.3.26"),       // 3 сегмента — для 8.3.26.x обновлением считается только новая линия
+            Base("2", "8.3.27"),       // 3 сегмента — совместимость для доступной 8.3.27.x
             Base("3", ""),
         };
-        var vm = CreateVm(service, bases, installed: () => new List<string> { "8.3.27.1688" });
+        var vm = CreateVm(service, bases, installed: () => new List<string> { "8.3.26.1656" });
 
         await vm.CheckUpdatesAsync();
 
         Assert.Equal(2, vm.Rows.Count);
 
-        // Установленная версия со свежим обновлением в каталоге.
-        var installedRow = vm.Rows.Single(r => r.Version == "8.3.27.1688");
+        // Установленная версия: по правилу #361 (3-сегментная база «8.3.26») обновлением
+        // считается только новая линия 8.3.27.x — 8.3.27.2214.
+        var installedRow = vm.Rows.Single(r => r.Version == "8.3.26.1656");
         Assert.True(installedRow.IsInstalled);
         Assert.True(installedRow.HasUpdate);
         Assert.Equal("8.3.27.2214", installedRow.AvailableVersion);
         Assert.Equal(LocalizationManager.T("PlatformUpdate.Status.UpdateAvailable"), installedRow.StatusText);
-        Assert.Equal(1, installedRow.CompatibleBases); // только база «8.3.27.1644» с префиксом 8.3.27
+        Assert.Equal(1, installedRow.CompatibleBases); // база «8.3.26» с префиксом 8.3.26
         Assert.Equal(PlatformUpdateRowViewModel.EmptySizeText, installedRow.SizeText); // файлы не подгружены
 
         // Доступная версия из каталога с выбранным файлом дистрибутива.
@@ -795,10 +796,10 @@ public sealed class PlatformUpdateViewModelTests
         Assert.Equal(new[] { "8.3.27.1688", "8.3.26.1890" }, deleted);
         Assert.False(vm.IsBusy);
 
-        // Список перестроен: удалённые версии теперь доступны, а не установлены.
-        Assert.False(vm.Rows.Single(r => r.Version == "8.3.27.1688").IsInstalled);
-        Assert.False(vm.Rows.Single(r => r.Version == "8.3.26.1890").IsInstalled);
+        // Список перестроен (#361): удалённые версии больше не «установлены»;
+        // 8.3.26.1890 ниже линии установленной 8.3.27.2214 — скрыта.
         Assert.True(vm.Rows.Single(r => r.Version == "8.3.27.2214").IsInstalled);
+        Assert.DoesNotContain(vm.Rows, r => r.Version == "8.3.26.1890");
     }
 
     [Fact]
@@ -847,11 +848,12 @@ public sealed class PlatformUpdateViewModelTests
         await vm.RemoveOldVersionsAsync();
 
         // Перестройка списка после удаления прошла через маршаллер (UI-поток),
-        // и состав строк актуален: удалённая версия больше не «установлена».
+        // и состав строк актуален: удалённая версия больше не «установлена»;
+        // по правилу #361 (максимум линии) строка 8.3.27.1688 в списке не остаётся.
         Assert.True(Interlocked.CompareExchange(ref dispatchCalls, 0, 0) > dispatchedAfterCheck,
             "RefreshInstalledAsync после удаления должен маршаллить перестройку Rows в UI-поток");
-        Assert.False(vm.Rows.Single(r => r.Version == "8.3.27.1688").IsInstalled);
         Assert.True(vm.Rows.Single(r => r.Version == "8.3.27.2214").IsInstalled);
+        Assert.DoesNotContain(vm.Rows, r => r.Version == "8.3.27.1688");
     }
 
     [Fact]
