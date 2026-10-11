@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Input;
 using Configuration_Management.Localization;
 using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
@@ -36,6 +37,10 @@ namespace Configuration_Management
 
             DataContext = _vm;
             Title = LocalizationManager.T("ServerMonitor.Title");
+            // Кнопка «Закрыть» на панели подключения убрана (issue #324) — есть кнопка ✕
+            // в заголовке окна. Esc сохранён: раньше его давала IsCancel у панельной
+            // кнопки, теперь обрабатываем вручную (фокус может быть в текстовом поле).
+            PreviewKeyDown += OnWindowPreviewKeyDown;
             ProcessesGrid.ItemsSource = _vm.Processes;
             SessionsGrid.ItemsSource = _vm.Sessions;
             ConnectionsGrid.ItemsSource = _vm.Connections;
@@ -53,6 +58,15 @@ namespace Configuration_Management
             await _vm.ConnectAsync();
             if (_vm.HasConnected)
                 SaveRacSettings();
+        }
+
+        private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                Close();
+                e.Handled = true;
+            }
         }
 
         private void OnRefresh_Click(object sender, RoutedEventArgs e) => _vm.Refresh();
@@ -83,8 +97,6 @@ namespace Configuration_Management
         /// </summary>
         private void OnSaveClusterInfo_Click(object sender, RoutedEventArgs e) =>
             _vm.SaveClusterPropertiesCommand.Execute(null);
-
-        private void OnClose_Click(object sender, RoutedEventArgs e) => Close();
 
         /// <summary>
         /// «Диагностика сети…» (0.3.9.232, функция 12): открывает окно диагностики

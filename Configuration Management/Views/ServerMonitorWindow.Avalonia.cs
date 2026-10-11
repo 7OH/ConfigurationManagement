@@ -84,7 +84,6 @@ namespace Configuration_Management
                 _ = ConnectAndSaveAsync();
             });
             var refreshButton = BuildActionButton(LocalizationManager.T("ServerMonitor.Refresh"), "⟳", _vm.Refresh);
-            var closeButton = BuildCloseButton();
 
             var fields = new StackPanel
             {
@@ -134,7 +133,7 @@ namespace Configuration_Management
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Spacing = 8,
                 Margin = new Thickness(0, 10, 0, 0),
-                Children = { connectButton, refreshButton, diagnosticsButton, closeButton }
+                Children = { connectButton, refreshButton, diagnosticsButton }
             };
 
             // ---- Выбор кластера + статус. ----
@@ -347,20 +346,6 @@ namespace Configuration_Management
             button.Styled(ControlThemes.ModernButton);
             ThemeBrushes.Bind(button, Button.BackgroundProperty, "ItemHoverBrush");
             button.Click += (_, _) => onClick();
-            return button;
-        }
-
-        private Button BuildCloseButton()
-        {
-            var button = new Button
-            {
-                Content = IconHelper.IconAndText("IconClose", LocalizationManager.T("Common.Close"), 14, "TextPrimaryBrush"),
-                IsCancel = true
-            };
-            button.Styled(ControlThemes.ModernButton);
-            ThemeBrushes.Bind(button, Button.BackgroundProperty, "ItemHoverBrush");
-            ThemeBrushes.Bind(button, Button.ForegroundProperty, "TextPrimaryBrush");
-            button.Click += (_, _) => Close();
             return button;
         }
 

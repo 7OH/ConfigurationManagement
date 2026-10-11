@@ -314,9 +314,11 @@ namespace Configuration_Management
                 Orientation = Orientation.Horizontal,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            // В диалоговых окнах показываем только кнопку «закрыть» (без «свернуть»
-            // и «развернуть») — это стандартная схема диалогов. Свои кнопки
-            // «свернуть/развернуть/закрыть» есть только у главного окна.
+            // В диалоговых окнах показываем только кнопку «закрыть». У больших
+            // изменяемых окон (например «Серверы 1С», issue #324) добавляем кнопку
+            // «развернуть/восстановить» — ResizeMode по умолчанию CanResize.
+            if (window.ResizeMode is ResizeMode.CanResize or ResizeMode.CanResizeWithGrip)
+                buttons.Children.Add(BuildMaximizeButton(window));
             buttons.Children.Add(BuildButton(window));
 
             Grid.SetColumn(title, 0);
@@ -326,6 +328,49 @@ namespace Configuration_Management
 
             bar.Child = grid;
             return bar;
+        }
+
+        /// <summary>
+        /// Кнопка «развернуть/восстановить» окна (issue #324, 0.3.12.7). Глиф
+        /// переключается при смене WindowState (окно разворачивается/восстанавливается).
+        /// </summary>
+        private static Button BuildMaximizeButton(Window window)
+        {
+            var style = (Style?)window.TryFindResource("WindowControlButtonOnAccent")
+                        ?? (Style?)window.TryFindResource("WindowControlButton");
+
+            var path = new Path
+            {
+                Width = 14,
+                Height = 14,
+                Stretch = Stretch.Uniform,
+                StrokeThickness = 1.6,
+                StrokeLineJoin = PenLineJoin.Round,
+                Stroke = new SolidColorBrush(Colors.Transparent),
+                Data = Geometry.Parse("M1.5,2.5 A1,1 0 0 1 2.5,1.5 H11.5 A1,1 0 0 1 12.5,2.5 V11.5 A1,1 0 0 1 11.5,12.5 H2.5 A1,1 0 0 1 1.5,11.5 Z")
+            };
+            var button = new Button
+            {
+                Style = style,
+                Content = path,
+                ToolTip = LocalizationManager.T("Window.Maximize")
+            };
+            path.SetBinding(Shape.StrokeProperty, new Binding(nameof(Button.Foreground)) { Source = button });
+            button.Click += (_, _) =>
+            {
+                window.WindowState = window.WindowState == WindowState.Maximized
+                    ? WindowState.Normal
+                    : WindowState.Maximized;
+            };
+            window.StateChanged += (_, _) =>
+            {
+                bool maximized = window.WindowState == WindowState.Maximized;
+                button.ToolTip = LocalizationManager.T(maximized ? "Window.Restore" : "Window.Maximize");
+                path.Data = Geometry.Parse(maximized
+                    ? "M0.5,4.5 A1,1 0 0 1 1.5,3.5 H7.5 A1,1 0 0 1 8.5,4.5 V10.5 A1,1 0 0 1 7.5,11.5 H1.5 A1,1 0 0 1 0.5,10.5 Z M4.5,1.5 A1,1 0 0 1 5.5,0.5 H11.5 A1,1 0 0 1 12.5,1.5 V7.5 A1,1 0 0 1 11.5,8.5 H5.5 A1,1 0 0 1 4.5,7.5 Z"
+                    : "M1.5,2.5 A1,1 0 0 1 2.5,1.5 H11.5 A1,1 0 0 1 12.5,2.5 V11.5 A1,1 0 0 1 11.5,12.5 H2.5 A1,1 0 0 1 1.5,11.5 Z");
+            };
+            return button;
         }
 
         /// <summary>

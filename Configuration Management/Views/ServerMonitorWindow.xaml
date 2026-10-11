@@ -88,15 +88,6 @@
                     <TextBlock Text="{loc:Loc ServerMonitor.NetworkDiagnostics}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
-            <Button x:Name="CloseButton" Style="{StaticResource ModernButton}" IsCancel="True"
-                    Background="{DynamicResource ItemHoverBrush}" Padding="12,5"
-                    Foreground="{DynamicResource TextPrimaryBrush}"
-                    Click="OnClose_Click">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{loc:Loc Common.Close}" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
         </StackPanel>
 
         <!-- Выбор кластера -->
