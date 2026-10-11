@@ -1127,7 +1127,8 @@ namespace Configuration_Management
 
         /// <summary>
         /// Клик по тексту индикатора фоновых загрузок (issue #359): если активные загрузки
-        /// идут из разных окон — небольшое всплывающее меню выбора окна над индикатором,
+        /// идут из разных окон — всплывающая панель выбора окна над индикатором (фон и цвета
+        /// как у нижней строки состояния главного окна, панель не выходит за границы окна),
         /// иначе сразу открывается окно этой загрузки (без случайного выбора).
         /// </summary>
         private void OnDownloadsIndicatorClick(object sender, RoutedEventArgs e)
@@ -1141,14 +1142,7 @@ namespace Configuration_Management
                 return;
             }
 
-            var menu = new ContextMenu
-            {
-                Style = TryFindResource("ModernContextMenu") as Style,
-                PlacementTarget = btn,
-                // Меню раскрывается ВЫШЕ индикатора: он в нижней строке состояния (issue #359).
-                Placement = PlacementMode.Top,
-                DataContext = DataContext,
-            };
+            var menu = CreateDownloadsPickerMenu(btn);
             foreach (var choice in _viewModel.DownloadChoices)
             {
                 var item = new MenuItem
@@ -1156,6 +1150,7 @@ namespace Configuration_Management
                     Header = string.Format("{0}: {1} ({2:P0})", choice.WindowLabel, choice.Title, choice.Progress),
                     Style = TryFindResource("ModernMenuItem") as Style,
                 };
+                ApplyDownloadsPickerItemTheme(item);
                 var id = choice.Id;
                 item.Click += (_, _) => _viewModel.OpenWindowForDownload(id);
                 menu.Items.Add(item);
@@ -1171,6 +1166,84 @@ namespace Configuration_Management
             Dispatcher.BeginInvoke(
                 new Action(() => menu.IsOpen = true),
                 System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        /// <summary>
+        /// Панель выбора окна у индикатора загрузок (issue #359). Фон и цвет текста —
+        /// как у нижней строки состояния главного окна: <c>StatusBarBorder</c>
+        /// (MainWindow.xaml) залит кистью <c>SidebarBrush</c>, текст в строке —
+        /// <c>TextOnAccentBrush</c>; рамка, скругление 6 и тень остаются от стиля
+        /// <c>ModernContextMenu</c>. Панель ограничена по ширине и высоте размером окна
+        /// (не шире главного окна), а позицию считает callback для <c>Placement=Custom</c>:
+        /// панель стоит над индикатором, X зажат в границах окна — иначе меню, открытое у
+        /// правого края нижней строки, вылезало за правый край окна.
+        /// </summary>
+        private ContextMenu CreateDownloadsPickerMenu(FrameworkElement anchor)
+        {
+            var margin = PopupBoundsMath.DefaultMargin;
+            var menu = new ContextMenu
+            {
+                Style = TryFindResource("ModernContextMenu") as Style,
+                PlacementTarget = anchor,
+                Placement = PlacementMode.Custom,
+                DataContext = DataContext,
+            };
+
+            if (TryFindResource("SidebarBrush") is Brush background)
+                menu.Background = background;
+            if (TryFindResource("TextOnAccentBrush") is Brush foreground)
+                menu.Foreground = foreground;
+
+            menu.MaxWidth = Math.Max(menu.MinWidth, PopupBoundsMath.MaxPopupSize(ActualWidth, margin));
+            menu.MaxHeight = Math.Max(menu.MinHeight, PopupBoundsMath.MaxPopupSize(ActualHeight, margin));
+
+            // Callback для Placement=Custom: WPF вызывает его после измерения popup и ждёт
+            // точку, отсчитанную от верхнего левого угла PlacementTarget (Popup.cs:2061),
+            // а сам popupSize отдаёт в физических пикселях экрана (GetChildInterestPoints
+            // применяет TransformToDevice), в то ActualWidth/ActualHeight и TranslatePoint
+            // дают DIP. Поэтому размер popup переводится в DIP, а результат — обратно
+            // в пиксели, иначе при 125%/150% меню смещалось бы относительно индикатора.
+            menu.CustomPopupPlacementCallback = (popupSize, targetSize, offset) =>
+            {
+                var toDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice
+                    ?? Matrix.Identity;
+                var origin = anchor.TranslatePoint(new Point(0, 0), this);
+                var (left, top) = PopupBoundsMath.PlaceAboveClamped(
+                    origin.X,
+                    origin.Y,
+                    popupSize.Width / toDevice.M11,
+                    popupSize.Height / toDevice.M22,
+                    ActualWidth,
+                    ActualHeight,
+                    margin,
+                    PopupBoundsMath.DefaultGap);
+                return new[]
+                {
+                    new CustomPopupPlacement(
+                        new Point((left - origin.X) * toDevice.M11, (top - origin.Y) * toDevice.M22),
+                        PopupPrimaryAxis.Horizontal),
+                };
+            };
+
+            return menu;
+        }
+
+        /// <summary>
+        /// Цвета пунктов панели выбора окна (issue #359): текст — как в строке состояния
+        /// (<c>TextOnAccentBrush</c>), подсветка — <c>SidebarHoverBrush</c>. Пункты лежат на
+        /// тёмном фоне <c>SidebarBrush</c>, поэтому <c>TextPrimaryBrush</c> светлой темы
+        /// (чёрный) и <c>ItemHoverBrush</c> светлой темы (бледно-жёлтый) не годятся.
+        /// Подсветка в шаблоне пункта красится <c>{DynamicResource ItemHoverBrush}</c>, а цвет
+        /// подписи — <c>{DynamicResource TextPrimaryBrush}</c> (LightTheme.xaml:791 и :874);
+        /// разрешение ресурса идёт по логическому дереву от самого пункта, поэтому кисти
+        /// кладутся в его ресурсы и перекрывают ресурсы приложения.
+        /// </summary>
+        private void ApplyDownloadsPickerItemTheme(MenuItem item)
+        {
+            if (TryFindResource("TextOnAccentBrush") is Brush text)
+                item.Resources["TextPrimaryBrush"] = text;
+            if (TryFindResource("SidebarHoverBrush") is Brush hover)
+                item.Resources["ItemHoverBrush"] = hover;
         }
     }
 }

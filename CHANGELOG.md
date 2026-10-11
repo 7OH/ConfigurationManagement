@@ -9,6 +9,30 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.12.14] — 2026-10-11
+
+### Улучшено (issue #359)
+
+- **Всплывающее меню выбора окна у индикатора фоновых загрузок больше не вылезает за
+  границы главного окна** (Windows/WPF и Linux/Avalonia): меню, которое раньше могло
+  «вылететь» за правый/нижний край окна (особенно при нескольких открытых окнах и
+  длинных именах), теперь размещается над кнопкой индикатора и зажимается в границы
+  окна с отступом от краёв — при любом размере экрана и положении окна.
+  Геометрия клампинга вынесена в чистую общую функцию
+  [`PopupBoundsMath.cs`](Configuration%20Management/Services/PopupBoundsMath.cs)
+  (`PlaceAboveClamped`: X зажимается в `[margin, width-margin-popupWidth]`,
+  Y = `targetTop - gap - popupHeight` со зажатием сверху/снизу; `MaxPopupSize`
+  ограничивает размер панели размером окна) и покрыта юнит-тестами
+  ([`PopupBoundsMathTests.cs`](ConfigurationManagement.Tests/PopupBoundsMathTests.cs)).
+  - **WPF** (`MainWindow.xaml.cs`): меню открытого через `PlacementMode.Custom` и
+    `CustomPopupPlacementCallback` с учётом DPI (пиксели ↔ логические единицы).
+  - **Avalonia** (`MainWindow.Avalonia.cs`): меню через `PlacementMode.Custom` и
+    `CustomPopupPlacementCallback` (`ManagedPopupPositioner`).
+  - **Цвета пунктов — на фоне нижней панели** (просьба @7OH): пункты меню перекрашены
+    под строку состояния (`SidebarBrush` / `SidebarHoverBrush` / `TextOnAccentBrush`),
+    в т.ч. в светлой теме, где раньше использовались «десктопные» цвета пунктов и текст
+    на бледно-жёлтой подсветке был плохо читаем.
+
 ## [0.3.12.13] — 2026-10-11
 
 ### Улучшено (issue #360)

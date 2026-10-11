@@ -10,6 +10,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Controls.Templates;
 using Avalonia.Controls.Shapes;
 using Avalonia.Data;
@@ -2100,7 +2101,8 @@ namespace Configuration_Management
 
         /// <summary>
         /// Клик по тексту индикатора фоновых загрузок (issue #359): если активные загрузки
-        /// идут из разных окон — небольшое всплывающее меню выбора окна над индикатором,
+        /// идут из разных окон — всплывающая панель выбора окна над индикатором (фон и цвета
+        /// как у нижней строки состояния главного окна, панель не выходит за границы окна),
         /// иначе сразу открывается окно этой загрузки (без случайного выбора).
         /// </summary>
         private void ShowDownloadsPicker(TextBlock anchor)
@@ -2114,7 +2116,7 @@ namespace Configuration_Management
                 return;
             }
 
-            var menu = new ContextMenu().Styled(Themes.ControlThemes.ModernContextMenu);
+            var menu = CreateDownloadsPickerMenu(anchor);
             foreach (var choice in _vm.DownloadChoices)
             {
                 var item = new MenuItem
@@ -2122,6 +2124,7 @@ namespace Configuration_Management
                     Header = string.Format("{0}: {1} ({2:P0})", choice.WindowLabel, choice.Title, choice.Progress),
                 };
                 item.Styled(Themes.ControlThemes.ModernMenuItem);
+                ApplyDownloadsPickerItemTheme(item);
                 var id = choice.Id;
                 item.Click += (_, _) => _vm.OpenWindowForDownload(id);
                 menu.Items.Add(item);
@@ -2132,10 +2135,88 @@ namespace Configuration_Management
                 return;
             }
 
-            // Меню раскрывается ВЫШЕ индикатора: он в нижней строке состояния (issue #359).
-            menu.PlacementTarget = anchor;
-            menu.Placement = PlacementMode.Top;
             menu.Open(anchor);
+        }
+
+        /// <summary>
+        /// Панель выбора окна у индикатора загрузок (issue #359). Фон и цвет текста —
+        /// как у нижней строки состояния главного окна: <c>StatusBarBorder</c> (сборка
+        /// ниже) залит кистью <c>SidebarBrush</c>, текст в строке — <c>TextOnAccentBrush</c>;
+        /// рамка, скругление 6 и тень остаются от темы <c>ModernContextMenu</c>. Панель
+        /// ограничена по ширине и высоте размером окна, а позицию считает callback для
+        /// <c>Placement=Custom</c>: панель стоит над индикатором, X зажат в границах окна —
+        /// иначе меню, открытое у правого края нижней строки, вылезало за правый край окна.
+        /// </summary>
+        private ContextMenu CreateDownloadsPickerMenu(Control anchor)
+        {
+            var margin = PopupBoundsMath.DefaultMargin;
+            var menu = new ContextMenu().Styled(Themes.ControlThemes.ModernContextMenu);
+            menu.PlacementTarget = anchor;
+            menu.Placement = PlacementMode.Custom;
+            menu.MaxWidth = Math.Max(menu.MinWidth, PopupBoundsMath.MaxPopupSize(Bounds.Width, margin));
+            menu.MaxHeight = Math.Max(menu.MinHeight, PopupBoundsMath.MaxPopupSize(Bounds.Height, margin));
+
+            // Callback для Placement=Custom: Avalonia отдаёт измеренный размер панели
+            // (PopupSize) и прямоугольник индикатора в координатах окна (AnchorRectangle),
+            // а на выходе ждёт Offset от точки привязки (IPopupPositioner.cs: Offset
+            // прибавляется к якорной точке). AnchoredTopLeft + BottomRightGravity ставят
+            // левый верхний угол панели ровно в якорную точку, поэтому Offset и есть
+            // сдвиг от левого верха индикатора до вычисленной позиции.
+            menu.CustomPopupPlacementCallback = parameters =>
+            {
+                var origin = parameters.AnchorRectangle.TopLeft;
+                var (left, top) = PopupBoundsMath.PlaceAboveClamped(
+                    origin.X,
+                    origin.Y,
+                    parameters.PopupSize.Width,
+                    parameters.PopupSize.Height,
+                    Bounds.Width,
+                    Bounds.Height,
+                    margin,
+                    PopupBoundsMath.DefaultGap);
+                parameters.Anchor = PopupAnchor.TopLeft;
+                parameters.Gravity = PopupGravity.BottomRight;
+                parameters.ConstraintAdjustment = PopupPositionerConstraintAdjustment.None;
+                parameters.Offset = new Point(left - origin.X, top - origin.Y);
+            };
+
+            // Фон панели: тот же SidebarBrush, что у StatusBarBorder. Своя кисть важнее
+            // значения из темы, поэтому присваивается напрямую.
+            if (Application.Current?.TryFindResource("SidebarBrush", out var background) == true
+                && background is IBrush bg)
+            {
+                menu.Background = bg;
+            }
+            if (Application.Current?.TryFindResource("TextOnAccentBrush", out var foreground) == true
+                && foreground is IBrush fg)
+            {
+                menu.Foreground = fg;
+            }
+
+            return menu;
+        }
+
+        /// <summary>
+        /// Цвета пунктов панели выбора окна (issue #359): текст — как в строке состояния
+        /// (<c>TextOnAccentBrush</c>), подсветка — <c>SidebarHoverBrush</c>. Пункты лежат на
+        /// тёмном фоне <c>SidebarBrush</c>, поэтому <c>TextPrimaryBrush</c> светлой темы
+        /// (чёрный) и <c>ItemHoverBrush</c> светлой темы (бледно-жёлтый) не годятся.
+        /// Подсветка и цвет подписи в шаблоне пункта красятся DynamicResource'ом, а
+        /// разрешение ресурса начинается с самого пункта — поэтому кисти кладутся в его
+        /// ресурсы, а Foreground задаётся напрямую (своя кисть важнее значения из темы).
+        /// </summary>
+        private void ApplyDownloadsPickerItemTheme(MenuItem item)
+        {
+            var app = Application.Current;
+            if (app?.TryFindResource("TextOnAccentBrush", out var text) == true && text is IBrush tb)
+            {
+                item.Foreground = tb;
+                item.Resources["TextPrimaryBrush"] = tb;
+            }
+            if (app?.TryFindResource("SidebarHoverBrush", out var hover) == true && hover is IBrush hb)
+            {
+                item.Resources["ItemHoverBrush"] = hb;
+            }
         }
 
         /// <summary>
