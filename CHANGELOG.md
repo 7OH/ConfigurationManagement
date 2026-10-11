@@ -9,6 +9,18 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.12.9] — 2026-10-11
+
+### Улучшено (issue #363)
+
+- **Обновление платформы — проверка сразу при открытии** (Windows/WPF и Linux/Avalonia):
+  окно «Обновление платформы 1С» (Ctrl+F9) при открытии автоматически запускает проверку
+  каталога версий на `releases.1c.ru` ([`PlatformUpdateWindow.xaml.cs`](Configuration%20Management/Views/PlatformUpdateWindow.xaml.cs),
+  [`PlatformUpdateWindow.Avalonia.cs`](Configuration%20Management/Views/PlatformUpdateWindow.Avalonia.cs)).
+  Раньше окно открывалось пустым до нажатия «Проверить обновления». Защита от повторного
+  запуска — существующий флаг `IsBusy` в `PlatformUpdateViewModel.CheckUpdatesAsync`.
+  Образец — уже работающая автозагрузка каталога в окне «Скачивание версии платформы 1С».
+
 ## [0.3.12.8] — 2026-10-11
 
 ### Исправлено (issue #362)

@@ -99,6 +99,17 @@ public partial class PlatformUpdateWindow : Window
 
         // Закрытие окна по Esc (паттерн ActualReleasesWindow, issue #264).
         PreviewKeyDown += OnWindow_PreviewKeyDown;
+
+        // Issue #363 (0.3.12.9): при открытии сразу запускаем проверку обновлений,
+        // чтобы пользователь не видел пустое окно. Защита от повторного запуска —
+        // внутри CheckUpdatesAsync (IsBusy).
+        Loaded += OnWindow_Loaded;
+    }
+
+    /// <summary>При открытии — первичная проверка обновлений платформы (issue #363).</summary>
+    private async void OnWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.CheckUpdatesAsync();
     }
 
     /// <summary>Начальный каталог диалога сохранения: сохранённая папка скачиваний

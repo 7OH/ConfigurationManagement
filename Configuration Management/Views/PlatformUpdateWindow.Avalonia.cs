@@ -123,6 +123,17 @@ namespace Configuration_Management
 
             Content = BuildRoot();
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+            // Issue #363 (0.3.12.9): при открытии сразу запускаем проверку обновлений,
+            // чтобы пользователь не видел пустое окно. Защита от повторного запуска —
+            // внутри CheckUpdatesAsync (IsBusy).
+            Opened += OnOpened;
+        }
+
+        /// <summary>При открытии — первичная проверка обновлений платформы (issue #363).</summary>
+        private async void OnOpened(object? sender, EventArgs e)
+        {
+            await _viewModel.CheckUpdatesAsync();
         }
 
         /// <summary>Показывает окно модально (синхронно). Открытая публичная обёртка над
