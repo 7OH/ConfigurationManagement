@@ -597,6 +597,40 @@ public sealed class MetadataExplorerViewModelTests : IDisposable
         Assert.Contains("MetadataExplorer.Status.LoadedFormat", vm.StatusText);
     }
 
+    [Fact]
+    public async Task Load_Error_ShowErrorDispatchesToUiThread()
+    {
+        // Issue #365 (стек 7OH): диалог ошибки вызывался ВНЕ UI-диспатча — на Windows
+        // возникало «Вызывающим потоком должен быть STA» при создании MaterialMessageWindow.
+        // Сейчас ShowError находится внутри диспатча: до его выполнения диалогов нет.
+        var dialogs = new RecordingDialogs();
+        var fake = new FakeMetadataExplorerService { BaseException = new InvalidOperationException("boom") };
+        var dispatched = new List<Action>();
+        var vm = new MetadataExplorerViewModel(
+            new[] { CreateBase() }, CreateBase(), fake, dialogs,
+            dispatchToUi: a => dispatched.Add(a),
+            designerBlockCheck: _ => null);
+
+        await vm.LoadAsync();
+
+        Assert.Equal(0, dialogs.ErrorCalls);
+        Assert.True(dispatched.Count >= 1, "ошибка должна быть применена через диспетчер");
+
+        // Выполняем отложенные действия порциями: сами действия ставят в диспетчер
+        // уведомления PropertyChanged, поэтому перебираем снимки до опустошения.
+        for (var guard = 0; dispatched.Count > 0 && guard < 50; guard++)
+        {
+            var batch = dispatched.ToList();
+            dispatched.Clear();
+            foreach (var action in batch)
+                action();
+        }
+
+        Assert.Equal(1, dialogs.ErrorCalls);
+        Assert.Equal("MetadataExplorer.Errors.OperationFailed", vm.StatusText);
+        Assert.Contains("boom", dialogs.LastErrorMessage);
+    }
+
     // ===================== Фикстуры =====================
 
     /// <summary>Выгрузка с подсистемами: Subsystems/Основное + Catalogs/Контрагенты + Documents/ЗаказКлиента.</summary>

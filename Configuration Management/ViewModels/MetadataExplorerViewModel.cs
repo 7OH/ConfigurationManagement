@@ -988,14 +988,17 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         {
             ErrorMessage = message;
             StatusText = LocalizationManager.T("MetadataExplorer.Errors.OperationFailed");
+            // Диалог ошибки тоже показывается на UI-потоке: раньше ShowError мог
+            // выполняться из фонового потока (после ConfigureAwait(false)) и падать
+            // «Вызывающим потоком должен быть STA» при создании MaterialMessageWindow
+            // (issue #365, стек 7OH от 2026-10-12).
+            _dialogs.ShowError(message, LocalizationManager.T("MetadataExplorer.Title"));
         }
 
         if (_dispatchToUi is null)
             Apply();
         else
             _dispatchToUi(Apply);
-
-        _dialogs.ShowError(message, LocalizationManager.T("MetadataExplorer.Title"));
     }
 
     /// <summary>

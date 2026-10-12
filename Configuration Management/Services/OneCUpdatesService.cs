@@ -380,6 +380,27 @@ public class OneCUpdatesService : IOneCUpdatesService
                 : isVersionFiles
                     ? ParseLatestVersionFromJson(body)
                     : ParseLatestVersion(body);
+
+            // Урезанный каталог (issue #371): releases.1c.ru/project/<nick> без параметра
+            // allUpdates=true отдаёт только последние релизы, и версия может не распарситься
+            // (например УПП/Розница, len≈11760). Повторяем запрос с allUpdates=true#updates —
+            // полный каталог содержит таблицу версий.
+            if (string.IsNullOrWhiteSpace(latest) && isProject)
+            {
+                var fullUrl = BuildAllUpdatesCatalogUrl(url);
+                if (!fullUrl.Equals(url, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.Warn($"[Updates] Первый проход не дал версию ({url}) — запрашиваю полный каталог: {fullUrl}");
+                    var fullBody = await FetchCatalogBodyAsync(fullUrl, ct).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(fullBody))
+                    {
+                        latest = ParseLatestVersionFromProjectHtml(fullBody);
+                        if (!string.IsNullOrWhiteSpace(latest))
+                            _logger.Info($"[Updates] Версия {latest} определена по полному каталогу ({fullUrl}).");
+                    }
+                }
+            }
+
             result.LatestVersion = latest;
 
             if (string.IsNullOrWhiteSpace(latest))
@@ -409,6 +430,28 @@ public class OneCUpdatesService : IOneCUpdatesService
             result.Status = ConfigUpdateStatus.Failed;
             result.Error = "Updates.NetworkError";
             return result;
+        }
+    }
+
+    /// <summary>
+    /// Выполняет GET-запрос к каталогу обновлений и возвращает тело ответа, если это не
+    /// страница входа (issue #371, fallback на полный каталог allUpdates=true). При сетевой
+    /// ошибке или недоступности возвращает null — вызывающий продолжает с прежним результатом.
+    /// </summary>
+    private async Task<string?> FetchCatalogBodyAsync(string url, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+                return null;
+            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            return LooksLikeLoginForm(body) ? null : body;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -474,7 +517,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// текст ссылки может не содержать версии, версия — в query адреса или атрибутах
     /// карточек). Возвращает максимальную из найденных версий или пустую строку.
     /// </summary>
-    internal static string ParseLatestVersionFromProjectHtml(string html)
+    internal static string ParseLatestVersionFromProjectHtml(string? html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
@@ -483,7 +526,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         var candidates = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        void AddCandidate(string candidate)
+        void AddCandidate(string? candidate)
         {
             if (string.IsNullOrWhiteSpace(candidate))
                 return;
@@ -516,6 +559,15 @@ public class OneCUpdatesService : IOneCUpdatesService
         {
             foreach (Match m in DataVersionAttrRegex.Matches(html))
                 AddCandidate(m.Groups["ver"].Value);
+        }
+
+        // 4) Последний запасной путь (короткие страницы без таблицы/ссылок/атрибутов,
+        //    например каталоги УПП/Розницы len≈11760, issue #371): версионные токены
+        //    прямо из HTML, с отсевом дат и «годоподобных» токенов.
+        if (candidates.Count == 0)
+        {
+            foreach (var t in ExtractVersionTokens(html))
+                AddCandidate(t);
         }
 
         // Максимальная из найденных (порядок строк в HTML может не совпадать с новизной).
@@ -560,6 +612,43 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <summary>Регулярное выражение для извлечения 3–4-частных номеров версий из текста (JSON и пр.).</summary>
     private static readonly Regex VersionTokenRegex =
         new(@"\b(?<v>\d{1,4}(\.\d{1,4}){1,3})\b", RegexOptions.Compiled);
+
+    /// <summary>Регулярное выражение для извлечения 3–4-частных номеров версий из HTML-страницы
+    /// каталога (issue #371): короткие страницы УПП/Розницы не содержат таблицы, ссылок
+    /// version_files и атрибутов data-ver — версия встречается только в тексте.</summary>
+    private static readonly Regex VersionTokenInHtmlRegex =
+        new(@"\b(?<v>\d{1,4}(?:\.\d{1,4}){2,3})\b", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Извлекает из HTML-страницы каталога все 3–4-частные версионные токены (например
+    /// <c>8.3.26.1656</c>), отсекая даты и «годоподобные» токены (первый или последний сегмент
+    /// ≥ 1900, например <c>2026.10.12</c> или <c>10.12.2026</c>). Дубликаты не повторяются.
+    /// Internal — для юнит-тестов (OneCUpdatesParsingTests).
+    /// </summary>
+    internal static IEnumerable<string> ExtractVersionTokens(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            yield break;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match match in VersionTokenInHtmlRegex.Matches(html))
+        {
+            var candidate = match.Groups["v"].Value;
+            if (!seen.Add(candidate))
+                continue;
+
+            var parts = candidate.Split('.');
+            if (parts.Length is not (3 or 4))
+                continue;
+
+            var first = int.Parse(parts[0], CultureInfo.InvariantCulture);
+            var last = int.Parse(parts[^1], CultureInfo.InvariantCulture);
+            if (first >= 1900 || last >= 1900)
+                continue; // дата/год
+
+            yield return candidate;
+        }
+    }
 
     /// <summary>
     /// Извлекает из JSON-ответа ресурса <c>releases.1c.ru/version_files</c> все кандидаты версий
@@ -1285,6 +1374,14 @@ public class OneCUpdatesService : IOneCUpdatesService
     {
         var cap = caption ?? string.Empty;
         var name = fileName ?? string.Empty;
+
+        // Файл обновления для ДРУГОЙ конфигурации (issue #352): имя вида
+        // Trade_11_5_25_80_updsetup_accounting3.zip — после маркера updsetup идёт суффикс
+        // другой конфигурации. Такой файл не является дистрибутивом для текущей
+        // конфигурации и отсеивается полностью (и из «обновления», и из «полного»).
+        if (HasForeignUpdateSuffix(name))
+            return null;
+
         var isUpdate = cap.Contains("дистрибутив обновления", StringComparison.OrdinalIgnoreCase)
             || cap.Contains("update distribution", StringComparison.OrdinalIgnoreCase)
             || name.Contains("updsetup", StringComparison.OrdinalIgnoreCase);
@@ -1302,6 +1399,16 @@ public class OneCUpdatesService : IOneCUpdatesService
         return ext is ".cf" or ".cfu" or ".zip" or ".rar" or ".7z" or ".arj"
             ? UpdateFileChoice.FullDistributionCaptionKey
             : null;
+    }
+
+    /// <summary>True — имя файла содержит маркер обновления <c>updsetup</c> с дополнительным
+    /// суффиксом после него (например <c>Trade_11_5_25_80_updsetup_accounting3.zip</c> —
+    /// обновление для другой конфигурации на странице файлов версии, issue #352).</summary>
+    private static bool HasForeignUpdateSuffix(string name)
+    {
+        var baseName = Path.GetFileNameWithoutExtension(name);
+        var idx = baseName.IndexOf("updsetup", StringComparison.OrdinalIgnoreCase);
+        return idx >= 0 && baseName.Length > idx + "updsetup".Length;
     }
 
     /// <summary>Извлекает имя файла из адреса: последний сегмент пути либо значение

@@ -70,7 +70,10 @@ public sealed class ScheduledTaskStoreTests : IDisposable
 
         _store.Save(task);
 
-        var text = File.ReadAllText(Path.Combine(_tempDir, task.Id + ".task.json"));
+        // Файл записан под читаемым именем «Имя.<id>.task.json» (issue #366).
+        var text = File.ReadAllText(Path.Combine(
+            _tempDir,
+            ScheduledTaskStore.SanitizeName(task.Name) + "." + task.Id + ".task.json"));
         Assert.Contains("\"Name\": \"Ежедневное резервирование\"", text);
         Assert.DoesNotContain(@"\u", text);
     }

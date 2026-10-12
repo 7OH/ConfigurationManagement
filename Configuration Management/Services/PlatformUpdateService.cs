@@ -135,6 +135,13 @@ public sealed class PlatformUpdateService : IPlatformUpdateService
             return Failure(status);
 
         var releases = OneCPlatformCatalogParser.ParseVersions(text!, nick);
+
+        // issue #361: отладочный флаг CM_DEBUG_PLATFORM_UPDATE=1 — распознанный каталог
+        // в platform-update-debug.log (диагностика «Есть обновление» для последних версий
+        // линий: какие версии реально пришли с портала).
+        if (PlatformUpdateDebug.IsEnabled)
+            PlatformUpdateDebug.Log($"[PlatformUpdate] {nick}: распознано версий {releases.Count}: [{string.Join(", ", releases.Select(r => r.Version))}]");
+
         if (releases.Count == 0)
         {
             // Страница получена, но ни одной версии не распознано — структура каталога

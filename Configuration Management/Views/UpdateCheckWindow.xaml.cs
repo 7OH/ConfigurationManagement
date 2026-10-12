@@ -710,14 +710,15 @@ public partial class UpdateCheckWindow : Window
             800d,
             Math.Max(SystemParameters.WorkArea.Height - 40d, MinHeight));
         if (Height < target)
-        {
             Height = target;
-            // issue #352 (7OH от 2026-10-11): при появлении таблицы цепочек низ окна
-            // уходил за панель задач — поднимаем окно, чтобы оно оставалось в рабочей
-            // области (WindowSizeMath.FitTop, как в окне «Серверы 1С»).
-            var wa = SystemParameters.WorkArea;
-            Top = WindowSizeMath.FitTop(Top, Height, wa.Top, wa.Bottom);
-        }
+
+        // issue #352 (7OH от 2026-10-11): при появлении таблицы цепочек низ окна
+        // уходил за панель задач — поднимаем окно, чтобы оно оставалось в рабочей
+        // области (WindowSizeMath.FitTop, как в окне «Серверы 1С»). Подъём выполняется
+        // ВСЕГДА (не только при увеличении высоты): окно, уже растянутое пользователем
+        // выше рабочей области, тоже должно вернуться в её пределы.
+        var wa = SystemParameters.WorkArea;
+        Top = WindowSizeMath.FitTop(Top, Height, wa.Top, wa.Bottom);
     }
 
     /// <summary>Кнопка «Выбрать…» рядом с папкой цепочки (issue #352.2): выбор каталога

@@ -124,6 +124,46 @@ public sealed class UpdateFileChoiceTests
         Assert.Equal(string.Empty, OneCUpdatesService.ExtractFileNameFromUrl(null));
     }
 
+    // ======================= отсев «чужих» файлов обновления (issue #352) =======================
+
+    [Fact]
+    public void ParseReleaseFileLinks_ForeignUpdateSuffix_FilteredOut()
+    {
+        // На странице файлов версии УТ лежит обновление для другой конфигурации
+        // (Trade_11_5_25_80_updsetup_accounting3.zip). Оно не должно попадать в кандидаты
+        // «Дистрибутива обновления» — иначе цепочка скачает файл с лишним суффиксом.
+        const string html = """
+            <html><body>
+              <a href="/version_file?nick=Trade&ver=11.5.25.80&path=Trade%5c11_5_25_80%5cTrade_11_5_25_80_updsetup.zip">Дистрибутив обновления</a>
+              <a href="/additional_file?nick=Trade&ver=11.5.25.80&path=Trade%5c11_5_25_80%5cTrade_11_5_25_80_updsetup_accounting3.zip">Дистрибутив обновления для Бухгалтерии предприятия</a>
+            </body></html>
+            """;
+
+        var links = OneCUpdatesService.ParseReleaseFileLinks(
+            html, "https://releases.1c.ru/version_files?nick=Trade&ver=11.5.25.80");
+
+        var link = Assert.Single(links);
+        Assert.Equal(UpdateFileChoice.UpdateDistributionCaptionKey, link.CaptionKey);
+        Assert.EndsWith("Trade_11_5_25_80_updsetup.zip", link.FileName, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ParseReleaseFileLinks_ForeignUpdateSuffix_NotClassifiedAsFullDistribution()
+    {
+        // Файл обновления для другой конфигурации отсеивается ПОЛНОСТЬЮ — даже как
+        // «Полный дистрибутив» по расширению .zip (иначе он попал бы в диалог выбора).
+        const string html = """
+            <html><body>
+              <a href="/additional_file?nick=Trade&ver=11.5.25.80&path=Trade%5c11_5_25_80%5cTrade_11_5_25_80_updsetup_accounting3.zip">Дистрибутив обновления для Бухгалтерии предприятия</a>
+            </body></html>
+            """;
+
+        var links = OneCUpdatesService.ParseReleaseFileLinks(
+            html, "https://releases.1c.ru/version_files?nick=Trade&ver=11.5.25.80");
+
+        Assert.Empty(links);
+    }
+
     // ======================= диалог повтора (issue #352.3) =======================
 
     [Fact]

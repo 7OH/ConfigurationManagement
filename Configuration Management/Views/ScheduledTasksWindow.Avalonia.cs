@@ -1,9 +1,14 @@
 #if LINUX
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Configuration_Management.Localization;
+using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Configuration_Management.Themes;
 using Configuration_Management.ViewModels;
@@ -12,7 +17,9 @@ namespace Configuration_Management;
 
 /// <summary>
 /// Окно «Задания по расписанию» (Avalonia/Linux, issue #286): список заданий с действиями
-/// «Выполнить сейчас», «Добавить», «Изменить», «Удалить».
+/// «Выполнить сейчас», «Добавить», «Изменить», «Удалить». С 0.3.12.24 (issue #372):
+/// отбор по типу действия, поиск по всем полям, переключатель активности в строке,
+/// правка по F2 и удаление по DEL; нижняя кнопка «Закрыть» убрана.
 /// </summary>
 public sealed class ScheduledTasksWindow : ModalWindowBase
 {
@@ -20,6 +27,11 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
     private readonly IDialogService _dialogs = AppServices.GetRequiredService<IDialogService>();
     private readonly SchedulerService _scheduler = AppServices.GetRequiredService<SchedulerService>();
     private readonly ListBox _list = new();
+    private readonly TextBox _searchBox = new TextBox();
+    private readonly ComboBox _kindFilter = new ComboBox();
+    private readonly List<ScheduledTaskItemViewModel> _allItems = new();
+    private ScheduledTaskKind? _filterKind;
+    private string _searchText = "";
 
     public ScheduledTasksWindow()
     {
@@ -38,10 +50,52 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
 
     private static string T(string key) => LocalizationManager.T(key);
 
+    /// <summary>Вариант фильтра по типу: «Все типы» плюс каждый тип задания.</summary>
+    private sealed record KindFilterOption(string Value, string Text, ScheduledTaskKind? Kind);
+
+    private static IReadOnlyList<KindFilterOption> BuildKindFilterOptions()
+    {
+        var options = new List<KindFilterOption> { new("", T("Schedule.Filter.AllKinds"), null) };
+        foreach (ScheduledTaskKind kind in Enum.GetValues(typeof(ScheduledTaskKind)))
+            options.Add(new(kind.ToString(), ScheduledTaskItemViewModel.KindName(kind), kind));
+        return options;
+    }
+
     private Control BuildRoot()
     {
         var dock = new DockPanel { Margin = new Avalonia.Thickness(14) };
 
+        // Панель фильтров (issue #372, п. 1–2): отбор по типу и поиск по всем полям.
+        var filterRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+        };
+        _kindFilter.Width = 240;
+        _kindFilter.ItemsSource = BuildKindFilterOptions();
+        _kindFilter.ItemsPanel = null;
+        _kindFilter.SelectedItem = _kindFilter.ItemsSource.Cast<object>().FirstOrDefault();
+        _kindFilter.SelectionChanged += (_, _) =>
+        {
+            _filterKind = (_kindFilter.SelectedItem as KindFilterOption)?.Kind;
+            ApplyFilter();
+        };
+        _searchBox.Width = 320;
+        ToolTip.SetTip(_searchBox, T("Schedule.Filter.Placeholder"));
+        _searchBox.TextChanged += (_, _) =>
+        {
+            _searchText = _searchBox.Text ?? "";
+            ApplyFilter();
+        };
+        _searchBox.Styled(ControlThemes.ModernTextBox);
+        _kindFilter.Styled(ControlThemes.ModernComboBox);
+        filterRow.Children.Add(_kindFilter);
+        filterRow.Children.Add(_searchBox);
+        DockPanel.SetDock(filterRow, Dock.Top);
+        dock.Children.Add(filterRow);
+
+        // Нижние кнопки: «Закрыть» убрана (issue #372, п. 3) — закрытие системное / Esc.
         var bottom = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -59,12 +113,10 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
         copy.Click += (_, _) => CopySelected();
         var del = new Button { Content = T("Common.Delete"), Width = 92 };
         del.Click += (_, _) => DeleteSelected();
-        var close = new Button { Content = T("Common.Close"), Width = 90 };
-        close.Click += (_, _) => Close();
 
         // Темизация кнопок окна (issue #291): стили берутся из Controls.axaml/тем
         // Light-Dark, как у остальных окон приложения, а не штатный вид Fluent.
-        foreach (var b in new Control[] { run, add, edit, copy, del, close })
+        foreach (var b in new Control[] { run, add, edit, copy, del })
         {
             b.Styled(ControlThemes.ModernButton);
             b.MinWidth = b.Width;
@@ -75,20 +127,84 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
         bottom.Children.Add(edit);
         bottom.Children.Add(copy);
         bottom.Children.Add(del);
-        bottom.Children.Add(close);
 
+        // Строка списка (issue #372, п. 6): переключатель активности справа.
+        _list.ItemTemplate = new FuncDataTemplate<ScheduledTaskItemViewModel>((vm, _) => BuildListItem(vm));
         _list.Margin = new Avalonia.Thickness(0, 0, 0, 8);
+        _list.KeyDown += List_KeyDown;
+
         DockPanel.SetDock(bottom, Dock.Bottom);
         dock.Children.Add(bottom);
         dock.Children.Add(_list);
         return dock;
     }
 
+    /// <summary>
+    /// Горячие клавиши списка (issue #372, п. 4–5): F2 — правка выбранной строки,
+    /// Delete — удаление с подтверждением.
+    /// </summary>
+    private void List_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F2)
+        {
+            EditSelected();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Delete)
+        {
+            DeleteSelected();
+            e.Handled = true;
+        }
+    }
+
+    private Control BuildListItem(ScheduledTaskItemViewModel vm)
+    {
+        var name = new TextBlock { Text = vm.Name, FontWeight = FontWeight.SemiBold };
+        ThemeBrushes.Bind(name, TextBlock.ForegroundProperty, "TextPrimaryColorBrush");
+
+        var kind = new TextBlock { Text = vm.KindText };
+        var summary = new TextBlock { Text = vm.ScheduleSummary };
+        var last = new TextBlock { Text = vm.LastRunSummary, TextTrimming = TextTrimming.CharacterEllipsis };
+        ThemeBrushes.Bind(kind, TextBlock.ForegroundProperty, "TextSecondaryColorBrush");
+        ThemeBrushes.Bind(summary, TextBlock.ForegroundProperty, "TextSecondaryColorBrush");
+        ThemeBrushes.Bind(last, TextBlock.ForegroundProperty, "TextSecondaryColorBrush");
+
+        var kindRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        kindRow.Children.Add(kind);
+        kindRow.Children.Add(summary);
+
+        var body = new StackPanel { Spacing = 3 };
+        body.Children.Add(name);
+        body.Children.Add(kindRow);
+        body.Children.Add(last);
+
+        var active = new CheckBox { IsChecked = vm.IsActive, VerticalAlignment = VerticalAlignment.Center };
+        active.Styled(ControlThemes.CacheCleanCheckBox);
+        active.IsCheckedChanged += (_, _) =>
+        {
+            // Изменение активности сразу сохраняется (issue #372, п. 6).
+            vm.SetActive(active.IsChecked == true);
+            _store.Save(vm.Task);
+        };
+
+        var row = new DockPanel { Margin = new Avalonia.Thickness(3) };
+        DockPanel.SetDock(active, Dock.Right);
+        row.Children.Add(active);
+        row.Children.Add(body);
+        return row;
+    }
+
     private void Reload()
     {
-        _list.ItemsSource = _store.LoadAll()
-            .Select(t => new ScheduledTaskItemViewModel(t))
-            .ToList();
+        _allItems.Clear();
+        _allItems.AddRange(_store.LoadAll()
+            .Select(t => new ScheduledTaskItemViewModel(t)));
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        _list.ItemsSource = ScheduledTaskListFilter.Apply(_allItems, _filterKind, _searchText);
     }
 
     private ScheduledTaskItemViewModel? Selected => _list.SelectedItem as ScheduledTaskItemViewModel;

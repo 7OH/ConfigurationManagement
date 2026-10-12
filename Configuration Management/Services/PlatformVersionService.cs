@@ -72,6 +72,16 @@ public static class PlatformVersionService
         foreach (var path in extra)
             AddVersionsFromCustomPath(map, path, programFiles, programFilesX86);
 
+        // issue #361: отладочный флаг CM_DEBUG_PLATFORM_UPDATE=1 — найденные версии
+        // с путями в platform-update-debug.log (диагностика «Есть обновление» для
+        // последних версий линий: видно, какие версии реально найдены и откуда).
+        if (PlatformUpdateDebug.IsEnabled)
+        {
+            PlatformUpdateDebug.Log($"[PlatformVersionService] Найдено установленных версий: {map.Count}");
+            foreach (var kv in map.OrderByDescending(kv => kv.Key, new VersionComparer()))
+                PlatformUpdateDebug.Log($"  {kv.Key} -> {kv.Value}");
+        }
+
         return map
             .Select(kv => new Models.PlatformVersionInfo { Display = kv.Key, Path = kv.Value })
             .OrderByDescending(v => v.Display, new VersionComparer())

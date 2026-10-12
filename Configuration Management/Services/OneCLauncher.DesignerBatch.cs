@@ -263,6 +263,10 @@ public static partial class OneCLauncher
             DesignerBatchOperation.RestoreIB when IsSafeCliValue(outputPath) => $"/RestoreIB\"{outputPath}\"",
             // Загрузка новой конфигурации из .cf и обновление конфигурации БД.
             DesignerBatchOperation.LoadCfg when IsSafeCliValue(outputPath) => $"/LoadCfg\"{outputPath}\" /UpdateDBCfg",
+            // Выгрузка конфигурации в каталог XML-файлов (/DumpConfigToFiles"dir", issue #365):
+            // ветки НЕ было — операция «Обозревателя метаданных» (DumpConfigToFiles) всегда
+            // падала с «Операция отклонена: пустой или недопустимый путь» (opArg был пустым).
+            DesignerBatchOperation.DumpConfigToFiles => DumpConfigToFilesArgument(outputPath),
             // Блокировка сеансов файловой ИБ: /LockIB"строка сеансов". Строка строится
             // в SessionLockOptions.BuildSessionLockString(); выходной файл не создаётся,
             // поэтому в outputPath передаётся именно строка сеансов.
@@ -286,6 +290,8 @@ public static partial class OneCLauncher
         };
         if (string.IsNullOrEmpty(opArg))
         {
+            // Здесь операция отсутствует в switch либо значение параметра небезопасно.
+            // Сообщение одно — «Операция отклонена» (см. Launcher.OperationRefusedFormat).
             startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
             return false;
         }
@@ -335,6 +341,16 @@ public static partial class OneCLauncher
             return false;
         }
     }
+
+    /// <summary>
+    /// Аргумент выгрузки конфигурации в каталог XML-файлов (/DumpConfigToFiles"dir"),
+    /// ключ по грамматике 1С (значение сразу в кавычках, кавычку внутри пути удвоением
+    /// экранировать нельзя). Пустой результат — небезопасный путь (issue #365: ветки не
+    /// было, и операция «Обозревателя метаданных» всегда отклонялась «пустой или
+    /// недопустимый путь»). Internal — для юнит-тестов.
+    /// </summary>
+    internal static string DumpConfigToFilesArgument(string? outputPath)
+        => IsSafeCliValue(outputPath) ? $"/DumpConfigToFiles\"{outputPath}\"" : "";
 
     /// <summary>Токен подключения базы для сопоставления с командной строкой процесса конфигуратора.</summary>
     public static string GetBaseConnectionToken(Infobase infobase)

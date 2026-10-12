@@ -68,11 +68,28 @@ public static class PlatformUpdateMatcher
         var testReleases = availableReleases.Where(r => r.IsTest).ToList();
         var allBases = bases ?? Array.Empty<Infobase>();
 
+        // issue #361: отладочный флаг CM_DEBUG_PLATFORM_UPDATE=1 — входы Merge и решения
+        // по строкам в platform-update-debug.log (диагностика «Есть обновление» для
+        // последних версий линий: какие версии считаются установленными и почему).
+        if (PlatformUpdateDebug.IsEnabled)
+        {
+            PlatformUpdateDebug.Log($"[Merge] installed=[{string.Join(", ", installedVersions)}]");
+            PlatformUpdateDebug.Log($"[Merge] available=[{string.Join(", ", availableReleases.Select(r => r.Version))}]");
+            PlatformUpdateDebug.Log($"[Merge] bases={allBases.Count}, includeTestVersions={includeTestVersions}");
+        }
+
         var result = new List<PlatformUpdateMatch>(installedVersions.Count + availableReleases.Count);
 
         // Минимальная установленная линия (первые 3 сегмента) — ниже неё строки не показываем.
+        // Issue #361: минимум считается ЧИСЛОВЫМ сравнением (VersionComparer), а не строковым
+        // Min — строковое сравнение считало «8.3.9» больше «8.3.26» и занижало/завышало
+        // границу показа линий (например при установленных 8.3.9 и 8.3.27 линия 8.3.26
+        // ошибочно скрывалась).
         var minInstalledLine = installedVersions.Count > 0
-            ? installedVersions.Select(v => FirstSegments(v, 3)).Min(StringComparer.OrdinalIgnoreCase)
+            ? installedVersions
+                .Select(v => FirstSegments(v, 3))
+                .OrderBy(l => l, VersionComparer.Instance)
+                .First()
             : null;
 
         // Issue #361 (0.3.12.11): уже установленные версии исключаются из кандидатов
@@ -111,6 +128,9 @@ public static class PlatformUpdateMatcher
                         .FirstOrDefault();
                 }
             }
+
+            if (PlatformUpdateDebug.IsEnabled)
+                PlatformUpdateDebug.Log($"[Merge] {version}: mode={mode}, newest={newest ?? "<нет>"}");
 
             result.Add(new PlatformUpdateMatch
             {

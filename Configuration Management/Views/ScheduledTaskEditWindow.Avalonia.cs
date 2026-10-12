@@ -2,6 +2,7 @@
 using System;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
@@ -65,9 +66,9 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
 
         Title = T(task is null ? "Schedule.AddTitle" : "Schedule.EditTitle");
         Width = 560;
-        Height = 620;
+        Height = 640;
         MinWidth = 500;
-        MinHeight = 540;
+        MinHeight = 560;
         FontSize = 13;
         Content = BuildRoot();
         ApplyKindVisibility();
@@ -104,7 +105,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
 
     private Control BuildRoot()
     {
-        var panel = new StackPanel { Margin = new Avalonia.Thickness(14), Spacing = 8 };
+        var panel = new StackPanel { Spacing = 8 };
 
         panel.Children.Add(Label(T("Schedule.Name")));
         _nameBox.Text = _vm.Name;
@@ -248,9 +249,18 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         cancel.Click += (_, _) => { DialogResult = false; Close(); };
         bottom.Children.Add(ok);
         bottom.Children.Add(cancel);
-        panel.Children.Add(bottom);
 
-        return new ScrollViewer { Content = panel };
+        // Кнопки зафиксированы внизу, поля прокручиваются (issue #366, 7OH:
+        // «снизу кнопочки немного не влазят»).
+        var root = new DockPanel { Margin = new Avalonia.Thickness(14) };
+        DockPanel.SetDock(bottom, Dock.Bottom);
+        root.Children.Add(bottom);
+        root.Children.Add(new ScrollViewer
+        {
+            Content = panel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        });
+        return root;
     }
 
     private void BuildDayChecks()

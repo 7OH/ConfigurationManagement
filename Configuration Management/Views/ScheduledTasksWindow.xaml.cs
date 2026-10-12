@@ -1,7 +1,11 @@
 #if WINDOWS
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Input;
 using Configuration_Management.Localization;
+using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
 
@@ -9,13 +13,18 @@ namespace Configuration_Management;
 
 /// <summary>
 /// Окно «Задания по расписанию» (Windows/WPF, issue #286): список заданий с действиями
-/// «Выполнить сейчас», «Добавить», «Изменить», «Удалить».
+/// «Выполнить сейчас», «Добавить», «Изменить», «Удалить». С 0.3.12.24 (issue #372):
+/// отбор по типу действия, поиск по всем полям, переключатель активности в строке,
+/// правка по F2 и удаление по DEL; нижняя кнопка «Закрыть» убрана.
 /// </summary>
 public partial class ScheduledTasksWindow : Window
 {
     private readonly IScheduledTaskStore _store;
     private readonly IDialogService _dialogs;
     private readonly SchedulerService _scheduler;
+    private readonly List<ScheduledTaskItemViewModel> _allItems = new();
+    private ScheduledTaskKind? _filterKind;
+    private string _searchText = "";
 
     public ScheduledTasksWindow()
     {
@@ -31,16 +40,41 @@ public partial class ScheduledTasksWindow : Window
         CopyButton.Content = T("Common.Copy");
         DeleteButton.Content = T("Common.Delete");
 
+        KindFilterCombo.ItemsSource = BuildKindFilterOptions();
+        KindFilterCombo.DisplayMemberPath = "Text";
+        KindFilterCombo.SelectedValuePath = "Value";
+        KindFilterCombo.SelectedIndex = 0;
+        // Подсказка поиска (placeholder через ToolTip, чтобы не мешать вводу).
+        SearchBox.ToolTip = T("Schedule.Filter.Placeholder");
+
         LoadTasks();
     }
 
     private static string T(string key) => LocalizationManager.T(key);
 
+    /// <summary>Вариант фильтра по типу: «Все типы» плюс каждый тип задания.</summary>
+    private sealed record KindFilterOption(string Value, string Text, ScheduledTaskKind? Kind);
+
+    private static IReadOnlyList<KindFilterOption> BuildKindFilterOptions()
+    {
+        var options = new List<KindFilterOption> { new("", T("Schedule.Filter.AllKinds"), null) };
+        foreach (ScheduledTaskKind kind in Enum.GetValues(typeof(ScheduledTaskKind)))
+            options.Add(new(kind.ToString(), ScheduledTaskItemViewModel.KindName(kind), kind));
+        return options;
+    }
+
     private void LoadTasks()
     {
-        TasksList.ItemsSource = _store.LoadAll()
-            .Select(t => new ScheduledTaskItemViewModel(t))
-            .ToList();
+        _allItems.Clear();
+        _allItems.AddRange(_store.LoadAll().Select(t => new ScheduledTaskItemViewModel(
+            t,
+            activity: item => _store.Save(item.Task))));
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        TasksList.ItemsSource = ScheduledTaskListFilter.Apply(_allItems, _filterKind, _searchText);
     }
 
     private ScheduledTaskItemViewModel? Selected => TasksList.SelectedItem as ScheduledTaskItemViewModel;
@@ -51,6 +85,36 @@ public partial class ScheduledTasksWindow : Window
         EditButton.IsEnabled = has;
         CopyButton.IsEnabled = has;
         DeleteButton.IsEnabled = has;
+    }
+
+    private void KindFilterCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        _filterKind = (KindFilterCombo.SelectedItem as KindFilterOption)?.Kind;
+        ApplyFilter();
+    }
+
+    private void SearchBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        _searchText = SearchBox.Text ?? "";
+        ApplyFilter();
+    }
+
+    /// <summary>
+    /// Горячие клавиши списка (issue #372, п. 4–5): F2 — правка выбранной строки,
+    /// Delete — удаление с подтверждением.
+    /// </summary>
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F2)
+        {
+            Edit_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Delete)
+        {
+            Delete_Click(sender, e);
+            e.Handled = true;
+        }
     }
 
     private void Add_Click(object sender, RoutedEventArgs e)
@@ -84,7 +148,7 @@ public partial class ScheduledTasksWindow : Window
     /// редактирования СРАЗУ (issue #370, комментарий 7OH): копия не записывается
     /// на диск — пользователь видит окно создания новой записи, заполненное данными
     /// исходной строки, и может отредактировать или отказаться (Сохранить не нажат —
-    /// копия не появится). Паттерн как в «Человеческие...» — «Пользовательские действия».
+    /// копия не появится). Паттерн как в «Пользовательских действиях».
     /// </summary>
     private void Copy_Click(object sender, RoutedEventArgs e)
     {
@@ -125,7 +189,5 @@ public partial class ScheduledTasksWindow : Window
         }
         LoadTasks();
     }
-
-    private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }
 #endif

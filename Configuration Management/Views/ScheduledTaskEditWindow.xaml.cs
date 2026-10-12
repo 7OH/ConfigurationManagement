@@ -102,6 +102,10 @@ public partial class ScheduledTaskEditWindow : Window
         ConfigNotifyCombo.SelectedValue = _vm.ConfigCheckNotifyChannel.ToString();
 
         // Повтор с интервалом и «Уведомлять об отсутствии» (issue #366/#367).
+        // Значение флага обязательно грузится из VM: раньше галочка «Повторять с
+        // интервалом» не выставлялась при открытии задания — значения интервала
+        // сохранялись, а флаг «терялся» (issue #366, комментарий 7OH от 2026-10-12).
+        RepeatCheck.IsChecked = _vm.RepeatEnabled;
         RepeatCheck.Content = T("Schedule.Repeat.Enabled");
         RepeatValueLabel.Text = T("Schedule.Repeat.ValueLabel");
         RepeatValueBox.Text = _vm.RepeatIntervalValueText;

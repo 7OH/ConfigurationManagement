@@ -455,6 +455,20 @@ public sealed class PlatformUpdateMatcherTests
         Assert.Single(matches, m => m.Version == "8.3.28.100");
     }
 
+    [Fact]
+    public void Merge_MinInstalledLine_ComparesNumerically()
+    {
+        // issue #361: минимальная установленная линия считается ЧИСЛОВЫМ сравнением.
+        // Установлены 8.3.9 и 8.3.27 — линия 8.3.26 выше минимальной (8.3.9) и должна
+        // показываться (раньше строковый Min давал «8.3.27» и ошибочно скрывал 8.3.26).
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.9", "8.3.27.2214" },
+            Releases("8.3.27.2214", "8.3.26.1890", "8.3.8.100"));
+
+        Assert.Contains(matches, m => m.Version == "8.3.26.1890"); // линия 8.3.26 видна
+        Assert.DoesNotContain(matches, m => m.Version == "8.3.8.100"); // линия 8.3.8 ниже 8.3.9 — скрыта
+    }
+
     /// <summary>Создаёт релизы с явным признаком тестовой сборки (issue #364).</summary>
     private static List<PlatformRelease> Mixed(params (string Version, bool IsTest)[] items)
         => items.Select(t => new PlatformRelease

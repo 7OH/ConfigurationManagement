@@ -4,7 +4,8 @@
         Title="Задания по расписанию"
         Width="760" Height="560" MinWidth="620" MinHeight="440"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False" FontSize="13"
-        Background="{DynamicResource ContentBackgroundBrush}">
+        Background="{DynamicResource ContentBackgroundBrush}"
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Window.Resources>
         <!-- Темизация окна «Задания по расписанию» (issue #291): стили из LightTheme/DarkTheme,
@@ -14,6 +15,8 @@
         </Style>
         <Style TargetType="Button" BasedOn="{StaticResource ModernButton}"/>
         <Style TargetType="ListBoxItem" BasedOn="{StaticResource ModernListBoxItem}"/>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}"/>
+        <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}"/>
         <Style TargetType="ListBox">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushColor}"/>
@@ -24,27 +27,38 @@
     </Window.Resources>
 
     <DockPanel Margin="14">
+        <!-- Фильтры списка (issue #372, п. 1–2): отбор по типу действия и поиск по всем полям. -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <ComboBox x:Name="KindFilterCombo" Width="240" Margin="0,0,8,0" SelectionChanged="KindFilterCombo_SelectionChanged"/>
+            <TextBox x:Name="SearchBox" Width="320" TextChanged="SearchBox_TextChanged"/>
+        </StackPanel>
+
+        <!-- Кнопка «Закрыть» внизу убрана (issue #372, п. 3): закрытие — системное / Esc. -->
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button x:Name="RunButton" Content="Выполнить сейчас" Width="130" Margin="0,0,8,0" Padding="6,4" Click="Run_Click"/>
             <Button x:Name="AddButton" Content="Добавить" Width="96" Margin="0,0,8,0" Padding="6,4" Click="Add_Click"/>
             <Button x:Name="EditButton" Content="Изменить" Width="96" Margin="0,0,8,0" Padding="6,4" IsEnabled="False" Click="Edit_Click"/>
             <Button x:Name="CopyButton" Content="Скопировать" Width="96" Margin="0,0,8,0" Padding="6,4" IsEnabled="False" Click="Copy_Click"/>
-            <Button x:Name="DeleteButton" Content="Удалить" Width="92" Margin="0,0,8,0" Padding="6,4" IsEnabled="False" Click="Delete_Click"/>
-            <Button Content="Закрыть" Width="90" Padding="6,4" IsCancel="True" Click="Close_Click"/>
+            <Button x:Name="DeleteButton" Content="Удалить" Width="92" Padding="6,4" IsEnabled="False" Click="Delete_Click"/>
         </StackPanel>
 
         <ListBox x:Name="TasksList" SelectionChanged="TasksList_SelectionChanged"
                  BorderThickness="1" Margin="0,0,0,8">
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <StackPanel Margin="3">
-                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock Text="{Binding KindText}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,12,0"/>
-                            <TextBlock Text="{Binding ScheduleSummary}" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <DockPanel Margin="3">
+                        <!-- Переключатель активности прямо в строке (issue #372, п. 6). -->
+                        <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsActive, Mode=TwoWay}"
+                                  VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                <TextBlock Text="{Binding KindText}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,12,0"/>
+                                <TextBlock Text="{Binding ScheduleSummary}" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding LastRunSummary}" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding LastRunSummary}" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
+                    </DockPanel>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>

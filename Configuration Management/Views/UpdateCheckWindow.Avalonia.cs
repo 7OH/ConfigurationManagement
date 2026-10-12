@@ -830,23 +830,25 @@ namespace Configuration_Management
                 }
 
                 if (Height < target)
-                {
                     Height = target;
-                    // issue #352 (7OH от 2026-10-11): при появлении таблицы цепочек низ
-                    // окна уходил за панель задач — поднимаем окно в пределы рабочей
-                    // области (WindowSizeMath.FitTop, как в окне «Серверы 1С», #368).
-                    if (screen is not null && screen.Scaling > 0)
-                    {
-                        // Рабочая область — PixelRect в физических пикселях; позиция окна
-                        // задаётся через Position (PixelPoint, точки DIP от верхнего левого угла).
-                        var wa = screen.WorkingArea;
-                        var workTop = wa.Y / screen.Scaling;
-                        var workBottom = (wa.Y + wa.Height) / screen.Scaling;
-                        var desiredTop = WindowSizeMath.FitTop(Position.Y / screen.Scaling, Height, workTop, workBottom);
-                        var newTopPx = (int)Math.Round(desiredTop * screen.Scaling);
-                        if (newTopPx != Position.Y)
-                            Position = new PixelPoint(Position.X, newTopPx);
-                    }
+
+                // issue #352 (7OH от 2026-10-11): при появлении таблицы цепочек низ
+                // окна уходил за панель задач — поднимаем окно в пределы рабочей
+                // области (WindowSizeMath.FitTop, как в окне «Серверы 1С», #368).
+                // Подъём выполняется ВСЕГДА (не только при увеличении высоты): окно,
+                // уже растянутое пользователем выше рабочей области, тоже должно
+                // вернуться в её пределы.
+                if (screen is not null && screen.Scaling > 0)
+                {
+                    // Рабочая область — PixelRect в физических пикселях; позиция окна
+                    // задаётся через Position (PixelPoint, точки DIP от верхнего левого угла).
+                    var wa = screen.WorkingArea;
+                    var workTop = wa.Y / screen.Scaling;
+                    var workBottom = (wa.Y + wa.Height) / screen.Scaling;
+                    var desiredTop = WindowSizeMath.FitTop(Position.Y / screen.Scaling, Height, workTop, workBottom);
+                    var newTopPx = (int)Math.Round(desiredTop * screen.Scaling);
+                    if (newTopPx != Position.Y)
+                        Position = new PixelPoint(Position.X, newTopPx);
                 }
             }
             catch
