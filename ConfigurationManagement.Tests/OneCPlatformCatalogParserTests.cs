@@ -162,6 +162,86 @@ public sealed class OneCPlatformCatalogParserTests
         Assert.Equal(new[] { "8.3.27.2214", "8.3.26.1890" }, releases.Select(r => r.Version));
     }
 
+    /// <summary>HTML каталога с тестовыми (предрелизными) сборками (issue #364):
+    /// пометка в тексте строки, пометка в тексте версии («8.3.27.2000 (тестовая)»)
+    /// и отдельная секция «Тестовые версии» вне таблицы #versionsTable.</summary>
+    private const string TestBuildsHtml = """
+        <html><body>
+        <table id="versionsTable">
+          <tr><td><a href="/version_files?nick=Platform83&ver=8.3.27.2214">8.3.27.2214</a></td><td>01.10.2026</td></tr>
+          <tr><td><a href="/version_files?nick=Platform83&ver=8.3.28.100">8.3.28.100</a></td><td>тестовая версия</td></tr>
+          <tr><td><a href="/version_files?nick=Platform83&ver=8.3.27.2000">8.3.27.2000 (тестовая)</a></td><td>15.10.2026</td></tr>
+        </table>
+        <h2>Тестовые версии платформы</h2>
+        <a href="/version_files?nick=Platform83&ver=8.3.29.50">8.3.29.50</a>
+        </body></html>
+        """;
+
+    [Fact]
+    public void ParseVersions_TableRowWithTestMarker_MarksReleaseAsTest()
+    {
+        // issue #364: пометка «тестовая версия» в ячейке строки таблицы.
+        var releases = OneCPlatformCatalogParser.ParseVersions(TestBuildsHtml);
+
+        Assert.True(releases.Single(r => r.Version == "8.3.28.100").IsTest);
+        Assert.False(releases.Single(r => r.Version == "8.3.27.2214").IsTest);
+    }
+
+    [Fact]
+    public void ParseVersions_LinkTextWithTestSuffix_ExtractsLeadingVersion()
+    {
+        // issue #364: текст версии «8.3.27.2000 (тестовая)» → версия «8.3.27.2000»,
+        // признак тестовой сборки сохраняется.
+        var releases = OneCPlatformCatalogParser.ParseVersions(TestBuildsHtml);
+
+        var test = releases.Single(r => r.Version == "8.3.27.2000");
+        Assert.True(test.IsTest);
+        Assert.Equal("/version_files?nick=Platform83&ver=8.3.27.2000", test.VersionFilesUrl);
+    }
+
+    [Fact]
+    public void ParseVersions_TestSectionOutsideTable_MarksNearbyLinksAsTest()
+    {
+        // issue #364: секция «Тестовые версии» вне #versionsTable — ссылки рядом
+        // с маркером берутся только как тестовые.
+        var releases = OneCPlatformCatalogParser.ParseVersions(TestBuildsHtml);
+
+        Assert.Equal(new[] { "8.3.29.50", "8.3.28.100", "8.3.27.2214", "8.3.27.2000" },
+            releases.Select(r => r.Version));
+        Assert.True(releases.Single(r => r.Version == "8.3.29.50").IsTest);
+        Assert.Equal("/version_files?nick=Platform83&ver=8.3.29.50",
+            releases.Single(r => r.Version == "8.3.29.50").VersionFilesUrl);
+    }
+
+    [Fact]
+    public void ParseVersions_StandardTable_ReleasesAreNotTest()
+    {
+        // issue #364: обычная таблица без пометок — все версии релизные.
+        var releases = OneCPlatformCatalogParser.ParseVersions(VersionsTableHtml);
+
+        Assert.All(releases, r => Assert.False(r.IsTest));
+    }
+
+    [Theory]
+    [InlineData("тестовая версия", true)]
+    [InlineData("Тестовая сборка", true)]
+    [InlineData("test build", true)]
+    [InlineData("beta", true)]
+    [InlineData("Preview 2", true)]
+    [InlineData("RC2", true)]
+    [InlineData("предрелизная сборка", true)]
+    [InlineData("pre-release", true)]
+    [InlineData("8.3.27.2214", false)]
+    [InlineData("latest", false)]
+    [InlineData("src", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsTestMarker_DetectsMarkersOnly(string? text, bool expected)
+    {
+        // issue #364: маркер ищется по словам целиком — «latest»/«src» не срабатывают.
+        Assert.Equal(expected, OneCPlatformCatalogParser.IsTestMarker(text));
+    }
+
     /// <summary>JSON-ответ version_files: файлы всех типов + неизвестное расширение (.msi),
     /// размеры в полях size/filesize.</summary>
     private const string DistributionJson = """

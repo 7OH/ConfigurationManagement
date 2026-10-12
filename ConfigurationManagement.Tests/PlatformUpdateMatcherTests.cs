@@ -386,6 +386,84 @@ public sealed class PlatformUpdateMatcherTests
             VersionFilesUrl = $"/version_files?nick=Platform83&ver={v}",
         }).ToList();
 
+    // --- Merge + тестовые сборки (issue #364) ---
+
+    [Fact]
+    public void Merge_TestReleases_HiddenByDefault()
+    {
+        // issue #364: без опции «Учитывать тестовые» предрелизные сборки не показываются
+        // и не участвуют в расчёте обновления.
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.27.1688" },
+            Mixed(("8.3.27.2214", false), ("8.3.28.100", true)));
+
+        Assert.Equal(new[] { "8.3.27.2214", "8.3.27.1688" }, matches.Select(m => m.Version));
+        Assert.All(matches, m => Assert.NotEqual("8.3.28.100", m.Version));
+    }
+
+    [Fact]
+    public void Merge_IncludeTestVersions_AddsTestRowsWithoutUpdateFlag()
+    {
+        // issue #364: при включённой опции тестовая сборка появляется строкой «Доступна»,
+        // но НИКОГДА не помечается «Есть обновление».
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.27.1688" },
+            Mixed(("8.3.27.2214", false), ("8.3.28.100", true)),
+            includeTestVersions: true);
+
+        Assert.Equal(new[] { "8.3.28.100", "8.3.27.2214", "8.3.27.1688" }, matches.Select(m => m.Version));
+
+        var test = matches.Single(m => m.Version == "8.3.28.100");
+        Assert.False(test.IsInstalled);
+        Assert.False(test.HasUpdate);
+        Assert.Null(test.AvailableVersion);
+
+        var installed = matches.Single(m => m.Version == "8.3.27.1688");
+        Assert.True(installed.IsInstalled);
+        Assert.True(installed.HasUpdate);
+        Assert.Equal("8.3.27.2214", installed.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_IncludeTestVersions_MaxOfLineStaysRelease()
+    {
+        // issue #364: тестовая сборка новее релизной в той же линии — целью обновления
+        // остаётся релизный максимум линии (8.3.27.2214), а не 8.3.27.2500.
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.27.1688" },
+            Mixed(("8.3.27.2500", true), ("8.3.27.2214", false)),
+            includeTestVersions: true);
+
+        var installed = matches.Single(m => m.Version == "8.3.27.1688");
+        Assert.True(installed.HasUpdate);
+        Assert.Equal("8.3.27.2214", installed.AvailableVersion);
+        Assert.False(matches.Single(m => m.Version == "8.3.27.2500").HasUpdate);
+    }
+
+    [Fact]
+    public void Merge_InstalledTestVersion_NotDuplicatedAsTestRow()
+    {
+        // issue #364: установленная тестовая сборка показывается одной строкой
+        // «Установлена» (без дубля «Доступна»).
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.28.100" },
+            Mixed(("8.3.28.100", true), ("8.3.27.2214", false)),
+            includeTestVersions: true);
+
+        var installed = matches.Single(m => m.Version == "8.3.28.100");
+        Assert.True(installed.IsInstalled);
+        Assert.Single(matches, m => m.Version == "8.3.28.100");
+    }
+
+    /// <summary>Создаёт релизы с явным признаком тестовой сборки (issue #364).</summary>
+    private static List<PlatformRelease> Mixed(params (string Version, bool IsTest)[] items)
+        => items.Select(t => new PlatformRelease
+        {
+            Version = t.Version,
+            VersionFilesUrl = $"/version_files?nick=Platform83&ver={t.Version}",
+            IsTest = t.IsTest,
+        }).ToList();
+
     /// <summary>Создаёт базу с указанной версией платформы.</summary>
     private static Infobase NewBase(string? platformVersion)
         => new() { Id = "id", Name = "База", PlatformVersion = platformVersion ?? string.Empty };

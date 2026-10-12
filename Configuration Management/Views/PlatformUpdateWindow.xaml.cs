@@ -28,6 +28,8 @@ namespace Configuration_Management;
 public partial class PlatformUpdateWindow : Window
 {
     private readonly PlatformUpdateViewModel _viewModel;
+    private readonly IInfobaseRepository _repository;
+    private readonly AppSettings _settings;
 
     /// <summary>Открывает окно «Обновление платформы 1С».</summary>
     public PlatformUpdateWindow()
@@ -35,7 +37,8 @@ public partial class PlatformUpdateWindow : Window
         InitializeComponent();
 
         var service = AppServices.GetRequiredService<IPlatformUpdateService>();
-        var repository = AppServices.GetRequiredService<IInfobaseRepository>();
+        _repository = AppServices.GetRequiredService<IInfobaseRepository>();
+        _settings = _repository.LoadSettings();
         var updates = AppServices.GetRequiredService<IOneCUpdatesService>();
         var dialogs = AppServices.GetRequiredService<IDialogService>();
         var running = AppServices.GetRequiredService<IRunningInfobasesService>();
@@ -44,7 +47,7 @@ public partial class PlatformUpdateWindow : Window
 
         _viewModel = new PlatformUpdateViewModel(
             service,
-            repository,
+            _repository,
             LoadInstalledVersions,
             (url, targetPath, progress, ct) =>
                 updates.DownloadDistributionAsync(url, targetPath, progress, ct),
@@ -55,7 +58,7 @@ public partial class PlatformUpdateWindow : Window
                 LocalizationManager.T("PlatformUpdate.DownloadOnly"),
                 defaultName ?? "platform.zip",
                 "Архивы (*.zip)|*.zip|Все файлы (*.*)|*.*",
-                GetSaveDialogInitialDirectory(repository)),
+                GetSaveDialogInitialDirectory(_repository)),
             // Проверка готовности к установке (этап 0.3.9.214): процессы 1С, права,
             // свободное место, подпись; диалог подтверждения и уведомление о результате.
             loadRunningProcesses: () => running.GetRunning()
@@ -93,6 +96,10 @@ public partial class PlatformUpdateWindow : Window
 
         DataContext = _viewModel;
         RowsGrid.ItemsSource = _viewModel.Rows;
+
+        // Issue #364: опция «Учитывать тестовые» общая для окон обновления/скачивания
+        // платформы (AppSettings.PlatformIncludeTestVersions, по умолчанию выключена).
+        _viewModel.IncludeTestVersions = _settings.PlatformIncludeTestVersions;
 
         // Автопрокрутка журнала к последней строке при добавлении сообщений.
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -158,6 +165,22 @@ public partial class PlatformUpdateWindow : Window
     /// UI-поток; защита ?. покрывает закрытие окна до исполнения отложенного вызова.</summary>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        // Issue #364: флажок «Учитывать тестовые» запоминается между запусками.
+        if (e.PropertyName == nameof(PlatformUpdateViewModel.IncludeTestVersions))
+        {
+            try
+            {
+                _settings.PlatformIncludeTestVersions = _viewModel.IncludeTestVersions;
+                _repository.SaveSettings(_settings);
+            }
+            catch
+            {
+                // Несохранение флажка не критично.
+            }
+
+            return;
+        }
+
         if (e.PropertyName == nameof(PlatformUpdateViewModel.LogText))
         {
             Dispatcher.BeginInvoke(new Action(() => LogBox?.ScrollToEnd()));

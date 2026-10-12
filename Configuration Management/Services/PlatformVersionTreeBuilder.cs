@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using Configuration_Management.Localization;
 using Configuration_Management.Models;
 
 namespace Configuration_Management.Services;
@@ -94,6 +95,10 @@ public static class PlatformVersionTreeBuilder
                 roots.Add(line);
             }
 
+            // Issue #364: тестовые (предрелизные) сборки в дереве явно помечается суффиксом
+            // локализованного текста — пользователь сразу видит, что версия не релизная.
+            var leafName = LeafName(release);
+
             // Группа «8.x.yy» имеет смысл только для ПОЛНЫХ версий из 4 сегментов
             // («8.3.27.2214» → линия 8.3 → группа 8.3.27 → лист). Трёхсегментные
             // версии («8.5.42») — сразу лист линии 8.5 (issue #330).
@@ -108,16 +113,23 @@ public static class PlatformVersionTreeBuilder
                     line.Children.Add(group);
                 }
 
-                group.Children.Add(new PlatformCatalogNode(release.Version, release));
+                group.Children.Add(new PlatformCatalogNode(leafName, release));
             }
             else
             {
-                line.Children.Add(new PlatformCatalogNode(release.Version, release));
+                line.Children.Add(new PlatformCatalogNode(leafName, release));
             }
         }
 
         return roots;
     }
+
+    /// <summary>Отображаемое имя листа: версия + (для тестовых сборок, issue #364)
+    /// локализованный суффикс вида «(тестовая)». Суффикс входит и в поиск по дереву.</summary>
+    private static string LeafName(PlatformRelease release)
+        => release.IsTest
+            ? $"{release.Version} {LocalizationManager.T("PlatformDownload.TestSuffix")}"
+            : release.Version;
 
     /// <summary>
     /// Фильтрует дерево по подстроке версии (issue #330, комментарий 7OH — «Туда же

@@ -39,6 +39,11 @@ public sealed class PlatformUpdateRowViewModel : ViewModelBase
     /// <summary>Новейшая доступная версия для установленной строки; null — обновления нет.</summary>
     public string? AvailableVersion { get; }
 
+    /// <summary>True — тестовая (предрелизная) сборка платформы (issue #364): строка
+    /// появляется только при включённой опции «Учитывать тестовые» и никогда не
+    /// помечается как «Есть обновление».</summary>
+    public bool IsTest => _release?.IsTest == true;
+
     /// <summary>Данные релиза из каталога портала. Может быть null (версия не найдена
     /// в каталоге); файлы дистрибутива (<see cref="PlatformRelease.Files"/>) подгружаются
     /// лениво вызовом <see cref="IPlatformUpdateService.LoadReleaseFilesAsync"/>.</summary>
@@ -106,7 +111,7 @@ public sealed class PlatformUpdateRowViewModel : ViewModelBase
 
     /// <summary>Локализованный текст статуса строки (ключи «PlatformUpdate.Status.*»):
     /// приоритет у активных состояний (проверка/загрузка), затем «есть обновление»,
-    /// «установлена», иначе — «доступна».</summary>
+    /// затем тестовые сборки (issue #364), затем «установлена», иначе — «доступна».</summary>
     public string StatusText
     {
         get
@@ -117,6 +122,12 @@ public sealed class PlatformUpdateRowViewModel : ViewModelBase
                 return LocalizationManager.T("PlatformUpdate.Status.Downloading");
             if (HasUpdate)
                 return LocalizationManager.T("PlatformUpdate.Status.UpdateAvailable");
+            // Issue #364: тестовая (предрелизная) сборка помечается отдельно — пользователь
+            // видит, что версия не релизная; установленная тестовая — «Установлена (тестовая)».
+            if (IsTest)
+                return LocalizationManager.T(IsInstalled
+                    ? "PlatformUpdate.Status.InstalledTest"
+                    : "PlatformUpdate.Status.TestVersion");
             if (IsInstalled)
                 return LocalizationManager.T("PlatformUpdate.Status.Installed");
             return LocalizationManager.T("PlatformUpdate.Status.Available");
@@ -146,6 +157,8 @@ public sealed class PlatformUpdateRowViewModel : ViewModelBase
     {
         _release = release ?? throw new ArgumentNullException(nameof(release));
         OnPropertyChanged(nameof(SizeText));
+        OnPropertyChanged(nameof(IsTest));
+        OnPropertyChanged(nameof(StatusText));
     }
 
     /// <summary>Уведомляет UI об изменении состава файлов релиза (размер мог измениться).</summary>

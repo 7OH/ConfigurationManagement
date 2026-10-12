@@ -1,3 +1,4 @@
+using System.Linq;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
 using Xunit;
@@ -81,6 +82,30 @@ public sealed class PlatformVersionTreeBuilderTests
         Assert.Single(tree[0].Children);
         Assert.True(tree[0].Children[0].IsLeaf);
         Assert.Equal("8.5.42", tree[0].Children[0].Name);
+    }
+
+    // ---------- Тестовые сборки (issue #364) ----------
+
+    [Fact]
+    public void BuildFromCatalog_TestBuild_LeafNameHasTestSuffix()
+    {
+        // issue #364: лист тестовой сборки получает явную пометку в имени —
+        // пользователь видит, что версия не релизная.
+        var releases = new[]
+        {
+            new PlatformRelease { Version = "8.3.27.2214" },
+            new PlatformRelease { Version = "8.3.28.100", IsTest = true },
+        };
+
+        var tree = PlatformVersionTreeBuilder.BuildFromCatalog(releases);
+
+        var line = Assert.Single(tree);
+        Assert.Equal("8.3", line.Name);
+        var testLeaf = line.Children.SelectMany(g => g.Children).Single(n => n.Release!.IsTest);
+        Assert.True(testLeaf.IsLeaf);
+        Assert.Equal("8.3.28.100", testLeaf.Release!.Version);
+        Assert.StartsWith("8.3.28.100", testLeaf.Name);
+        Assert.NotEqual("8.3.28.100", testLeaf.Name);
     }
 
     // ---------- Фильтр поиска по дереву (issue #330, комментарий 7OH) ----------

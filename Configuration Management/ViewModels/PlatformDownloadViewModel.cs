@@ -63,6 +63,7 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
 
     private readonly StringBuilder _log = new();
     private IReadOnlyList<PlatformCatalogNode> _versionTreeRoots = Array.Empty<PlatformCatalogNode>();
+    private IReadOnlyList<PlatformRelease> _allReleases = Array.Empty<PlatformRelease>();
     private string _versionSearchQuery = string.Empty;
     private PlatformDownloadRowViewModel? _selectedRelease;
     private bool _isBusy;
@@ -70,6 +71,7 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
     private string _etaText = string.Empty;
     private Services.DownloadEtaTracker? _etaTracker;
     private bool _is64Bit;
+    private bool _includeTestVersions;
     private PlatformDownloadType _downloadType;
     private IReadOnlyList<PlatformDownloadType> _availableDownloadTypes = new[] { PlatformDownloadType.Auto };
     private PlatformCatalogNode? _selectedVersionNode;
@@ -93,6 +95,25 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
     /// каталога Platform83 + Platform85.
     /// </summary>
     public ObservableCollection<PlatformCatalogNode> VersionTree { get; } = new();
+
+    /// <summary>
+    /// Учитывать тестовые (предрелизные) сборки платформы (issue #364). По умолчанию
+    /// выключено: в выпадающем списке версий только релизные версии. При включении
+    /// тестовые сборки попадают в список и в дерево с явной пометкой «(тестовая)»
+    /// в имени узла — сразу видно, что версия не релизная. Изменение мгновенно
+    /// перестраивает уже загруженный каталог (без повторного сетевого запроса).
+    /// </summary>
+    public bool IncludeTestVersions
+    {
+        get => _includeTestVersions;
+        set
+        {
+            if (!SetProperty(ref _includeTestVersions, value))
+                return;
+            if (_allReleases.Count > 0)
+                UiDispatch.Run(_dispatchToUi, ApplyCatalog);
+        }
+    }
 
     /// <summary>Поисковый запрос для дерева версий (issue #330, комментарий 7OH): по мере
     /// ввода дерево фильтруется — остаются версии, содержащие подстроку (без учёта
@@ -467,15 +488,8 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
             // (SelectedRelease, AvailableDownloadTypes и пр.) — только в UI-потоке.
             UiDispatch.Run(_dispatchToUi, () =>
             {
-                Releases.Clear();
-                foreach (var release in result.Releases)
-                    Releases.Add(new PlatformDownloadRowViewModel(release));
-
-                // Дерево версий «8.x \ 8.x.yy \ полная версия» (паттерн выбора платформы).
-                // Полное дерево хранится отдельно; в VersionTree — результат фильтра поиска
-                // (пустой запрос — полное дерево, issue #330).
-                _versionTreeRoots = PlatformVersionTreeBuilder.BuildFromCatalog(result.Releases);
-                ApplyVersionFilter();
+                _allReleases = result.Releases ?? Array.Empty<PlatformRelease>();
+                ApplyCatalog();
 
                 if (Releases.Count == 0)
                 {
@@ -568,6 +582,41 @@ public sealed class PlatformDownloadViewModel : ViewModelBase
     /// <summary>Нелокализованная строка диагностики для журнала приложения (issue #330).</summary>
     private static string BuildFilesDiagnosticsRaw(PlatformCatalogResult result)
         => $"url={result.FetchedUrl ?? "-"}; bodyLength={result.BodyLength}; parsedFiles={result.ParsedFileCount}";
+
+    /// <summary>
+    /// Перестраивает список версий (<see cref="Releases"/>) и дерево
+    /// (<see cref="VersionTree"/>) из сохранённого полного каталога
+    /// <see cref="_allReleases"/> с учётом опции «Учитывать тестовые» (issue #364):
+    /// тестовые сборки попадают в список только при включённой опции. Выполняется
+    /// в UI-потоке. Выбранная версия сохраняется, пока она остаётся в видимом
+    /// списке; исчезнувшая выборка заменяется первой строкой. Пустой видимый
+    /// список выборку не трогает (сообщение пишет вызывающий код).
+    /// </summary>
+    private void ApplyCatalog()
+    {
+        var visible = _allReleases
+            .Where(r => r is not null && (IncludeTestVersions || !r.IsTest))
+            .ToList();
+
+        Releases.Clear();
+        foreach (var release in visible)
+            Releases.Add(new PlatformDownloadRowViewModel(release));
+
+        // Дерево версий «8.x \ 8.x.yy \ полная версия» (паттерн выбора платформы).
+        // Полное дерево хранится отдельно; в VersionTree — результат фильтра поиска
+        // (пустой запрос — полное дерево, issue #330).
+        _versionTreeRoots = PlatformVersionTreeBuilder.BuildFromCatalog(visible);
+        ApplyVersionFilter();
+
+        if (Releases.Count == 0)
+            return;
+
+        var selectedVersion = SelectedRelease?.Version;
+        var selectionVisible = selectedVersion is not null && Releases.Any(r =>
+            string.Equals(r.Version, selectedVersion, StringComparison.OrdinalIgnoreCase));
+        if (!selectionVisible)
+            SelectedRelease = Releases[0];
+    }
 
     /// <summary>Перестраивает дерево версий из сохранённого полного дерева по текущему
     /// поисковому запросу (issue #330, комментарий 7OH).</summary>

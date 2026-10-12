@@ -85,7 +85,18 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" FontSize="15" FontWeight="SemiBold" Text="{loc:Loc PlatformUpdate.WindowTitle}"/>
+        <!-- Заголовок окна и опция учёта тестовых сборок платформы (issue #364). -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" FontSize="15" FontWeight="SemiBold" Text="{loc:Loc PlatformUpdate.WindowTitle}"/>
+            <CheckBox Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0"
+                      Content="{loc:Loc PlatformUpdate.IncludeTest}"
+                      Foreground="{DynamicResource TextPrimaryBrush}"
+                      IsChecked="{Binding IncludeTestVersions, Mode=TwoWay}"/>
+        </Grid>
 
         <!-- Таблица версий платформы: Версия / Размер / Статус / Совместимые базы -->
         <Border Grid.Row="1" Margin="0,12,0,0"

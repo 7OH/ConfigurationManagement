@@ -34,17 +34,26 @@ public static class PlatformUpdateMatcher
     /// показывается как «Установлена», а не «Есть обновление».</description></item>
     /// <item><description>Issue #361 (0.3.12.11): пины версий compatible-баз нормализуются
     /// (Trim, суффиксы «(32)»/«(64)», префикс «V8.») при определении режима проверки.</description></item>
+    /// <item><description>Issue #364 (0.3.12.16): тестовые (предрелизные) сборки
+    /// (<see cref="PlatformRelease.IsTest"/>) НИКОГДА не становятся «Есть обновление»
+    /// и не участвуют в выборе «максимума линии» — даже при включённой опции
+    /// «Учитывать тестовые». При <paramref name="includeTestVersions"/> = true они
+    /// добавляются отдельными строками со статусом «Доступна»/«Тестовая версия»;
+    /// при false тестовые сборки из списка исключаются полностью.</description></item>
     /// </list>
     /// </summary>
     /// <param name="installed">Установленные версии платформы.</param>
     /// <param name="available">Доступные версии из каталога портала.</param>
     /// <param name="bases">Базы репозитория (для учёта закреплений версии платформы).
     /// Может быть null — тогда применяется прежнее (полное) сравнение.</param>
+    /// <param name="includeTestVersions">True — тестовые сборки платформы (issue #364)
+    /// показываются отдельными строками; false (по умолчанию) — скрываются.</param>
     /// <returns>Список строк окна, отсортированный по убыванию версии.</returns>
     public static IReadOnlyList<PlatformUpdateMatch> Merge(
         IReadOnlyList<string> installed,
         IReadOnlyList<PlatformRelease> available,
-        IReadOnlyList<Infobase>? bases = null)
+        IReadOnlyList<Infobase>? bases = null,
+        bool includeTestVersions = false)
     {
         var installedVersions = (installed ?? Array.Empty<string>())
             .Where(v => !string.IsNullOrWhiteSpace(v))
@@ -53,6 +62,10 @@ public static class PlatformUpdateMatcher
         var availableReleases = (available ?? Array.Empty<PlatformRelease>())
             .Where(r => !string.IsNullOrWhiteSpace(r?.Version))
             .ToList();
+        // Issue #364: расчёт обновлений и «максимума линии» ведётся ТОЛЬКО по релизным
+        // версиям; тестовые сборки обрабатываются отдельно в конце метода.
+        var releaseReleases = availableReleases.Where(r => !r.IsTest).ToList();
+        var testReleases = availableReleases.Where(r => r.IsTest).ToList();
         var allBases = bases ?? Array.Empty<Infobase>();
 
         var result = new List<PlatformUpdateMatch>(installedVersions.Count + availableReleases.Count);
@@ -80,7 +93,7 @@ public static class PlatformUpdateMatcher
                 {
                     // Issue #361: обновление — только в более новую ЛИНИЮ (первые 3 сегмента строго больше).
                     var installedLine = FirstSegments(version, 3);
-                    newest = availableReleases
+                    newest = releaseReleases
                         .Where(r => IsLineStrictlyNewer(r.Version, installedLine)
                             && !installedVersionSet.Contains(r.Version))
                         .OrderByDescending(r => r.Version, VersionComparer.Instance)
@@ -90,7 +103,7 @@ public static class PlatformUpdateMatcher
                 else
                 {
                     // Без compatible-баз — прежнее полное сравнение (Full).
-                    newest = availableReleases
+                    newest = releaseReleases
                         .Where(r => OneCPlatformCatalogParser.CompareVersions(r.Version, version) > 0
                             && !installedVersionSet.Contains(r.Version))
                         .OrderByDescending(r => r.Version, VersionComparer.Instance)
@@ -110,7 +123,7 @@ public static class PlatformUpdateMatcher
 
         // Issue #361: только доступные версии — максимум каждой линии (первые 3 сегмента),
         // не ниже минимальной установленной линии; линии, чей максимум уже установлен, пропускаем.
-        foreach (var group in availableReleases
+        foreach (var group in releaseReleases
                      .GroupBy(r => FirstSegments(r.Version, 3), StringComparer.OrdinalIgnoreCase))
         {
             var line = group.Key;
@@ -132,6 +145,28 @@ public static class PlatformUpdateMatcher
                 HasUpdate = false,
                 AvailableVersion = null,
             });
+        }
+
+        // Issue #364 (0.3.12.16): тестовые (предрелизные) сборки — отдельными строками
+        // при включённой опции «Учитывать тестовые». Они НЕ помечаются «Есть обновление»
+        // и не заменяют релизную максимальную версию линии; уже установленная версия
+        // (в т.ч. тестовая) строкой дублируется.
+        if (includeTestVersions)
+        {
+            var seen = new HashSet<string>(result.Select(m => m.Version), StringComparer.OrdinalIgnoreCase);
+            foreach (var test in testReleases)
+            {
+                if (!seen.Add(test.Version))
+                    continue;
+
+                result.Add(new PlatformUpdateMatch
+                {
+                    Version = test.Version,
+                    IsInstalled = false,
+                    HasUpdate = false,
+                    AvailableVersion = null,
+                });
+            }
         }
 
         result.Sort((a, b) => OneCPlatformCatalogParser.CompareVersions(b.Version, a.Version));

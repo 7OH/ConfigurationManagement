@@ -41,6 +41,7 @@ namespace Configuration_Management
         private readonly Services.IAppLogger _logger = AppServices.GetRequiredService<Services.IAppLogger>();
 
         private readonly PlatformUpdateViewModel _viewModel;
+        private readonly AppSettings _settings;
 
         private readonly StackPanel _rowsPanel = new();
         private readonly Dictionary<PlatformUpdateRowViewModel, StackPanel> _cells = new();
@@ -120,6 +121,11 @@ namespace Configuration_Management
             BuildRows();
             foreach (var row in _viewModel.Rows)
                 AddRow(row);
+
+            // Issue #364: опция «Учитывать тестовые» общая для окон обновления/скачивания
+            // платформы (AppSettings.PlatformIncludeTestVersions, по умолчанию выключена).
+            _settings = _repository.LoadSettings();
+            _viewModel.IncludeTestVersions = _settings.PlatformIncludeTestVersions;
 
             Content = BuildRoot();
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -237,6 +243,22 @@ namespace Configuration_Management
         /// сообщениями «пропадало»).</summary>
         private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
+            // Issue #364: флажок «Учитывать тестовые» запоминается между запусками.
+            if (e.PropertyName == nameof(PlatformUpdateViewModel.IncludeTestVersions))
+            {
+                try
+                {
+                    _settings.PlatformIncludeTestVersions = _viewModel.IncludeTestVersions;
+                    _repository.SaveSettings(_settings);
+                }
+                catch
+                {
+                    // Несохранение флажка не критично.
+                }
+
+                return;
+            }
+
             if (e.PropertyName == nameof(PlatformUpdateViewModel.LogText))
             {
                 Dispatcher.UIThread.Post(() =>
@@ -462,14 +484,37 @@ namespace Configuration_Management
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
+            // Заголовок окна и опция учёта тестовых сборок платформы (issue #364).
+            var titleRow = new Grid { ColumnSpacing = 12 };
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
             var title = new TextBlock
             {
                 Text = T("PlatformUpdate.WindowTitle"),
                 FontSize = 15,
-                FontWeight = FontWeight.SemiBold
+                FontWeight = FontWeight.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
             };
-            Grid.SetRow(title, 0);
-            grid.Children.Add(title);
+            Grid.SetColumn(title, 0);
+            titleRow.Children.Add(title);
+
+            var includeTest = new CheckBox
+            {
+                Content = T("PlatformUpdate.IncludeTest"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            includeTest.Bind(ToggleButton.IsCheckedProperty,
+                new Avalonia.Data.Binding(nameof(PlatformUpdateViewModel.IncludeTestVersions))
+                {
+                    Source = _viewModel,
+                    Mode = Avalonia.Data.BindingMode.TwoWay
+                });
+            Grid.SetColumn(includeTest, 1);
+            titleRow.Children.Add(includeTest);
+
+            Grid.SetRow(titleRow, 0);
+            grid.Children.Add(titleRow);
 
             // Карточка списка версий.
             var listBorder = new Border

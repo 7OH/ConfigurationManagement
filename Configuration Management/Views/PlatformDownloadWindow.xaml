@@ -185,6 +185,14 @@
             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="14,0,0,0">
 
+                    <!-- Issue #364: учёт тестовых (предрелизных) сборок платформы — общая
+                         опция окон обновления/скачивания; при включении тестовые версии
+                         получают пометку «(тестовая)» в дереве. -->
+                    <CheckBox Content="{loc:Loc PlatformDownload.IncludeTest}"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
+                              VerticalAlignment="Center" Margin="0,0,0,4"
+                              IsChecked="{Binding IncludeTestVersions, Mode=TwoWay}"/>
+
                     <!-- Разрядность -->
                     <Grid>
                         <Grid.ColumnDefinitions>

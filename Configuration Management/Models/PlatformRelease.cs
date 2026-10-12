@@ -31,6 +31,15 @@ public class PlatformRelease
     /// </summary>
     public List<string> Sources { get; set; } = new();
 
+    /// <summary>
+    /// True — тестовая (предрелизная) сборка платформы (issue #364): помечается по
+    /// маркеру в данных каталога («тестовая версия», «test», «beta», «preview» и т.п.
+    /// в строке таблицы #versionsTable или в тексте версии). По умолчанию тестовые
+    /// сборки скрыты — окна показывают их только при включённой опции
+    /// «Учитывать тестовые» и никогда не предлагают как обязательное обновление.
+    /// </summary>
+    public bool IsTest { get; set; }
+
     /// <summary>Файлы дистрибутива релиза (заполняются лениво).</summary>
     public List<PlatformReleaseFile> Files { get; set; } = new();
 }

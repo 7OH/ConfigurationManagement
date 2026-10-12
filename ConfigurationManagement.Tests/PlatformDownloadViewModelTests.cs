@@ -65,6 +65,91 @@ public sealed class PlatformDownloadViewModelTests
             backgroundDownloads: backgroundDownloads);
     }
 
+    // ---------- Тестовые сборки платформы (issue #364) ----------
+
+    /// <summary>Создаёт тестовую (предрелизную) сборку каталога (issue #364).</summary>
+    private static PlatformRelease TestRelease(string version)
+        => new()
+        {
+            Version = version,
+            VersionFilesUrl = $"/version_files?nick=Platform83&ver={version}",
+            IsTest = true,
+        };
+
+    /// <summary>Все листья дерева версий (рекурсивно).</summary>
+    private static IEnumerable<PlatformCatalogNode> Leaves(IEnumerable<PlatformCatalogNode> nodes)
+        => nodes.SelectMany(n => n.IsLeaf ? new[] { n } : Leaves(n.Children));
+
+    [Fact]
+    public async Task IncludeTestVersions_DefaultOff_HidesTestReleases()
+    {
+        // issue #364: по умолчанию «Учитывать тестовые» выключено — предрелизные сборки
+        // не попадают ни в список версий, ни в дерево.
+        var service = new FakeCatalogService
+        {
+            AvailableResult = new PlatformCatalogResult
+            {
+                Status = PortalFetchStatus.Ok,
+                Releases = new[] { Release("8.3.27.2214"), TestRelease("8.3.28.100") },
+            },
+        };
+        var vm = CreateVm(service);
+
+        await vm.LoadCatalogAsync();
+
+        Assert.False(vm.IncludeTestVersions);
+        Assert.Equal(new[] { "8.3.27.2214" }, vm.Releases.Select(r => r.Version));
+        Assert.Equal(new[] { "8.3.27.2214" }, Leaves(vm.VersionTree).Select(n => n.Name));
+    }
+
+    [Fact]
+    public async Task IncludeTestVersions_ToggledOn_ShowsTestReleaseWithTreeMarker()
+    {
+        // issue #364: включение опции мгновенно перестраивает уже загруженный каталог;
+        // тестовая сборка попадает в список и в дерево с явной пометкой в имени листа.
+        var service = new FakeCatalogService
+        {
+            AvailableResult = new PlatformCatalogResult
+            {
+                Status = PortalFetchStatus.Ok,
+                Releases = new[] { Release("8.3.27.2214"), TestRelease("8.3.28.100") },
+            },
+        };
+        var vm = CreateVm(service);
+        await vm.LoadCatalogAsync();
+
+        vm.IncludeTestVersions = true;
+
+        Assert.Equal(new[] { "8.3.27.2214", "8.3.28.100" }, vm.Releases.Select(r => r.Version));
+        var testLeaf = Leaves(vm.VersionTree).Single(n => n.Release!.IsTest);
+        Assert.Equal("8.3.28.100", testLeaf.Release!.Version);
+        Assert.StartsWith("8.3.28.100", testLeaf.Name);
+        Assert.NotEqual("8.3.28.100", testLeaf.Name);
+        Assert.Equal("8.3.27.2214", vm.SelectedRelease!.Version);
+    }
+
+    [Fact]
+    public async Task LoadCatalogAsync_OnlyTestReleasesAndOptionOff_ShowsEmptyList()
+    {
+        // issue #364: если в каталоге только тестовые сборки, а опция выключена —
+        // список пуст, выборка не сбрасывается и не падает.
+        var service = new FakeCatalogService
+        {
+            AvailableResult = new PlatformCatalogResult
+            {
+                Status = PortalFetchStatus.Ok,
+                Releases = new[] { TestRelease("8.3.28.100") },
+            },
+        };
+        var vm = CreateVm(service);
+
+        await vm.LoadCatalogAsync();
+
+        Assert.Empty(vm.Releases);
+        Assert.Empty(vm.VersionTree);
+        Assert.Null(vm.SelectedRelease);
+    }
+
     // ---------- Каталог и выбор файла ----------
 
     [Fact]

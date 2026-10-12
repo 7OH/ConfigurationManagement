@@ -81,6 +81,10 @@ public partial class PlatformDownloadWindow : Window
 
         DataContext = _viewModel;
 
+        // Issue #364: опция «Учитывать тестовые» общая для окон обновления/скачивания
+        // платформы (AppSettings.PlatformIncludeTestVersions, по умолчанию выключена).
+        _viewModel.IncludeTestVersions = _settings.PlatformIncludeTestVersions;
+
         // Сохранение каталога загрузок в настройки при изменении (после выбора папки/скачивания).
         _viewModel.PropertyChanged += OnViewModel_PropertyChanged;
 
@@ -127,6 +131,20 @@ public partial class PlatformDownloadWindow : Window
             catch
             {
                 // Несохранение каталога загрузок не критично.
+            }
+        }
+
+        if (e.PropertyName == nameof(PlatformDownloadViewModel.IncludeTestVersions))
+        {
+            try
+            {
+                // Issue #364: флажок «Учитывать тестовые» запоминается между запусками.
+                _settings.PlatformIncludeTestVersions = _viewModel.IncludeTestVersions;
+                _repository.SaveSettings(_settings);
+            }
+            catch
+            {
+                // Несохранение флажка не критично.
             }
         }
 

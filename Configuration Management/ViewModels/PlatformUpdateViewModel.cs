@@ -94,6 +94,7 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
     private Services.DownloadEtaTracker? _etaTracker;
     private PlatformUpdateRowViewModel? _selectedRow;
     private bool _installHadWarnings;
+    private bool _includeTestVersions;
 
     /// <summary>Строки окна: установленные ∪ доступные версии (по убыванию).</summary>
     public ObservableCollection<PlatformUpdateRowViewModel> Rows { get; } = new();
@@ -140,6 +141,26 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
                 RefreshCommands();
                 LogCompatibleBases(value);
             }
+        }
+    }
+
+    /// <summary>
+    /// Учитывать тестовые (предрелизные) сборки платформы (issue #364). По умолчанию
+    /// выключено: обычные пользователи видят только релизные версии. При включении
+    /// тестовые сборки появляются в списке строк (со статусом «Тестовая версия»),
+    /// но НИКОГДА не помечаются как «Есть обновление» — не релизная версия не
+    /// навязывается как обязательное обновление. Изменение сразу перестраивает список
+    /// уже полученного каталога (без повторного сетевого запроса).
+    /// </summary>
+    public bool IncludeTestVersions
+    {
+        get => _includeTestVersions;
+        set
+        {
+            if (!SetProperty(ref _includeTestVersions, value))
+                return;
+            if (_availableReleases.Count > 0)
+                RebuildRows(LoadInstalledAsync(), _availableReleases);
         }
     }
 
@@ -330,7 +351,10 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
                 RebuildRows(LoadInstalledAsync(), _availableReleases);
                 AppendLog(string.Format(
                     LocalizationManager.T("PlatformUpdate.Progress.Done"),
-                    _availableReleases.FirstOrDefault()?.Version ?? "—"));
+                    // Issue #364: при выключенной опции «Учитывать тестовые» итогом
+                    // считается новейшая РЕЛИЗНАЯ версия, а не тестовая сборка.
+                    _availableReleases
+                        .FirstOrDefault(r => IncludeTestVersions || !r.IsTest)?.Version ?? "—"));
                 // issue #334: лог пишется ПОСЛЕ применения результата. Маршаллер UI
                 // асинхронный (Dispatcher.InvokeAsync/Post не ждут), раньше строка ниже
                 // читала СТАРОЕ значение _availableReleases — «получено 0 версий каталога»
@@ -1099,7 +1123,9 @@ public sealed class PlatformUpdateViewModel : ViewModelBase
 
         // Issue #361 (0.3.12.10): bases передаются в Merge — закрепления версии платформы
         // у баз (3/4 сегмента) определяют режим проверки обновления для линии.
-        var matches = PlatformUpdateMatcher.Merge(installed, available, bases);
+        // Issue #364 (0.3.12.16): includeTestVersions — тестовые сборки в списке строк
+        // только при включённой опции «Учитывать тестовые» (и никогда — как обновление).
+        var matches = PlatformUpdateMatcher.Merge(installed, available, bases, IncludeTestVersions);
         SelectedRow = null;
         Rows.Clear();
         foreach (var match in matches)

@@ -79,6 +79,10 @@ namespace Configuration_Management
                 // продолжается после закрытия окна и видно в индикаторе главного окна.
                 backgroundDownloads: Services.BackgroundDownloadManager.Default);
 
+            // Issue #364: опция «Учитывать тестовые» общая для окон обновления/скачивания
+            // платформы (AppSettings.PlatformIncludeTestVersions, по умолчанию выключена).
+            _viewModel.IncludeTestVersions = _settings.PlatformIncludeTestVersions;
+
             Content = BuildRoot();
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
@@ -98,6 +102,22 @@ namespace Configuration_Management
 
         private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
+            // Issue #364: флажок «Учитывать тестовые» запоминается между запусками.
+            if (e.PropertyName == nameof(PlatformDownloadViewModel.IncludeTestVersions))
+            {
+                try
+                {
+                    _settings.PlatformIncludeTestVersions = _viewModel.IncludeTestVersions;
+                    _repository.SaveSettings(_settings);
+                }
+                catch
+                {
+                    // Несохранение флажка не критично.
+                }
+
+                return;
+            }
+
             if (e.PropertyName == nameof(PlatformDownloadViewModel.LogText))
             {
                 Dispatcher.UIThread.Post(() =>
@@ -249,6 +269,22 @@ namespace Configuration_Management
             // Правая колонка: параметры сверху вниз.
             var right = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             var rightPanel = new StackPanel { Margin = new Thickness(14, 0, 0, 0), Spacing = 10 };
+
+            // Issue #364: учёт тестовых (предрелизных) сборок платформы — общая опция
+            // окон обновления/скачивания; при включении тестовые версии получают пометку
+            // в дереве и никогда не предлагаются как обязательное обновление.
+            var includeTest = new CheckBox
+            {
+                Content = T("PlatformDownload.IncludeTest"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            includeTest.Bind(ToggleButton.IsCheckedProperty,
+                new Avalonia.Data.Binding(nameof(PlatformDownloadViewModel.IncludeTestVersions))
+                {
+                    Source = _viewModel,
+                    Mode = Avalonia.Data.BindingMode.TwoWay
+                });
+            rightPanel.Children.Add(includeTest);
 
             // Разрядность.
             var archPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };

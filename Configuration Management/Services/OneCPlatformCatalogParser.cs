@@ -112,6 +112,18 @@ public static class OneCPlatformCatalogParser
         @"<td[^>]*>(?<cell>.*?)</td>",
         RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
+    /// <summary>
+    /// Маркер тестовой (предрелизной) сборки в данных каталога (issue #364): пометка
+    /// в строке таблицы версий/в тексте версии — «тестовая версия», «тест», «test»,
+    /// «beta», «preview», «alpha», «RC1», «предрелизная сборка», «pre-release».
+    /// Ищется ТОЛЬКО в тексте (без разметки), чтобы не срабатывать на атрибуты
+    /// <c>class</c>/<c>href</c>. Слова ограничены границами слов: «latest» не совпадает
+    /// с «test», «src» — с «rc».
+    /// </summary>
+    private static readonly Regex TestMarkerRegex = new(
+        @"\bтест[а-яё]*\b|\btest\b|\bbeta\b|\bpreview\b|\balpha\b|\brc\d*\b|предрелиз\w*|pre-?release",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     /// <summary>Регулярное выражение даты «дд.мм.гггг»: токены вида «01.10.2026» из соседних
     /// колонок (например, «Дата выхода») не считаются версиями «Списка версий» (issue #352).</summary>
     private static readonly Regex DateLikeTokenRegex = new(
@@ -141,8 +153,9 @@ public static class OneCPlatformCatalogParser
             return Array.Empty<PlatformRelease>();
 
         // Тройка «версия → ссылка на страницу файлов → список версий для обновления»
-        // (колонка «Список версий», issue #352); сохраняем порядок появления в HTML.
-        var entries = new List<(string Version, string Href, List<string> Sources)>();
+        // (колонка «Список версий», issue #352) + признак тестовой сборки (issue #364);
+        // сохраняем порядок появления в HTML.
+        var entries = new List<(string Version, string Href, List<string> Sources, bool IsTest)>();
 
         // 1) Основной путь: таблица #versionsTable, все строки <tr>, первый version_files-линк.
         var tableMatch = VersionsTableRegex.Match(html);
@@ -156,14 +169,19 @@ public static class OneCPlatformCatalogParser
                 if (!link.Success)
                     continue;
 
-                var version = NormalizeVersion(link.Groups["ver"].Value);
+                // issue #364: тестовая (предрелизная) сборка — по маркеру в тексте строки
+                // («тестовая версия» в ячейке/бейдже) либо в тексте самой версии
+                // («8.3.27.1688 (тестовая)»).
+                var rawVersion = link.Groups["ver"].Value;
+                var isTest = IsTestMarker(rawVersion) || IsTestMarker(ExtractText(row));
+                var version = isTest ? ExtractLeadingVersion(rawVersion) : NormalizeVersion(rawVersion);
                 if (!IsValidVersionText(version))
                     continue;
 
                 // Колонка «Список версий»: остальной текст строки (версии, из которых
                 // можно обновиться напрямую до этой версии).
                 var sources = ExtractSources(row, version);
-                entries.Add((version, NormalizeHref(link.Groups["href"].Value), sources));
+                entries.Add((version, NormalizeHref(link.Groups["href"].Value), sources, isTest));
             }
         }
 
@@ -172,18 +190,44 @@ public static class OneCPlatformCatalogParser
         {
             foreach (Match link in VersionFilesLinkRegex.Matches(html))
             {
-                var version = NormalizeVersion(link.Groups["ver"].Value);
+                var rawVersion = link.Groups["ver"].Value;
+                var isTest = IsTestMarker(rawVersion);
+                var version = isTest ? ExtractLeadingVersion(rawVersion) : NormalizeVersion(rawVersion);
                 if (IsValidVersionText(version))
-                    entries.Add((version, NormalizeHref(link.Groups["href"].Value), new List<string>()));
+                    entries.Add((version, NormalizeHref(link.Groups["href"].Value), new List<string>(), isTest));
+            }
+        }
+
+        // 3) Тестовые сборки в отдельной секции страницы (issue #364): ссылки
+        // version_files ВНЕ #versionsTable, рядом с которыми в тексте есть маркер
+        // («Тестовые версии», «тестовая версия»). Берутся ТОЛЬКО помеченные — новые
+        // непомеченные версии сюда не попадают, поведение без тестовых секций не меняется.
+        if (tableMatch.Success)
+        {
+            foreach (Match link in VersionFilesLinkRegex.Matches(html))
+            {
+                if (link.Index >= tableMatch.Index &&
+                    link.Index < tableMatch.Index + tableMatch.Length)
+                    continue;
+
+                var rawVersion = link.Groups["ver"].Value;
+                var version = NormalizeVersion(rawVersion);
+                if (!IsValidVersionText(version))
+                    continue;
+                if (!IsTestMarker(rawVersion) &&
+                    !IsTestMarkerNear(html, link.Index, link.Length))
+                    continue;
+
+                entries.Add((version, NormalizeHref(link.Groups["href"].Value), new List<string>(), true));
             }
         }
 
         // Дедупликация по версии: сохраняем первую встреченную ссылку и список версий.
-        var byVersion = new Dictionary<string, (string Href, List<string> Sources)>(StringComparer.Ordinal);
-        foreach (var (version, href, sources) in entries)
+        var byVersion = new Dictionary<string, (string Href, List<string> Sources, bool IsTest)>(StringComparer.Ordinal);
+        foreach (var (version, href, sources, isTest) in entries)
         {
             if (!byVersion.ContainsKey(version))
-                byVersion[version] = (href, sources);
+                byVersion[version] = (href, sources, isTest);
         }
 
         var releases = byVersion
@@ -192,11 +236,56 @@ public static class OneCPlatformCatalogParser
                 Version = kv.Key,
                 VersionFilesUrl = kv.Value.Href,
                 Sources = kv.Value.Sources,
+                IsTest = kv.Value.IsTest,
                 Nick = nick ?? string.Empty,
             })
             .ToList();
         releases.Sort((x, y) => CompareVersions(y.Version, x.Version));
         return releases;
+    }
+
+    /// <summary>
+    /// True, если в тексте есть маркер тестовой (предрелизной) сборки (issue #364):
+    /// «тестовая версия», «test», «beta», «preview», «RC1», «предрелизная сборка» и т.п.
+    /// Разметка не снимается автоматически — передавайте уже очищенный текст
+    /// (или исходную строку: маркеры ищутся в тексте, атрибуты <c>class</c>/<c>href</c>
+    /// содержат слово «тест»/«test» только в исключительных случаях).
+    /// null/пусто — false.
+    /// </summary>
+    public static bool IsTestMarker(string? text)
+        => !string.IsNullOrWhiteSpace(text) && TestMarkerRegex.IsMatch(text);
+
+    /// <summary>Снимает HTML-разметку и декодирует сущности (текст строки таблицы
+    /// для поиска маркера тестовой сборки, issue #364).</summary>
+    private static string ExtractText(string html)
+        => WebUtility.HtmlDecode(HtmlTagRegex.Replace(html ?? string.Empty, " "));
+
+    /// <summary>
+    /// True, если маркер тестовой сборки есть в текстовой окрестности позиции
+    /// <paramref name="index"/> ответа (±500 символов до/после ссылку, без учёта
+    /// разметки) — секции «Тестовые версии» живут вне таблицы #versionsTable.
+    /// </summary>
+    private static bool IsTestMarkerNear(string html, int index, int length)
+    {
+        if (string.IsNullOrEmpty(html))
+            return false;
+
+        const int window = 500;
+        var start = Math.Max(0, index - window);
+        var end = Math.Min(html.Length, index + length + window);
+        return IsTestMarker(ExtractText(html.Substring(start, end - start)));
+    }
+
+    /// <summary>
+    /// Извлекает первый числовой токен версии из текста ссылки («8.3.27.1688 (тестовая)»
+    /// → «8.3.27.1688», issue #364); если токена нет — нормализованная строка целиком.
+    /// </summary>
+    private static string ExtractLeadingVersion(string raw)
+    {
+        var decoded = WebUtility.HtmlDecode(raw ?? string.Empty);
+        var match = VersionTokenRegex.Match(decoded ?? string.Empty);
+        var token = match.Success ? match.Groups["v"].Value : null;
+        return !string.IsNullOrEmpty(token) ? NormalizeVersion(token) : NormalizeVersion(decoded ?? string.Empty);
     }
 
     /// <summary>

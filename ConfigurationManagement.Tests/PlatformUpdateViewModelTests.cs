@@ -106,6 +106,74 @@ public sealed class PlatformUpdateViewModelTests
             backgroundDownloads: backgroundDownloads);
     }
 
+    // ---------- Тестовые сборки платформы (issue #364) ----------
+
+    /// <summary>Создаёт тестовую (предрелизную) сборку каталога (issue #364).</summary>
+    private static PlatformRelease TestRelease(string version)
+        => new()
+        {
+            Version = version,
+            VersionFilesUrl = $"/version_files?nick=Platform83&ver={version}",
+            IsTest = true,
+        };
+
+    [Fact]
+    public async Task CheckUpdatesAsync_IncludeTestVersionsDefaultOff_HidesTestRows()
+    {
+        // issue #364: по умолчанию «Учитывать тестовые» выключено — предрелизные сборки
+        // в окне не показываются и не влияют на расчёт обновления.
+        var service = OkService(Release("8.3.27.2214"), TestRelease("8.3.28.100"));
+        var vm = CreateVm(service, installed: () => new List<string> { "8.3.27.1688" });
+
+        await vm.CheckUpdatesAsync();
+
+        Assert.False(vm.IncludeTestVersions);
+        Assert.Equal(new[] { "8.3.27.2214", "8.3.27.1688" }, vm.Rows.Select(r => r.Version));
+    }
+
+    [Fact]
+    public async Task IncludeTestVersions_ToggledAfterCheck_ShowsTestRowWithoutUpdateFlag()
+    {
+        // issue #364: включение опции сразу перестраивает уже полученный каталог;
+        // тестовая сборка появляется строкой «Тестовая версия», а не «Есть обновление».
+        var service = OkService(Release("8.3.27.2214"), TestRelease("8.3.28.100"));
+        var vm = CreateVm(service, installed: () => new List<string> { "8.3.27.1688" });
+
+        await vm.CheckUpdatesAsync();
+        vm.IncludeTestVersions = true;
+
+        Assert.Equal(new[] { "8.3.28.100", "8.3.27.2214", "8.3.27.1688" }, vm.Rows.Select(r => r.Version));
+
+        var testRow = vm.Rows.Single(r => r.Version == "8.3.28.100");
+        Assert.True(testRow.IsTest);
+        Assert.False(testRow.IsInstalled);
+        Assert.False(testRow.HasUpdate);
+        Assert.Null(testRow.AvailableVersion);
+        Assert.Equal(LocalizationManager.T("PlatformUpdate.Status.TestVersion"), testRow.StatusText);
+
+        // Релизная версия остаётся целью обновления установленной строки.
+        var installedRow = vm.Rows.Single(r => r.Version == "8.3.27.1688");
+        Assert.True(installedRow.HasUpdate);
+        Assert.Equal("8.3.27.2214", installedRow.AvailableVersion);
+    }
+
+    [Fact]
+    public async Task InstalledTestVersion_ShowsInstalledTestStatus()
+    {
+        // issue #364: установленная тестовая сборка помечается отдельным статусом.
+        var service = OkService(TestRelease("8.3.28.100"), Release("8.3.27.2214"));
+        var vm = CreateVm(service, installed: () => new List<string> { "8.3.28.100" });
+        vm.IncludeTestVersions = true;
+
+        await vm.CheckUpdatesAsync();
+
+        var row = vm.Rows.Single(r => r.Version == "8.3.28.100");
+        Assert.True(row.IsInstalled);
+        Assert.True(row.IsTest);
+        Assert.False(row.HasUpdate);
+        Assert.Equal(LocalizationManager.T("PlatformUpdate.Status.InstalledTest"), row.StatusText);
+    }
+
     // ---------- CheckUpdatesAsync ----------
 
     [Fact]
