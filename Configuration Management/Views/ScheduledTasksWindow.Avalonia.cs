@@ -55,6 +55,8 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
         add.Click += (_, _) => AddTask();
         var edit = new Button { Content = T("Common.Edit"), Width = 96 };
         edit.Click += (_, _) => EditSelected();
+        var copy = new Button { Content = T("Common.Copy"), Width = 96 };
+        copy.Click += (_, _) => CopySelected();
         var del = new Button { Content = T("Common.Delete"), Width = 92 };
         del.Click += (_, _) => DeleteSelected();
         var close = new Button { Content = T("Common.Close"), Width = 90 };
@@ -62,7 +64,7 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
 
         // Темизация кнопок окна (issue #291): стили берутся из Controls.axaml/тем
         // Light-Dark, как у остальных окон приложения, а не штатный вид Fluent.
-        foreach (var b in new Control[] { run, add, edit, del, close })
+        foreach (var b in new Control[] { run, add, edit, copy, del, close })
         {
             b.Styled(ControlThemes.ModernButton);
             b.MinWidth = b.Width;
@@ -71,6 +73,7 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
         bottom.Children.Add(run);
         bottom.Children.Add(add);
         bottom.Children.Add(edit);
+        bottom.Children.Add(copy);
         bottom.Children.Add(del);
         bottom.Children.Add(close);
 
@@ -110,6 +113,19 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
             _store.Save(updated);
             Reload();
         }
+    }
+
+    /// <summary>
+    /// Создаёт копию выбранного задания с новым Id и именем «… — копия» (issue #370):
+    /// оригинал остаётся нетронутым, копия сохраняется сразу и появляется в списке.
+    /// </summary>
+    private void CopySelected()
+    {
+        if (Selected is not { } item)
+            return;
+        var copy = item.Task.CreateCopy(string.Format(T("Settings.CopyOf"), item.Name));
+        _store.Save(copy);
+        Reload();
     }
 
     private void DeleteSelected()

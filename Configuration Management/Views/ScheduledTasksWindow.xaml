@@ -28,6 +28,7 @@
             <Button x:Name="RunButton" Content="Выполнить сейчас" Width="130" Margin="0,0,8,0" Padding="6,4" Click="Run_Click"/>
             <Button x:Name="AddButton" Content="Добавить" Width="96" Margin="0,0,8,0" Padding="6,4" Click="Add_Click"/>
             <Button x:Name="EditButton" Content="Изменить" Width="96" Margin="0,0,8,0" Padding="6,4" IsEnabled="False" Click="Edit_Click"/>
+            <Button x:Name="CopyButton" Content="Скопировать" Width="96" Margin="0,0,8,0" Padding="6,4" IsEnabled="False" Click="Copy_Click"/>
             <Button x:Name="DeleteButton" Content="Удалить" Width="92" Margin="0,0,8,0" Padding="6,4" IsEnabled="False" Click="Delete_Click"/>
             <Button Content="Закрыть" Width="90" Padding="6,4" IsCancel="True" Click="Close_Click"/>
         </StackPanel>

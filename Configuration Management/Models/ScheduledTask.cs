@@ -148,4 +148,31 @@ public class ScheduledTask
 
     /// <summary>Время запуска как TimeSpan («HH:mm»), при ошибке парсинга — 00:00.</summary>
     public TimeSpan GetTime() => TimeSpan.TryParse(Time, out var t) ? t : TimeSpan.Zero;
+
+    /// <summary>
+    /// Создаёт копию задания с новым <see cref="Id"/> (issue #370): копируются все
+    /// настройки задания, история последнего запуска (<see cref="LastRunAt"/>,
+    /// <see cref="LastRunUtc"/>, <see cref="LastRunSuccess"/>,
+    /// <see cref="LastRunMessage"/>) сбрасывается — копия ещё не выполнялась.
+    /// Имя задаётся вызывающим (например, «{оригинал} — копия»).
+    /// </summary>
+    public ScheduledTask CreateCopy(string name)
+    {
+        return new ScheduledTask
+        {
+            Name = name,
+            Enabled = Enabled,
+            Kind = Kind,
+            Time = Time,
+            DaysOfWeek = new List<DayOfWeek>(DaysOfWeek),
+            ScenarioId = ScenarioId,
+            InfobaseId = InfobaseId,
+            ConfigFilePath = ConfigFilePath,
+            PlatformCheckExpression = PlatformCheckExpression,
+            PlatformCheckIncludeTestVersions = PlatformCheckIncludeTestVersions,
+            PlatformNotifyChannel = PlatformNotifyChannel,
+            ConfigCheckConfiguration = ConfigCheckConfiguration,
+            ConfigCheckNotifyChannel = ConfigCheckNotifyChannel
+        };
+    }
 }

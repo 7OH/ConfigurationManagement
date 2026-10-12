@@ -17,6 +17,7 @@
     "Common.Add": "Add",
     "Common.Delete": "Delete",
     "Common.Edit": "Edit",
+    "Common.Copy": "Copy",
     "Common.Select": "Select",
     "Common.Browse": "Browse…",
     "Common.Refresh": "Refresh",

@@ -44,12 +44,17 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
     /// <summary>Готовое задание при подтверждении, иначе <c>null</c>.</summary>
     public ScheduledTask? Result { get; private set; }
 
+    private readonly ScheduledTask? _sourceTask;
+
     /// <param name="task">Редактируемое задание или <c>null</c> для нового.</param>
     public ScheduledTaskEditWindow(ScheduledTask? task = null)
     {
         var scenarios = AppServices.GetRequiredService<IBackupScenarioStore>().LoadAll();
         var infobases = AppServices.GetRequiredService<IInfobaseRepository>().Load();
         _vm = new ScheduledTaskEditViewModel(task, scenarios, infobases);
+        // Исходное задание сохраняется: при «Изменить» правится оно само (Id остаётся
+        // прежним и файл перезаписывается), а не создаётся дубль с новым GUID (issue #370).
+        _sourceTask = task;
 
         Title = T(task is null ? "Schedule.AddTitle" : "Schedule.EditTitle");
         Width = 560;
@@ -325,9 +330,20 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
             return;
         }
 
-        var task = new ScheduledTask();
-        _vm.ApplyTo(task);
-        Result = task;
+        // При редактировании правится исходное задание (Id сохраняется — Store.Save
+        // перезаписывает тот же файл), новый объект создаётся только для нового задания
+        // (issue #370: раньше «Изменить» плодил дубль с новым GUID).
+        if (_sourceTask is not null)
+        {
+            _vm.ApplyTo(_sourceTask);
+            Result = _sourceTask;
+        }
+        else
+        {
+            var created = new ScheduledTask();
+            _vm.ApplyTo(created);
+            Result = created;
+        }
         DialogResult = true;
         Close();
     }

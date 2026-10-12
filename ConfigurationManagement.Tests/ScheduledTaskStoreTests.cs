@@ -121,4 +121,90 @@ public sealed class ScheduledTaskStoreTests : IDisposable
         Assert.Empty(_store.LoadAll());
         Assert.False(Directory.GetFiles(_tempDir, "*.task.json").Any());
     }
+
+    [Fact]
+    public void Save_SameTaskTwice_UpdatesInPlace_NoDuplicate()
+    {
+        // Issue #370: редактирование задания не должно плодить дубль — при сохранении
+        // того же объекта (Id не меняется) файл перезаписывается, запись в списке одна.
+        var task = new ScheduledTask { Name = "До правки", Time = "02:00" };
+        _store.Save(task);
+
+        task.Name = "После правки";
+        task.Time = "05:00";
+        _store.Save(task);
+
+        var all = _store.LoadAll();
+        Assert.Single(all);
+        Assert.Equal(task.Id, all[0].Id);
+        Assert.Equal("После правки", all[0].Name);
+        Assert.Equal("05:00", all[0].Time);
+    }
+
+    [Fact]
+    public void CreateCopy_NewId_CopiesSettings_ResetsLastRun()
+    {
+        // Issue #370: «Скопировать» — новый Id, все настройки копируются,
+        // история последнего запуска сбрасывается (копия ещё не выполнялась).
+        var source = new ScheduledTask
+        {
+            Name = "Ночное резервирование",
+            Kind = ScheduledTaskKind.BackupThenUpdateConfig,
+            Enabled = false,
+            Time = "03:15",
+            DaysOfWeek = new List<DayOfWeek> { DayOfWeek.Tuesday, DayOfWeek.Friday },
+            ScenarioId = "scenario-1",
+            InfobaseId = "base-1",
+            ConfigFilePath = @"C:\cfg\update.cf",
+            PlatformCheckExpression = "8.5.*",
+            PlatformCheckIncludeTestVersions = true,
+            PlatformNotifyChannel = PlatformUpdateNotifyChannel.SystemNotifications,
+            ConfigCheckConfiguration = "ЗУП",
+            ConfigCheckNotifyChannel = PlatformUpdateNotifyChannel.SystemNotifications,
+            LastRunAt = new DateTime(2026, 10, 1, 3, 0, 0),
+            LastRunUtc = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc),
+            LastRunSuccess = true,
+            LastRunMessage = "ok"
+        };
+
+        var copy = source.CreateCopy("Ночное резервирование — копия");
+
+        Assert.NotEqual(source.Id, copy.Id);
+        Assert.Equal("Ночное резервирование — копия", copy.Name);
+        Assert.Equal(source.Kind, copy.Kind);
+        Assert.False(copy.Enabled);
+        Assert.Equal(source.Time, copy.Time);
+        Assert.Equal(source.DaysOfWeek, copy.DaysOfWeek);
+        Assert.Equal(source.ScenarioId, copy.ScenarioId);
+        Assert.Equal(source.InfobaseId, copy.InfobaseId);
+        Assert.Equal(source.ConfigFilePath, copy.ConfigFilePath);
+        Assert.Equal(source.PlatformCheckExpression, copy.PlatformCheckExpression);
+        Assert.True(copy.PlatformCheckIncludeTestVersions);
+        Assert.Equal(source.PlatformNotifyChannel, copy.PlatformNotifyChannel);
+        Assert.Equal(source.ConfigCheckConfiguration, copy.ConfigCheckConfiguration);
+        Assert.Equal(source.ConfigCheckNotifyChannel, copy.ConfigCheckNotifyChannel);
+        Assert.Null(copy.LastRunAt);
+        Assert.Null(copy.LastRunUtc);
+        Assert.False(copy.LastRunSuccess);
+        Assert.Null(copy.LastRunMessage);
+        // Исходное задание не изменяется.
+        Assert.Equal("Ночное резервирование", source.Name);
+        Assert.NotNull(source.LastRunAt);
+    }
+
+    [Fact]
+    public void CreateCopy_AndSave_BothTasksExist()
+    {
+        // Issue #370: после копии и сохранения копии в списке две разные записи.
+        var task = new ScheduledTask { Name = "Оригинал", Time = "01:00" };
+        _store.Save(task);
+
+        var copy = task.CreateCopy("Оригинал — копия");
+        _store.Save(copy);
+
+        var all = _store.LoadAll();
+        Assert.Equal(2, all.Count);
+        Assert.Contains(all, t => t.Id == task.Id && t.Name == "Оригинал");
+        Assert.Contains(all, t => t.Id == copy.Id && t.Name == "Оригинал — копия");
+    }
 }

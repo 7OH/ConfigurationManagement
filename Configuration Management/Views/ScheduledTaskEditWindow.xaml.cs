@@ -20,6 +20,7 @@ public partial class ScheduledTaskEditWindow : Window
 {
     private readonly ScheduledTaskEditViewModel _vm;
     private readonly IDialogService _dialogs;
+    private readonly ScheduledTask? _sourceTask;
 
     /// <summary>Готовое задание при подтверждении, иначе <c>null</c>.</summary>
     public ScheduledTask? Result { get; private set; }
@@ -29,6 +30,9 @@ public partial class ScheduledTaskEditWindow : Window
     {
         InitializeComponent();
         _dialogs = AppServices.GetRequiredService<IDialogService>();
+        // Исходное задание сохраняется: при «Изменить» правится оно само (Id остаётся
+        // прежним и файл перезаписывается), а не создаётся дубль с новым GUID (issue #370).
+        _sourceTask = task;
 
         var scenarios = AppServices.GetRequiredService<IBackupScenarioStore>().LoadAll();
         var infobases = AppServices.GetRequiredService<IInfobaseRepository>().Load();
@@ -222,9 +226,20 @@ public partial class ScheduledTaskEditWindow : Window
             return;
         }
 
-        var task = new ScheduledTask();
-        _vm.ApplyTo(task);
-        Result = task;
+        // При редактировании правится исходное задание (Id сохраняется — Store.Save
+        // перезаписывает тот же файл), новый объект создаётся только для нового задания
+        // (issue #370: раньше «Изменить» плодил дубль с новым GUID).
+        if (_sourceTask is not null)
+        {
+            _vm.ApplyTo(_sourceTask);
+            Result = _sourceTask;
+        }
+        else
+        {
+            var created = new ScheduledTask();
+            _vm.ApplyTo(created);
+            Result = created;
+        }
         DialogResult = true;
     }
 

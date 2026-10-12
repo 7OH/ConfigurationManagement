@@ -28,6 +28,7 @@ public partial class ScheduledTasksWindow : Window
         RunButton.Content = T("Schedule.RunNow");
         AddButton.Content = T("Common.Add");
         EditButton.Content = T("Common.Edit");
+        CopyButton.Content = T("Common.Copy");
         DeleteButton.Content = T("Common.Delete");
 
         LoadTasks();
@@ -48,6 +49,7 @@ public partial class ScheduledTasksWindow : Window
     {
         var has = Selected is not null;
         EditButton.IsEnabled = has;
+        CopyButton.IsEnabled = has;
         DeleteButton.IsEnabled = has;
     }
 
@@ -75,6 +77,19 @@ public partial class ScheduledTasksWindow : Window
             _store.Save(updated);
             LoadTasks();
         }
+    }
+
+    /// <summary>
+    /// Создаёт копию выбранного задания с новым Id и именем «… — копия» (issue #370):
+    /// оригинал остаётся нетронутым, копия сохраняется сразу и появляется в списке.
+    /// </summary>
+    private void Copy_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } item)
+            return;
+        var copy = item.Task.CreateCopy(string.Format(T("Settings.CopyOf"), item.Name));
+        _store.Save(copy);
+        LoadTasks();
     }
 
     private void Delete_Click(object sender, RoutedEventArgs e)
