@@ -47,6 +47,7 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     private readonly IMetadataExplorerService _service;
     private readonly IDialogService _dialogs;
     private readonly Action<Action>? _dispatchToUi;
+    private readonly IAppLogger? _logger;
 
     /// <summary>
     /// Проверка блокировки запуска конфигуратора для базы (этап 5): возвращает причину
@@ -113,18 +114,24 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     /// причину блокировки или null; null — реальная <see cref="OneCLauncher.IsDesignerBlocked"/>
     /// (тесты передают лямбду, чтобы не зависеть от WMI/процессов).
     /// </param>
+    /// <param name="logger">
+    /// Логгер приложения (issue #365): ошибки операций пишутся в app-лог с полным
+    /// текстом исключения; null (тесты) — резолвится из <see cref="AppServices"/>.
+    /// </param>
     public MetadataExplorerViewModel(
         IReadOnlyList<Infobase> bases,
         Infobase? selectedBase,
         IMetadataExplorerService service,
         IDialogService dialogs,
         Action<Action>? dispatchToUi = null,
-        Func<Infobase, string?>? designerBlockCheck = null)
+        Func<Infobase, string?>? designerBlockCheck = null,
+        IAppLogger? logger = null)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _dispatchToUi = dispatchToUi;
         _designerBlockCheck = designerBlockCheck ?? DefaultDesignerBlockCheck;
+        _logger = logger ?? TryResolveLogger();
 
         foreach (var infobase in bases ?? Array.Empty<Infobase>())
             Bases.Add(infobase);
@@ -971,9 +978,15 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
 
     private void ApplyError(Exception ex)
     {
+        // issue #365: реальная причина сбоя «Загрузить» попадает в app-лог
+        // (%APPDATA%\ConfigurationManagement\logs\app-YYYYMMDD.log) с полным
+        // текстом исключения — trace.json журналом не является.
+        _logger?.Error($"Ошибка операции обозревателя метаданных: {ex}");
+
+        var message = BuildErrorMessage(ex);
         void Apply()
         {
-            ErrorMessage = BuildErrorMessage(ex);
+            ErrorMessage = message;
             StatusText = LocalizationManager.T("MetadataExplorer.Errors.OperationFailed");
         }
 
@@ -981,6 +994,8 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             Apply();
         else
             _dispatchToUi(Apply);
+
+        _dialogs.ShowError(message, LocalizationManager.T("MetadataExplorer.Title"));
     }
 
     /// <summary>
@@ -1395,6 +1410,20 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         return string.IsNullOrWhiteSpace(message)
             ? LocalizationManager.T("MetadataExplorer.Errors.Unknown")
             : message;
+    }
+
+    /// <summary>Резолвит логгер из <see cref="AppServices"/> (в тестах контейнер не настроен).</summary>
+    private static IAppLogger? TryResolveLogger()
+    {
+        try
+        {
+            return AppServices.TryGetService<IAppLogger>();
+        }
+        catch
+        {
+            // Контейнер не инициализирован (юнит-тесты) — работаем без лога.
+            return null;
+        }
     }
 }
 

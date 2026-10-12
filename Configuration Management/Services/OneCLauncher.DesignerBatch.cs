@@ -136,7 +136,20 @@ public static partial class OneCLauncher
     public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath = null,
         BackupCredential? credential = null, int? repositoryVersion = null, int? repositoryReportBegin = null,
         int? repositoryReportEnd = null)
+        => RunDesignerBatch(infobase, operation, outputPath, credential, repositoryVersion,
+            repositoryReportBegin, repositoryReportEnd, out _);
+
+    /// <summary>
+    /// То же, что и основная перегрузка, но при отказе запуска в <paramref name="startError"/>
+    /// возвращается локализованная причина (нет 1cv8.exe, блокировка, небезопасный путь,
+    /// не создался каталог, не запустился процесс) — вместо generic-фразы у вызывающего
+    /// кода (issue #365: «Не удалось загрузить данные обозревателя» без деталей).
+    /// </summary>
+    public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath,
+        BackupCredential? credential, int? repositoryVersion, int? repositoryReportBegin,
+        int? repositoryReportEnd, out string? startError)
     {
+        startError = null;
         var arch = ResolveArchitecture(infobase.Architecture, infobase.PlatformVersion);
         var exePath = FindExecutable(infobase.PlatformVersion, arch, null, OneCLaunchMode.Configurator);
 
@@ -156,7 +169,8 @@ public static partial class OneCLauncher
         if (string.IsNullOrEmpty(exePath) ||
             exePath.EndsWith("1CEStart.exe", StringComparison.OrdinalIgnoreCase))
         {
-            GetLogger()?.Warn(LocalizationManager.T("Launcher.ConfiguratorExeNotFound"));
+            startError = LocalizationManager.T("Launcher.ConfiguratorExeNotFound");
+            GetLogger()?.Warn(startError);
             return false;
         }
 
@@ -164,8 +178,8 @@ public static partial class OneCLauncher
         // (в т.ч. открытый вручную вне приложения) или идёт другая выгрузка/операция DESIGNER.
         if (IsDesignerBlocked(infobase, out var blockReason))
         {
-            GetLogger()?.Warn(
-                string.Format(LocalizationManager.T("Launcher.ConfiguratorBlockedFormat"), blockReason));
+            startError = string.Format(LocalizationManager.T("Launcher.ConfiguratorBlockedFormat"), blockReason);
+            GetLogger()?.Warn(startError);
             return false;
         }
 
@@ -173,7 +187,10 @@ public static partial class OneCLauncher
             or DesignerBatchOperation.RepositoryDumpCfg or DesignerBatchOperation.RepositoryReport)
         {
             if (string.IsNullOrWhiteSpace(outputPath))
+            {
+                startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                 return false;
+            }
             // Каталог назначения должен существовать (создаётся здесь): платформа сама его не создаёт.
             // Для RepositoryDumpCfg outputPath — файл .cf, для RepositoryReport — файл отчёта по истории.
             var dir = Path.GetDirectoryName(outputPath);
@@ -182,8 +199,8 @@ public static partial class OneCLauncher
                 try { Directory.CreateDirectory(dir); }
                 catch (Exception ex)
                 {
-                    GetLogger()?.Error(
-                        string.Format(LocalizationManager.T("Launcher.CreateDirFailedFormat"), dir, ex.Message), ex);
+                    startError = string.Format(LocalizationManager.T("Launcher.CreateDirFailedFormat"), dir, ex.Message);
+                    GetLogger()?.Error(startError, ex);
                     return false;
                 }
             }
@@ -193,22 +210,28 @@ public static partial class OneCLauncher
             // Выборочный захват/отмена (-objects) требует существующий XML-файл списка объектов;
             // без файла (outputPath == null) операция выполняется для всех объектов хранилища.
             if (!string.IsNullOrWhiteSpace(outputPath) && !File.Exists(outputPath))
+            {
+                startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                 return false;
+            }
         }
         else if (operation == DesignerBatchOperation.DumpConfigToFiles)
         {
             // Каталог выгрузки должен существовать заранее (создаётся здесь): платформа
             // сама каталог не создаёт, а без него /DumpConfigToFiles завершится ошибкой.
             if (string.IsNullOrWhiteSpace(outputPath))
+            {
+                startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                 return false;
+            }
             try
             {
                 Directory.CreateDirectory(outputPath);
             }
             catch (Exception ex)
             {
-                GetLogger()?.Error(
-                    string.Format(LocalizationManager.T("Launcher.CreateDirFailedFormat"), outputPath, ex.Message), ex);
+                startError = string.Format(LocalizationManager.T("Launcher.CreateDirFailedFormat"), outputPath, ex.Message);
+                GetLogger()?.Error(startError, ex);
                 return false;
             }
         }
@@ -216,7 +239,10 @@ public static partial class OneCLauncher
         {
             // Восстановление и загрузка конфигурации требуют существующий исходный файл.
             if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath))
+            {
+                startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                 return false;
+            }
         }
 
         var connectionArg = BuildConnectionArgument(infobase);
@@ -259,7 +285,10 @@ public static partial class OneCLauncher
             _ => ""
         };
         if (string.IsNullOrEmpty(opArg))
+        {
+            startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
             return false;
+        }
 
         // /Out — путь к временному логу, всегда системный GUID-файл, без пользовательских данных,
         // поэтому экранирование не требуется (вектора инъекции нет).
@@ -281,7 +310,18 @@ public static partial class OneCLauncher
             // выводит CommandLine в ErrorMessage — пароль не должен утекать в UI/журнал.
             var commandLine = SensitiveDataMasker.MaskRepositoryPassword($"{exePath} {arguments}");
             var info = new DesignerBatchInfo(operation, infobase.Name, outputPath, outLog, commandLine);
-            RegisterBatchProcess(infobase, process, info);
+            if (!RegisterBatchProcess(infobase, process, info))
+            {
+                // Процесс запущен, но отследить его невозможно (null или пустой token) —
+                // Exited никогда не придёт, ожидание завершилось бы таймаутом часами
+                // (issue #365). Убиваем СВОЙ процесс и сразу завершаем с причиной.
+                try { process?.Kill(); } catch { /* уже завершился */ }
+                startError = LocalizationManager.T("Launcher.TrackProcessFailed");
+                info.ErrorMessage = startError;
+                GetLogger()?.Warn(startError);
+                DesignerBatchCompleted?.Invoke(null, info);
+                return false;
+            }
             DesignerBatchStarted?.Invoke(null, info);
             return true;
         }
@@ -289,8 +329,9 @@ public static partial class OneCLauncher
         {
             // Логируем замаскированную командную строку (пароль хранилища не должен попадать в журнал).
             var maskedArguments = SensitiveDataMasker.MaskRepositoryPassword(arguments);
-            GetLogger()?.Error(
-                string.Format(LocalizationManager.T("Launcher.OperationStartFailedFormat"), ex.Message, exePath, maskedArguments), ex);
+            startError = string.Format(
+                LocalizationManager.T("Launcher.OperationStartFailedFormat"), ex.Message, exePath, maskedArguments);
+            GetLogger()?.Error(startError, ex);
             return false;
         }
     }
@@ -307,12 +348,18 @@ public static partial class OneCLauncher
         };
     }
 
-    /// <summary>Регистрирует запущенный процесс пакетной операции и удаляет его по завершении.</summary>
-    private static void RegisterBatchProcess(Infobase infobase, Process? process, DesignerBatchInfo info)
+    /// <summary>
+    /// Регистрирует запущенный процесс пакетной операции и удаляет его по завершении.
+    /// Возвращает false, если процесс невозможно отследить (null или пустой token):
+    /// событие <c>Exited</c> никогда не придёт, и ожидание завершилось бы таймаутом
+    /// (issue #365). При сбое подписки процесс останавливается здесь — вызывающий
+    /// получит false и не будет ждать 60 минут.
+    /// </summary>
+    private static bool RegisterBatchProcess(Infobase infobase, Process? process, DesignerBatchInfo info)
     {
         var token = GetBaseConnectionToken(infobase);
         if (process is null || string.IsNullOrWhiteSpace(token))
-            return;
+            return false;
 
         _activeBatchProcesses[token] = process;
         try
@@ -327,10 +374,14 @@ public static partial class OneCLauncher
                 // Оповещаем об окончании операции (индикатор выгрузки в главном окне).
                 DesignerBatchCompleted?.Invoke(null, info);
             };
+            return true;
         }
         catch
         {
-            /* процесс мог уже завершиться */
+            // EnableRaisingEvents/подписка Exited недоступны (процесс мог завершиться
+            // мгновенно) — убиваем свой процесс: отслеживать Exited мы не сможем.
+            try { process.Kill(); } catch { /* уже завершился */ }
+            return false;
         }
     }
 

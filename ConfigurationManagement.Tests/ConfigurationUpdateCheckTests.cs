@@ -285,6 +285,9 @@ public sealed class ConfigurationUpdateCheckTests
         var notifier = new FakeMainWindowNotifier();
         var store = new FakeTaskStore();
         var task = NewConfigCheckTask();
+        // issue #367: сводка «обновлений нет» уведомляется только при включённой
+        // опции «Уведомлять об отсутствии».
+        task.ConfigCheckNotifyWhenNoUpdates = true;
         store.Tasks.Add(task);
 
         using var scheduler = CreateScheduler(store, updates, notifier);
@@ -294,6 +297,31 @@ public sealed class ConfigurationUpdateCheckTests
         Assert.True(task.LastRunSuccess);
         Assert.Equal(LocalizationManager.T("Schedule.ConfigUpdateCheck.UpToDate"), result.ScenarioName);
         Assert.Contains(task.Name, notifier.LastMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunNow_UpToDate_NoNotifyWhenOptionOff()
+    {
+        // issue #367 (7OH): при отсутствии обновлений и выключенной опции «Уведомлять
+        // об отсутствии» пустое уведомление не выводится — итог остаётся в LastRunMessage.
+        var updates = new StubUpdates(
+            new ConfigUpdateCatalogResult
+            {
+                Status = PortalFetchStatus.Ok,
+                Releases = new List<PlatformRelease> { new() { Version = "3.0.83.1234" } }
+            });
+        var notifier = new FakeMainWindowNotifier();
+        var store = new FakeTaskStore();
+        var task = NewConfigCheckTask();
+        store.Tasks.Add(task);
+
+        using var scheduler = CreateScheduler(store, updates, notifier);
+        var result = await scheduler.RunNowAsync(task);
+
+        Assert.True(result!.Success);
+        // Сводка «обновлений нет» осталась в журнале задания, хотя уведомление не показано.
+        Assert.Equal(LocalizationManager.T("Schedule.ConfigUpdateCheck.UpToDate"), task.LastRunMessage);
+        Assert.Null(notifier.LastMessage);
     }
 
     [Fact]

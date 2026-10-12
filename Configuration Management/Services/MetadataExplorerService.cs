@@ -16,11 +16,20 @@ namespace Configuration_Management.Services;
 /// </summary>
 public sealed class MetadataExplorerService : IMetadataExplorerService
 {
+    /// <summary>Логгер приложения (DI; в тестах — null или fake).</summary>
+    private readonly IAppLogger? _logger;
+
     /// <summary>Таймаут ожидания одного запуска 1cv8 DESIGNER /DumpConfigToFiles (60 мин).</summary>
     private static readonly TimeSpan BatchTimeout = TimeSpan.FromMinutes(60);
 
     /// <summary>Таймаут создания временной ИБ из .cf (большие конфигурации, как в сравнении).</summary>
     private const int CreateInfoBaseTimeoutMs = 30 * 60 * 1000;
+
+    /// <param name="logger">Логгер приложения для диагностики сбоев «Загрузить» (issue #365); null — без лога (тесты).</param>
+    public MetadataExplorerService(IAppLogger? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <inheritdoc />
     public Task<MetadataDump> DumpFromBaseAsync(
@@ -70,7 +79,13 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
                 templatePath: cfPath,
                 timeoutMs: CreateInfoBaseTimeoutMs);
             if (!created.Ok)
-                throw new MetadataExplorerException(created.Error ?? LocalizationManager.T("MetadataExplorer.Errors.LoadFailed"));
+            {
+                var message = created.Error ?? LocalizationManager.T("MetadataExplorer.Errors.LoadFailed");
+                _logger?.Error(
+                    $"Создание временной базы для обозревателя метаданных не удалось (cf='{cfPath}'): {message}",
+                    new MetadataExplorerException(message));
+                throw new MetadataExplorerException(message);
+            }
 
             var tempBase = CreateTempBase(platformVersion, ibDir);
             return DumpAndReadHeader(tempBase, dumpDir, progress, cancellationToken);
@@ -82,7 +97,7 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
     /// <see cref="OneCLauncher.DesignerBatchCompleted"/> и читает заголовок конфигурации.
     /// Каталог выгрузки остаётся на диске (владелец удалит через <see cref="MetadataDump.Delete"/>).
     /// </summary>
-    private static MetadataDump DumpAndReadHeader(
+    private MetadataDump DumpAndReadHeader(
         Infobase infobase,
         string dumpDir,
         IProgress<string>? progress,
@@ -97,9 +112,23 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
         var started = OneCLauncher.RunDesignerBatch(
             infobase,
             OneCLauncher.DesignerBatchOperation.DumpConfigToFiles,
-            dumpDir);
+            dumpDir,
+            credential: null,
+            repositoryVersion: null,
+            repositoryReportBegin: null,
+            repositoryReportEnd: null,
+            out var startError);
         if (!started)
-            throw new MetadataExplorerException(LocalizationManager.T("MetadataExplorer.Errors.LoadFailed"));
+        {
+            // Реальная причина отказа запуска (нет 1cv8.exe, блокировка, каталог/процесс) —
+            // см. RunDesignerBatch(... out startError) — issue #365: раньше UI получал
+            // generic-фразу «Не удалось загрузить данные обозревателя» без деталей.
+            var message = startError ?? LocalizationManager.T("MetadataExplorer.Errors.LoadFailed");
+            _logger?.Error(
+                $"Не удалось запустить выгрузку конфигурации обозревателя метаданных (база='{infobase.Name}', этап=Dump): {message}",
+                new MetadataExplorerException(message));
+            throw new MetadataExplorerException(message);
+        }
 
         var info = WaitForBatchAsync(
             OneCLauncher.DesignerBatchOperation.DumpConfigToFiles,
@@ -108,9 +137,21 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
             cancellationToken).GetAwaiter().GetResult();
 
         if (info is null)
-            throw new MetadataExplorerException(LocalizationManager.T("MetadataExplorer.Errors.LoadTimeout"));
+        {
+            var message = LocalizationManager.T("MetadataExplorer.Errors.LoadTimeout");
+            _logger?.Error(
+                $"Превышено время ожидания выгрузки конфигурации обозревателя метаданных (база='{infobase.Name}', этап=Dump).",
+                new MetadataExplorerException(message));
+            throw new MetadataExplorerException(message);
+        }
         if (!info.Success)
-            throw new MetadataExplorerException(info.ErrorMessage ?? LocalizationManager.T("MetadataExplorer.Errors.LoadFailed"));
+        {
+            var message = info.ErrorMessage ?? LocalizationManager.T("MetadataExplorer.Errors.LoadFailed");
+            _logger?.Error(
+                $"Выгрузка конфигурации обозревателя метаданных завершилась ошибкой (база='{infobase.Name}', этап=Dump): {message}",
+                new MetadataExplorerException(message));
+            throw new MetadataExplorerException(message);
+        }
 
         var (name, version) = MetadataXmlParser.ParseConfigurationHeader(dumpDir);
         return new MetadataDump(dumpDir, name, version);

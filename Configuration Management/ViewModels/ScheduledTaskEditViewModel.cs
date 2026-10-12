@@ -50,6 +50,12 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         PlatformNotifyChannel = task?.PlatformNotifyChannel ?? PlatformUpdateNotifyChannel.MainWindow;
         ConfigCheckConfiguration = task?.ConfigCheckConfiguration ?? "";
         ConfigCheckNotifyChannel = task?.ConfigCheckNotifyChannel ?? PlatformUpdateNotifyChannel.MainWindow;
+        // issue #366/#367: периодичность повтора и «Уведомлять об отсутствии».
+        RepeatEnabled = task?.RepeatEnabled ?? false;
+        RepeatIntervalValueText = (task?.RepeatIntervalValue ?? 60).ToString();
+        RepeatIntervalUnit = task?.RepeatIntervalUnit ?? ScheduledTaskRepeatUnit.Minutes;
+        PlatformCheckNotifyWhenNoUpdates = task?.PlatformCheckNotifyWhenNoUpdates ?? false;
+        ConfigCheckNotifyWhenNoUpdates = task?.ConfigCheckNotifyWhenNoUpdates ?? false;
 
         var days = task?.DaysOfWeek ?? new List<DayOfWeek>();
         IsMonday = days.Contains(DayOfWeek.Monday);
@@ -73,6 +79,21 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     public PlatformUpdateNotifyChannel PlatformNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
     public string ConfigCheckConfiguration { get; set; } = "";
     public PlatformUpdateNotifyChannel ConfigCheckNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
+
+    /// <summary>Включён ли повтор задания с интервалом (issue #366/#367).</summary>
+    public bool RepeatEnabled { get; set; }
+
+    /// <summary>Значение интервала повтора (текст поля; по умолчанию «60»).</summary>
+    public string RepeatIntervalValueText { get; set; } = "60";
+
+    /// <summary>Единица интервала повтора.</summary>
+    public ScheduledTaskRepeatUnit RepeatIntervalUnit { get; set; } = ScheduledTaskRepeatUnit.Minutes;
+
+    /// <summary>Уведомлять ли при отсутствии обновлений платформы (issue #366).</summary>
+    public bool PlatformCheckNotifyWhenNoUpdates { get; set; }
+
+    /// <summary>Уведомлять ли при отсутствии обновлений конфигурации (issue #367).</summary>
+    public bool ConfigCheckNotifyWhenNoUpdates { get; set; }
 
     public bool IsMonday { get; set; }
     public bool IsTuesday { get; set; }
@@ -140,6 +161,15 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     /// <summary>Нужен ли путь к файлу .cf (для обновления конфигурации).</summary>
     public bool NeedsCfgFile => Kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
 
+    /// <summary>Доступные единицы интервала повтора (issue #366/#367).</summary>
+    public IReadOnlyList<ScheduledTaskOption> RepeatUnitOptions => new[]
+    {
+        new ScheduledTaskOption("Seconds", LocalizationManager.T("Schedule.Repeat.Unit.Seconds")),
+        new ScheduledTaskOption("Minutes", LocalizationManager.T("Schedule.Repeat.Unit.Minutes")),
+        new ScheduledTaskOption("Hours", LocalizationManager.T("Schedule.Repeat.Unit.Hours")),
+        new ScheduledTaskOption("Days", LocalizationManager.T("Schedule.Repeat.Unit.Days"))
+    };
+
     /// <summary>Нужны ли опции проверки платформы (issue #366).</summary>
     public bool NeedsPlatformCheck => Kind is ScheduledTaskKind.PlatformUpdateCheck;
 
@@ -181,6 +211,12 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         if (NeedsConfigCheck && string.IsNullOrWhiteSpace(ConfigCheckConfiguration))
             return "Schedule.ConfigCheck.ConfigurationRequired";
 
+        // Периодичность (issue #366/#367): при включённом повторе интервал —
+        // положительное целое число.
+        if (RepeatEnabled &&
+            (!int.TryParse(RepeatIntervalValueText, out var repeatValue) || repeatValue <= 0))
+            return "Schedule.Repeat.InvalidValue";
+
         return null;
     }
 
@@ -204,6 +240,15 @@ public class ScheduledTaskEditViewModel : ViewModelBase
             : ConfigCheckConfiguration.Trim();
         task.ConfigCheckNotifyChannel = ConfigCheckNotifyChannel;
         task.DaysOfWeek = CollectDays();
+
+        // Периодичность и «Уведомлять об отсутствии» (issue #366/#367).
+        task.RepeatEnabled = RepeatEnabled;
+        task.RepeatIntervalValue = int.TryParse(RepeatIntervalValueText, out var repeatValue) && repeatValue > 0
+            ? repeatValue
+            : task.RepeatIntervalValue;
+        task.RepeatIntervalUnit = RepeatIntervalUnit;
+        task.PlatformCheckNotifyWhenNoUpdates = PlatformCheckNotifyWhenNoUpdates;
+        task.ConfigCheckNotifyWhenNoUpdates = ConfigCheckNotifyWhenNoUpdates;
     }
 
     private List<DayOfWeek> CollectDays()

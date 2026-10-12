@@ -149,7 +149,8 @@
         <TextBlock Grid.Row="4" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
                    Foreground="#DC2626" Text="{Binding ErrorMessage}"
                    Style="{StaticResource ErrorMessageStyle}"
-                   VerticalAlignment="Bottom" MaxHeight="60"/>
+                   VerticalAlignment="Bottom" MaxHeight="60"
+                   ToolTip="{Binding ErrorMessage}"/>
 
         <!-- Дерево + панель деталей -->
         <Grid Grid.Row="5">

@@ -101,6 +101,19 @@ public partial class ScheduledTaskEditWindow : Window
         ConfigNotifyCombo.SelectedValuePath = "Value";
         ConfigNotifyCombo.SelectedValue = _vm.ConfigCheckNotifyChannel.ToString();
 
+        // Повтор с интервалом и «Уведомлять об отсутствии» (issue #366/#367).
+        RepeatCheck.Content = T("Schedule.Repeat.Enabled");
+        RepeatValueLabel.Text = T("Schedule.Repeat.ValueLabel");
+        RepeatValueBox.Text = _vm.RepeatIntervalValueText;
+        RepeatUnitCombo.ItemsSource = _vm.RepeatUnitOptions;
+        RepeatUnitCombo.DisplayMemberPath = "Text";
+        RepeatUnitCombo.SelectedValuePath = "Value";
+        RepeatUnitCombo.SelectedValue = _vm.RepeatIntervalUnit.ToString();
+        PlatformNotifyNoUpdatesCheck.Content = T("Schedule.PlatformCheck.NotifyWhenNoUpdates");
+        PlatformNotifyNoUpdatesCheck.IsChecked = _vm.PlatformCheckNotifyWhenNoUpdates;
+        ConfigNotifyNoUpdatesCheck.Content = T("Schedule.ConfigCheck.NotifyWhenNoUpdates");
+        ConfigNotifyNoUpdatesCheck.IsChecked = _vm.ConfigCheckNotifyWhenNoUpdates;
+
         ApplyKindVisibility();
 
         // Фокус в поле «Наименование» (issue #299): отложенный вызов после показа окна —
@@ -145,6 +158,9 @@ public partial class ScheduledTaskEditWindow : Window
         CfgPanel.Visibility = needsCfg ? Visibility.Visible : Visibility.Collapsed;
         PlatformPanel.Visibility = needsPlatformCheck ? Visibility.Visible : Visibility.Collapsed;
         ConfigPanel.Visibility = needsConfigCheck ? Visibility.Visible : Visibility.Collapsed;
+        RepeatPanel.Visibility = needsPlatformCheck || needsConfigCheck
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private void KindCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -211,6 +227,13 @@ public partial class ScheduledTaskEditWindow : Window
         _vm.ConfigCheckConfiguration = ConfigCombo.Text ?? "";
         if (Enum.TryParse<PlatformUpdateNotifyChannel>(ConfigNotifyCombo.SelectedValue as string, out var configNotifyChannel))
             _vm.ConfigCheckNotifyChannel = configNotifyChannel;
+        // Повтор с интервалом и опции «Уведомлять об отсутствии» (issue #366/#367).
+        _vm.RepeatEnabled = RepeatCheck.IsChecked == true;
+        _vm.RepeatIntervalValueText = RepeatValueBox.Text ?? "";
+        if (Enum.TryParse<ScheduledTaskRepeatUnit>(RepeatUnitCombo.SelectedValue as string, out var repeatUnit))
+            _vm.RepeatIntervalUnit = repeatUnit;
+        _vm.PlatformCheckNotifyWhenNoUpdates = PlatformNotifyNoUpdatesCheck.IsChecked == true;
+        _vm.ConfigCheckNotifyWhenNoUpdates = ConfigNotifyNoUpdatesCheck.IsChecked == true;
         _vm.IsMonday = MonCheck.IsChecked == true;
         _vm.IsTuesday = TueCheck.IsChecked == true;
         _vm.IsWednesday = WedCheck.IsChecked == true;

@@ -243,13 +243,18 @@
                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
                             <!-- issue #352.2: кнопки «Выбрать…» и «Открыть» в одной панели;
                                  выбор папки сохраняет её в настройках без диалога при скачивании. -->
-                            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                <Button x:Name="ChainChooseFolderButton" MinWidth="96" Height="28"
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- issue #352 (7OH от 2026-10-11): фиксированная высота 28
+                                     обрезала текст кнопок снизу — разрешаем кнопкам расти
+                                     под контент (MinHeight), контент центрируется. -->
+                                <Button x:Name="ChainChooseFolderButton" MinWidth="96" MinHeight="30"
+                                        VerticalContentAlignment="Center" Padding="12,5"
                                         Margin="8,0,0,0" Style="{StaticResource OutlineButtonStyle}"
                                         Click="OnChooseChainFolderClick">
                                     <TextBlock Text="{loc:Loc Updates.Chain.ChooseFolderButton}" VerticalAlignment="Center"/>
                                 </Button>
-                                <Button x:Name="ChainOpenFolderButton" MinWidth="96" Height="28"
+                                <Button x:Name="ChainOpenFolderButton" MinWidth="96" MinHeight="30"
+                                        VerticalContentAlignment="Center" Padding="12,5"
                                         Margin="8,0,0,0" Style="{StaticResource OutlineButtonStyle}"
                                         Click="OnOpenChainFolderClick">
                                     <TextBlock Text="{loc:Loc Updates.Chain.OpenFolder}" VerticalAlignment="Center"/>

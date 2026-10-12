@@ -458,10 +458,16 @@ public class SchedulerService : IDisposable
 
         result.Success = true;
         result.ScenarioName = summary;
-        NotifyPlatformUpdateCheck(
-            task,
-            check.HasUpdate ? NotificationKind.Info : NotificationKind.Success,
-            summary);
+        // issue #366 (7OH от 2026-10-12): при отсутствии обновлений уведомление можно
+        // отключить опцией «Уведомлять об отсутствии» — пустое окно/balloon не выводится,
+        // но результат всё равно записывается в LastRunMessage.
+        if (check.HasUpdate || task.PlatformCheckNotifyWhenNoUpdates)
+        {
+            NotifyPlatformUpdateCheck(
+                task,
+                check.HasUpdate ? NotificationKind.Info : NotificationKind.Success,
+                summary);
+        }
         return result;
     }
 
@@ -559,10 +565,15 @@ public class SchedulerService : IDisposable
 
         result.Success = true;
         result.ScenarioName = summary;
-        NotifyConfigurationUpdateCheck(
-            task,
-            check.HasUpdate ? NotificationKind.Info : NotificationKind.Success,
-            summary);
+        // issue #367 (7OH): при отсутствии доступных версий уведомление можно отключить
+        // опцией «Уведомлять об отсутствии» — сводка остаётся в LastRunMessage.
+        if (check.HasUpdate || task.ConfigCheckNotifyWhenNoUpdates)
+        {
+            NotifyConfigurationUpdateCheck(
+                task,
+                check.HasUpdate ? NotificationKind.Info : NotificationKind.Success,
+                summary);
+        }
         return result;
     }
 

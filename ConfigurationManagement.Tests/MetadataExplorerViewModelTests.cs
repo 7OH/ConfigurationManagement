@@ -401,6 +401,76 @@ public sealed class MetadataExplorerViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Load_ServiceThrows_ShowsErrorDialog_WithReason_AndLogsFullException()
+    {
+        // issue #365: причина сбоя «Загрузить» должна быть видна пользователю
+        // (диалог с полным текстом) и попадать в app-лог (IAppLogger).
+        var dialogs = new RecordingDialogs();
+        var logger = new FakeAppLogger();
+        var fake = new FakeMetadataExplorerService
+        {
+            BaseException = new MetadataExplorerException("Причина сбоя: конфигуратор заблокирован")
+        };
+        var vm = new MetadataExplorerViewModel(
+            new[] { CreateBase() }, CreateBase(), fake, dialogs,
+            logger: logger);
+
+        await vm.LoadAsync();
+
+        Assert.Contains("Причина сбоя: конфигуратор заблокирован", vm.ErrorMessage);
+        Assert.Equal(1, dialogs.ErrorCalls);
+        Assert.Contains("Причина сбоя: конфигуратор заблокирован", dialogs.LastErrorMessage);
+        Assert.Single(logger.Errors);
+        Assert.Contains("Причина сбоя: конфигуратор заблокирован", logger.Errors[0]);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
+    public async Task Load_ServiceThrows_UnknownExceptionType_TextPresentInUiAndLog()
+    {
+        // issue #365: неизвестное исключение (не MetadataExplorerException) — текст
+        // исключения всё равно виден в ErrorMessage/lоге, а не generic-фраза.
+        var dialogs = new RecordingDialogs();
+        var logger = new FakeAppLogger();
+        var fake = new FakeMetadataExplorerService
+        {
+            BaseException = new InvalidOperationException("IOException: неверный путь выгрузки")
+        };
+        var vm = new MetadataExplorerViewModel(
+            new[] { CreateBase() }, CreateBase(), fake, dialogs,
+            logger: logger);
+
+        await vm.LoadAsync();
+
+        Assert.Contains("IOException: неверный путь выгрузки", vm.ErrorMessage);
+        Assert.Equal(1, dialogs.ErrorCalls);
+        Assert.Contains("IOException: неверный путь выгрузки", dialogs.LastErrorMessage);
+        Assert.Single(logger.Errors);
+        Assert.Contains("IOException: неверный путь выгрузки", logger.Errors[0]);
+    }
+
+    [Fact]
+    public async Task Load_ServiceThrows_NullLogger_DoesNotCrash()
+    {
+        // issue #365: без логгера (тесты/контейнер не настроен) ошибка всё равно
+        // показывается и не роняет окно.
+        var dialogs = new RecordingDialogs();
+        var fake = new FakeMetadataExplorerService
+        {
+            BaseException = new MetadataExplorerException("причина без логгера")
+        };
+        var vm = new MetadataExplorerViewModel(
+            new[] { CreateBase() }, CreateBase(), fake, dialogs,
+            logger: null);
+
+        await vm.LoadAsync();
+
+        Assert.Contains("причина без логгера", vm.ErrorMessage);
+        Assert.Equal(1, dialogs.ErrorCalls);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
     public async Task Load_FromCf_CallsDumpFromCfWithPath()
     {
         var dumpDir = CreateDumpWithoutSubsystems();
@@ -627,18 +697,37 @@ public sealed class MetadataExplorerViewModelTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Fake-логгер (issue #365): запоминает все записи Error с полным текстом;
+    /// Info/Warn доступны для полноты интерфейса, но в тестах не проверяются.
+    /// </summary>
+    private sealed class FakeAppLogger : IAppLogger
+    {
+        public List<string> Errors { get; } = new();
+
+        public void Info(string message) { }
+        public void Warn(string message) { }
+        public void Error(string message, Exception? exception = null) => Errors.Add(message);
+    }
+
     /// <summary>Запись диалогов для тестов: ничего не показывает, выбор файла и результат
-    /// Confirm — настраиваемые; вызовы Confirm записываются.</summary>
+    /// Confirm — настраиваемые; вызовы Confirm и ShowError записываются.</summary>
     private sealed class RecordingDialogs : IDialogService
     {
         public string? OpenFileResult { get; set; }
         public bool? ConfirmResult { get; set; }
         public int ConfirmCalls { get; private set; }
         public string? LastConfirmMessage { get; private set; }
+        public int ErrorCalls { get; private set; }
+        public string? LastErrorMessage { get; private set; }
 
         public void ShowInfo(string message, string title = "") { }
         public void ShowWarning(string message, string title = "") { }
-        public void ShowError(string message, string title = "") { }
+        public void ShowError(string message, string title = "")
+        {
+            ErrorCalls++;
+            LastErrorMessage = message;
+        }
         public bool Confirm(string message, string title = "")
         {
             ConfirmCalls++;

@@ -830,7 +830,24 @@ namespace Configuration_Management
                 }
 
                 if (Height < target)
+                {
                     Height = target;
+                    // issue #352 (7OH от 2026-10-11): при появлении таблицы цепочек низ
+                    // окна уходил за панель задач — поднимаем окно в пределы рабочей
+                    // области (WindowSizeMath.FitTop, как в окне «Серверы 1С», #368).
+                    if (screen is not null && screen.Scaling > 0)
+                    {
+                        // Рабочая область — PixelRect в физических пикселях; позиция окна
+                        // задаётся через Position (PixelPoint, точки DIP от верхнего левого угла).
+                        var wa = screen.WorkingArea;
+                        var workTop = wa.Y / screen.Scaling;
+                        var workBottom = (wa.Y + wa.Height) / screen.Scaling;
+                        var desiredTop = WindowSizeMath.FitTop(Position.Y / screen.Scaling, Height, workTop, workBottom);
+                        var newTopPx = (int)Math.Round(desiredTop * screen.Scaling);
+                        if (newTopPx != Position.Y)
+                            Position = new PixelPoint(Position.X, newTopPx);
+                    }
+                }
             }
             catch
             {
@@ -1116,10 +1133,18 @@ namespace Configuration_Management
             // issue #352 (комментарий 7OH от 2026-10-09): докачка цепочки — файлы,
             // уже скачанные ранее (существуют и непусты), пропускаются ещё на старте;
             // счётчик «Скачивается X из Y» считается только по требующим скачивания.
-            var baseName = SanitizeFileName(_row.Name);
-            var targetPaths = variant.Steps
-                .Select(step => Path.Combine(folder, $"{baseName}_{step.Version}.zip"))
-                .ToList();
+            // issue #352 (комментарий 7OH от 2026-10-11): файлы цепочки сохраняются под
+            // ОРИГИНАЛЬНЫМИ именами дистрибутивов (Trade_11_5_27_93_updsetup.zip), как при
+            // одиночном скачивании; имя шага уточняется со страницы файлов версии
+            // («Дистрибутив обновления»), сбой — fallback «Имя_версия.zip».
+            var originalFileNames = new List<string?>();
+            foreach (var step in variant.Steps)
+                originalFileNames.Add(await TryResolveChainFileNameAsync(step, downloadToken));
+            var targetPaths = UpdateChainDownloadPlanner.BuildChainTargetPaths(
+                folder, _row.Name,
+                variant.Steps.Select(s => s.Version).ToList(),
+                originalFileNames,
+                SanitizeFileName);
             var pending = UpdateChainDownloadPlanner.SelectPendingSteps(targetPaths);
             var skipped = variant.Steps.Count - pending.Count;
             if (skipped > 0)
@@ -1196,6 +1221,33 @@ namespace Configuration_Management
             }
 
             return (failed, total);
+        }
+
+        /// <summary>
+        /// Оригинальное имя дистрибутива шага цепочки (issue #352): имя файла «Дистрибутива
+        /// обновления» со страницы файлов версии (Trade_11_5_27_93_updsetup.zip), чтобы файлы
+        /// цепочки сохранялись под оригинальными именами, как одиночное скачивание. Сбой
+        /// сети/пустой список — null (fallback «Имя_версия.zip»).
+        /// </summary>
+        private async Task<string?> TryResolveChainFileNameAsync(Models.PlatformRelease step, CancellationToken ct)
+        {
+            try
+            {
+                var url = OneCUpdatesService.ToAbsoluteVersionFilesUrl(step.VersionFilesUrl, _row.Url);
+                var choices = await _updates.GetReleaseFileChoicesAsync(url, ct);
+                var choice = choices.FirstOrDefault(c =>
+                                 c.CaptionKey == UpdateFileChoice.UpdateDistributionCaptionKey)
+                             ?? choices.FirstOrDefault();
+                return choice?.FileName;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>Колонка сводного ряда «Текущая / Последняя / Статус» (issue #352).
@@ -1387,16 +1439,20 @@ namespace Configuration_Management
             _chainFolderValue.TextTrimming = TextTrimming.CharacterEllipsis;
             Themes.ThemeBrushes.Bind(_chainFolderValue, TextBlock.ForegroundProperty, "TextSecondaryBrush");
 
+            // issue #352 (7OH от 2026-10-11): фиксированная высота 28 обрезала текст
+            // кнопок снизу — даём кнопкам расти под контент (MinHeight), контент по центру.
             _chainChooseFolderButton.Content = T("Updates.Chain.ChooseFolderButton");
             _chainChooseFolderButton.MinWidth = 96;
-            _chainChooseFolderButton.Height = 28;
+            _chainChooseFolderButton.MinHeight = 30;
+            _chainChooseFolderButton.VerticalContentAlignment = VerticalAlignment.Center;
             _chainChooseFolderButton.Margin = new Thickness(8, 0, 0, 0);
             _chainChooseFolderButton.Styled(ControlThemes.SecondaryButton);
             _chainChooseFolderButton.Click += (_, _) => OnChooseChainFolderClick();
 
             _chainOpenFolderButton.Content = T("Updates.Chain.OpenFolder");
             _chainOpenFolderButton.MinWidth = 96;
-            _chainOpenFolderButton.Height = 28;
+            _chainOpenFolderButton.MinHeight = 30;
+            _chainOpenFolderButton.VerticalContentAlignment = VerticalAlignment.Center;
             _chainOpenFolderButton.Margin = new Thickness(8, 0, 0, 0);
             _chainOpenFolderButton.Styled(ControlThemes.SecondaryButton);
             _chainOpenFolderButton.Click += (_, _) => OnOpenChainFolderClick();

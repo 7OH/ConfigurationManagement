@@ -192,6 +192,61 @@ public sealed class UpdateCheckCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ParseProjectHtml_TrimmedCatalog_VersionFromQuery_NotLinkText()
+    {
+        // issue #371: «урезанный» каталог (без allUpdates=true) без таблицы #versionsTable;
+        // текст ссылки — не номер версии, версия только в query параметре ver=.
+        // Ссылки version_file (единственное число) тоже распознаются.
+        const string html = """
+            <html><body>
+              <a href="/version_file?nick=Enterprise13&ver=1.3.281.1&path=Enterprise13%5c1_3_281_1%5c1CEnterprise_updsetup.zip">Дистрибутив обновления</a>
+              <a href="/version_file?nick=Enterprise13&ver=1.3.285.1&path=Enterprise13%5c1_3_285_1%5c1CEnterprise_updsetup.zip">Дистрибутив обновления</a>
+            </body></html>
+            """;
+
+        var version = OneCUpdatesService.ParseLatestVersionFromProjectHtml(html);
+
+        Assert.Equal("1.3.285.1", version);
+    }
+
+    [Fact]
+    public void ParseProjectHtml_CardsWithDataVersion_ReturnsMax()
+    {
+        // issue #371: новый дизайн каталога — карточки релизов с версией в data-атрибутах,
+        // ссылок version_files может не быть вовсе.
+        const string html = """
+            <html><body>
+              <div class="release-card" data-version="1.3.279.2"><a href="/project/Enterprise13">1.3.279.2</a></div>
+              <div class="release-card" data-ver="1.3.285.1"><a href="/project/Enterprise13">следующий релиз</a></div>
+            </body></html>
+            """;
+
+        var version = OneCUpdatesService.ParseLatestVersionFromProjectHtml(html);
+
+        Assert.Equal("1.3.285.1", version);
+    }
+
+    [Fact]
+    public void ParseProjectHtml_TrimmedCatalog_TakesMaxEvenWhenNotFirst()
+    {
+        // issue #371: в урезанном списке порядок строк не гарантирован — парсер должен
+        // вернуть максимальную версию, а не первую попавшуюся.
+        const string html = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td><a href="/version_files?nick=Enterprise13&ver=1.3.281.1">1.3.281.1</a></td></tr>
+              <tr><td><a href="/version_files?nick=Enterprise13&ver=1.3.285.1">1.3.285.1</a></td></tr>
+              <tr><td><a href="/version_files?nick=Enterprise13&ver=1.3.273.2">1.3.273.2</a></td></tr>
+            </table>
+            </body></html>
+            """;
+
+        var version = OneCUpdatesService.ParseLatestVersionFromProjectHtml(html);
+
+        Assert.Equal("1.3.285.1", version);
+    }
+
+    [Fact]
     public void ParseArchiveLinks_TakesMaxVersion()
     {
         // Имена дистрибутивов вида 1c_<версия>.zip (паттерн ArchiveLinkRegex: «1c…zip»).

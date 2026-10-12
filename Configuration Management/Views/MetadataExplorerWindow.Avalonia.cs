@@ -118,6 +118,8 @@ namespace Configuration_Management
                 Margin = new Thickness(0, 0, 0, 8)
             };
             error.Bind(TextBlock.TextProperty, new Binding("ErrorMessage"));
+            // issue #365: строка ошибки обрезается (MaxHeight=60) — полный текст в тултипе.
+            error.Bind(ToolTip.TipProperty, new Binding("ErrorMessage"));
 
             // ---- Дерево + панель деталей ----
             BuildTree();

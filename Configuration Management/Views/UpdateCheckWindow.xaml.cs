@@ -710,7 +710,14 @@ public partial class UpdateCheckWindow : Window
             800d,
             Math.Max(SystemParameters.WorkArea.Height - 40d, MinHeight));
         if (Height < target)
+        {
             Height = target;
+            // issue #352 (7OH от 2026-10-11): при появлении таблицы цепочек низ окна
+            // уходил за панель задач — поднимаем окно, чтобы оно оставалось в рабочей
+            // области (WindowSizeMath.FitTop, как в окне «Серверы 1С»).
+            var wa = SystemParameters.WorkArea;
+            Top = WindowSizeMath.FitTop(Top, Height, wa.Top, wa.Bottom);
+        }
     }
 
     /// <summary>Кнопка «Выбрать…» рядом с папкой цепочки (issue #352.2): выбор каталога
@@ -887,10 +894,18 @@ public partial class UpdateCheckWindow : Window
         // issue #352 (комментарий 7OH от 2026-10-09): докачка цепочки — файлы,
         // уже скачанные ранее (существуют и непусты), пропускаются ещё на старте;
         // счётчик «Скачивается X из Y» считается только по требующим скачивания.
-        var baseName = SanitizeFileName(_row.Name);
-        var targetPaths = variant.Steps
-            .Select(step => Path.Combine(folder, $"{baseName}_{step.Version}.zip"))
-            .ToList();
+        // issue #352 (комментарий 7OH от 2026-10-11): файлы цепочки сохраняются под
+        // ОРИГИНАЛЬНЫМИ именами дистрибутивов (Trade_11_5_27_93_updsetup.zip), как при
+        // одиночном скачивании; имя шага уточняется со страницы файлов версии
+        // («Дистрибутив обновления»), сбой — fallback «<Имя>_<версия>.zip».
+        var originalFileNames = new List<string?>();
+        foreach (var step in variant.Steps)
+            originalFileNames.Add(await TryResolveChainFileNameAsync(step, downloadToken));
+        var targetPaths = UpdateChainDownloadPlanner.BuildChainTargetPaths(
+            folder, _row.Name,
+            variant.Steps.Select(s => s.Version).ToList(),
+            originalFileNames,
+            SanitizeFileName);
         var pending = UpdateChainDownloadPlanner.SelectPendingSteps(targetPaths);
         var skipped = variant.Steps.Count - pending.Count;
         if (skipped > 0)
@@ -978,6 +993,33 @@ public partial class UpdateCheckWindow : Window
     private static string BuildDownloadFileName(UpdateCheckRowViewModel row, UpdateFileChoice? choice)
         => Services.UpdateDownloadNaming.BuildDownloadFileName(
             row.Name, row.LatestVersion, choice?.FileName, SanitizeFileName);
+
+    /// <summary>
+    /// Оригинальное имя дистрибутива шага цепочки (issue #352): имя файла «Дистрибутива
+    /// обновления» со страницы файлов версии (Trade_11_5_27_93_updsetup.zip), чтобы файлы
+    /// цепочки сохранялись под оригинальными именами, как одиночное скачивание. Сбой
+    /// сети/пустой список — null (fallback «Имя_версия.zip»).
+    /// </summary>
+    private async Task<string?> TryResolveChainFileNameAsync(PlatformRelease step, CancellationToken ct)
+    {
+        try
+        {
+            var url = OneCUpdatesService.ToAbsoluteVersionFilesUrl(step.VersionFilesUrl, _row.Url);
+            var choices = await _updates.GetReleaseFileChoicesAsync(url, ct);
+            var choice = choices.FirstOrDefault(c =>
+                c.CaptionKey == UpdateFileChoice.UpdateDistributionCaptionKey)
+                ?? choices.FirstOrDefault();
+            return choice?.FileName;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     // ===================== Папка цепочки обновлений (issue #352.2) =====================
 

@@ -88,25 +88,40 @@
         </StackPanel>
 
         <!-- Опции проверки обновления платформы (issue #366): выражение проверки
-             («8.5.*», «8.3.27.*»), учёт тестовых сборок и канал уведомления. -->
+             («8.5.*», «8.3.27.*»), учёт тестовых сборок, канал уведомления и опция
+             «Уведомлять об отсутствии» (issue #366, 7OH). -->
         <StackPanel x:Name="PlatformPanel" Grid.Row="8" Grid.ColumnSpan="2" Margin="0,0,0,8">
             <TextBlock x:Name="PlatformExpressionLabel" Text="Выражение проверки" VerticalAlignment="Center" Margin="0,0,8,8"/>
             <TextBox x:Name="PlatformExpressionBox" Margin="0,0,0,8"/>
             <CheckBox x:Name="PlatformIncludeTestCheck" Content="Учесть тестовые" Margin="0,0,0,8"/>
             <TextBlock x:Name="PlatformNotifyLabel" Text="Куда уведомлять" VerticalAlignment="Center" Margin="0,0,8,8"/>
             <ComboBox x:Name="PlatformNotifyCombo" Margin="0,0,0,0"/>
+            <CheckBox x:Name="PlatformNotifyNoUpdatesCheck" Content="Уведомлять об отсутствии" Margin="0,8,0,0"/>
         </StackPanel>
 
         <!-- Опции проверки обновления конфигурации (issue #367): имя конфигурации
-             (выбор из списка баз + ручной ввод) и канал уведомления. -->
+             (выбор из списка баз + ручной ввод), канал уведомления и опция
+             «Уведомлять об отсутствии» (issue #367, 7OH). -->
         <StackPanel x:Name="ConfigPanel" Grid.Row="9" Grid.ColumnSpan="2" Margin="0,0,0,8">
             <TextBlock x:Name="ConfigLabel" Text="Конфигурация" VerticalAlignment="Center" Margin="0,0,8,8"/>
             <ComboBox x:Name="ConfigCombo" IsEditable="True" Margin="0,0,0,8"/>
             <TextBlock x:Name="ConfigNotifyLabel" Text="Куда уведомлять" VerticalAlignment="Center" Margin="0,0,8,8"/>
             <ComboBox x:Name="ConfigNotifyCombo" Margin="0,0,0,0"/>
+            <CheckBox x:Name="ConfigNotifyNoUpdatesCheck" Content="Уведомлять об отсутствии" Margin="0,8,0,0"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="10" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,12,0,0">
+        <!-- Повтор с интервалом (issue #366/#367, 7OH: «каждые х секунд, час/два/10 минут») —
+             общий для обоих типов заданий-проверок. -->
+        <StackPanel x:Name="RepeatPanel" Grid.Row="10" Grid.ColumnSpan="2" Margin="0,0,0,8">
+            <CheckBox x:Name="RepeatCheck" Content="Повторять с интервалом" Margin="0,0,0,8"/>
+            <DockPanel>
+                <TextBlock x:Name="RepeatValueLabel" Text="Интервал:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="RepeatUnitCombo" DockPanel.Dock="Right" Width="110" Margin="8,0,0,0"/>
+                <TextBox x:Name="RepeatValueBox" Width="80" HorizontalAlignment="Left"/>
+            </DockPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Row="11" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,12,0,0">
             <Button x:Name="OkButton" Content="OK" Width="110" Margin="0,0,8,0" Padding="6,4" IsDefault="True" Click="Ok_Click"/>
             <Button Content="Отмена" Width="100" Padding="6,4" IsCancel="True" Click="Cancel_Click"/>
         </StackPanel>

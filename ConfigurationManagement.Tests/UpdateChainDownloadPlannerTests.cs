@@ -151,4 +151,36 @@ public sealed class UpdateChainDownloadPlannerTests : IDisposable
         Assert.Null(UpdateChainDownloadPlanner.ResolveSaveTarget(
             Path.Combine(_dir, "missing_subdir"), "file.zip"));
     }
+
+    // ======================= BuildChainTargetPaths (issue #352, 0.3.12.23) =======================
+
+    [Fact]
+    public void BuildChainTargetPaths_OriginalFileNames_UsedWhenKnown()
+    {
+        // 7OH: файлы цепочки должны сохраняться под ОРИГИНАЛЬНЫМИ именами дистрибутивов
+        // (Trade_11_5_27_93_updsetup.zip), как при одиночном скачивании.
+        var paths = UpdateChainDownloadPlanner.BuildChainTargetPaths(
+            _dir,
+            "УТ 11",
+            new[] { "11.5.25.92", "11.5.27.93" },
+            new[] { "Trade_11_5_25_92_updsetup.zip", "Trade_11_5_27_93_updsetup.zip" },
+            name => name.Replace(' ', '_'));
+
+        Assert.Equal(Path.Combine(_dir, "Trade_11_5_25_92_updsetup.zip"), paths[0]);
+        Assert.Equal(Path.Combine(_dir, "Trade_11_5_27_93_updsetup.zip"), paths[1]);
+    }
+
+    [Fact]
+    public void BuildChainTargetPaths_NoOriginalName_FallbackToBaseNameVersion()
+    {
+        // Сбой разрешения имени шага — fallback «Имя_версия.zip» (прежнее поведение).
+        var paths = UpdateChainDownloadPlanner.BuildChainTargetPaths(
+            _dir,
+            "УТ 11",
+            new[] { "11.5.25.80" },
+            originalFileNames: null,
+            name => name.Replace(' ', '_'));
+
+        Assert.Equal(Path.Combine(_dir, "УТ_11_11.5.25.80.zip"), paths[0]);
+    }
 }

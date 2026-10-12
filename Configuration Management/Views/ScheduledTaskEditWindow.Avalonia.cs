@@ -40,6 +40,13 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
     private readonly StackPanel _configPanel = new() { Spacing = 6 };
     private readonly ComboBox _configCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
     private readonly ComboBox _configNotifyCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
+    // issue #366/#367: «Уведомлять об отсутствии» и периодичность повтора.
+    private readonly CheckBox _platformNotifyNoUpdatesCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
+    private readonly CheckBox _configNotifyNoUpdatesCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
+    private readonly StackPanel _repeatPanel = new() { Spacing = 6 };
+    private readonly CheckBox _repeatCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
+    private readonly TextBox _repeatValueBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+    private readonly ComboBox _repeatUnitCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
 
     /// <summary>Готовое задание при подтверждении, иначе <c>null</c>.</summary>
     public ScheduledTask? Result { get; private set; }
@@ -168,11 +175,14 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _platformNotifyCombo.SelectedItem = _vm.NotifyOptions
             .FirstOrDefault(o => o.Value == _vm.PlatformNotifyChannel.ToString());
         _platformNotifyCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _platformNotifyNoUpdatesCheck.Content = T("Schedule.PlatformCheck.NotifyWhenNoUpdates");
+        _platformNotifyNoUpdatesCheck.IsChecked = _vm.PlatformCheckNotifyWhenNoUpdates;
         _platformPanel.Children.Add(Label(T("Schedule.PlatformCheck.Expression")));
         _platformPanel.Children.Add(_platformExpressionBox);
         _platformPanel.Children.Add(_platformIncludeTestCheck);
         _platformPanel.Children.Add(Label(T("Schedule.PlatformCheck.Notify")));
         _platformPanel.Children.Add(_platformNotifyCombo);
+        _platformPanel.Children.Add(_platformNotifyNoUpdatesCheck);
         panel.Children.Add(_platformPanel);
 
         // Опции проверки обновления конфигурации (issue #367): имя конфигурации (выбор
@@ -187,11 +197,43 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _configNotifyCombo.SelectedItem = _vm.NotifyOptions
             .FirstOrDefault(o => o.Value == _vm.ConfigCheckNotifyChannel.ToString());
         _configNotifyCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _configNotifyNoUpdatesCheck.Content = T("Schedule.ConfigCheck.NotifyWhenNoUpdates");
+        _configNotifyNoUpdatesCheck.IsChecked = _vm.ConfigCheckNotifyWhenNoUpdates;
         _configPanel.Children.Add(Label(T("Schedule.ConfigCheck.Configuration")));
         _configPanel.Children.Add(_configCombo);
         _configPanel.Children.Add(Label(T("Schedule.PlatformCheck.Notify")));
         _configPanel.Children.Add(_configNotifyCombo);
+        _configPanel.Children.Add(_configNotifyNoUpdatesCheck);
         panel.Children.Add(_configPanel);
+
+        // Повтор с интервалом (issue #366/#367, 7OH): «каждые N единиц» — общий
+        // для обоих типов заданий-проверок.
+        _repeatCheck.Content = T("Schedule.Repeat.Enabled");
+        _repeatCheck.IsChecked = _vm.RepeatEnabled;
+        _repeatValueBox.Text = _vm.RepeatIntervalValueText;
+        _repeatValueBox.Width = 80;
+        _repeatValueBox.HorizontalAlignment = HorizontalAlignment.Left;
+        _repeatUnitCombo.ItemsSource = _vm.RepeatUnitOptions;
+        _repeatUnitCombo.SelectedItem = _vm.RepeatUnitOptions
+            .FirstOrDefault(o => o.Value == _vm.RepeatIntervalUnit.ToString());
+        _repeatUnitCombo.HorizontalAlignment = HorizontalAlignment.Left;
+        _repeatUnitCombo.MinWidth = 110;
+        var repeatRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Avalonia.Thickness(0, 0, 0, 6)
+        };
+        repeatRow.Children.Add(new TextBlock
+        {
+            Text = T("Schedule.Repeat.ValueLabel"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        repeatRow.Children.Add(_repeatValueBox);
+        repeatRow.Children.Add(_repeatUnitCombo);
+        _repeatPanel.Children.Add(_repeatCheck);
+        _repeatPanel.Children.Add(repeatRow);
+        panel.Children.Add(_repeatPanel);
 
         var bottom = new StackPanel
         {
@@ -262,6 +304,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _cfgPanel.IsVisible = kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
         _platformPanel.IsVisible = kind is ScheduledTaskKind.PlatformUpdateCheck;
         _configPanel.IsVisible = kind is ScheduledTaskKind.ConfigurationUpdateCheck;
+        _repeatPanel.IsVisible = kind is ScheduledTaskKind.PlatformUpdateCheck or ScheduledTaskKind.ConfigurationUpdateCheck;
     }
 
     private void BrowseCfgFile()
@@ -315,6 +358,14 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         if (Enum.TryParse<PlatformUpdateNotifyChannel>(
                 (_configNotifyCombo.SelectedItem as ScheduledTaskOption)?.Value, out var configNotifyChannel))
             _vm.ConfigCheckNotifyChannel = configNotifyChannel;
+        // Повтор с интервалом и «Уведомлять об отсутствии» (issue #366/#367).
+        _vm.RepeatEnabled = _repeatCheck.IsChecked == true;
+        _vm.RepeatIntervalValueText = _repeatValueBox.Text ?? "";
+        if (Enum.TryParse<ScheduledTaskRepeatUnit>(
+                (_repeatUnitCombo.SelectedItem as ScheduledTaskOption)?.Value, out var repeatUnit))
+            _vm.RepeatIntervalUnit = repeatUnit;
+        _vm.PlatformCheckNotifyWhenNoUpdates = _platformNotifyNoUpdatesCheck.IsChecked == true;
+        _vm.ConfigCheckNotifyWhenNoUpdates = _configNotifyNoUpdatesCheck.IsChecked == true;
         _vm.IsMonday = _dayChecks[0].IsChecked == true;
         _vm.IsTuesday = _dayChecks[1].IsChecked == true;
         _vm.IsWednesday = _dayChecks[2].IsChecked == true;

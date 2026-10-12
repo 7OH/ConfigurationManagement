@@ -112,7 +112,15 @@ namespace Configuration_Management.Services
         public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath = null,
             BackupCredential? credential = null, int? repositoryVersion = null, int? repositoryReportBegin = null,
             int? repositoryReportEnd = null)
+            => RunDesignerBatch(infobase, operation, outputPath, credential, repositoryVersion,
+                repositoryReportBegin, repositoryReportEnd, out _);
+
+        /// <summary>То же, но при отказе запуска возвращает локализованную причину (issue #365).</summary>
+        public static bool RunDesignerBatch(Infobase infobase, DesignerBatchOperation operation, string? outputPath,
+            BackupCredential? credential, int? repositoryVersion, int? repositoryReportBegin,
+            int? repositoryReportEnd, out string? startError)
         {
+            startError = null;
             var arch = ResolveArchitecture(infobase.Architecture, infobase.PlatformVersion);
             var exePath = FindExecutable(infobase.PlatformVersion, arch, null, OneCLaunchMode.Configurator);
             if (string.IsNullOrEmpty(exePath))
@@ -121,42 +129,62 @@ namespace Configuration_Management.Services
                 exePath = FindExecutable(infobase.PlatformVersion, otherArch, null, OneCLaunchMode.Configurator);
             }
             if (string.IsNullOrEmpty(exePath))
+            {
+                startError = LocalizationManager.T("Launcher.ConfiguratorExeNotFound");
                 return false;
+            }
 
-            if (IsDesignerBlocked(infobase, out _))
+            if (IsDesignerBlocked(infobase, out var blockReason))
+            {
+                startError = string.Format(LocalizationManager.T("Launcher.ConfiguratorBlockedFormat"), blockReason);
                 return false;
+            }
 
             if (operation is DesignerBatchOperation.DumpIB or DesignerBatchOperation.DumpCfg
                 or DesignerBatchOperation.RepositoryDumpCfg or DesignerBatchOperation.RepositoryReport)
             {
                 if (string.IsNullOrWhiteSpace(outputPath))
+                {
+                    startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                     return false;
+                }
                 // Каталог назначения создаётся здесь: платформа сама его не создаёт.
                 var dir = Path.GetDirectoryName(outputPath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 {
                     try { Directory.CreateDirectory(dir); }
-                    catch { return false; }
+                    catch (Exception ex)
+                    {
+                        startError = string.Format(LocalizationManager.T("Launcher.CreateDirFailedFormat"), dir, ex.Message);
+                        return false;
+                    }
                 }
             }
             else if (operation is DesignerBatchOperation.RepositoryLock or DesignerBatchOperation.RepositoryUnlock)
             {
                 // Выборочный захват (-objects) требует существующий XML-файл; без файла — все объекты.
                 if (!string.IsNullOrWhiteSpace(outputPath) && !File.Exists(outputPath))
+                {
+                    startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                     return false;
+                }
             }
             else if (operation == DesignerBatchOperation.DumpConfigToFiles)
             {
                 // Каталог выгрузки должен существовать заранее (создаётся здесь): платформа
                 // сама каталог не создаёт, а без него /DumpConfigToFiles завершится ошибкой.
                 if (string.IsNullOrWhiteSpace(outputPath))
+                {
+                    startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                     return false;
+                }
                 try
                 {
                     Directory.CreateDirectory(outputPath);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    startError = string.Format(LocalizationManager.T("Launcher.CreateDirFailedFormat"), outputPath, ex.Message);
                     return false;
                 }
             }
@@ -164,7 +192,10 @@ namespace Configuration_Management.Services
             {
                 // Восстановление и загрузка конфигурации требуют существующий исходный файл.
                 if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath))
+                {
+                    startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                     return false;
+                }
             }
 
             var connectionArg = BuildConnectionArgument(infobase);
@@ -201,7 +232,10 @@ namespace Configuration_Management.Services
                 _ => ""
             };
             if (string.IsNullOrEmpty(opArg))
+            {
+                startError = LocalizationManager.T("Launcher.OperationRefusedFormat");
                 return false;
+            }
 
             // /Out — путь к временному логу, всегда системный GUID-файл (без пользовательских
             // данных), поэтому экранирование не требуется (вектора инъекции нет).
@@ -231,7 +265,9 @@ namespace Configuration_Management.Services
             {
                 // Логируем замаскированную командную строку (пароль хранилища не должен попадать в журнал).
                 var maskedArguments = SensitiveDataMasker.MaskRepositoryPassword(arguments);
-                GetLogger()?.Error(string.Format(LocalizationManager.T("Launcher.OperationStartFailedFormat"), ex.Message, exePath, maskedArguments), ex);
+                startError = string.Format(
+                    LocalizationManager.T("Launcher.OperationStartFailedFormat"), ex.Message, exePath, maskedArguments);
+                GetLogger()?.Error(startError, ex);
                 return false;
             }
         }

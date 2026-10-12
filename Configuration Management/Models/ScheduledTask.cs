@@ -53,6 +53,26 @@ public enum PlatformUpdateNotifyChannel
 }
 
 /// <summary>
+/// Единица измерения интервала повтора задания (issue #366/#367, комментарий 7OH:
+/// «как в 1С — каждые х секунд, а дальше каждый сам поставит сколько надо —
+/// час/два/10 минут»).
+/// </summary>
+public enum ScheduledTaskRepeatUnit
+{
+    /// <summary>Секунды.</summary>
+    Seconds,
+
+    /// <summary>Минуты.</summary>
+    Minutes,
+
+    /// <summary>Часы.</summary>
+    Hours,
+
+    /// <summary>Дни.</summary>
+    Days
+}
+
+/// <summary>
 /// Задание по расписанию: тип действия, целевая ИБ, время и дни недели запуска.
 /// Хранится в отдельном JSON-файле (см. Services.ScheduledTaskStore).
 /// Выполняется фоновым планировщиком, пока приложение запущено.
@@ -124,6 +144,35 @@ public class ScheduledTask
     public PlatformUpdateNotifyChannel ConfigCheckNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
 
     /// <summary>
+    /// Повторять ли задание с интервалом (issue #366/#367): при включённом повторе
+    /// задание выполняется каждые <see cref="RepeatIntervalValue"/>
+    /// <see cref="RepeatIntervalUnit"/>, начиная с <see cref="Time"/> в рамках
+    /// выбранных дней недели. По умолчанию выключено (одно выполнение в момент).
+    /// </summary>
+    public bool RepeatEnabled { get; set; }
+
+    /// <summary>Значение интервала повтора (положительное число; по умолчанию 60).</summary>
+    public int RepeatIntervalValue { get; set; } = 60;
+
+    /// <summary>Единица интервала повтора (по умолчанию — минуты).</summary>
+    public ScheduledTaskRepeatUnit RepeatIntervalUnit { get; set; } = ScheduledTaskRepeatUnit.Minutes;
+
+    /// <summary>
+    /// Уведомлять ли при ОТСУТСТВИИ обновлений платформы (issue #366): при выключенной
+    /// опции задание с обновлённой «до актуальной» версией не показывает пустое окно/
+    /// уведомление — результат всё равно записывается в <see cref="LastRunMessage"/>.
+    /// По умолчанию false.
+    /// </summary>
+    public bool PlatformCheckNotifyWhenNoUpdates { get; set; }
+
+    /// <summary>
+    /// Уведомлять ли при ОТСУТСТВИИ обновлений конфигурации (issue #367): при выключенной
+    /// опции задание без доступных версий не уведомляет (результат пишется в
+    /// <see cref="LastRunMessage"/>). По умолчанию false.
+    /// </summary>
+    public bool ConfigCheckNotifyWhenNoUpdates { get; set; }
+
+    /// <summary>
     /// Момент последнего запуска задания (null — ещё не выполнялось).
     /// Локальное время, используется для отображения в списке заданий.
     /// </summary>
@@ -149,6 +198,23 @@ public class ScheduledTask
     /// <summary>Время запуска как TimeSpan («HH:mm»), при ошибке парсинга — 00:00.</summary>
     public TimeSpan GetTime() => TimeSpan.TryParse(Time, out var t) ? t : TimeSpan.Zero;
 
+    /// <summary>Интервал повтора как <see cref="TimeSpan"/> (при выключенном повторе — нулевой).</summary>
+    public TimeSpan GetRepeatInterval() => GetRepeatInterval(RepeatIntervalValue, RepeatIntervalUnit);
+
+    /// <summary>Интервал повтора из значения и единицы; значение ≤ 0 — нулевой интервал.</summary>
+    public static TimeSpan GetRepeatInterval(int value, ScheduledTaskRepeatUnit unit)
+    {
+        if (value <= 0)
+            return TimeSpan.Zero;
+        return unit switch
+        {
+            ScheduledTaskRepeatUnit.Seconds => TimeSpan.FromSeconds(value),
+            ScheduledTaskRepeatUnit.Hours => TimeSpan.FromHours(value),
+            ScheduledTaskRepeatUnit.Days => TimeSpan.FromDays(value),
+            _ => TimeSpan.FromMinutes(value)
+        };
+    }
+
     /// <summary>
     /// Создаёт копию задания с новым <see cref="Id"/> (issue #370): копируются все
     /// настройки задания, история последнего запуска (<see cref="LastRunAt"/>,
@@ -172,7 +238,12 @@ public class ScheduledTask
             PlatformCheckIncludeTestVersions = PlatformCheckIncludeTestVersions,
             PlatformNotifyChannel = PlatformNotifyChannel,
             ConfigCheckConfiguration = ConfigCheckConfiguration,
-            ConfigCheckNotifyChannel = ConfigCheckNotifyChannel
+            ConfigCheckNotifyChannel = ConfigCheckNotifyChannel,
+            RepeatEnabled = RepeatEnabled,
+            RepeatIntervalValue = RepeatIntervalValue,
+            RepeatIntervalUnit = RepeatIntervalUnit,
+            PlatformCheckNotifyWhenNoUpdates = PlatformCheckNotifyWhenNoUpdates,
+            ConfigCheckNotifyWhenNoUpdates = ConfigCheckNotifyWhenNoUpdates
         };
     }
 }

@@ -80,16 +80,24 @@ public partial class ScheduledTasksWindow : Window
     }
 
     /// <summary>
-    /// Создаёт копию выбранного задания с новым Id и именем «… — копия» (issue #370):
-    /// оригинал остаётся нетронутым, копия сохраняется сразу и появляется в списке.
+    /// Копирует выбранное задание (новый Id, имя «… — копия») и открывает окно
+    /// редактирования СРАЗУ (issue #370, комментарий 7OH): копия не записывается
+    /// на диск — пользователь видит окно создания новой записи, заполненное данными
+    /// исходной строки, и может отредактировать или отказаться (Сохранить не нажат —
+    /// копия не появится). Паттерн как в «Человеческие...» — «Пользовательские действия».
     /// </summary>
     private void Copy_Click(object sender, RoutedEventArgs e)
     {
         if (Selected is not { } item)
             return;
         var copy = item.Task.CreateCopy(string.Format(T("Settings.CopyOf"), item.Name));
-        _store.Save(copy);
-        LoadTasks();
+        var edit = new ScheduledTaskEditWindow(copy);
+        edit.Owner = this;
+        if (edit.ShowDialog() == true && edit.Result is { } savedCopy)
+        {
+            _store.Save(savedCopy);
+            LoadTasks();
+        }
     }
 
     private void Delete_Click(object sender, RoutedEventArgs e)

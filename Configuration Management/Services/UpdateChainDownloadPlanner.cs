@@ -38,6 +38,34 @@ public static class UpdateChainDownloadPlanner
         return pending;
     }
 
+    /// <summary>
+    /// Строит целевые пути файлов цепочки с ОРИГИНАЛЬНЫМИ именами дистрибутивов
+    /// (issue #352, комментарий 7OH от 2026-10-11): если для шага известно имя файла
+    /// (например <c>Trade_11_5_27_93_updsetup.zip</c>), используется оно — как при
+    /// одиночном скачивании; иначе fallback «<Имя>_<версия>.zip» (прежнее
+    /// поведение). Докачка работает по этим же путям: уже скачанные оригинальные
+    /// файлы пропускаются.
+    /// Чистая логика без UI — покрыта юнит-тестами. Internal — для юнит-тестов.
+    /// </summary>
+    internal static List<string> BuildChainTargetPaths(
+        string folder,
+        string infobaseName,
+        IReadOnlyList<string> versions,
+        IReadOnlyList<string?>? originalFileNames,
+        Func<string, string> sanitize)
+    {
+        var result = new List<string>(versions.Count);
+        for (var i = 0; i < versions.Count; i++)
+        {
+            var original = originalFileNames is not null && i < originalFileNames.Count
+                ? originalFileNames[i]
+                : null;
+            var name = UpdateDownloadNaming.BuildDownloadFileName(infobaseName, versions[i], original, sanitize);
+            result.Add(Path.Combine(folder, name));
+        }
+        return result;
+    }
+
     /// <summary>Начальная папка диалога выбора каталога цепочки (issue #352.2):
     /// сохранённая в настройках, если существует, иначе профиль пользователя. Общая
     /// для WPF- и Avalonia-окон проверки обновлений. Internal — для юнит-тестов.</summary>

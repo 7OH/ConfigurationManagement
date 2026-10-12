@@ -47,6 +47,13 @@ public static class PlatformVersionService
         AddVersionsFromRoot(map, programFiles, "64");
         AddVersionsFromRoot(map, programFilesX86, "32");
 
+        // issue #361: версии, установленные на НЕсистемном диске (D:\Program Files\1cv8
+        // и т.п.), не попадали в список установленных — строка «Есть обновление» на
+        // последней версии своей линии (комментарий 7OH от 2026-10-11). Сканируем
+        // стандартные каталоги Program Files на всех доступных логических дисках.
+        foreach (var (root, arch) in EnumerateProgramFilesRootsOnAllDrives())
+            AddVersionsFromRoot(map, root, arch);
+
         IEnumerable<string> extra;
         if (additionalPaths != null)
         {
@@ -88,6 +95,26 @@ public static class PlatformVersionService
                 roots.Add(programFilesX86);
             if (roots.Count == 0 && !string.IsNullOrEmpty(programFiles))
                 roots.Add(programFiles);
+        }
+
+        // issue #361: корни «Program Files» на всех дисках — платформа может стоять
+        // на D:\, E:\ и т.п.; версии оттуда должны участвовать в поиске и списке.
+        var all = EnumerateProgramFilesRootsOnAllDrives();
+        if (architecture == "64" || architecture == "x64")
+        {
+            foreach (var (root, arch) in all)
+            {
+                if (arch == "64" && !roots.Contains(root, StringComparer.OrdinalIgnoreCase))
+                    roots.Add(root);
+            }
+        }
+        else
+        {
+            foreach (var (root, arch) in all)
+            {
+                if (arch == "32" && !roots.Contains(root, StringComparer.OrdinalIgnoreCase))
+                    roots.Add(root);
+            }
         }
 
         lock (_extraRootsLock)
@@ -368,6 +395,46 @@ public static class PlatformVersionService
         {
             /* нет доступа */
         }
+    }
+
+    /// <summary>
+    /// Стандартные каталоги <c>Program Files</c> и <c>Program Files (x86)</c> на всех
+    /// доступных логических дисках Windows (issue #361: версии на несистемном диске
+    /// раньше не находились). Каталоги, совпадающие с системными корнями, дублируются —
+    /// агрегация по версии (map) устойчива, а GetSearchRoots дедуплицирует сам.
+    /// </summary>
+    private static IEnumerable<(string Root, string Arch)> EnumerateProgramFilesRootsOnAllDrives()
+    {
+        var result = new List<(string, string)>();
+        try
+        {
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                string driveRoot;
+                try
+                {
+                    if (!drive.IsReady)
+                        continue;
+                    driveRoot = drive.RootDirectory.FullName;
+                }
+                catch (IOException)
+                {
+                    continue; // диск отвалился/CD-ROM без носителя
+                }
+
+                result.Add((Path.Combine(driveRoot, "Program Files"), "64"));
+                result.Add((Path.Combine(driveRoot, "Program Files (x86)"), "32"));
+            }
+        }
+        catch (IOException)
+        {
+            // Перечисление дисков недоступно (редкий случай) — работаем с системными корнями.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Нет прав на перечисление дисков.
+        }
+        return result;
     }
 
     private static void TryAddVersion(Dictionary<string, string> map, string display, string versionDir)

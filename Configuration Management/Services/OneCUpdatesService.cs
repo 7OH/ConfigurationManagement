@@ -452,49 +452,109 @@ public class OneCUpdatesService : IOneCUpdatesService
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
     /// <summary>
+    /// Регулярное выражение для адреса ссылки на страницу файлов релиза
+    /// (<c>version_files</c> или <c>version_file</c>). Нужен для урезанного каталога, где
+    /// текст ссылки не содержит номера версии — версия читается из параметра <c>ver=</c>
+    /// query-части адреса (issue #371).
+    /// </summary>
+    private static readonly Regex VersionPageHrefQueryRegex =
+        new(@"href\s*=\s*[""'](?<href>[^""']*version_files?[^""']*)[""']",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+    /// <summary>Версия из атрибута данных карточки релиза в новом дизайне каталога
+    /// (<c>data-ver</c>/<c>data-version</c>), когда ссылок version_files может не быть.</summary>
+    private static readonly Regex DataVersionAttrRegex =
+        new(@"data-(?:ver|version)\s*=\s*[""'](?<ver>\d{1,4}(?:\.\d{1,4}){1,3})[""']",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+    /// <summary>
     /// Извлекает последнюю (самую новую) версию из HTML-страницы <c>releases.1c.ru/project/<nick></c>.
-    /// Ищет таблицу <c>id="versionsTable"</c> и в её первой строке <c><tr></c> первый элемент
-    /// <c><a href="/version_files?nick=…&ver=…">ВЕРСИЯ</a></c>. Устойчив к пробелам и
-    /// переносам строк. Если таблица не найдена — как запасной вариант ищет первую ссылку
-    /// <c>version_files?...&ver=</c> во всём HTML. Возвращает найденную версию или пустую строку.
+    /// Работает и с полным каталогом (таблица <c>id="versionsTable"</c>, ссылки
+    /// <c>version_files?…&ver=…</c>), и с «урезанным» списком релизов (нет таблицы,
+    /// текст ссылки может не содержать версии, версия — в query адреса или атрибутах
+    /// карточек). Возвращает максимальную из найденных версий или пустую строку.
     /// </summary>
     internal static string ParseLatestVersionFromProjectHtml(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
 
-        // 1) Основной путь: таблица #versionsTable, первая строка <tr>, первая ссылка version_files.
+        // Кандидаты версий: текст ссылок version_files/version_file + ver= из их href.
+        var candidates = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        void AddCandidate(string candidate)
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+                return;
+            var ver = WebUtility.HtmlDecode(candidate.Trim());
+            if (ver.Length > 0 && seen.Add(ver))
+                candidates.Add(ver);
+        }
+
+        void CollectLinks(string fragment)
+        {
+            foreach (Match link in VersionFilesLinkRegex.Matches(fragment))
+                AddCandidate(link.Groups["ver"].Value);
+            foreach (Match link in VersionPageHrefQueryRegex.Matches(fragment))
+                AddCandidate(ExtractVersionFromQuery(link.Groups["href"].Value));
+        }
+
+        // 1) Классический каталог: таблица #versionsTable (первая строка — последняя версия).
         var tableMatch = Regex.Match(html,
             @"<table[^>]*id\s*=\s*[""']versionsTable[""'][^>]*>(?<table>.*?)</table>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (tableMatch.Success)
+            CollectLinks(tableMatch.Groups["table"].Value);
+
+        // 2) Запасной путь (урезанный каталог без таблицы): ссылки во всём HTML.
+        if (candidates.Count == 0)
+            CollectLinks(html);
+
+        // 3) Каталог-карточки (новый дизайн releases.1c.ru): версия только в атрибутах.
+        if (candidates.Count == 0)
         {
-            var table = tableMatch.Groups["table"].Value;
-            var firstRow = Regex.Match(table, @"<tr[^>]*>(?<row>.*?)</tr>",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (firstRow.Success)
+            foreach (Match m in DataVersionAttrRegex.Matches(html))
+                AddCandidate(m.Groups["ver"].Value);
+        }
+
+        // Максимальная из найденных (порядок строк в HTML может не совпадать с новизной).
+        Version? best = null;
+        string bestText = string.Empty;
+        foreach (var candidate in candidates)
+        {
+            if (!TryParseVersion(candidate, out var parsed))
+                continue;
+            if (best is null || parsed > best)
             {
-                var row = firstRow.Groups["row"].Value;
-                var link = VersionFilesLinkRegex.Match(row);
-                if (link.Success)
-                {
-                    var ver = WebUtility.HtmlDecode(link.Groups["ver"].Value.Trim());
-                    if (!string.IsNullOrWhiteSpace(ver))
-                        return ver;
-                }
+                best = parsed;
+                bestText = candidate;
             }
         }
 
-        // 2) Запасной путь: регресс к поиску первой ссылки version_files во всём HTML.
-        var fallback = VersionFilesLinkRegex.Match(html);
-        if (fallback.Success)
-        {
-            var ver = WebUtility.HtmlDecode(fallback.Groups["ver"].Value.Trim());
-            if (!string.IsNullOrWhiteSpace(ver))
-                return ver;
-        }
+        return bestText;
+    }
 
-        return string.Empty;
+    /// <summary>Извлекает значение параметра <c>ver</c> из query-части URL-адреса ссылки
+    /// (<c>version_files?nick=…&ver=8.3.27.2214</c>), декодируя HTML-сущности.</summary>
+    private static string? ExtractVersionFromQuery(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+        var q = url.IndexOf('?');
+        if (q < 0)
+            return null;
+        var query = url.Substring(q + 1);
+        foreach (var pair in query.Split('&'))
+        {
+            var eq = pair.IndexOf('=');
+            if (eq <= 0)
+                continue;
+            var key = pair.Substring(0, eq);
+            if (key.Equals("ver", StringComparison.OrdinalIgnoreCase))
+                return WebUtility.UrlDecode(pair.Substring(eq + 1));
+        }
+        return null;
     }
 
     /// <summary>Регулярное выражение для извлечения 3–4-частных номеров версий из текста (JSON и пр.).</summary>

@@ -13,6 +13,9 @@ public static class ScheduleCalculator
     /// Возвращает следующий момент запуска задания, не раньше <paramref name="from"/>.
     /// Учитывает время (<see cref="ScheduledTask.Time"/>) и дни недели
     /// (<see cref="ScheduledTask.DaysOfWeek"/>; пустой список — ежедневно).
+    /// При включённом повторе (<see cref="ScheduledTask.RepeatEnabled"/>, issue #366/#367)
+    /// задание запускается не один раз в момент, а серией: <see cref="ScheduledTask.Time"/>
+    /// задаёт начало серии, далее каждый <see cref="ScheduledTask.GetRepeatInterval"/>.
     /// Возвращает null, если задание выключено (выполняться не должно).
     /// </summary>
     public static DateTime? ComputeNextRun(ScheduledTask task, DateTime from)
@@ -21,6 +24,31 @@ public static class ScheduleCalculator
             return null;
 
         var time = task.GetTime();
+        var interval = task.GetRepeatInterval();
+        if (task.RepeatEnabled && interval > TimeSpan.Zero)
+        {
+            // Серия повторений внутри каждого подходящего дня, начиная с time.
+            for (var i = 0; i <= 7; i++)
+            {
+                var day = from.Date.AddDays(i);
+                if (!task.MatchesDay(day.DayOfWeek))
+                    continue;
+
+                var start = day.Add(time);
+                if (start >= from)
+                    return start;
+
+                var elapsed = from - start;
+                var steps = (long)(elapsed.TotalSeconds / interval.TotalSeconds) + 1;
+                var candidate = start + interval * steps;
+                if (candidate.Date == day)
+                    return candidate;
+
+                // Серия этого дня исчерпана — следующий подходящий день.
+            }
+            return null;
+        }
+
         // 8 дней вперёд достаточно всегда: при ежедневном расписании момент попадётся
         // на первый же день, при днях недели — максимум на 7-й.
         for (var i = 0; i <= 7; i++)
