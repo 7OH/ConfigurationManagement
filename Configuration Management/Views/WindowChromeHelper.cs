@@ -88,6 +88,8 @@ namespace Configuration_Management
         private static extern int DwmEnableBlurBehindWindow(IntPtr hwnd, ref DwmBlurBehind pBlurBehind);
 
         // GWL_STYLE и флаги стилей окна для удаления системных кнопок заголовка.
+        // WS_MAXIMIZEBOX в RemoveSystemCaptionButtons НЕ срезается — на нём держатся
+        // Win+Up и штатная максимизация на рабочую область (issue #368).
         private const int GwlStyle = -16;
         private const int WsSysMenu = 0x00080000;
         private const int WsMinimizeBox = 0x00020000;
@@ -118,6 +120,50 @@ namespace Configuration_Management
             public IntPtr hRgnBlur;
             public int fTransitionOnMaximized;
         }
+
+        // ---- WM_GETMINMAXINFO: максимизация строго на рабочую область (issue #368) ----
+
+        private const int WmGetMinMaxInfo = 0x0024;
+
+        /// <summary>MONITOR_DEFAULTTONEAREST — ближайший к окну монитор (если окно невидимо).</summary>
+        private const uint MonitorDefaultToNearest = 2;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PointLt { public int X; public int Y; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MinMaxInfo
+        {
+            public PointLt Reserved;
+            public PointLt MaxSize;
+            public PointLt MaxPosition;
+            public PointLt MinTrackSize;
+            public PointLt MaxTrackSize;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RectLt
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MonitorInfo
+        {
+            public int CbSize;
+            public RectLt RcMonitor;
+            public RectLt RcWork;
+            public int DwFlags;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
 
         /// <summary>
         /// Регистрирует обработчик класса <c>Window.Loaded</c>, который применяет
@@ -205,6 +251,10 @@ namespace Configuration_Management
             // может рисовать «призрачными» поверх расширенной стеклянной рамки.
             RemoveSystemCaptionButtons(window);
 
+            // Максимизация — строго на рабочую область монитора (без панели задач) + Win+Up
+            // снова работает: WS_MAXIMIZEBOX сохранён (issue #368).
+            HookMaximizeToWorkArea(window);
+
             // В развёрнутом виде скругление убираем и сбрасываем толщину стеклянной рамки.
             window.StateChanged += (_, _) =>
             {
@@ -218,11 +268,74 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Снимает флаги стиля окна WS_SYSMENU / WS_MINIMIZEBOX / WS_MAXIMIZEBOX, чтобы
+        /// Перехватывает WM_GETMINMAXINFO: при максимизации подставляет границы рабочей
+        /// области ближайшего монитора (см. <see cref="WindowSizeMath.ComputeMaximizedBounds"/>),
+        /// поэтому окно никогда не перекрывает панель задач — даже если системный стиль
+        /// урезан или DWM ведёт себя нестандартно (issue #368).
+        /// </summary>
+        private static IntPtr MaximizeToWorkAreaWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg != WmGetMinMaxInfo)
+                return IntPtr.Zero;
+
+            try
+            {
+                var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+                if (monitor == IntPtr.Zero)
+                    return IntPtr.Zero;
+
+                var mi = new MonitorInfo { CbSize = Marshal.SizeOf<MonitorInfo>() };
+                if (!GetMonitorInfo(monitor, ref mi))
+                    return IntPtr.Zero;
+
+                var mmi = Marshal.PtrToStructure<MinMaxInfo>(lParam);
+                WindowSizeMath.ComputeMaximizedBounds(
+                    (mi.RcMonitor.Left, mi.RcMonitor.Top, mi.RcMonitor.Right, mi.RcMonitor.Bottom),
+                    (mi.RcWork.Left, mi.RcWork.Top, mi.RcWork.Right, mi.RcWork.Bottom),
+                    out mmi.MaxPosition.X, out mmi.MaxPosition.Y,
+                    out mmi.MaxSize.X, out mmi.MaxSize.Y);
+                Marshal.StructureToPtr(mmi, lParam, true);
+                handled = true;
+            }
+            catch
+            {
+                // Не критично: останется системное поведение максимизации.
+            }
+
+            return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Ставит хук <see cref="MaximizeToWorkAreaWndProc"/> на окно (идемпотентно,
+        /// безопасно до создания HWND — в этом случае просто не ставится).
+        /// </summary>
+        private static void HookMaximizeToWorkArea(Window window)
+        {
+            try
+            {
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+                if (hwnd == IntPtr.Zero)
+                    return;
+                System.Windows.Interop.HwndSource.FromHwnd(hwnd)
+                    ?.AddHook(MaximizeToWorkAreaWndProc);
+            }
+            catch
+            {
+                // Не критично: останется системное поведение максимизации.
+            }
+        }
+
+        /// <summary>
+        /// Снимает флаги стиля окна WS_SYSMENU / WS_MINIMIZEBOX, чтобы
         /// системные кнопки заголовка (свернуть/развернуть/закрыть) не рисовались DWM
         /// «призрачными» поверх расширенной стеклянной рамки (GlassFrameThickness=-1).
-        /// WindowChrome с UseAeroCaptionButtons=false сам их скрывает, но на части систем
-        /// фон остаётся, поэтому продублируем на уровне Win32.
+        /// <para>
+        /// WS_MAXIMIZEBOX <b>оставляем</b>: именно на него опираются системный хоткей
+        /// Win+Up и штатная максимизация на рабочую область. Собственные кнопки окна
+        /// (свернуть/развернуть/закрыть) рисует сам WindowChromeHelper
+        /// (UseAeroCaptionButtons=false), поэтому системные кнопки не нужны, а вот
+        /// Win+Up без WS_MAXIMIZEBOX молча перестаёт работать (issue #368).
+        /// </para>
         /// </summary>
         private static void RemoveSystemCaptionButtons(Window window)
         {
@@ -233,7 +346,7 @@ namespace Configuration_Management
                     return;
 
                 int style = GetWindowLong(hwnd, GwlStyle);
-                style &= ~(WsSysMenu | WsMinimizeBox | WsMaximizeBox);
+                style &= ~(WsSysMenu | WsMinimizeBox);
                 SetWindowLong(hwnd, GwlStyle, style);
 
                 // Принудительно перерисовываем рамку, чтобы изменения стиля применились сразу.
@@ -286,8 +399,17 @@ namespace Configuration_Management
                 CornerRadius = new CornerRadius(DwmCornerRadius, DwmCornerRadius, 0, 0)
             };
             bar.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
-            bar.MouseLeftButtonDown += (_, _) =>
+            bar.MouseLeftButtonDown += (_, e) =>
             {
+                // Двойной клик по шапке — развернуть/восстановить (как в MainWindow,
+                // issue #368: поведение шапки второстепенных окон должно совпадать
+                // с главным).
+                if (e.ClickCount == 2)
+                {
+                    ToggleMaximize(window);
+                    return;
+                }
+
                 if (window.WindowState != WindowState.Maximized)
                 {
                     try { window.DragMove(); }
@@ -331,6 +453,17 @@ namespace Configuration_Management
         }
 
         /// <summary>
+        /// Переключает окно между развёрнутым и нормальным состоянием (кнопка
+        /// «развернуть/восстановить», двойной клик по шапке — issue #368).
+        /// </summary>
+        private static void ToggleMaximize(Window window)
+        {
+            window.WindowState = window.WindowState == WindowState.Maximized
+                ? WindowState.Normal
+                : WindowState.Maximized;
+        }
+
+        /// <summary>
         /// Кнопка «развернуть/восстановить» окна (issue #324, 0.3.12.7). Глиф
         /// переключается при смене WindowState (окно разворачивается/восстанавливается).
         /// </summary>
@@ -356,12 +489,7 @@ namespace Configuration_Management
                 ToolTip = LocalizationManager.T("Window.Maximize")
             };
             path.SetBinding(Shape.StrokeProperty, new Binding(nameof(Button.Foreground)) { Source = button });
-            button.Click += (_, _) =>
-            {
-                window.WindowState = window.WindowState == WindowState.Maximized
-                    ? WindowState.Normal
-                    : WindowState.Maximized;
-            };
+            button.Click += (_, _) => ToggleMaximize(window);
             window.StateChanged += (_, _) =>
             {
                 bool maximized = window.WindowState == WindowState.Maximized;

@@ -38,4 +38,25 @@ public static class WindowSizeMath
             return Math.Max(workTop, workBottom - height);
         return top;
     }
+
+    /// <summary>
+    /// Границы maximized-окна (в физических пикселях монитора) так, чтобы окно легло
+    /// строго на рабочую область <paramref name="work"/> монитора
+    /// <paramref name="monitor"/> (без панели задач/доков). Положение — смещение
+    /// верхнего левого угла рабочей области относительно верхнего левого угла
+    /// монитора; размер — сама рабочая область. Верно для панели задач с любой
+    /// стороны и для мониторов со смещёнными/отрицательными координатами
+    /// (issue #368: максимизация второстепенных окон уходила за панель задач).
+    /// Прямоугольники задаются как <c>(Left, Top, Right, Bottom)</c> — как Win32 RECT.
+    /// </summary>
+    public static void ComputeMaximizedBounds(
+        (int Left, int Top, int Right, int Bottom) monitor,
+        (int Left, int Top, int Right, int Bottom) work,
+        out int x, out int y, out int width, out int height)
+    {
+        x = work.Left - monitor.Left;
+        y = work.Top - monitor.Top;
+        width = work.Right - work.Left;
+        height = work.Bottom - work.Top;
+    }
 }
