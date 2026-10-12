@@ -184,7 +184,9 @@ public sealed class ConfigTypeEditWindow : ModalWindowBase
 
         _editionsList.ItemsSource = _editions;
         _editionsList.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _editionsList.MinHeight = 80;
+        // MinHeight на 3 строки (issue #369): даже при пустой таблице видно, что это таблица
+        // (место внизу и так пустует). Строка ~32 + шапка ~30 → 3×32+30 ≈ 130.
+        _editionsList.MinHeight = 130;
         _editionsList.MaxHeight = 200;
         _editionsList.ItemTemplate = new FuncDataTemplate<OneCConfigEdition>((edition, _) => BuildEditionRow(edition));
 

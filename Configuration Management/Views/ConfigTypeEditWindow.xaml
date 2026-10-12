@@ -122,8 +122,10 @@
 
                     <!-- Таблица редакций из 4 колонок (issue #321): имя, «Ред», «Подред» и
                          переопределённая ссылка. Строки правятся отдельным модальным диалогом
-                         (EditionEditWindow) — инлайн-поля под таблицей убраны. -->
-                    <DataGrid Grid.Row="0" x:Name="EditionsGrid" MaxHeight="220" Margin="0,0,0,6"
+                         (EditionEditWindow) — инлайн-поля под таблицей убраны.
+                         MinHeight на 3 строки (issue #369): даже при пустой таблице видно,
+                         что это таблица (место внизу и так пустует). -->
+                    <DataGrid Grid.Row="0" x:Name="EditionsGrid" MinHeight="130" MaxHeight="220" Margin="0,0,0,6"
                               AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                               CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False"
                               RowHeaderWidth="0" SelectionMode="Single" SelectionUnit="FullRow"

@@ -85,6 +85,9 @@ namespace Configuration_Management
             panel.Children.Add(MakeFieldRow(T("Updates.Name"), _nameBox));
             panel.Children.Add(MakeFieldRow(T("Updates.EditionRed"), _redBox));
             panel.Children.Add(MakeFieldRow(T("Updates.EditionSubRed"), _subRedBox));
+            // Переопределённая ссылка (issue #369): полная ссылка либо только конечная
+            // часть после releases.1c.ru/project/ (например «Enterprise13»).
+            ToolTip.SetTip(_urlOverrideBox, T("Updates.UrlOverrideHint"));
             panel.Children.Add(MakeFieldRow(T("Updates.UrlOverride"), _urlOverrideBox));
 
             var buttons = new StackPanel

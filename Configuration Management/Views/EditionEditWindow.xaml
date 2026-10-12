@@ -102,8 +102,13 @@
             <TextBlock Text="{loc:Loc Updates.EditionSubRed}" FontWeight="SemiBold" Margin="0,12,0,4"/>
             <TextBox x:Name="SubRedBox" Style="{DynamicResource ModernTextBox}"/>
 
-            <TextBlock Text="{loc:Loc Updates.UrlOverride}" FontWeight="SemiBold" Margin="0,12,0,4"/>
-            <TextBox x:Name="UrlOverrideBox" Style="{DynamicResource ModernTextBox}"/>
+            <!-- Переопределённая ссылка (issue #369): полная ссылка либо только конечная
+                 часть после releases.1c.ru/project/ (например «Enterprise13») —
+                 полная ссылка собирается автоматически. -->
+            <TextBlock Text="{loc:Loc Updates.UrlOverride}" FontWeight="SemiBold" Margin="0,12,0,4"
+                       ToolTip="{loc:Loc Updates.UrlOverrideHint}"/>
+            <TextBox x:Name="UrlOverrideBox" Style="{DynamicResource ModernTextBox}"
+                     ToolTip="{loc:Loc Updates.UrlOverrideHint}"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">

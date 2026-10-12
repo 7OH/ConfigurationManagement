@@ -90,6 +90,97 @@ public sealed class OneCUpdatesUrlTests
         Assert.Contains("%", url);
     }
 
+    // ====== Переопределённая ссылка: полная ссылка или хвост (issue #369) ======
+
+    [Fact]
+    public void ResolveOverrideUrl_Tail_SubstitutesNickInProjectUrl()
+    {
+        // Хвост «Enterprise13» → полная ссылка releases.1c.ru/project/Enterprise13.
+        var url = OneCUpdatesService.ResolveOverrideUrl("Enterprise13");
+
+        Assert.Equal("https://releases.1c.ru/project/Enterprise13", url);
+    }
+
+    [Fact]
+    public void ResolveOverrideUrl_FullUrl_ReturnsAsIs()
+    {
+        // Полная ссылка — целиком, без подмены частей.
+        const string full = "https://releases.1c.ru/project/Enterprise13?allUpdates=true#updates";
+
+        Assert.Equal(full, OneCUpdatesService.ResolveOverrideUrl(full));
+    }
+
+    [Fact]
+    public void ResolveOverrideUrl_HttpScheme_AlsoFullUrl()
+    {
+        const string full = "http://example.com/updates";
+
+        Assert.Equal(full, OneCUpdatesService.ResolveOverrideUrl(full));
+    }
+
+    [Fact]
+    public void ResolveOverrideUrl_TrimsAndEscapesTail()
+    {
+        var url = OneCUpdatesService.ResolveOverrideUrl("  Enterprise13  ");
+
+        Assert.Equal("https://releases.1c.ru/project/Enterprise13", url);
+    }
+
+    [Fact]
+    public void ResolveOverrideUrl_Empty_ReturnsEmpty()
+    {
+        Assert.Equal(string.Empty, OneCUpdatesService.ResolveOverrideUrl(null));
+        Assert.Equal(string.Empty, OneCUpdatesService.ResolveOverrideUrl(string.Empty));
+        Assert.Equal(string.Empty, OneCUpdatesService.ResolveOverrideUrl("   "));
+    }
+
+    [Fact]
+    public void BuildUpdateUrl_UrlOverrideTail_SubstitutesNick()
+    {
+        // issue #369: override-хвост базы подменяет ник каталога.
+        var service = new OneCUpdatesService(new FakeRepository(), new FakeLogger());
+        var config = new OneCConfigType { Nick = "Enterprise" };
+
+        var url = service.BuildUpdateUrl(config, null, "Enterprise13");
+
+        Assert.Equal("https://releases.1c.ru/project/Enterprise13", url);
+    }
+
+    [Fact]
+    public void BuildUpdateUrl_UrlOverrideFullUrl_ReturnsAsIs()
+    {
+        var service = new OneCUpdatesService(new FakeRepository(), new FakeLogger());
+        var config = new OneCConfigType { Nick = "Enterprise" };
+
+        var url = service.BuildUpdateUrl(config, null, "https://releases.1c.ru/project/Other13");
+
+        Assert.Equal("https://releases.1c.ru/project/Other13", url);
+    }
+
+    [Fact]
+    public void BuildUpdateUrl_EditionOverrideTail_SubstitutesNick()
+    {
+        // issue #369: хвост в UrlOverride редакции тоже подменяет ник.
+        var service = new OneCUpdatesService(new FakeRepository(), new FakeLogger());
+        var config = new OneCConfigType { Nick = "Enterprise" };
+        var edition = new OneCConfigEdition { Name = "1.3", UrlOverride = "Enterprise13" };
+
+        var url = service.BuildUpdateUrl(config, edition, null);
+
+        Assert.Equal("https://releases.1c.ru/project/Enterprise13", url);
+    }
+
+    [Fact]
+    public void BuildUpdateUrl_NoOverride_UsesConfigNick()
+    {
+        var service = new OneCUpdatesService(new FakeRepository(), new FakeLogger());
+        var config = new OneCConfigType { Nick = "Enterprise" };
+
+        var url = service.BuildUpdateUrl(config, null, null);
+
+        Assert.Equal("https://releases.1c.ru/project/Enterprise", url);
+    }
+
     // ============ Резолв nick/ver для URL каталога проекта (issue #352.1) ============
 
     [Fact]

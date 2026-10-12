@@ -2696,6 +2696,7 @@
     "Updates.EditionRed": "Ред",
     "Updates.EditionSubRed": "Подред",
     "Updates.UrlOverride": "Переопределённая ссылка",
+    "Updates.UrlOverrideHint": "Полная ссылка (https://releases.1c.ru/project/…) либо только конечная часть после releases.1c.ru/project/ — например «Enterprise13»: полная ссылка будет собрана автоматически с подменой ника.",
     "Updates.BuiltIn": "Предопределённая",
     "Updates.AuthGroupTitle": "Авторизация на сайте 1С",
     "Updates.Login": "Логин",

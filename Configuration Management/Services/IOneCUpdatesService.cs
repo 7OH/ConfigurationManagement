@@ -15,13 +15,17 @@ public interface IOneCUpdatesService
 {
     /// <summary>
     /// Формирует адрес каталога релизов по правилу 1С. Если задан <paramref name="urlOverride"/> —
-    /// возвращается он (ручная корректировка), иначе адрес строится из ника конфигурации
-    /// (<c>releases.1c.ru/project/<ник></c>). Каждый сегмент экранируется, итог проверяется
-    /// на валидность URI.
+    /// он разрешается по семантике issue #369: **полная** ссылка (со схемой http/https)
+    /// используется целиком, **только конечная часть** (например «Enterprise13») подменяет
+    /// ник каталога (<c>releases.1c.ru/project/&lt;часть&gt;</c>). Иначе адрес строится из
+    /// ника конфигурации (<c>releases.1c.ru/project/&lt;ник&gt;</c>). Каждый сегмент
+    /// экранируется, итог проверяется на валидность URI.
     /// </summary>
     /// <param name="config">Типовая конфигурация (нужен ник каталога релизов).</param>
-    /// <param name="edition">Редакция (может переопределять ссылку целиком). Может быть null.</param>
-    /// <param name="urlOverride">Полностью переопределённая ссылка. Пустая строка/null — автоформирование.</param>
+    /// <param name="edition">Редакция (может переопределять ссылку: полная ссылка или хвост —
+    /// см. <paramref name="urlOverride"/>). Может быть null.</param>
+    /// <param name="urlOverride">Переопределённая ссылка: полная ссылка либо только конечная
+    /// часть адреса после <c>releases.1c.ru/project/</c> (issue #369). Пустая строка/null — автоформирование.</param>
     /// <param name="urlSegment">Персональный сегмент (ник) базы. Если задан — используется вместо
     /// ника типовой конфигурации (issue #322). Пустая строка/null — ник конфигурации.</param>
     string BuildUpdateUrl(OneCConfigType? config, OneCConfigEdition? edition, string? urlOverride, string? urlSegment = null);

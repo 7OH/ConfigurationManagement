@@ -2697,6 +2697,7 @@
     "Updates.EditionRed": "Rev",
     "Updates.EditionSubRed": "Subrev",
     "Updates.UrlOverride": "Overridden URL",
+    "Updates.UrlOverrideHint": "A full URL (https://releases.1c.ru/project/…) or only the trailing part after releases.1c.ru/project/ — e.g. «Enterprise13»: the full URL is built automatically with the nick substituted.",
     "Updates.BuiltIn": "Built-in",
     "Updates.AuthGroupTitle": "1C website authorization",
     "Updates.Login": "Login",

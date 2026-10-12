@@ -204,21 +204,46 @@ public class OneCUpdatesService : IOneCUpdatesService
     public string BuildUpdateUrl(OneCConfigType? config, OneCConfigEdition? edition, string? urlOverride,
         string? urlSegment = null)
     {
+        // Переопределённая ссылка базы: полная ссылка — целиком, иначе только конечная
+        // часть подменяет ник каталога (issue #369).
         if (!string.IsNullOrWhiteSpace(urlOverride))
-            return urlOverride.Trim();
+            return ResolveOverrideUrl(urlOverride);
 
         if (config is null)
             return string.Empty;
 
-        // Если у редакции есть собственная переопределённая ссылка — используем её.
+        // Если у редакции есть собственная переопределённая ссылка — используем её
+        // (та же семантика «полная ссылка или хвост», issue #369).
         if (edition is { HasUrlOverride: true })
-            return edition.UrlOverride.Trim();
+            return ResolveOverrideUrl(edition.UrlOverride);
 
         // Персональный сегмент (ник) базы приоритетнее ника типовой конфигурации (issue #322):
         // пользователь видит и правит ключевой кусочек адреса после releases.1c.ru/project/
         // в окне «Связать с конфигурацией», не меняя общую карточку конфигурации.
         var nick = !string.IsNullOrWhiteSpace(urlSegment) ? urlSegment.Trim() : config.Nick;
         return BuildNickUrl(nick);
+    }
+
+    /// <summary>
+    /// Разрешает переопределённую ссылку каталога релизов (issue #369): **полная** ссылка
+    /// (со схемой http/https) используется целиком, без подмены частей; **только конечная
+    /// часть** (например «Enterprise13») подставляется вместо ника — полная ссылка
+    /// <c>releases.1c.ru/project/&lt;часть&gt;</c> собирается автоматически. Пусто —
+    /// пустая строка. Internal — для юнит-тестов (OneCUpdatesUrlTests).
+    /// </summary>
+    internal static string ResolveOverrideUrl(string? urlOverride)
+    {
+        if (string.IsNullOrWhiteSpace(urlOverride))
+            return string.Empty;
+
+        var trimmed = urlOverride.Trim();
+        // Полная ссылка (есть схема) — возвращаем целиком.
+        if (trimmed.Contains("://", StringComparison.OrdinalIgnoreCase))
+            return trimmed;
+
+        // Иначе это конечная часть адреса после releases.1c.ru/project/ —
+        // подменяем ник и строим полную ссылку автоматически.
+        return BuildNickUrl(trimmed);
     }
 
     /// <summary>
