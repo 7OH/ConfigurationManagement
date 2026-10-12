@@ -1,3 +1,8 @@
+<!-- issue #365: ширина окна = MinWidth = 1180 — панель источника (радиокнопки +
+     ComboBox баз 280 + путь .cf 320 + «Обзор…» 100 + «Загрузить» 120 + отступы)
+     требует ~1150, при прежних 1080 правая кнопка «Загрузить» обрезалась.
+     ResizeMode=CanResize — у изменяемых окон WindowChromeHelper добавляет
+     типовую кнопку «развернуть/восстановить» в шапке (как у «Серверов 1С»). -->
 <Window x:Class="Configuration_Management.MetadataExplorerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -5,7 +10,8 @@
         xmlns:conv="clr-namespace:Configuration_Management.Converters"
         xmlns:vm="clr-namespace:Configuration_Management.ViewModels"
         Icon="{StaticResource AppIcon}"
-        Height="640" Width="1080" MinHeight="480" MinWidth="900"
+        Height="640" Width="1180" MinHeight="480" MinWidth="1180"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         Background="{DynamicResource ContentBackgroundBrush}">
@@ -91,8 +97,18 @@
             <RadioButton Content="{loc:Loc MetadataExplorer.SourceCf}" IsChecked="{Binding IsSourceCf}"
                          VerticalAlignment="Center" Margin="0,0,10,0"/>
             <ComboBox Width="280" ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}"
-                      DisplayMemberPath="Name" VerticalAlignment="Center" Margin="0,0,10,0"
-                      IsEnabled="{Binding IsSourceBase}"/>
+                      VerticalAlignment="Center" Margin="0,0,10,0"
+                      IsEnabled="{Binding IsSourceBase}">
+                <!-- issue #365: явный ItemTemplate вместо DisplayMemberPath — в поле выбора
+                     (не в выпадающем списке) ModernComboBox не умел отображать значение
+                     показателя и выводил тип объекта «Configuration_Management.Models.Infobase»
+                     вместо имени базы; тот же приём, что в ServerMonitorWindow (issue #324). -->
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
             <TextBox Width="320" Text="{Binding CfPath, UpdateSourceTrigger=PropertyChanged}"
                      VerticalContentAlignment="Center" Margin="0,0,8,0"
                      IsEnabled="{Binding IsSourceCf}"
@@ -116,8 +132,15 @@
                     Margin="8,0,16,0" Click="OnClearSearch_Click"/>
             <ComboBox Width="220" VerticalAlignment="Center"
                       ItemsSource="{Binding TypeFilterOptions}"
-                      SelectedItem="{Binding TypeFilter}"
-                      DisplayMemberPath="DisplayName"/>
+                      SelectedItem="{Binding TypeFilter}">
+                <!-- issue #365: явный ItemTemplate вместо DisplayMemberPath (поле выбора
+                     ModernComboBox показывало ToString записи вместо DisplayName). -->
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding DisplayName}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </StackPanel>
 
         <!-- Статус / ошибка -->

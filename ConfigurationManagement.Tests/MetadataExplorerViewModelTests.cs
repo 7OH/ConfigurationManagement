@@ -374,8 +374,30 @@ public sealed class MetadataExplorerViewModelTests : IDisposable
         Assert.False(vm.IsBusy);
         Assert.NotEmpty(vm.ErrorMessage);
         Assert.Contains("база недоступна", vm.ErrorMessage);
+        // issue #365: статус — СВОЁ сообщение обозревателя, а не текст окна сравнения.
+        // В тестах локализация отдаёт ключ as-is, поэтому проверяем именно ключ.
+        Assert.Contains("MetadataExplorer.Errors.OperationFailed", vm.StatusText);
+        Assert.DoesNotContain("ConfigDiff", vm.StatusText);
         Assert.Empty(vm.TreeNodes);
         Assert.Equal(string.Empty, vm.ConfigurationTitle);
+    }
+
+    [Fact]
+    public async Task Load_ServiceThrowsEmptyMessage_UnknownExplorerKey_NotComparisonText()
+    {
+        // issue #365: пустое сообщение исключения → ключ «Неизвестная ошибка» обозревателя,
+        // а не «Не удалось выполнить операцию сравнения конфигураций» (ConfigDiff.Err*).
+        var fake = new FakeMetadataExplorerService
+        {
+            BaseException = new MetadataExplorerException(string.Empty)
+        };
+        var vm = new MetadataExplorerViewModel(
+            new[] { CreateBase() }, CreateBase(), fake, new RecordingDialogs());
+
+        await vm.LoadAsync();
+
+        Assert.Contains("MetadataExplorer.Errors.Unknown", vm.ErrorMessage);
+        Assert.DoesNotContain("ConfigDiff", vm.ErrorMessage);
     }
 
     [Fact]

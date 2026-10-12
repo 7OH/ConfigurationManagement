@@ -29,12 +29,12 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
         CancellationToken cancellationToken = default)
     {
         if (infobase is null)
-            throw new MetadataExplorerException(LocalizationManager.T("ConfigDiff.ErrNoBase"));
+            throw new MetadataExplorerException(LocalizationManager.T("MetadataExplorer.Errors.NoBase"));
 
         return RunAsync(dumpRoot =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            progress?.Report(LocalizationManager.T("ConfigDiff.StageDumpLeft"));
+            progress?.Report(LocalizationManager.T("MetadataExplorer.Status.DumpStage"));
             return DumpAndReadHeader(infobase, dumpRoot, progress, cancellationToken);
         }, cancellationToken);
     }
@@ -51,16 +51,16 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
             cancellationToken.ThrowIfCancellationRequested();
 
             if (string.IsNullOrWhiteSpace(cfPath) || !File.Exists(cfPath))
-                throw new MetadataExplorerException(LocalizationManager.T("ConfigDiff.ErrCfNotExists"));
+                throw new MetadataExplorerException(LocalizationManager.T("MetadataExplorer.Errors.CfNotExists"));
             if (string.IsNullOrWhiteSpace(platformVersion))
-                throw new MetadataExplorerException(LocalizationManager.T("ConfigDiff.ErrNoPlatform"));
+                throw new MetadataExplorerException(LocalizationManager.T("MetadataExplorer.Errors.NoPlatform"));
 
             // Распаковка .cf во временную файловую ИБ (CREATEINFOBASE с /UseTemplate),
             // затем выгрузка конфигурации этой ИБ /DumpConfigToFiles.
             var ibDir = Path.Combine(dumpRoot, "ib");
             var dumpDir = Path.Combine(dumpRoot, "dump");
 
-            progress?.Report(LocalizationManager.T("ConfigDiff.StageCreateTemp"));
+            progress?.Report(LocalizationManager.T("MetadataExplorer.Status.CreateTempStage"));
             var created = OneCLauncher.CreateInfoBase(
                 platformVersion,
                 isFile: true,
@@ -70,7 +70,7 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
                 templatePath: cfPath,
                 timeoutMs: CreateInfoBaseTimeoutMs);
             if (!created.Ok)
-                throw new MetadataExplorerException(created.Error ?? LocalizationManager.T("ConfigDiff.ErrOperationFailed"));
+                throw new MetadataExplorerException(created.Error ?? LocalizationManager.T("MetadataExplorer.Errors.LoadFailed"));
 
             var tempBase = CreateTempBase(platformVersion, ibDir);
             return DumpAndReadHeader(tempBase, dumpDir, progress, cancellationToken);
@@ -93,13 +93,13 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
         // Каталог создаёт сам RunDesignerBatch (ветка DumpConfigToFiles), но подстраховываемся.
         try { Directory.CreateDirectory(dumpDir); } catch { /* создаст RunDesignerBatch */ }
 
-        progress?.Report(LocalizationManager.T("ConfigDiff.StageDumpLeft"));
+        progress?.Report(LocalizationManager.T("MetadataExplorer.Status.DumpStage"));
         var started = OneCLauncher.RunDesignerBatch(
             infobase,
             OneCLauncher.DesignerBatchOperation.DumpConfigToFiles,
             dumpDir);
         if (!started)
-            throw new MetadataExplorerException(LocalizationManager.T("ConfigDiff.ErrOperationFailed"));
+            throw new MetadataExplorerException(LocalizationManager.T("MetadataExplorer.Errors.LoadFailed"));
 
         var info = WaitForBatchAsync(
             OneCLauncher.DesignerBatchOperation.DumpConfigToFiles,
@@ -108,9 +108,9 @@ public sealed class MetadataExplorerService : IMetadataExplorerService
             cancellationToken).GetAwaiter().GetResult();
 
         if (info is null)
-            throw new MetadataExplorerException(LocalizationManager.T("ConfigDiff.ErrTimeout"));
+            throw new MetadataExplorerException(LocalizationManager.T("MetadataExplorer.Errors.LoadTimeout"));
         if (!info.Success)
-            throw new MetadataExplorerException(info.ErrorMessage ?? LocalizationManager.T("ConfigDiff.ErrOperationFailed"));
+            throw new MetadataExplorerException(info.ErrorMessage ?? LocalizationManager.T("MetadataExplorer.Errors.LoadFailed"));
 
         var (name, version) = MetadataXmlParser.ParseConfigurationHeader(dumpDir);
         return new MetadataDump(dumpDir, name, version);

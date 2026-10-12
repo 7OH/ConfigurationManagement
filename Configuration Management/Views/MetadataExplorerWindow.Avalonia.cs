@@ -42,14 +42,24 @@ namespace Configuration_Management
         /// </summary>
         public System.Windows.Input.ICommand LoadCommand => _vm.LoadCommand;
 
+        /// <summary>
+        /// issue #365: типовая кнопка максимизации в шапке, как у «Серверов 1С»
+        /// (<see cref="ServerMonitorWindow"/>): окно изменяемое, в собственном chrome
+        /// рисуем кнопку «развернуть/восстановить» рядом с «закрыть».
+        /// </summary>
+        protected override bool SupportsMaximizeButton => true;
+
         /// <param name="bases">Все информационные базы списка (для ComboBox).</param>
         /// <param name="selectedBase">Предвыбранная база (выбранная в главном окне).</param>
         public MetadataExplorerWindow(IReadOnlyList<Infobase> bases, Infobase? selectedBase)
         {
             Title = LocalizationManager.T("MetadataExplorer.Title");
-            Width = 1080;
+            // issue #365: ширина = MinWidth = 1180 — панель источника (радиокнопки +
+            // ComboBox баз 280 + путь .cf 320 + «Обзор…» 100 + «Загрузить» 120 +
+            // отступы) требует ~1150; при прежних 1080 правая кнопка обрезалась.
+            Width = 1180;
             Height = 640;
-            MinWidth = 900;
+            MinWidth = 1180;
             MinHeight = 480;
             FontSize = 13;
             CanResize = true;

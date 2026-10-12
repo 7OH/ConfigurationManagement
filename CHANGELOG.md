@@ -9,6 +9,39 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.12.15] — 2026-10-11
+
+### Исправлено (issue #365)
+
+- **Обозреватель метаданных — четыре исправления интерфейса** (Windows/WPF и Linux/Avalonia):
+  - **Ширина окна больше не обрезает правую кнопку «Загрузить»**: окно было уже
+    панели источника (радиокнопки + ComboBox баз + путь .cf + «Обзор…» + «Загрузить»
+    требуют ~1150, а Width составляла 1080) — теперь ширина и MinWidth окна равны 1180,
+    кнопка всегда целиком в окне ([`MetadataExplorerWindow.xaml`](Configuration%20Management/Views/MetadataExplorerWindow.xaml),
+    [`MetadataExplorerWindow.Avalonia.cs`](Configuration%20Management/Views/MetadataExplorerWindow.Avalonia.cs)).
+  - **Имя базы отображается текстом, а не типом объекта**: в поле выбора ComboBox
+    (`ModernComboBox`) значение показателя `DisplayMemberPath` не отображалось —
+    вместо имени базы выводилось «Configuration_Management.Models.Infobase».
+    Заменено на явный `ItemTemplate` (тот же приём, что в «Серверах 1С», issue #324);
+    заодно исправлен такой же ComboBox фильтра по типу.
+  - **Ошибка загрузки — своё сообщение вместо «Не удалось выполнить операцию сравнения
+    конфигураций»**: [`MetadataExplorerService.cs`](Configuration%20Management/Services/MetadataExplorerService.cs)
+    переиспользовал ключи окна сравнения (`ConfigDiff.Err*`/`ConfigDiff.Stage*`) —
+    теперь все ошибки и этапы прогресса обозревателя локализованы собственными ключами
+    `MetadataExplorer.Errors.LoadFailed` («Не удалось загрузить данные обозревателя.»),
+    `MetadataExplorer.Errors.LoadTimeout`, `MetadataExplorer.Errors.NoPlatform`,
+    `MetadataExplorer.Status.DumpStage`, `MetadataExplorer.Status.CreateTempStage`
+    (парами ru/en); если 1С вернула причину — показывается она.
+  - **Кнопка максимизации окна**: у изменяемого окна в шапке появляется типовая кнопка
+    «развернуть/восстановить» — в Avalonia-версии включена через
+    `SupportsMaximizeButton` (как у «Серверов 1С», 0.3.12.7), в WPF-версии
+    `ResizeMode="CanResize"` задан явно (кнопку дорисовывает `WindowChromeHelper`).
+  - **Тесты**: [`MetadataExplorerWindowLocalizationTests.cs`](ConfigurationManagement.Tests/MetadataExplorerWindowLocalizationTests.cs) —
+    каждый ключ `MetadataExplorer.*` окна обязан существовать в ru.json/en.json, сервис
+    не использует ключи окна сравнения, WPF-окно использует явный `ItemTemplate` и
+    изменяемо с достаточной MinWidth; обновлены [`MetadataExplorerViewModelTests.cs`](ConfigurationManagement.Tests/MetadataExplorerViewModelTests.cs)
+    (статус ошибки — ключ обозревателя, а не `ConfigDiff`).
+
 ## [0.3.12.14] — 2026-10-11
 
 ### Улучшено (issue #359)
