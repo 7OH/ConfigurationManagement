@@ -66,11 +66,12 @@ _analysis/
 Configuration Management/Views/Configuration_Management_linux.code-workspace
 
 # Внутренний план проекта\
-plans/\
+plans/
 release-artifacts/  
 .gh_headers 
 
 # Publish build artifacts - do not commit
+publish/
 publish/out-*/
 publish/*_linux-x64
 publish/*.log
