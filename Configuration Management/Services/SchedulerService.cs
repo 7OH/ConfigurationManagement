@@ -27,8 +27,11 @@ public class SchedulerService : IDisposable
     private readonly IInfobaseAdminService _admin;
     private readonly GitHubReleaseService _gitHub;
     private readonly UpdateService _updateService;
-    private readonly IAppLogger? _logger;
     private readonly INotificationService _notifications;
+    private readonly IPlatformUpdateService _platformUpdate;
+    private readonly IPlatformVersionService _platformVersions;
+    private readonly IMainWindowNotifier _mainWindowNotifier;
+    private readonly IAppLogger? _logger;
 
     private Timer? _timer;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -44,6 +47,9 @@ public class SchedulerService : IDisposable
         GitHubReleaseService gitHub,
         UpdateService updateService,
         INotificationService notifications,
+        IPlatformUpdateService platformUpdate,
+        IPlatformVersionService platformVersions,
+        IMainWindowNotifier mainWindowNotifier,
         IAppLogger? logger = null)
     {
         _tasks = tasks;
@@ -55,6 +61,9 @@ public class SchedulerService : IDisposable
         _gitHub = gitHub;
         _updateService = updateService;
         _notifications = notifications;
+        _platformUpdate = platformUpdate;
+        _platformVersions = platformVersions;
+        _mainWindowNotifier = mainWindowNotifier;
         _logger = logger;
     }
 
@@ -238,6 +247,12 @@ public class SchedulerService : IDisposable
     /// </summary>
     private void NotifyJobFinished(ScheduledTask task, BackupRunResult? result)
     {
+        // Задание «Проверить наличие обновления платформы» (issue #366) уведомляет
+        // само себя по выбранному каналу (главное окно / системные уведомления) —
+        // здесь оно пропускается, чтобы не дублировать сообщение.
+        if (task.Kind == ScheduledTaskKind.PlatformUpdateCheck)
+            return;
+
         try
         {
             var success = result is { Success: true };
@@ -261,6 +276,7 @@ public class SchedulerService : IDisposable
         ScheduledTaskKind.BackupThenUpdateConfig => LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig"),
         ScheduledTaskKind.CheckIntegrity => LocalizationManager.T("Schedule.Kind.CheckIntegrity"),
         ScheduledTaskKind.UpdateApp => LocalizationManager.T("Schedule.Kind.UpdateApp"),
+        ScheduledTaskKind.PlatformUpdateCheck => LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck"),
         _ => LocalizationManager.T("Schedule.Kind.Backup")
     };
 
@@ -275,6 +291,7 @@ public class SchedulerService : IDisposable
                 ScheduledTaskKind.BackupThenUpdateConfig => await RunBackupThenUpdateAsync(task).ConfigureAwait(false),
                 ScheduledTaskKind.CheckIntegrity => await RunCheckIntegrityAsync(task).ConfigureAwait(false),
                 ScheduledTaskKind.UpdateApp => await RunUpdateAppAsync(task).ConfigureAwait(false),
+                ScheduledTaskKind.PlatformUpdateCheck => await RunPlatformUpdateCheckAsync(task).ConfigureAwait(false),
                 _ => null
             };
         }
@@ -367,6 +384,106 @@ public class SchedulerService : IDisposable
         // приложение (в том числе без диалогов). Ошибки он обрабатывает сам.
         await _updateService.DownloadAndInstallAutoAsync(release).ConfigureAwait(false);
         return result;
+    }
+
+    /// <summary>
+    /// Проверка наличия обновления технологической платформы 1С (issue #366): установленные
+    /// версии по выражению проверки сравниваются с каталогом <c>releases.1c.ru</c>
+    /// (все поддерживаемые каталоги Platform83/Platform85). Результат — сводка о доступных
+    /// версиях (уведомление по выбранному каналу + LastRunMessage); ошибка авторизации
+    /// ИТС или сети честно попадает в сообщение об ошибке.
+    /// </summary>
+    private async Task<BackupRunResult?> RunPlatformUpdateCheckAsync(ScheduledTask task)
+    {
+        var result = new BackupRunResult();
+        var expression = task.PlatformCheckExpression?.Trim() ?? "";
+        if (!PlatformUpdateCheckLogic.IsValidExpression(expression))
+        {
+            result.Success = false;
+            result.ErrorMessage = LocalizationManager.T("Schedule.PlatformCheck.InvalidExpression");
+            NotifyPlatformUpdateCheck(task, NotificationKind.Error, result.ErrorMessage);
+            return result;
+        }
+
+        // Установленные версии: Display с суффиксом разрядности «(64)» → чистые номера.
+        List<string> installed;
+        try
+        {
+            installed = _platformVersions.FindInstalledVersions()
+                .Select(display =>
+                {
+                    PlatformVersionService.ParseVariant(display, out var clean, out _);
+                    return clean;
+                })
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("Задание проверки платформы: не удалось получить установленные версии", ex);
+            installed = new List<string>();
+        }
+
+        var catalog = await _platformUpdate.GetAllAvailableReleasesAsync().ConfigureAwait(false);
+        if (catalog.Status != PortalFetchStatus.Ok)
+        {
+            result.Success = false;
+            result.ErrorMessage = LocalizationManager.T(
+                string.IsNullOrEmpty(catalog.ErrorKey) ? "PlatformUpdate.Error.NetworkError" : catalog.ErrorKey);
+            NotifyPlatformUpdateCheck(task, NotificationKind.Error, result.ErrorMessage);
+            return result;
+        }
+
+        var check = PlatformUpdateCheckLogic.Check(
+            installed, catalog.Releases, expression, task.PlatformCheckIncludeTestVersions);
+
+        var summary = check.HasUpdate
+            ? string.Format(
+                LocalizationManager.T("Schedule.PlatformUpdateCheck.Found"),
+                PlatformUpdateCheckLogic.FormatVersions(check.AvailableVersions))
+            : check.MaxInstalledVersion is null
+                ? LocalizationManager.T("Schedule.PlatformUpdateCheck.NoInstalledNone")
+                : string.Format(
+                    LocalizationManager.T("Schedule.PlatformUpdateCheck.UpToDate"),
+                    check.MaxInstalledVersion);
+
+        result.Success = true;
+        result.ScenarioName = summary;
+        NotifyPlatformUpdateCheck(
+            task,
+            check.HasUpdate ? NotificationKind.Info : NotificationKind.Success,
+            summary);
+        return result;
+    }
+
+    /// <summary>
+    /// Уведомление о результате проверки платформы (issue #366) по каналу задания:
+    /// «В главном окне» — строка состояния главного окна, «Системные уведомления» —
+    /// диспетчер уведомлений (balloon трея / notify-send). Ошибки не влияют на планировщик.
+    /// </summary>
+    private void NotifyPlatformUpdateCheck(ScheduledTask task, NotificationKind kind, string message)
+    {
+        try
+        {
+            var text = $"{task.Name}: {message}";
+            switch (task.PlatformNotifyChannel)
+            {
+                case PlatformUpdateNotifyChannel.MainWindow:
+                    _mainWindowNotifier.ShowMessage(text);
+                    break;
+                case PlatformUpdateNotifyChannel.SystemNotifications:
+                    _notifications.Show(
+                        LocalizationManager.T("App.Title"),
+                        text,
+                        kind,
+                        NotificationEvent.ScheduledTask);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("Не удалось уведомить о проверке обновления платформы", ex);
+        }
     }
 
     private Infobase? ResolveInfobase(string? id)

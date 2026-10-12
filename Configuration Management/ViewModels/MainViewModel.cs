@@ -1245,6 +1245,17 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Показывает сообщение в строке состояния главного окна (issue #366): канал
+    /// уведомления задания по расписанию «Проверить наличие обновления платформы»
+    /// «В главном окне». Вызывается из фоновых сервисов через
+    /// <see cref="Services.IMainWindowNotifier"/>.
+    /// </summary>
+    public void ShowStatusBarMessage(string message)
+    {
+        SyncMessage = message ?? string.Empty;
+    }
+
     private CancellationTokenSource? _syncMessageCts;
 
     /// <summary>Сообщение о синхронизации скрывается через 10 секунд.</summary>

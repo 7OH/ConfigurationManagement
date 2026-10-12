@@ -35,8 +35,10 @@ public static class ScheduleCatchUpCalculator
             return false;
         // Обновление приложения не догоняется: найденное обновление установится
         // при следующей автоматической проверке, а самообновление с перезапуском
-        // в момент старта приложения нежелательно.
-        if (task.Kind == ScheduledTaskKind.UpdateApp)
+        // в момент старта приложения нежелательно. Проверка обновления платформы
+        // (issue #366) тоже не догоняется: обращение к каталогу — сетевая операция,
+        // которую нежелательно выполнять при каждом старте после простоя.
+        if (task.Kind is ScheduledTaskKind.UpdateApp or ScheduledTaskKind.PlatformUpdateCheck)
             return false;
 
         var lastRun = LastRunLocal(task);

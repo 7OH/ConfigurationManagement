@@ -129,6 +129,18 @@ public sealed class ScheduleCatchUpTests
         Assert.False(ScheduleCatchUpCalculator.IsMissed(task, now));
     }
 
+    [Fact]
+    public void PlatformUpdateCheckKind_NotMissed()
+    {
+        // Проверка обновления платформы (issue #366) не догоняется: обращение к
+        // каталогу — сетевая операция, нежелательная при старте после простоя.
+        var task = NewTask("02:00");
+        task.Kind = ScheduledTaskKind.PlatformUpdateCheck;
+        var now = new DateTime(2026, 9, 24, 10, 0, 0);
+
+        Assert.False(ScheduleCatchUpCalculator.IsMissed(task, now));
+    }
+
     // ---- Порог давности ----
 
     [Fact]
@@ -249,7 +261,10 @@ public sealed class ScheduleCatchUpTests
         null!,
         new GitHubReleaseService(),
         null!,
-        new FakeNotifications());
+        new FakeNotifications(),
+        new FakePlatformUpdateService(),
+        new FakePlatformVersions(),
+        new FakeMainWindowNotifier());
 
     /// <summary>Фейковое хранилище заданий в памяти (без файловой системы).</summary>
     private sealed class FakeTaskStore : IScheduledTaskStore
@@ -272,5 +287,38 @@ public sealed class ScheduleCatchUpTests
         public void Show(string title, string message, NotificationKind kind, NotificationEvent evt = NotificationEvent.ManualTest)
         {
         }
+    }
+
+    /// <summary>Фейк каталога платформы (задание проверки платформы в этих тестах не выполняется).</summary>
+    private sealed class FakePlatformUpdateService : IPlatformUpdateService
+    {
+        public Task<PlatformCatalogResult> GetAvailableReleasesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new PlatformCatalogResult());
+
+        public Task<PlatformCatalogResult> GetAllAvailableReleasesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new PlatformCatalogResult());
+
+        public Task<PlatformCatalogResult> GetAvailableReleasesForNickAsync(string nick, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PlatformCatalogResult());
+
+        public Task<PlatformCatalogResult> LoadReleaseFilesAsync(PlatformRelease release, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PlatformCatalogResult());
+
+        public Task<PlatformCatalogResult> LoadReleaseFilesForNickAsync(PlatformRelease release, string nick, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PlatformCatalogResult());
+
+        public PlatformReleaseFile? PickDistribution(IReadOnlyList<PlatformReleaseFile> files) => null;
+    }
+
+    /// <summary>Фейк сканера установленных версий платформы.</summary>
+    private sealed class FakePlatformVersions : IPlatformVersionService
+    {
+        public List<string> FindInstalledVersions(IEnumerable<string>? additionalPaths = null) => new();
+    }
+
+    /// <summary>Фейк показа сообщения в строке состояния главного окна.</summary>
+    private sealed class FakeMainWindowNotifier : IMainWindowNotifier
+    {
+        public void ShowMessage(string message) { }
     }
 }

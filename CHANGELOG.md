@@ -9,6 +9,44 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.12.17] — 2026-10-12
+
+### Добавлено (issue #366)
+
+- **Новый тип действия задания по расписанию «Проверить наличие обновления платформы»**
+  (Windows/WPF и Linux/Avalonia): фоновая проверка каталога платформы 1С на
+  `releases.1c.ru` (каталоги Platform83 + Platform85) без установки — только сводка
+  о найденных версиях.
+  - **Выражение проверки** (обязательное поле): сегменты — числа или `*`, например
+    `8.5.*` или `8.3.27.*` — по нему отбираются установленные и доступные версии
+    (чистый разбор/сопоставление
+    [`PlatformUpdateCheckLogic`](Configuration%20Management/Services/PlatformUpdateCheckLogic.cs),
+    покрыт юнит-тестами; валидация в форме редактирования задания).
+  - **Сравнение версий**: максимальная установленная версия по выражению; в результат
+    попадают доступные версии каталога, подходящие под выражение и строго новее её
+    (сравнение — через [`OneCPlatformCatalogParser.CompareVersions`](Configuration%20Management/Services/OneCPlatformCatalogParser.cs)).
+    Если установленных версий по выражению нет, все подходящие версии считаются
+    доступными. Ошибки авторизации ИТС/сети честно попадают в LastRunMessage.
+  - **Учёт тестовых сборок** (issue #364): опция задания «Учесть тестовые»
+    (`PlatformRelease.IsTest`) — по умолчанию выключена, как в окнах обновления.
+  - **Куда уведомлять**: канал результата задания — «В главном окне» (строка состояния
+    главного окна через новый мост
+    [`IMainWindowNotifier`](Configuration%20Management/Services/IMainWindowNotifier.cs))
+    или «Системные уведомления» (balloon трея Windows / notify-send Linux через
+    [`NotificationDispatcher`](Configuration%20Management/Services/NotificationDispatcher.cs)).
+    Дублирования с общим уведомлением «Задание выполнено» нет.
+  - **Поведение**: задание не догоняется при старте (как «Обновить приложение» —
+    сетевой запрос каталога нежелателен после простоя); сводка сохраняется в
+    LastRunMessage задания и видна в окне заданий.
+  - **Модель**: `ScheduledTaskKind.PlatformUpdateCheck`, свойства
+    `PlatformCheckExpression`, `PlatformCheckIncludeTestVersions`,
+    `PlatformNotifyChannel` в [`ScheduledTask`](Configuration%20Management/Models/ScheduledTask.cs).
+  - **Локализация** (ru/en): `Schedule.Kind.PlatformUpdateCheck`,
+    `Schedule.PlatformCheck.*`, `Schedule.PlatformUpdateCheck.*`.
+  - **Тесты**: [`PlatformUpdateCheckTests`](ConfigurationManagement.Tests/PlatformUpdateCheckTests.cs)
+    (разбор/сопоставление выражения, сравнение установленных/доступных, фильтр
+    тестовых, сводка версий), `ScheduleCatchUpTests` (исключение из догоняния).
+
 ## [0.3.12.16] — 2026-10-11
 
 ### Добавлено (issue #364)

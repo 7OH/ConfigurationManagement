@@ -33,6 +33,10 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
     private readonly ComboBox _infobaseCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
     private readonly StackPanel _cfgPanel = new() { Spacing = 6 };
     private readonly TextBox _cfgPathBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+    private readonly StackPanel _platformPanel = new() { Spacing = 6 };
+    private readonly TextBox _platformExpressionBox = new TextBox().Styled(ControlThemes.ModernTextBox);
+    private readonly CheckBox _platformIncludeTestCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
+    private readonly ComboBox _platformNotifyCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
 
     /// <summary>Готовое задание при подтверждении, иначе <c>null</c>.</summary>
     public ScheduledTask? Result { get; private set; }
@@ -147,6 +151,22 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _cfgPanel.Children.Add(cfgRow);
         panel.Children.Add(_cfgPanel);
 
+        // Опции проверки обновления платформы (issue #366): выражение проверки,
+        // учёт тестовых сборок и канал уведомления.
+        _platformExpressionBox.Text = _vm.PlatformCheckExpression;
+        _platformIncludeTestCheck.Content = T("Schedule.PlatformCheck.IncludeTest");
+        _platformIncludeTestCheck.IsChecked = _vm.PlatformCheckIncludeTestVersions;
+        _platformNotifyCombo.ItemsSource = _vm.NotifyOptions;
+        _platformNotifyCombo.SelectedItem = _vm.NotifyOptions
+            .FirstOrDefault(o => o.Value == _vm.PlatformNotifyChannel.ToString());
+        _platformNotifyCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _platformPanel.Children.Add(Label(T("Schedule.PlatformCheck.Expression")));
+        _platformPanel.Children.Add(_platformExpressionBox);
+        _platformPanel.Children.Add(_platformIncludeTestCheck);
+        _platformPanel.Children.Add(Label(T("Schedule.PlatformCheck.Notify")));
+        _platformPanel.Children.Add(_platformNotifyCombo);
+        panel.Children.Add(_platformPanel);
+
         var bottom = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -214,6 +234,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
             or ScheduledTaskKind.BackupThenUpdateConfig
             or ScheduledTaskKind.CheckIntegrity;
         _cfgPanel.IsVisible = kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
+        _platformPanel.IsVisible = kind is ScheduledTaskKind.PlatformUpdateCheck;
     }
 
     private void BrowseCfgFile()
@@ -257,6 +278,11 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _vm.ConfigFilePath = _cfgPathBox.Text ?? "";
         _vm.SelectedScenarioId = (_scenarioCombo.SelectedItem as ScheduledTaskOption)?.Value ?? "";
         _vm.SelectedInfobaseId = (_infobaseCombo.SelectedItem as ScheduledTaskOption)?.Value ?? "";
+        _vm.PlatformCheckExpression = _platformExpressionBox.Text ?? "";
+        _vm.PlatformCheckIncludeTestVersions = _platformIncludeTestCheck.IsChecked == true;
+        if (Enum.TryParse<PlatformUpdateNotifyChannel>(
+                (_platformNotifyCombo.SelectedItem as ScheduledTaskOption)?.Value, out var notifyChannel))
+            _vm.PlatformNotifyChannel = notifyChannel;
         _vm.IsMonday = _dayChecks[0].IsChecked == true;
         _vm.IsTuesday = _dayChecks[1].IsChecked == true;
         _vm.IsWednesday = _dayChecks[2].IsChecked == true;

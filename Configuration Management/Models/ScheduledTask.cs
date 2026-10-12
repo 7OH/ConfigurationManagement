@@ -20,7 +20,27 @@ public enum ScheduledTaskKind
     CheckIntegrity,
 
     /// <summary>Обновление самого приложения через GitHub Releases (без диалога).</summary>
-    UpdateApp
+    UpdateApp,
+
+    /// <summary>
+    /// Проверка наличия обновления технологической платформы 1С в каталоге
+    /// <c>releases.1c.ru</c> по выражению проверки («8.5.*», «8.3.27.*») — без
+    /// установки, только уведомление о найденных версиях (issue #366).
+    /// </summary>
+    PlatformUpdateCheck
+}
+
+/// <summary>
+/// Канал уведомления задания «Проверить наличие обновления платформы» (issue #366):
+/// куда выводится сводка о найденных версиях.
+/// </summary>
+public enum PlatformUpdateNotifyChannel
+{
+    /// <summary>Сообщение в строке состояния главного окна приложения.</summary>
+    MainWindow,
+
+    /// <summary>Системное уведомление ОС (balloon трея на Windows, notify-send на Linux).</summary>
+    SystemNotifications
 }
 
 /// <summary>
@@ -60,6 +80,25 @@ public class ScheduledTask
 
     /// <summary>Путь к файлу .cf с новой конфигурацией (для UpdateConfig / BackupThenUpdateConfig).</summary>
     public string? ConfigFilePath { get; set; }
+
+    /// <summary>
+    /// Выражение проверки платформы (для PlatformUpdateCheck, issue #366): сегменты —
+    /// числа или «*», например «8.5.*» или «8.3.27.*». Пусто/невалидно — задание
+    /// завершается ошибкой валидации.
+    /// </summary>
+    public string? PlatformCheckExpression { get; set; }
+
+    /// <summary>
+    /// Учитывать ли тестовые (предрелизные) сборки платформы при проверке
+    /// (для PlatformUpdateCheck, issue #366). По умолчанию false.
+    /// </summary>
+    public bool PlatformCheckIncludeTestVersions { get; set; }
+
+    /// <summary>
+    /// Канал уведомления о результате проверки платформы (для PlatformUpdateCheck,
+    /// issue #366). По умолчанию — строка состояния главного окна.
+    /// </summary>
+    public PlatformUpdateNotifyChannel PlatformNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
 
     /// <summary>
     /// Момент последнего запуска задания (null — ещё не выполнялось).

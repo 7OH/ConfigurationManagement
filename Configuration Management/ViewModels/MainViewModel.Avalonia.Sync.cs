@@ -14,6 +14,17 @@ public partial class MainViewModel : ViewModelBase
         set => SetProperty(ref _syncMessage, value);
     }
 
+    /// <summary>
+    /// Показывает сообщение в строке состояния главного окна (issue #366): канал
+    /// уведомления задания по расписанию «Проверить наличие обновления платформы»
+    /// «В главном окне». Вызывается из фоновых сервисов через
+    /// <see cref="Services.IMainWindowNotifier"/>.
+    /// </summary>
+    public void ShowStatusBarMessage(string message)
+    {
+        SyncMessage = message ?? string.Empty;
+    }
+
     // ---- Синхронизация с ibases.v8i ----
     public IbasesSyncMode IbasesSyncMode => _settings.IbasesSyncMode;
     public string IbasesSyncFilePath => _settings.IbasesSyncFilePath;

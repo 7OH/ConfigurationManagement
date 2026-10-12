@@ -75,6 +75,17 @@ public partial class ScheduledTaskEditWindow : Window
         SatCheck.Content = T("Schedule.Days.Sat");
         SunCheck.Content = T("Schedule.Days.Sun");
 
+        // Опции проверки обновления платформы (issue #366).
+        PlatformExpressionLabel.Text = T("Schedule.PlatformCheck.Expression");
+        PlatformExpressionBox.Text = _vm.PlatformCheckExpression;
+        PlatformIncludeTestCheck.Content = T("Schedule.PlatformCheck.IncludeTest");
+        PlatformIncludeTestCheck.IsChecked = _vm.PlatformCheckIncludeTestVersions;
+        PlatformNotifyLabel.Text = T("Schedule.PlatformCheck.Notify");
+        PlatformNotifyCombo.ItemsSource = _vm.NotifyOptions;
+        PlatformNotifyCombo.DisplayMemberPath = "Text";
+        PlatformNotifyCombo.SelectedValuePath = "Value";
+        PlatformNotifyCombo.SelectedValue = _vm.PlatformNotifyChannel.ToString();
+
         ApplyKindVisibility();
 
         // Фокус в поле «Наименование» (issue #299): отложенный вызов после показа окна —
@@ -111,10 +122,12 @@ public partial class ScheduledTaskEditWindow : Window
             or ScheduledTaskKind.BackupThenUpdateConfig
             or ScheduledTaskKind.CheckIntegrity;
         var needsCfg = kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
+        var needsPlatformCheck = kind is ScheduledTaskKind.PlatformUpdateCheck;
 
         ScenarioPanel.Visibility = needsScenario ? Visibility.Visible : Visibility.Collapsed;
         InfobasePanel.Visibility = needsInfobase ? Visibility.Visible : Visibility.Collapsed;
         CfgPanel.Visibility = needsCfg ? Visibility.Visible : Visibility.Collapsed;
+        PlatformPanel.Visibility = needsPlatformCheck ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void KindCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -173,6 +186,10 @@ public partial class ScheduledTaskEditWindow : Window
         _vm.ConfigFilePath = CfgPathBox.Text ?? "";
         _vm.SelectedScenarioId = ScenarioCombo.SelectedValue as string ?? "";
         _vm.SelectedInfobaseId = InfobaseCombo.SelectedValue as string ?? "";
+        _vm.PlatformCheckExpression = PlatformExpressionBox.Text ?? "";
+        _vm.PlatformCheckIncludeTestVersions = PlatformIncludeTestCheck.IsChecked == true;
+        if (Enum.TryParse<PlatformUpdateNotifyChannel>(PlatformNotifyCombo.SelectedValue as string, out var notifyChannel))
+            _vm.PlatformNotifyChannel = notifyChannel;
         _vm.IsMonday = MonCheck.IsChecked == true;
         _vm.IsTuesday = TueCheck.IsChecked == true;
         _vm.IsWednesday = WedCheck.IsChecked == true;

@@ -1,5 +1,6 @@
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 
 namespace Configuration_Management.ViewModels;
 
@@ -44,6 +45,9 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         ConfigFilePath = task?.ConfigFilePath ?? "";
         SelectedScenarioId = task?.ScenarioId ?? "";
         SelectedInfobaseId = task?.InfobaseId ?? "";
+        PlatformCheckExpression = task?.PlatformCheckExpression ?? "";
+        PlatformCheckIncludeTestVersions = task?.PlatformCheckIncludeTestVersions ?? false;
+        PlatformNotifyChannel = task?.PlatformNotifyChannel ?? PlatformUpdateNotifyChannel.MainWindow;
 
         var days = task?.DaysOfWeek ?? new List<DayOfWeek>();
         IsMonday = days.Contains(DayOfWeek.Monday);
@@ -62,6 +66,9 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     public string ConfigFilePath { get; set; } = "";
     public string SelectedScenarioId { get; set; } = "";
     public string SelectedInfobaseId { get; set; } = "";
+    public string PlatformCheckExpression { get; set; } = "";
+    public bool PlatformCheckIncludeTestVersions { get; set; }
+    public PlatformUpdateNotifyChannel PlatformNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
 
     public bool IsMonday { get; set; }
     public bool IsTuesday { get; set; }
@@ -78,7 +85,15 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         new ScheduledTaskOption("UpdateConfig", LocalizationManager.T("Schedule.Kind.UpdateConfig")),
         new ScheduledTaskOption("BackupThenUpdateConfig", LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig")),
         new ScheduledTaskOption("CheckIntegrity", LocalizationManager.T("Schedule.Kind.CheckIntegrity")),
-        new ScheduledTaskOption("UpdateApp", LocalizationManager.T("Schedule.Kind.UpdateApp"))
+        new ScheduledTaskOption("UpdateApp", LocalizationManager.T("Schedule.Kind.UpdateApp")),
+        new ScheduledTaskOption("PlatformUpdateCheck", LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck"))
+    };
+
+    /// <summary>Доступные каналы уведомления проверки платформы (issue #366).</summary>
+    public IReadOnlyList<ScheduledTaskOption> NotifyOptions => new[]
+    {
+        new ScheduledTaskOption("MainWindow", LocalizationManager.T("Schedule.PlatformCheck.Notify.MainWindow")),
+        new ScheduledTaskOption("SystemNotifications", LocalizationManager.T("Schedule.PlatformCheck.Notify.System"))
     };
 
     /// <summary>Доступные сценарии резервирования.</summary>
@@ -113,6 +128,9 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     /// <summary>Нужен ли путь к файлу .cf (для обновления конфигурации).</summary>
     public bool NeedsCfgFile => Kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
 
+    /// <summary>Нужны ли опции проверки платформы (issue #366).</summary>
+    public bool NeedsPlatformCheck => Kind is ScheduledTaskKind.PlatformUpdateCheck;
+
     /// <summary>
     /// Валидация полей формы. Возвращает ключ локализации ошибки либо <c>null</c>,
     /// если всё корректно.
@@ -142,6 +160,9 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         if (NeedsCfgFile && string.IsNullOrWhiteSpace(ConfigFilePath))
             return "Schedule.CfgFileRequired";
 
+        if (NeedsPlatformCheck && !PlatformUpdateCheckLogic.IsValidExpression(PlatformCheckExpression))
+            return "Schedule.PlatformCheck.InvalidExpression";
+
         return null;
     }
 
@@ -155,6 +176,11 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         task.ScenarioId = string.IsNullOrWhiteSpace(SelectedScenarioId) ? null : SelectedScenarioId.Trim();
         task.InfobaseId = string.IsNullOrWhiteSpace(SelectedInfobaseId) ? null : SelectedInfobaseId.Trim();
         task.ConfigFilePath = string.IsNullOrWhiteSpace(ConfigFilePath) ? null : ConfigFilePath.Trim();
+        task.PlatformCheckExpression = string.IsNullOrWhiteSpace(PlatformCheckExpression)
+            ? null
+            : PlatformCheckExpression.Trim();
+        task.PlatformCheckIncludeTestVersions = PlatformCheckIncludeTestVersions;
+        task.PlatformNotifyChannel = PlatformNotifyChannel;
         task.DaysOfWeek = CollectDays();
     }
 

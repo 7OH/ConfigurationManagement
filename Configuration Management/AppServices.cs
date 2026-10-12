@@ -118,6 +118,11 @@ public static class AppServices
         // NotificationDispatcher рассылает сообщение всем включённым каналам.
         services.AddSingleton<INotificationChannel, SystemNotificationChannel>();
         services.AddSingleton<INotificationService, NotificationDispatcher>();
+        // Сообщение в строке состояния главного окна из фоновых сервисов (issue #366):
+        // канал уведомления задания «Проверить наличие обновления платформы» —
+        // «В главном окне». Платформенная реализация (WPF/Avalonia) выбирается
+        // символами условной компиляции.
+        services.AddSingleton<IMainWindowNotifier, MainWindowNotifier>();
         // Завершение процесса 1С по PID (инспектор процессов): Windows — Process.Kill
         // вместе с деревом потомков, Linux — kill через /proc со сверкой времени старта.
         services.AddSingleton<IOneCProcessKiller, OneCProcessKiller>();
