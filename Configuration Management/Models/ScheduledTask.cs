@@ -27,11 +27,20 @@ public enum ScheduledTaskKind
     /// <c>releases.1c.ru</c> по выражению проверки («8.5.*», «8.3.27.*») — без
     /// установки, только уведомление о найденных версиях (issue #366).
     /// </summary>
-    PlatformUpdateCheck
+    PlatformUpdateCheck,
+
+    /// <summary>
+    /// Проверка наличия обновления конфигурации 1С в каталоге
+    /// <c>releases.1c.ru</c> для выбранной конфигурации: максимальная установленная
+    /// версия по списку баз сравнивается с доступными релизами — без установки,
+    /// только уведомление о версиях выше установленной (issue #367).
+    /// </summary>
+    ConfigurationUpdateCheck
 }
 
 /// <summary>
-/// Канал уведомления задания «Проверить наличие обновления платформы» (issue #366):
+/// Канал уведомления заданий-проверок («Проверить наличие обновления платформы» —
+/// issue #366, «Проверить наличие обновления конфигурации» — issue #367):
 /// куда выводится сводка о найденных версиях.
 /// </summary>
 public enum PlatformUpdateNotifyChannel
@@ -99,6 +108,20 @@ public class ScheduledTask
     /// issue #366). По умолчанию — строка состояния главного окна.
     /// </summary>
     public PlatformUpdateNotifyChannel PlatformNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
+
+    /// <summary>
+    /// Проверяемая конфигурация (для ConfigurationUpdateCheck, issue #367): имя
+    /// конфигурации из списка баз (или введённое вручную). Пусто — задание
+    /// завершается ошибкой валидации.
+    /// </summary>
+    public string? ConfigCheckConfiguration { get; set; }
+
+    /// <summary>
+    /// Канал уведомления о результате проверки конфигурации (для
+    /// ConfigurationUpdateCheck, issue #367): общий enum каналов из issue #366.
+    /// По умолчанию — строка состояния главного окна.
+    /// </summary>
+    public PlatformUpdateNotifyChannel ConfigCheckNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
 
     /// <summary>
     /// Момент последнего запуска задания (null — ещё не выполнялось).

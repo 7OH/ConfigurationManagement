@@ -86,6 +86,17 @@ public partial class ScheduledTaskEditWindow : Window
         PlatformNotifyCombo.SelectedValuePath = "Value";
         PlatformNotifyCombo.SelectedValue = _vm.PlatformNotifyChannel.ToString();
 
+        // Опции проверки обновления конфигурации (issue #367): ComboBox редактируемый —
+        // можно выбрать имя из списка баз либо ввести вручную.
+        ConfigLabel.Text = T("Schedule.ConfigCheck.Configuration");
+        ConfigCombo.ItemsSource = _vm.ConfigurationOptions;
+        ConfigCombo.Text = _vm.ConfigCheckConfiguration;
+        ConfigNotifyLabel.Text = T("Schedule.PlatformCheck.Notify");
+        ConfigNotifyCombo.ItemsSource = _vm.NotifyOptions;
+        ConfigNotifyCombo.DisplayMemberPath = "Text";
+        ConfigNotifyCombo.SelectedValuePath = "Value";
+        ConfigNotifyCombo.SelectedValue = _vm.ConfigCheckNotifyChannel.ToString();
+
         ApplyKindVisibility();
 
         // Фокус в поле «Наименование» (issue #299): отложенный вызов после показа окна —
@@ -123,11 +134,13 @@ public partial class ScheduledTaskEditWindow : Window
             or ScheduledTaskKind.CheckIntegrity;
         var needsCfg = kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
         var needsPlatformCheck = kind is ScheduledTaskKind.PlatformUpdateCheck;
+        var needsConfigCheck = kind is ScheduledTaskKind.ConfigurationUpdateCheck;
 
         ScenarioPanel.Visibility = needsScenario ? Visibility.Visible : Visibility.Collapsed;
         InfobasePanel.Visibility = needsInfobase ? Visibility.Visible : Visibility.Collapsed;
         CfgPanel.Visibility = needsCfg ? Visibility.Visible : Visibility.Collapsed;
         PlatformPanel.Visibility = needsPlatformCheck ? Visibility.Visible : Visibility.Collapsed;
+        ConfigPanel.Visibility = needsConfigCheck ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void KindCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -190,6 +203,10 @@ public partial class ScheduledTaskEditWindow : Window
         _vm.PlatformCheckIncludeTestVersions = PlatformIncludeTestCheck.IsChecked == true;
         if (Enum.TryParse<PlatformUpdateNotifyChannel>(PlatformNotifyCombo.SelectedValue as string, out var notifyChannel))
             _vm.PlatformNotifyChannel = notifyChannel;
+        // Для редактируемого ComboBox значение — введённый/выбранный текст (issue #367).
+        _vm.ConfigCheckConfiguration = ConfigCombo.Text ?? "";
+        if (Enum.TryParse<PlatformUpdateNotifyChannel>(ConfigNotifyCombo.SelectedValue as string, out var configNotifyChannel))
+            _vm.ConfigCheckNotifyChannel = configNotifyChannel;
         _vm.IsMonday = MonCheck.IsChecked == true;
         _vm.IsTuesday = TueCheck.IsChecked == true;
         _vm.IsWednesday = WedCheck.IsChecked == true;

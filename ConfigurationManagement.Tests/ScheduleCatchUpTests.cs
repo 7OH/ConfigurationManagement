@@ -141,6 +141,18 @@ public sealed class ScheduleCatchUpTests
         Assert.False(ScheduleCatchUpCalculator.IsMissed(task, now));
     }
 
+    [Fact]
+    public void ConfigurationUpdateCheckKind_NotMissed()
+    {
+        // Проверка обновления конфигурации (issue #367) не догоняется: обращение к
+        // каталогу — сетевая операция, нежелательная при старте после простоя.
+        var task = NewTask("02:00");
+        task.Kind = ScheduledTaskKind.ConfigurationUpdateCheck;
+        var now = new DateTime(2026, 9, 24, 10, 0, 0);
+
+        Assert.False(ScheduleCatchUpCalculator.IsMissed(task, now));
+    }
+
     // ---- Порог давности ----
 
     [Fact]
@@ -264,6 +276,8 @@ public sealed class ScheduleCatchUpTests
         new FakeNotifications(),
         new FakePlatformUpdateService(),
         new FakePlatformVersions(),
+        null!, // IOneCUpdatesService: задание проверки конфигурации здесь не выполняется
+        null!, // ICustomConfigTypesStore: задание проверки конфигурации здесь не выполняется
         new FakeMainWindowNotifier());
 
     /// <summary>Фейковое хранилище заданий в памяти (без файловой системы).</summary>

@@ -62,6 +62,7 @@ public class ScheduledTaskItemViewModel : ViewModelBase
         ScheduledTaskKind.CheckIntegrity => LocalizationManager.T("Schedule.Kind.CheckIntegrity"),
         ScheduledTaskKind.UpdateApp => LocalizationManager.T("Schedule.Kind.UpdateApp"),
         ScheduledTaskKind.PlatformUpdateCheck => LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck"),
+        ScheduledTaskKind.ConfigurationUpdateCheck => LocalizationManager.T("Schedule.Kind.ConfigurationUpdateCheck"),
         _ => LocalizationManager.T("Schedule.Kind.Backup")
     };
 

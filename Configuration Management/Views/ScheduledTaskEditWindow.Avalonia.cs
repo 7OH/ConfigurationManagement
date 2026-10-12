@@ -37,6 +37,9 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
     private readonly TextBox _platformExpressionBox = new TextBox().Styled(ControlThemes.ModernTextBox);
     private readonly CheckBox _platformIncludeTestCheck = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
     private readonly ComboBox _platformNotifyCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
+    private readonly StackPanel _configPanel = new() { Spacing = 6 };
+    private readonly ComboBox _configCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
+    private readonly ComboBox _configNotifyCombo = new ComboBox().Styled(ControlThemes.ModernComboBox);
 
     /// <summary>Готовое задание при подтверждении, иначе <c>null</c>.</summary>
     public ScheduledTask? Result { get; private set; }
@@ -167,6 +170,24 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _platformPanel.Children.Add(_platformNotifyCombo);
         panel.Children.Add(_platformPanel);
 
+        // Опции проверки обновления конфигурации (issue #367): имя конфигурации (выбор
+        // из списка баз + ручной ввод) и канал уведомления. ComboBox редактируемый —
+        // IsEditable выставляется отдельным оператором (после Styled() недопустим
+        // объектный инициализатор); введённое/выбранное имя читается из Text.
+        _configCombo.IsEditable = true;
+        _configCombo.ItemsSource = _vm.ConfigurationOptions;
+        _configCombo.Text = _vm.ConfigCheckConfiguration;
+        _configCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _configNotifyCombo.ItemsSource = _vm.NotifyOptions;
+        _configNotifyCombo.SelectedItem = _vm.NotifyOptions
+            .FirstOrDefault(o => o.Value == _vm.ConfigCheckNotifyChannel.ToString());
+        _configNotifyCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _configPanel.Children.Add(Label(T("Schedule.ConfigCheck.Configuration")));
+        _configPanel.Children.Add(_configCombo);
+        _configPanel.Children.Add(Label(T("Schedule.PlatformCheck.Notify")));
+        _configPanel.Children.Add(_configNotifyCombo);
+        panel.Children.Add(_configPanel);
+
         var bottom = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -235,6 +256,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
             or ScheduledTaskKind.CheckIntegrity;
         _cfgPanel.IsVisible = kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
         _platformPanel.IsVisible = kind is ScheduledTaskKind.PlatformUpdateCheck;
+        _configPanel.IsVisible = kind is ScheduledTaskKind.ConfigurationUpdateCheck;
     }
 
     private void BrowseCfgFile()
@@ -283,6 +305,11 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         if (Enum.TryParse<PlatformUpdateNotifyChannel>(
                 (_platformNotifyCombo.SelectedItem as ScheduledTaskOption)?.Value, out var notifyChannel))
             _vm.PlatformNotifyChannel = notifyChannel;
+        // Для редактируемого ComboBox имя конфигурации читается из Text (issue #367).
+        _vm.ConfigCheckConfiguration = _configCombo.Text ?? "";
+        if (Enum.TryParse<PlatformUpdateNotifyChannel>(
+                (_configNotifyCombo.SelectedItem as ScheduledTaskOption)?.Value, out var configNotifyChannel))
+            _vm.ConfigCheckNotifyChannel = configNotifyChannel;
         _vm.IsMonday = _dayChecks[0].IsChecked == true;
         _vm.IsTuesday = _dayChecks[1].IsChecked == true;
         _vm.IsWednesday = _dayChecks[2].IsChecked == true;

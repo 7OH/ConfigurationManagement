@@ -30,6 +30,8 @@ public class SchedulerService : IDisposable
     private readonly INotificationService _notifications;
     private readonly IPlatformUpdateService _platformUpdate;
     private readonly IPlatformVersionService _platformVersions;
+    private readonly IOneCUpdatesService _updates;
+    private readonly ICustomConfigTypesStore _configTypes;
     private readonly IMainWindowNotifier _mainWindowNotifier;
     private readonly IAppLogger? _logger;
 
@@ -49,6 +51,8 @@ public class SchedulerService : IDisposable
         INotificationService notifications,
         IPlatformUpdateService platformUpdate,
         IPlatformVersionService platformVersions,
+        IOneCUpdatesService updates,
+        ICustomConfigTypesStore configTypes,
         IMainWindowNotifier mainWindowNotifier,
         IAppLogger? logger = null)
     {
@@ -63,6 +67,8 @@ public class SchedulerService : IDisposable
         _notifications = notifications;
         _platformUpdate = platformUpdate;
         _platformVersions = platformVersions;
+        _updates = updates;
+        _configTypes = configTypes;
         _mainWindowNotifier = mainWindowNotifier;
         _logger = logger;
     }
@@ -249,8 +255,9 @@ public class SchedulerService : IDisposable
     {
         // Задание «Проверить наличие обновления платформы» (issue #366) уведомляет
         // само себя по выбранному каналу (главное окно / системные уведомления) —
-        // здесь оно пропускается, чтобы не дублировать сообщение.
-        if (task.Kind == ScheduledTaskKind.PlatformUpdateCheck)
+        // здесь оно пропускается, чтобы не дублировать сообщение. То же для проверки
+        // обновления конфигурации (issue #367).
+        if (task.Kind is ScheduledTaskKind.PlatformUpdateCheck or ScheduledTaskKind.ConfigurationUpdateCheck)
             return;
 
         try
@@ -277,6 +284,7 @@ public class SchedulerService : IDisposable
         ScheduledTaskKind.CheckIntegrity => LocalizationManager.T("Schedule.Kind.CheckIntegrity"),
         ScheduledTaskKind.UpdateApp => LocalizationManager.T("Schedule.Kind.UpdateApp"),
         ScheduledTaskKind.PlatformUpdateCheck => LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck"),
+        ScheduledTaskKind.ConfigurationUpdateCheck => LocalizationManager.T("Schedule.Kind.ConfigurationUpdateCheck"),
         _ => LocalizationManager.T("Schedule.Kind.Backup")
     };
 
@@ -292,6 +300,7 @@ public class SchedulerService : IDisposable
                 ScheduledTaskKind.CheckIntegrity => await RunCheckIntegrityAsync(task).ConfigureAwait(false),
                 ScheduledTaskKind.UpdateApp => await RunUpdateAppAsync(task).ConfigureAwait(false),
                 ScheduledTaskKind.PlatformUpdateCheck => await RunPlatformUpdateCheckAsync(task).ConfigureAwait(false),
+                ScheduledTaskKind.ConfigurationUpdateCheck => await RunConfigurationUpdateCheckAsync(task).ConfigureAwait(false),
                 _ => null
             };
         }
@@ -457,16 +466,138 @@ public class SchedulerService : IDisposable
     }
 
     /// <summary>
+    /// Проверка наличия обновления конфигурации 1С (issue #367): максимальная
+    /// установленная версия выбранной конфигурации по списку баз сравнивается с каталогом
+    /// релизов <c>releases.1c.ru</c> — через тот же сервис, что использует окно «Проверка
+    /// обновлений» (F9, <see cref="IOneCUpdatesService"/>). Результат — уведомление о
+    /// версиях выше установленной по выбранному каналу + LastRunMessage; ошибки
+    /// авторизации ИТС/сети честно попадают в сообщение об ошибке (паттерн issue #366).
+    /// </summary>
+    private async Task<BackupRunResult?> RunConfigurationUpdateCheckAsync(ScheduledTask task)
+    {
+        var result = new BackupRunResult();
+        var configurationName = task.ConfigCheckConfiguration?.Trim() ?? "";
+        if (configurationName.Length == 0)
+        {
+            result.Success = false;
+            result.ErrorMessage = LocalizationManager.T("Schedule.ConfigCheck.ConfigurationRequired");
+            NotifyConfigurationUpdateCheck(task, NotificationKind.Error, result.ErrorMessage);
+            return result;
+        }
+
+        List<Infobase> bases;
+        try
+        {
+            bases = _repository.Load();
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("Задание проверки конфигурации: не удалось загрузить список баз", ex);
+            bases = new List<Infobase>();
+        }
+
+        // Максимальная установленная версия по базам с выбранной конфигурацией
+        // (чистая функция, покрыта юнит-тестами).
+        var installed = ConfigurationUpdateCheckLogic.InstalledVersions(bases, configurationName);
+
+        // Адрес каталога релизов строится как в окне F9: связка базы с типовой
+        // конфигурацией (или её имя), редакция по версии и переопределения базы.
+        var configTypes = _configTypes.LoadAll();
+        var reference = ConfigurationUpdateCheckLogic.PickReferenceBase(bases, configurationName);
+        var config = ConfigTypeMatcher.FindByCode(configTypes, reference?.UpdateConfigCode)
+            ?? ConfigTypeMatcher.FindByInfobaseName(configTypes, configurationName);
+        var edition = ConfigTypeMatcher.FindEditionByVersion(config, reference?.ConfigurationVersion)
+            ?? config?.DefaultEdition;
+        var url = _updates.BuildUpdateUrl(
+            config, edition, reference?.UpdateUrlOverride, reference?.UpdateUrlSegment);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            result.Success = false;
+            result.ErrorMessage = LocalizationManager.T("Updates.NoUrl");
+            NotifyConfigurationUpdateCheck(task, NotificationKind.Error, result.ErrorMessage);
+            return result;
+        }
+
+        // Полный список версий: параметр allUpdates=true, как в окне F9 (issue #352).
+        var catalog = await _updates.GetUpdateCatalogAsync(
+            OneCUpdatesService.BuildAllUpdatesCatalogUrl(url)).ConfigureAwait(false);
+        if (catalog.Status != PortalFetchStatus.Ok)
+        {
+            result.Success = false;
+            result.ErrorMessage = LocalizationManager.T(
+                string.IsNullOrEmpty(catalog.ErrorKey) ? "Updates.NetworkError" : catalog.ErrorKey);
+            NotifyConfigurationUpdateCheck(task, NotificationKind.Error, result.ErrorMessage);
+            return result;
+        }
+
+        var check = ConfigurationUpdateCheckLogic.Check(installed, catalog.Releases);
+
+        // Текущей версии может не быть в каталоге (issue #367) — упоминаем в журнале.
+        if (check.MaxInstalledVersion is not null && !check.InstalledVersionInCatalog)
+        {
+            _logger?.Warn(
+                $"Задание «{task.Name}»: установленная версия {check.MaxInstalledVersion} " +
+                $"конфигурации «{configurationName}» не найдена в каталоге релизов.");
+        }
+
+        var versions = ConfigurationUpdateCheckLogic.FormatVersions(check.AvailableVersions);
+        var summary = check.HasUpdate
+            ? check.MaxInstalledVersion is null
+                ? string.Format(
+                    LocalizationManager.T("Schedule.ConfigUpdateCheck.FoundNoInstalled"),
+                    configurationName,
+                    versions)
+                : string.Format(
+                    LocalizationManager.T("Schedule.ConfigUpdateCheck.Found"),
+                    configurationName,
+                    versions,
+                    check.MaxInstalledVersion)
+            : string.Format(
+                LocalizationManager.T("Schedule.ConfigUpdateCheck.UpToDate"),
+                configurationName,
+                check.MaxInstalledVersion ?? string.Empty);
+
+        result.Success = true;
+        result.ScenarioName = summary;
+        NotifyConfigurationUpdateCheck(
+            task,
+            check.HasUpdate ? NotificationKind.Info : NotificationKind.Success,
+            summary);
+        return result;
+    }
+
+    /// <summary>
     /// Уведомление о результате проверки платформы (issue #366) по каналу задания:
     /// «В главном окне» — строка состояния главного окна, «Системные уведомления» —
     /// диспетчер уведомлений (balloon трея / notify-send). Ошибки не влияют на планировщик.
     /// </summary>
     private void NotifyPlatformUpdateCheck(ScheduledTask task, NotificationKind kind, string message)
+        => NotifyCheckResult(task, task.PlatformNotifyChannel, kind, message);
+
+    /// <summary>
+    /// Уведомление о результате проверки конфигурации (issue #367): тот же общий канал,
+    /// что у проверки платформы (issue #366) — «В главном окне» / «Системные уведомления».
+    /// </summary>
+    private void NotifyConfigurationUpdateCheck(ScheduledTask task, NotificationKind kind, string message)
+        => NotifyCheckResult(task, task.ConfigCheckNotifyChannel, kind, message);
+
+    /// <summary>
+    /// Общий показ результата заданий-проверок (issues #366/#367) по выбранному каналу:
+    /// «В главном окне» — строка состояния главного окна через
+    /// <see cref="IMainWindowNotifier"/>, «Системные уведомления» — диспетчер
+    /// уведомлений (balloon трея Windows / notify-send Linux). Ошибки уведомления
+    /// не влияют на планировщик.
+    /// </summary>
+    private void NotifyCheckResult(
+        ScheduledTask task,
+        PlatformUpdateNotifyChannel channel,
+        NotificationKind kind,
+        string message)
     {
         try
         {
             var text = $"{task.Name}: {message}";
-            switch (task.PlatformNotifyChannel)
+            switch (channel)
             {
                 case PlatformUpdateNotifyChannel.MainWindow:
                     _mainWindowNotifier.ShowMessage(text);
@@ -482,7 +613,7 @@ public class SchedulerService : IDisposable
         }
         catch (Exception ex)
         {
-            _logger?.Error("Не удалось уведомить о проверке обновления платформы", ex);
+            _logger?.Error("Не удалось уведомить о проверке обновления", ex);
         }
     }
 

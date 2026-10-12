@@ -48,6 +48,8 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         PlatformCheckExpression = task?.PlatformCheckExpression ?? "";
         PlatformCheckIncludeTestVersions = task?.PlatformCheckIncludeTestVersions ?? false;
         PlatformNotifyChannel = task?.PlatformNotifyChannel ?? PlatformUpdateNotifyChannel.MainWindow;
+        ConfigCheckConfiguration = task?.ConfigCheckConfiguration ?? "";
+        ConfigCheckNotifyChannel = task?.ConfigCheckNotifyChannel ?? PlatformUpdateNotifyChannel.MainWindow;
 
         var days = task?.DaysOfWeek ?? new List<DayOfWeek>();
         IsMonday = days.Contains(DayOfWeek.Monday);
@@ -69,6 +71,8 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     public string PlatformCheckExpression { get; set; } = "";
     public bool PlatformCheckIncludeTestVersions { get; set; }
     public PlatformUpdateNotifyChannel PlatformNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
+    public string ConfigCheckConfiguration { get; set; } = "";
+    public PlatformUpdateNotifyChannel ConfigCheckNotifyChannel { get; set; } = PlatformUpdateNotifyChannel.MainWindow;
 
     public bool IsMonday { get; set; }
     public bool IsTuesday { get; set; }
@@ -86,15 +90,23 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         new ScheduledTaskOption("BackupThenUpdateConfig", LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig")),
         new ScheduledTaskOption("CheckIntegrity", LocalizationManager.T("Schedule.Kind.CheckIntegrity")),
         new ScheduledTaskOption("UpdateApp", LocalizationManager.T("Schedule.Kind.UpdateApp")),
-        new ScheduledTaskOption("PlatformUpdateCheck", LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck"))
+        new ScheduledTaskOption("PlatformUpdateCheck", LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck")),
+        new ScheduledTaskOption("ConfigurationUpdateCheck", LocalizationManager.T("Schedule.Kind.ConfigurationUpdateCheck"))
     };
 
-    /// <summary>Доступные каналы уведомления проверки платформы (issue #366).</summary>
+    /// <summary>Доступные каналы уведомления проверок платформы/конфигурации (issue #366/#367).</summary>
     public IReadOnlyList<ScheduledTaskOption> NotifyOptions => new[]
     {
         new ScheduledTaskOption("MainWindow", LocalizationManager.T("Schedule.PlatformCheck.Notify.MainWindow")),
         new ScheduledTaskOption("SystemNotifications", LocalizationManager.T("Schedule.PlatformCheck.Notify.System"))
     };
+
+    /// <summary>
+    /// Имена конфигураций из списка баз для выбора в форме (issue #367): ComboBox
+    /// позволяет выбрать из списка либо ввести имя вручную.
+    /// </summary>
+    public IReadOnlyList<string> ConfigurationOptions =>
+        ConfigurationUpdateCheckLogic.ConfigurationNames(_infobases);
 
     /// <summary>Доступные сценарии резервирования.</summary>
     public IReadOnlyList<ScheduledTaskOption> ScenarioOptions => _scenarios
@@ -131,6 +143,9 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     /// <summary>Нужны ли опции проверки платформы (issue #366).</summary>
     public bool NeedsPlatformCheck => Kind is ScheduledTaskKind.PlatformUpdateCheck;
 
+    /// <summary>Нужны ли опции проверки конфигурации (issue #367).</summary>
+    public bool NeedsConfigCheck => Kind is ScheduledTaskKind.ConfigurationUpdateCheck;
+
     /// <summary>
     /// Валидация полей формы. Возвращает ключ локализации ошибки либо <c>null</c>,
     /// если всё корректно.
@@ -163,6 +178,9 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         if (NeedsPlatformCheck && !PlatformUpdateCheckLogic.IsValidExpression(PlatformCheckExpression))
             return "Schedule.PlatformCheck.InvalidExpression";
 
+        if (NeedsConfigCheck && string.IsNullOrWhiteSpace(ConfigCheckConfiguration))
+            return "Schedule.ConfigCheck.ConfigurationRequired";
+
         return null;
     }
 
@@ -181,6 +199,10 @@ public class ScheduledTaskEditViewModel : ViewModelBase
             : PlatformCheckExpression.Trim();
         task.PlatformCheckIncludeTestVersions = PlatformCheckIncludeTestVersions;
         task.PlatformNotifyChannel = PlatformNotifyChannel;
+        task.ConfigCheckConfiguration = string.IsNullOrWhiteSpace(ConfigCheckConfiguration)
+            ? null
+            : ConfigCheckConfiguration.Trim();
+        task.ConfigCheckNotifyChannel = ConfigCheckNotifyChannel;
         task.DaysOfWeek = CollectDays();
     }
 
