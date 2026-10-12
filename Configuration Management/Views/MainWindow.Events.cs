@@ -259,6 +259,10 @@ namespace Configuration_Management
                 // заголовок и все уже созданные строки баз.
                 Dispatcher.BeginInvoke(new Action(ApplyColumnOrder), System.Windows.Threading.DispatcherPriority.Loaded);
             }
+            else if (e.PropertyName == nameof(MainViewModel.ShowTags))
+            {
+                Dispatcher.BeginInvoke(new Action(RefreshTagRowVisibility), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
         }
 
         /// <summary>

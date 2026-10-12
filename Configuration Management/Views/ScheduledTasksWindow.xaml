@@ -47,9 +47,8 @@
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <DockPanel Margin="3">
-                        <!-- Переключатель активности прямо в строке (issue #372, п. 6). -->
-                        <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsActive, Mode=TwoWay}"
-                                  VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsActive, Mode=TwoWay}"
+                                  VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <StackPanel>
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
                             <StackPanel Orientation="Horizontal" Margin="0,3,0,0">

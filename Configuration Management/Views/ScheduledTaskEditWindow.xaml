@@ -19,6 +19,14 @@
         <Style TargetType="CheckBox" BasedOn="{StaticResource ModernMaterialCheckBox}">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
+        <!-- Пункт списка (тип задания / сценарий / база / канал уведомления / единица
+             повтора): явный ItemTemplate вместо DisplayMemberPath из code-behind.
+             Закрытый комбобокс с ModernComboBox рисует выбранный элемент до применения
+             DisplayMemberPath и показывал ToString() — то есть ключ («Backup»)
+             вместо названия («Резервная копия»), issue #372. -->
+        <DataTemplate x:Key="ScheduleOptionTemplate">
+            <TextBlock Text="{Binding Text}"/>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid Margin="14">
@@ -57,7 +65,9 @@
                 <CheckBox x:Name="EnabledCheck" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,0,8"/>
 
                 <TextBlock Grid.Row="2" Text="Тип действия" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                <ComboBox x:Name="KindCombo" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" SelectionChanged="KindCombo_SelectionChanged"/>
+                <ComboBox x:Name="KindCombo" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8"
+                          ItemTemplate="{StaticResource ScheduleOptionTemplate}"
+                          SelectionChanged="KindCombo_SelectionChanged"/>
 
                 <TextBlock Grid.Row="3" Text="Время (ЧЧ:ММ)" VerticalAlignment="Center" Margin="0,0,8,8"/>
                 <TextBox x:Name="TimeBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8"/>
@@ -79,13 +89,13 @@
                          сценарий, не закрывая окно задания по расписанию. -->
                     <DockPanel>
                         <Button x:Name="ScenariosButton" DockPanel.Dock="Right" Width="100" Content="Сценарии…" Padding="6,4" Margin="8,0,0,0" Click="Scenarios_Click"/>
-                        <ComboBox x:Name="ScenarioCombo" Margin="0,0,0,0"/>
+                        <ComboBox x:Name="ScenarioCombo" Margin="0,0,0,0" ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                     </DockPanel>
                 </StackPanel>
 
                 <StackPanel x:Name="InfobasePanel" Grid.Row="6" Grid.ColumnSpan="2" Margin="0,0,0,8">
                     <TextBlock Text="Информационная база" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                    <ComboBox x:Name="InfobaseCombo" Margin="0,0,0,0"/>
+                    <ComboBox x:Name="InfobaseCombo" Margin="0,0,0,0" ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="CfgPanel" Grid.Row="7" Grid.ColumnSpan="2" Margin="0,0,0,8">
@@ -104,7 +114,7 @@
                     <TextBox x:Name="PlatformExpressionBox" Margin="0,0,0,8"/>
                     <CheckBox x:Name="PlatformIncludeTestCheck" Content="Учесть тестовые" Margin="0,0,0,8"/>
                     <TextBlock x:Name="PlatformNotifyLabel" Text="Куда уведомлять" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                    <ComboBox x:Name="PlatformNotifyCombo" Margin="0,0,0,0"/>
+                    <ComboBox x:Name="PlatformNotifyCombo" Margin="0,0,0,0" ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                     <CheckBox x:Name="PlatformNotifyNoUpdatesCheck" Content="Уведомлять об отсутствии" Margin="0,8,0,0"/>
                 </StackPanel>
 
@@ -115,7 +125,7 @@
                     <TextBlock x:Name="ConfigLabel" Text="Конфигурация" VerticalAlignment="Center" Margin="0,0,8,8"/>
                     <ComboBox x:Name="ConfigCombo" IsEditable="True" Margin="0,0,0,8"/>
                     <TextBlock x:Name="ConfigNotifyLabel" Text="Куда уведомлять" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                    <ComboBox x:Name="ConfigNotifyCombo" Margin="0,0,0,0"/>
+                    <ComboBox x:Name="ConfigNotifyCombo" Margin="0,0,0,0" ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                     <CheckBox x:Name="ConfigNotifyNoUpdatesCheck" Content="Уведомлять об отсутствии" Margin="0,8,0,0"/>
                 </StackPanel>
 
@@ -125,7 +135,8 @@
                     <CheckBox x:Name="RepeatCheck" Content="Повторять с интервалом" Margin="0,0,0,8"/>
                     <DockPanel>
                         <TextBlock x:Name="RepeatValueLabel" Text="Интервал:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <ComboBox x:Name="RepeatUnitCombo" DockPanel.Dock="Right" Width="110" Margin="8,0,0,0"/>
+                        <ComboBox x:Name="RepeatUnitCombo" DockPanel.Dock="Right" Width="110" Margin="8,0,0,0"
+                                  ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                         <TextBox x:Name="RepeatValueBox" Width="80" HorizontalAlignment="Left"/>
                     </DockPanel>
                 </StackPanel>

@@ -760,6 +760,29 @@ namespace Configuration_Management
             MainTree.UpdateLayout();
         }
 
+        internal void RefreshTagRowVisibility()
+        {
+            if (MainTree is null)
+                return;
+            var wasVirtualizing = VirtualizingPanel.GetIsVirtualizing(MainTree);
+            if (!wasVirtualizing)
+            {
+                MainTree.UpdateLayout();
+                return;
+            }
+
+            VirtualizingPanel.SetIsVirtualizing(MainTree, false);
+            try
+            {
+                MainTree.UpdateLayout();
+            }
+            finally
+            {
+                VirtualizingPanel.SetIsVirtualizing(MainTree, wasVirtualizing);
+                MainTree.UpdateLayout();
+            }
+        }
+
         private void OnMainTree_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
         {
             e.Handled = true;

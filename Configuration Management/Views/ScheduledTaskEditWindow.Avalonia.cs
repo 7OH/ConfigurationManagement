@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
@@ -117,6 +118,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
 
         panel.Children.Add(Label(T("Schedule.Kind")));
         _kindCombo.ItemsSource = _vm.KindOptions;
+        ApplyOptionTemplate(_kindCombo);
         _kindCombo.SelectedItem = _vm.KindOptions.FirstOrDefault(o => o.Value == _vm.Kind.ToString());
         _kindCombo.SelectionChanged += (_, _) => ApplyKindVisibility();
         _kindCombo.HorizontalAlignment = HorizontalAlignment.Left;
@@ -134,6 +136,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         // Сценарий резервирования. Кнопка «Сценарии…» (issue #292) открывает окно списка
         // сценариев, чтобы посмотреть/создать сценарий, не закрывая окно задания.
         _scenarioCombo.ItemsSource = _vm.ScenarioOptions;
+        ApplyOptionTemplate(_scenarioCombo);
         _scenarioCombo.SelectedItem = _vm.ScenarioOptions.FirstOrDefault(o => o.Value == _vm.SelectedScenarioId);
         _scenarioCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
         var scenariosButton = new Button { Content = T("Schedule.Scenarios"), Width = 110 }
@@ -149,6 +152,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
 
         // Информационная база.
         _infobaseCombo.ItemsSource = _vm.InfobaseOptions;
+        ApplyOptionTemplate(_infobaseCombo);
         _infobaseCombo.SelectedItem = _vm.InfobaseOptions.FirstOrDefault(o => o.Value == _vm.SelectedInfobaseId);
         _infobaseCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
         _infobasePanel.Children.Add(Label(T("Schedule.Base")));
@@ -173,6 +177,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _platformIncludeTestCheck.Content = T("Schedule.PlatformCheck.IncludeTest");
         _platformIncludeTestCheck.IsChecked = _vm.PlatformCheckIncludeTestVersions;
         _platformNotifyCombo.ItemsSource = _vm.NotifyOptions;
+        ApplyOptionTemplate(_platformNotifyCombo);
         _platformNotifyCombo.SelectedItem = _vm.NotifyOptions
             .FirstOrDefault(o => o.Value == _vm.PlatformNotifyChannel.ToString());
         _platformNotifyCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -195,6 +200,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _configCombo.Text = _vm.ConfigCheckConfiguration;
         _configCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
         _configNotifyCombo.ItemsSource = _vm.NotifyOptions;
+        ApplyOptionTemplate(_configNotifyCombo);
         _configNotifyCombo.SelectedItem = _vm.NotifyOptions
             .FirstOrDefault(o => o.Value == _vm.ConfigCheckNotifyChannel.ToString());
         _configNotifyCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -215,6 +221,7 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
         _repeatValueBox.Width = 80;
         _repeatValueBox.HorizontalAlignment = HorizontalAlignment.Left;
         _repeatUnitCombo.ItemsSource = _vm.RepeatUnitOptions;
+        ApplyOptionTemplate(_repeatUnitCombo);
         _repeatUnitCombo.SelectedItem = _vm.RepeatUnitOptions
             .FirstOrDefault(o => o.Value == _vm.RepeatIntervalUnit.ToString());
         _repeatUnitCombo.HorizontalAlignment = HorizontalAlignment.Left;
@@ -301,6 +308,20 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
             var value = (_kindCombo.SelectedItem as ScheduledTaskOption)?.Value ?? "Backup";
             return Enum.TryParse<ScheduledTaskKind>(value, out var kind) ? kind : ScheduledTaskKind.Backup;
         }
+    }
+
+    /// <summary>
+    /// Задаёт шаблон отображения пунктов списка (issue #372): один и тот же шаблон идёт
+    /// и в раскрытый список, и в закрытую часть (<see cref="ComboBox.SelectionBoxItemTemplate"/>).
+    /// Без него закрытый комбобокс рендерит выбранное значение через <c>ToString()</c>
+    /// элемента — то есть ключ («Backup») вместо названия.
+    /// </summary>
+    private static void ApplyOptionTemplate(ComboBox combo)
+    {
+        var template = new FuncDataTemplate<ScheduledTaskOption>((item, _) =>
+            new TextBlock { Text = item?.Text ?? string.Empty });
+        combo.ItemTemplate = template;
+        combo.SelectionBoxItemTemplate = template;
     }
 
     private void ApplyKindVisibility()

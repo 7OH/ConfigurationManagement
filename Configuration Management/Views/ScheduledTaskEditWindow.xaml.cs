@@ -48,18 +48,18 @@ public partial class ScheduledTaskEditWindow : Window
         TimeBox.Text = _vm.Time;
         CfgPathBox.Text = _vm.ConfigFilePath;
 
+        // Отображение элементов списка задаёт ItemTemplate в XAML (ScheduleOptionTemplate):
+        // DisplayMemberPath из code-behind применялся уже после первой отрисовки, и закрытый
+        // ComboBox показывал ToString() — ключ («Backup») вместо названия (issue #372).
         KindCombo.ItemsSource = _vm.KindOptions;
-        KindCombo.DisplayMemberPath = "Text";
         KindCombo.SelectedValuePath = "Value";
         KindCombo.SelectedValue = _vm.Kind.ToString();
 
         ScenarioCombo.ItemsSource = _vm.ScenarioOptions;
-        ScenarioCombo.DisplayMemberPath = "Text";
         ScenarioCombo.SelectedValuePath = "Value";
         ScenarioCombo.SelectedValue = string.IsNullOrEmpty(_vm.SelectedScenarioId) ? null : _vm.SelectedScenarioId;
 
         InfobaseCombo.ItemsSource = _vm.InfobaseOptions;
-        InfobaseCombo.DisplayMemberPath = "Text";
         InfobaseCombo.SelectedValuePath = "Value";
         InfobaseCombo.SelectedValue = string.IsNullOrEmpty(_vm.SelectedInfobaseId) ? null : _vm.SelectedInfobaseId;
 
@@ -86,7 +86,6 @@ public partial class ScheduledTaskEditWindow : Window
         PlatformIncludeTestCheck.IsChecked = _vm.PlatformCheckIncludeTestVersions;
         PlatformNotifyLabel.Text = T("Schedule.PlatformCheck.Notify");
         PlatformNotifyCombo.ItemsSource = _vm.NotifyOptions;
-        PlatformNotifyCombo.DisplayMemberPath = "Text";
         PlatformNotifyCombo.SelectedValuePath = "Value";
         PlatformNotifyCombo.SelectedValue = _vm.PlatformNotifyChannel.ToString();
 
@@ -97,7 +96,6 @@ public partial class ScheduledTaskEditWindow : Window
         ConfigCombo.Text = _vm.ConfigCheckConfiguration;
         ConfigNotifyLabel.Text = T("Schedule.PlatformCheck.Notify");
         ConfigNotifyCombo.ItemsSource = _vm.NotifyOptions;
-        ConfigNotifyCombo.DisplayMemberPath = "Text";
         ConfigNotifyCombo.SelectedValuePath = "Value";
         ConfigNotifyCombo.SelectedValue = _vm.ConfigCheckNotifyChannel.ToString();
 
@@ -110,7 +108,6 @@ public partial class ScheduledTaskEditWindow : Window
         RepeatValueLabel.Text = T("Schedule.Repeat.ValueLabel");
         RepeatValueBox.Text = _vm.RepeatIntervalValueText;
         RepeatUnitCombo.ItemsSource = _vm.RepeatUnitOptions;
-        RepeatUnitCombo.DisplayMemberPath = "Text";
         RepeatUnitCombo.SelectedValuePath = "Value";
         RepeatUnitCombo.SelectedValue = _vm.RepeatIntervalUnit.ToString();
         PlatformNotifyNoUpdatesCheck.Content = T("Schedule.PlatformCheck.NotifyWhenNoUpdates");
@@ -130,7 +127,30 @@ public partial class ScheduledTaskEditWindow : Window
                 if (task is null)
                     NameBox.SelectAll();
             }));
+
+            // Переустановка выбора ПОСЛЕ показа окна (issue #372): закрытый комбобокс
+            // рисует выбранный элемент до применения шаблона и показывал ToString() —
+            // ключ вместо названия. Повторный SelectedValue пересоздаёт контейнер
+            // уже с применённым ItemTemplate (схема ConfigDiffSetupWindow #316,
+            // ScriptScenarioEditWindow #308).
+            RestoreOptionSelections();
         };
+    }
+
+    /// <summary>
+    /// Переустанавливает выбранные значения списков после показа окна (issue #372):
+    /// контейнер пересоздаётся с уже применённым <c>ItemTemplate</c>, поэтому закрытые
+    /// комбобоксы показывают название, а не ключ.
+    /// </summary>
+    private void RestoreOptionSelections()
+    {
+        KindCombo.SelectedValue = _vm.Kind.ToString();
+        ScenarioCombo.SelectedValue = string.IsNullOrEmpty(_vm.SelectedScenarioId) ? null : _vm.SelectedScenarioId;
+        InfobaseCombo.SelectedValue = string.IsNullOrEmpty(_vm.SelectedInfobaseId) ? null : _vm.SelectedInfobaseId;
+        PlatformNotifyCombo.SelectedValue = _vm.PlatformNotifyChannel.ToString();
+        ConfigNotifyCombo.SelectedValue = _vm.ConfigCheckNotifyChannel.ToString();
+        RepeatUnitCombo.SelectedValue = _vm.RepeatIntervalUnit.ToString();
+        ApplyKindVisibility();
     }
 
     private static string T(string key) => LocalizationManager.T(key);
