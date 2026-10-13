@@ -100,13 +100,12 @@ namespace Configuration_Management
             // ---- Поиск по имени (debounce в VM) и фильтр по типу (этап 3) ----
             var searchPanel = BuildSearchPanel();
 
-            // ---- Статус / ошибка ----
+            // ---- Статус / ошибка (стек: статус сверху, детали ошибки под ним) ----
             var status = new TextBlock
             {
                 FontSize = 12,
                 Opacity = 0.65,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 8)
+                TextWrapping = TextWrapping.Wrap
             };
             status.Bind(TextBlock.TextProperty, new Binding("StatusText"));
             var error = new TextBlock
@@ -114,12 +113,17 @@ namespace Configuration_Management
                 FontSize = 12,
                 Foreground = new SolidColorBrush(Color.Parse("#DC2626")),
                 TextWrapping = TextWrapping.Wrap,
-                MaxHeight = 60,
-                Margin = new Thickness(0, 0, 0, 8)
+                MaxHeight = 60
             };
             error.Bind(TextBlock.TextProperty, new Binding("ErrorMessage"));
             // issue #365: строка ошибки обрезается (MaxHeight=60) — полный текст в тултипе.
             error.Bind(ToolTip.TipProperty, new Binding("ErrorMessage"));
+            var statusError = new StackPanel
+            {
+                Spacing = 0,
+                Margin = new Thickness(0, 0, 0, 8),
+                Children = { status, error }
+            };
 
             // ---- Дерево + панель деталей ----
             BuildTree();
@@ -184,6 +188,10 @@ namespace Configuration_Management
                 TextWrapping = TextWrapping.Wrap
             };
 
+            // issue #365: «выравнивание по верхнему краю» — дерево и панель деталей
+            // занимают ВСЮ оставшуюся высоту (строка *), а статус/ошибка — своя
+            // естественная высота (Auto). Раньше строки были перепутаны: статус
+            // растягивался, а дерево сжималось к нижнему краю по высоте содержимого.
             var grid = new Grid
             {
                 Margin = new Thickness(16),
@@ -193,19 +201,18 @@ namespace Configuration_Management
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
-                    new RowDefinition(GridLength.Star),
                     new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Star),
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto)
                 },
-                Children = { title, sourcePanel, configTitle, searchPanel, status, error, mainGrid, buttons, hint }
+                Children = { title, sourcePanel, configTitle, searchPanel, statusError, mainGrid, buttons, hint }
             };
             Place(grid, title, 0);
             Place(grid, sourcePanel, 1);
             Place(grid, configTitle, 2);
             Place(grid, searchPanel, 3);
-            Place(grid, status, 4);
-            Place(grid, error, 4);
+            Place(grid, statusError, 4);
             Place(grid, mainGrid, 5);
             Place(grid, buttons, 6);
             Place(grid, hint, 7);
@@ -337,6 +344,11 @@ namespace Configuration_Management
                 _tree.ItemContainerTheme = itemTheme;
             }
 
+            // issue #365: «странно отбор сработал» — скрытый фильтром узел прятал только
+            // содержимое строки, а контейнер TreeViewItem оставался пустой строкой.
+            // Привязываем видимость контейнера к IsVisible узла.
+            _tree.ContainerPrepared += OnTreeContainerPrepared;
+
             // Раскрытие узла → ленивая подгрузка детей (всплывает от любого вложенного
             // контейнера; дочерние контейнеры готовит сам TreeViewItem).
             _tree.AddHandler(TreeViewItem.ExpandedEvent, OnTreeItemExpanded, RoutingStrategies.Bubble);
@@ -345,12 +357,21 @@ namespace Configuration_Management
                 _vm.SelectedNode = _tree.SelectedItem as MetadataTreeNodeViewModel;
         }
 
+        private void OnTreeContainerPrepared(object? sender, ContainerPreparedEventArgs e)
+        {
+            if (e.Container is TreeViewItem item && item.DataContext is MetadataTreeNodeViewModel node)
+                item.Bind(Visual.IsVisibleProperty, new Binding("IsVisible"));
+        }
+
         private void OnTreeItemExpanded(object? sender, RoutedEventArgs e)
         {
             if (e.Source is TreeViewItem item &&
                 item.DataContext is MetadataTreeNodeViewModel node)
             {
                 node.EnsureLoaded();
+                // issue #365: после ленивой загрузки детей пересчитываем видимость
+                // контейнеров — подсистема, у которой фильтр скрыл всех потомков, прячется.
+                _vm.RefreshNodeVisibility(node);
             }
         }
 

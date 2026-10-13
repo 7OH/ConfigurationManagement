@@ -251,6 +251,150 @@ public sealed class MetadataExplorerSearchTests : IDisposable
         Assert.True(FindType(vm, "Document")!.IsVisible);
     }
 
+    // ===================== Порядок и отбор (issue #365) =====================
+
+    [Fact]
+    public async Task TypeFilterOptions_SortedByDisplayName()
+    {
+        // issue #365: список фильтра должен быть по алфавиту ОТОБРАЖАЕМОГО имени,
+        // а не по внутреннему порядку каталогов. В тестах локализация отдаёт ключ
+        // as-is («ConfigDiff.Type.Catalog» < «ConfigDiff.Type.Document»).
+        var dumpDir = CreateDumpWithoutSubsystems();
+        var vm = CreateVm(new FakeMetadataExplorerService
+        {
+            BaseResult = new MetadataDump(dumpDir, "Простая", "2.0.0.1")
+        });
+        await vm.LoadAsync();
+
+        var values = vm.TypeFilterOptions.Where(o => o.Value.Length > 0).Select(o => o.Value).ToList();
+        Assert.Equal(new[] { "Catalog", "Document" }, values);
+    }
+
+    [Fact]
+    public async Task Tree_TypesSortedByDisplayName()
+    {
+        // issue #365: типы в дереве («Все объекты») — по алфавиту отображаемого имени.
+        var dumpDir = CreateDumpWithoutSubsystems();
+        var vm = CreateVm(new FakeMetadataExplorerService
+        {
+            BaseResult = new MetadataDump(dumpDir, "Простая", "2.0.0.1")
+        });
+        await vm.LoadAsync();
+
+        var root = vm.TreeNodes[0];
+        var group = root.Children[0]; // «Все объекты»
+        group.EnsureLoaded();
+
+        var typeDirs = group.Children
+            .Where(c => c.Kind == MetadataTreeNodeKind.Type)
+            .Select(c => c.TypeDir)
+            .ToList();
+        Assert.Equal(new[] { "Catalog", "Document" }, typeDirs);
+    }
+
+    [Fact]
+    public async Task Subsystems_SortedByDisplayName()
+    {
+        // issue #365: подсистемы сортируются по синониму (отображаемому имени),
+        // а не по имени файла/каталога выгрузки.
+        var dumpDir = CreateDumpWithTwoSubsystems();
+        var vm = CreateVm(new FakeMetadataExplorerService
+        {
+            BaseResult = new MetadataDump(dumpDir, "Разведка", "1.2.3.4")
+        });
+        await vm.LoadAsync();
+
+        var root = vm.TreeNodes[0];
+        var subsystemsContainer = root.Children[0]; // «Подсистемы»
+        subsystemsContainer.EnsureLoaded();
+
+        var names = subsystemsContainer.Children
+            .Where(c => !c.IsPlaceholder)
+            .Select(c => c.DisplayName)
+            .ToList();
+        Assert.Equal(new[] { "Альфа", "Бета" }, names);
+    }
+
+    [Fact]
+    public async Task TypeFilter_HidesSubsystemWithoutMatchingObjects()
+    {
+        // issue #365: «странно отбор сработал» — подсистема, у которой фильтр скрыл
+        // ВСЕ типы, прячется целиком (не остаётся пустой веткой).
+        var dumpDir = CreateDumpWithTwoSubsystems();
+        var vm = CreateVm(new FakeMetadataExplorerService
+        {
+            BaseResult = new MetadataDump(dumpDir, "Разведка", "1.2.3.4")
+        });
+        await vm.LoadAsync();
+
+        var root = vm.TreeNodes[0];
+        var subsystemsContainer = root.Children[0];
+        subsystemsContainer.EnsureLoaded();
+        var subsystemNodes = subsystemsContainer.Children.Where(c => !c.IsPlaceholder).ToList();
+        Assert.Equal(2, subsystemNodes.Count);
+
+        // Раскрываем обе подсистемы ДО фильтра, чтобы узлы были загружены.
+        foreach (var sub in subsystemNodes)
+            sub.EnsureLoaded();
+
+        vm.TypeFilter = vm.TypeFilterOptions.First(o => o.Value == "Catalog");
+
+        var alpha = subsystemNodes.First(s => s.DisplayName == "Альфа"); // Catalog.Контрагенты
+        var beta = subsystemNodes.First(s => s.DisplayName == "Бета");   // Document.ЗаказКлиента
+        Assert.True(alpha.IsVisible);
+        Assert.False(beta.IsVisible);
+    }
+
+    [Fact]
+    public async Task RefreshNodeVisibility_AfterLazyLoad_HidesEmptyContainer()
+    {
+        // issue #365: фильтр применён ДО раскрытия подсистемы; после ленивой загрузки
+        // детей окно зовёт RefreshNodeVisibility — подсистема без видимых потомков прячется.
+        var dumpDir = CreateDumpWithTwoSubsystems();
+        var vm = CreateVm(new FakeMetadataExplorerService
+        {
+            BaseResult = new MetadataDump(dumpDir, "Разведка", "1.2.3.4")
+        });
+        await vm.LoadAsync();
+
+        vm.TypeFilter = vm.TypeFilterOptions.First(o => o.Value == "Catalog");
+
+        var root = vm.TreeNodes[0];
+        var subsystemsContainer = root.Children[0];
+        subsystemsContainer.EnsureLoaded();
+        var subsystemNodes = subsystemsContainer.Children.Where(c => !c.IsPlaceholder).ToList();
+        Assert.Equal(2, subsystemNodes.Count);
+
+        // До раскрытия обе подсистемы видимы (заглушки не участвуют в фильтре).
+        Assert.All(subsystemNodes, s => Assert.True(s.IsVisible));
+
+        // Раскрываем «Бета» (только Документы) — после загрузки и RefreshNodeVisibility
+        // подсистема скрывается, так как фильтр «Справочники» скрыл всех её потомков.
+        var beta = subsystemNodes.First(s => s.DisplayName == "Бета");
+        beta.EnsureLoaded();
+        vm.RefreshNodeVisibility(beta);
+
+        Assert.False(beta.IsVisible);
+    }
+
+    [Fact]
+    public void SortTypesByDisplayName_SortsByLocalizedDisplayName()
+    {
+        Func<string, string> fakeT = key => key switch
+        {
+            "ConfigDiff.Type.Catalog" => "Справочники",
+            "ConfigDiff.Type.Document" => "Документы",
+            "ConfigDiff.Type.Enum" => "Перечисления",
+            _ => key
+        };
+
+        var sorted = MetadataTypeLocalizer.SortTypesByDisplayName(
+            new[] { "Catalog", "Document", "Enum" }, fakeT).ToList();
+
+        // Документы < Перечисления < Справочники (по алфавиту отображаемого имени).
+        Assert.Equal(new[] { "Document", "Enum", "Catalog" }, sorted);
+    }
+
     // ===================== Ленивый индекс =====================
 
     [Fact]
@@ -388,6 +532,44 @@ public sealed class MetadataExplorerSearchTests : IDisposable
             "<Catalog><Properties><Name>Контрагенты</Name>" +
             "<Synonym><v8:item><v8:content>Контрагенты</v8:content></v8:item></Synonym>" +
             "<Comment>Справочник контрагентов</Comment><Hierarchical>true</Hierarchical>" +
+            "</Properties><ChildObjects/></Catalog></MetaDataObject>");
+        WriteFile(Path.Combine(dir, "Documents", "ЗаказКлиента.xml"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Ns +
+            "<Document><Properties><Name>ЗаказКлиента</Name><Synonym/><Comment/></Properties>" +
+            "<ChildObjects/></Document></MetaDataObject>");
+        return dir;
+    }
+
+    /// <summary>
+    /// Выгрузка с двумя подсистемами (issue #365): «Zeta» с синонимом «Альфа»
+    /// (состав — Catalog.Контрагенты) и «Alpha» с синонимом «Бета» (состав —
+    /// Document.ЗаказКлиента). Имена файлов идут в порядке, отличном от порядка
+    /// синонимов, чтобы проверять сортировку по отображаемому имени.
+    /// </summary>
+    private string CreateDumpWithTwoSubsystems()
+    {
+        var dir = Path.Combine(_tempRoot, "dump_two_" + Guid.NewGuid().ToString("N"));
+        WriteFile(Path.Combine(dir, "Configuration.xml"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Ns +
+            "<Configuration><Properties><Name>Разведка</Name><Synonym/><Comment/>" +
+            "<Version>1.2.3.4</Version></Properties><ChildObjects/></Configuration></MetaDataObject>");
+        WriteFile(Path.Combine(dir, "Subsystems", "Zeta.xml"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Ns +
+            "<Subsystem><Properties><Name>Zeta</Name>" +
+            "<Synonym><v8:item><v8:content>Альфа</v8:content></v8:item></Synonym>" +
+            "<Comment/><Content><v8:item><v8:content>Catalog.Контрагенты</v8:content></v8:item></Content>" +
+            "</Properties><ChildObjects/></Subsystem></MetaDataObject>");
+        WriteFile(Path.Combine(dir, "Subsystems", "Alpha.xml"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Ns +
+            "<Subsystem><Properties><Name>Alpha</Name>" +
+            "<Synonym><v8:item><v8:content>Бета</v8:content></v8:item></Synonym>" +
+            "<Comment/><Content><v8:item><v8:content>Document.ЗаказКлиента</v8:content></v8:item></Content>" +
+            "</Properties><ChildObjects/></Subsystem></MetaDataObject>");
+        WriteFile(Path.Combine(dir, "Catalogs", "Контрагенты.xml"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Ns +
+            "<Catalog><Properties><Name>Контрагенты</Name>" +
+            "<Synonym><v8:item><v8:content>Контрагенты</v8:content></v8:item></Synonym>" +
+            "<Comment>Справочник контрагентов</Comment><OrderedHierarchical>true</OrderedHierarchical>" +
             "</Properties><ChildObjects/></Catalog></MetaDataObject>");
         WriteFile(Path.Combine(dir, "Documents", "ЗаказКлиента.xml"),
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Ns +

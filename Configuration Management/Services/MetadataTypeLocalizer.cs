@@ -133,4 +133,20 @@ public static class MetadataTypeLocalizer
         unknown.Sort(StringComparer.Ordinal);
         return known.Concat(unknown);
     }
+
+    /// <summary>
+    /// Сортирует типы по алфавиту ОТОБРАЖАЕМОГО имени (issue #365): пользователь видит
+    /// локализованные имена («Документы», «Справочники» …), поэтому и в дереве, и в
+    /// списке фильтра порядок должен быть привычным алфавитным по тому, что показано
+    /// на экране, а не по внутреннему имени каталога. Неизвестные типы сортируются
+    /// по имени каталога как есть. Локализатор — колбэком <paramref name="t"/>
+    /// (как в <see cref="GetDisplayName"/>), чтобы метод был тестируемым.
+    /// </summary>
+    public static IEnumerable<string> SortTypesByDisplayName(
+        IEnumerable<string> typeDirs, Func<string, string> t)
+    {
+        return typeDirs
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .OrderBy(d => GetDisplayName(d, t), StringComparer.OrdinalIgnoreCase);
+    }
 }

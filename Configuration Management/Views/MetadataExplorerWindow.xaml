@@ -76,13 +76,17 @@
     </Window.Resources>
 
     <Grid Margin="16">
+        <!-- issue #365: «выравнивание по верхнему краю» — дерево и панель деталей
+             занимают ВСЮ оставшуюся высоту (строка *), а статус/ошибка — своя
+             естественная высота (Auto). Раньше строки были перепутаны: статус
+             растягивался, а дерево сжималось к нижнему краю по высоте содержимого. -->
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -143,14 +147,15 @@
             </ComboBox>
         </StackPanel>
 
-        <!-- Статус / ошибка -->
-        <TextBlock Grid.Row="4" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
-                   Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding StatusText}"/>
-        <TextBlock Grid.Row="4" Margin="0,0,0,8" FontSize="12" TextWrapping="Wrap"
-                   Foreground="#DC2626" Text="{Binding ErrorMessage}"
-                   Style="{StaticResource ErrorMessageStyle}"
-                   VerticalAlignment="Bottom" MaxHeight="60"
-                   ToolTip="{Binding ErrorMessage}"/>
+        <!-- Статус / ошибка (стек: статус сверху, детали ошибки под ним) -->
+        <StackPanel Grid.Row="4" Margin="0,0,0,8">
+            <TextBlock FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding StatusText}"/>
+            <TextBlock FontSize="12" TextWrapping="Wrap"
+                       Foreground="#DC2626" Text="{Binding ErrorMessage}"
+                       Style="{StaticResource ErrorMessageStyle}"
+                       MaxHeight="60" ToolTip="{Binding ErrorMessage}"/>
+        </StackPanel>
 
         <!-- Дерево + панель деталей -->
         <Grid Grid.Row="5">
@@ -166,9 +171,22 @@
                       Padding="4" VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <TreeView.ItemContainerStyle>
+                    <!-- issue #365: «странно отбор сработал» — скрытые фильтром узлы
+                         (IsVisible=false) и заглушки раскрывалки прятались только внутри
+                         строки, а сам контейнер TreeViewItem оставался пустой строкой.
+                         Теперь скрывается весь контейнер. -->
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
                         <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </TreeView.ItemContainerStyle>
             </TreeView>

@@ -885,6 +885,8 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     /// Фильтр по типу: скрывает/показывает узлы типов и объектов по выбранному
     /// <see cref="TypeFilter"/> (пустое значение — «Все типы»). Применяется к уже
     /// загруженным узлам; новые узлы создаются сразу с учётом активного фильтра.
+    /// Контейнеры (подсистемы, группы) скрываются, когда фильтр скрыл всех их
+    /// потомков (issue #365: «странно отбор сработал» — оставались пустые ветки).
     /// </summary>
     public void ApplyFilters()
     {
@@ -892,8 +894,13 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             ApplyFilterToNode(root);
     }
 
-    private void ApplyFilterToNode(MetadataTreeNodeViewModel node)
+    private bool ApplyFilterToNode(MetadataTreeNodeViewModel node)
     {
+        // Узел-заглушка раскрывалки не участвует в фильтре: он всегда видим, чтобы
+        // ленивый контейнер не скрывался до загрузки реальных детей.
+        if (node.IsPlaceholder)
+            return true;
+
         switch (node.Kind)
         {
             case MetadataTreeNodeKind.Type:
@@ -906,6 +913,26 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
 
         foreach (var child in node.Children)
             ApplyFilterToNode(child);
+
+        // Контейнеры видимы, только если фильтр оставил хотя бы одного видимого потомка.
+        if (node.Kind is MetadataTreeNodeKind.Subsystem or MetadataTreeNodeKind.NoSubsystemGroup)
+            node.IsVisible = node.Children.Any(c => c.IsVisible);
+
+        return node.IsVisible;
+    }
+
+    /// <summary>
+    /// Пересчитывает видимость контейнеров после ленивой загрузки детей (issue #365):
+    /// подсистема/группа, у которой фильтр скрыл всех загруженных потомков, прячется.
+    /// Вызывается окном после <see cref="MetadataTreeNodeViewModel.EnsureLoaded"/>.
+    /// </summary>
+    public void RefreshNodeVisibility(MetadataTreeNodeViewModel node)
+    {
+        for (var current = node; current is not null; current = current.Parent)
+        {
+            if (current.Kind is MetadataTreeNodeKind.Subsystem or MetadataTreeNodeKind.NoSubsystemGroup)
+                current.IsVisible = current.Children.Any(c => c.IsVisible);
+        }
     }
 
     private bool IsTypeVisible(string typeDir)
@@ -913,14 +940,15 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
            || string.Equals(typeDir, _activeTypeFilter, StringComparison.Ordinal);
 
     /// <summary>Варианты фильтра: «Все типы» + фактические типы выгрузки
-    /// (локализованные имена, порядок <see cref="MetadataTypeLocalizer.SortTypes"/>).</summary>
+    /// (локализованные имена, порядок <see cref="MetadataTypeLocalizer.SortTypesByDisplayName"/>
+    /// — по алфавиту отображаемого имени, issue #365).</summary>
     private static List<MetadataTypeFilterOption> BuildTypeFilterOptions(IReadOnlyList<string> typeDirs)
     {
         var options = new List<MetadataTypeFilterOption>
         {
             new(string.Empty, LocalizationManager.T("MetadataExplorer.TypeFilter.All"))
         };
-        foreach (var typeDir in MetadataTypeLocalizer.SortTypes(typeDirs))
+        foreach (var typeDir in MetadataTypeLocalizer.SortTypesByDisplayName(typeDirs, LocalizationManager.T))
             options.Add(new MetadataTypeFilterOption(
                 typeDir,
                 MetadataTypeLocalizer.GetDisplayName(typeDir, LocalizationManager.T)));
@@ -1016,7 +1044,7 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         var root = BuildRootNode(dump, typeDirs);
         var emptyConfig = root is null;
         var filterOptions = BuildTypeFilterOptions(typeDirs);
-        var availableTypes = MetadataTypeLocalizer.SortTypes(typeDirs).ToList();
+        var availableTypes = MetadataTypeLocalizer.SortTypesByDisplayName(typeDirs, LocalizationManager.T).ToList();
 
         // Этап 5: статус «Выгружено: N файлов, X МБ» — быстрое сканирование каталога
         // выгрузки (суммарное число файлов и размер; ApplyDump выполняется в рабочем
@@ -1140,7 +1168,8 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         return root;
     }
 
-    /// <summary>Узел «Подсистемы»: верхний уровень подсистем грузится лениво при раскрытии.</summary>
+    /// <summary>Узел «Подсистемы»: верхний уровень подсистем грузится лениво при раскрытии
+    /// (порядок — по алфавиту отображаемого имени, issue #365).</summary>
     private MetadataTreeNodeViewModel CreateSubsystemsNode(
         string dumpRoot, IReadOnlyList<MetadataSubsystem> subsystems)
     {
@@ -1150,7 +1179,7 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             childrenLoader: () =>
             {
                 var result = new List<MetadataTreeNodeViewModel>();
-                foreach (var sub in subsystems)
+                foreach (var sub in subsystems.OrderBy(SubsystemDisplayName, StringComparer.OrdinalIgnoreCase))
                     result.Add(CreateSubsystemNode(dumpRoot, sub));
                 return result;
             },
@@ -1160,20 +1189,20 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     /// <summary>Узел подсистемы: вложенные подсистемы + типы из состава Content (лениво).</summary>
     private MetadataTreeNodeViewModel CreateSubsystemNode(string dumpRoot, MetadataSubsystem sub)
     {
-        var displayName = string.IsNullOrWhiteSpace(sub.Synonym) ? sub.Name : sub.Synonym;
         return new MetadataTreeNodeViewModel(
             MetadataTreeNodeKind.Subsystem,
-            displayName,
+            SubsystemDisplayName(sub),
             childrenLoader: () => BuildSubsystemChildren(dumpRoot, sub),
             hasChildren: sub.Children.Count > 0 || sub.ContentKeys.Count > 0,
             subsystem: sub);
     }
 
-    /// <summary>Дети подсистемы: вложенные подсистемы + узлы типов по составу Content.</summary>
+    /// <summary>Дети подсистемы: вложенные подсистемы + узлы типов по составу Content
+    /// (обе группы — по алфавиту отображаемого имени, issue #365).</summary>
     private List<MetadataTreeNodeViewModel> BuildSubsystemChildren(string dumpRoot, MetadataSubsystem sub)
     {
         var result = new List<MetadataTreeNodeViewModel>();
-        foreach (var child in sub.Children)
+        foreach (var child in sub.Children.OrderBy(SubsystemDisplayName, StringComparer.OrdinalIgnoreCase))
             result.Add(CreateSubsystemNode(dumpRoot, child));
 
         // Группируем полные имена состава «Тип.Имя» по типу.
@@ -1188,13 +1217,14 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             names.Add(split.Value.Name);
         }
 
-        foreach (var typeDir in MetadataTypeLocalizer.SortTypes(byType.Keys))
+        foreach (var typeDir in MetadataTypeLocalizer.SortTypesByDisplayName(byType.Keys, LocalizationManager.T))
             result.Add(CreateTypeNode(dumpRoot, typeDir, byType[typeDir]));
 
         return result;
     }
 
-    /// <summary>Узел «Без подсистемы»: типы → объекты, не входящие ни в одну подсистему (лениво).</summary>
+    /// <summary>Узел «Без подсистемы»: типы → объекты, не входящие ни в одну подсистему
+    /// (лениво; типы — по алфавиту отображаемого имени, issue #365).</summary>
     private MetadataTreeNodeViewModel CreateNoSubsystemNode(
         string dumpRoot, IReadOnlyList<string> typeDirs, IReadOnlyList<MetadataSubsystem> subsystems)
     {
@@ -1207,7 +1237,7 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             childrenLoader: () =>
             {
                 var result = new List<MetadataTreeNodeViewModel>();
-                foreach (var typeDir in typeDirs)
+                foreach (var typeDir in MetadataTypeLocalizer.SortTypesByDisplayName(typeDirs, LocalizationManager.T))
                 {
                     var objects = MetadataXmlParser.EnumerateObjects(dumpRoot, typeDir)
                         .Where(o => !knownKeys.Contains($"{typeDir}.{o.Name}"))
@@ -1221,7 +1251,8 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             hasChildren: typeDirs.Count > 0);
     }
 
-    /// <summary>Группа типов («Все объекты»): типы → объекты (лениво).</summary>
+    /// <summary>Группа типов («Все объекты»): типы → объекты (лениво; типы — по алфавиту
+    /// отображаемого имени, issue #365).</summary>
     private MetadataTreeNodeViewModel CreateTypeGroupNode(
         string dumpRoot, string displayName, IReadOnlyList<string> typeDirs, IReadOnlyList<string>? onlyNames)
     {
@@ -1231,7 +1262,7 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             childrenLoader: () =>
             {
                 var result = new List<MetadataTreeNodeViewModel>();
-                foreach (var typeDir in typeDirs)
+                foreach (var typeDir in MetadataTypeLocalizer.SortTypesByDisplayName(typeDirs, LocalizationManager.T))
                     result.Add(CreateTypeNode(dumpRoot, typeDir, onlyNames));
                 return result;
             },
@@ -1268,6 +1299,11 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         node.IsVisible = IsTypeVisible(summary.TypeDir);
         return node;
     }
+
+    /// <summary>Отображаемое имя подсистемы: синоним, если задан, иначе имя (issue #365 —
+    /// сортировка подсистем по тому, что видит пользователь).</summary>
+    private static string SubsystemDisplayName(MetadataSubsystem sub)
+        => string.IsNullOrWhiteSpace(sub.Synonym) ? sub.Name : sub.Synonym;
 
     /// <summary>Рекурсивно собирает полные имена состава всех подсистем («Тип.Имя»).</summary>
     private static void CollectContentKeys(IReadOnlyList<MetadataSubsystem> subsystems, ISet<string> target)

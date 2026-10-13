@@ -94,6 +94,9 @@ namespace Configuration_Management
                 item.DataContext is MetadataTreeNodeViewModel node)
             {
                 node.EnsureLoaded();
+                // issue #365: после ленивой загрузки детей пересчитываем видимость
+                // контейнеров — подсистема, у которой фильтр скрыл всех потомков, прячется.
+                _vm.RefreshNodeVisibility(node);
             }
         }
 
