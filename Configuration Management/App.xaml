@@ -12,6 +12,10 @@
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
                 <ResourceDictionary Source="Themes/LightTheme.xaml"/>
                 <ResourceDictionary Source="Themes/Icons.xaml"/>
+                <!-- Второй набор иконок (Outline, Задача 5): ключи с суффиксом ".Outline".
+                     Резолв (IconKeyToGeometryConverter) выбирает активный набор по ресурсу
+                     IconSetName, который выставляет ThemeManager.ApplyIconSet. -->
+                <ResourceDictionary Source="Themes/IconsOutline.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <conv:GroupTextColorConverter x:Key="GroupTextColorConverter"/>
             <conv:IconKeyToGeometryConverter x:Key="IconKeyToGeometryConverter"/>
@@ -73,47 +77,56 @@
 
             <!-- ===================== Собственные кнопки управления окном =====================
                  Общие для всех окон: главное окно и диалоговые окна (WindowChromeHelper)
-                 переиспользуют эти стили. Круглая подложка, плавные переходы цвета/масштаба
+                 переиспользуют эти стили. Скруглённая подложка, плавные переходы цвета/масштаба
                  и выразительные значки в духе macOS/VSCode.
-                 Кисти подложки (hover/press/кольцо фокуса) задаются вложенными свойствами
-                 WindowChromeHelper.HoverBrush / PressedBrush / FocusBrush — акцентные
-                 варианты и кнопка «закрыть» переопределяют только их. Примечание: TemplateBinding
-                 допустим только в свойствах элементов шаблона, но НЕ в триггерных Setter'ах
-                 (WPF бросает «Тип Expression не является допустимым значением для Style»),
-                 поэтому цвет значка при наведении в шаблонах задаётся обычным DynamicResource:
-                 у базовой кнопки — основной цвет текста, у «закрыть» — белый.
-                 Цвет заливки анимируется прозрачностью слоёв, поэтому кисти можно брать
+                 Параметры подложки приходят из ресурсов полноценной темы (Задача 4), которые
+                 выставляет ThemeManager по стилю кнопок окна: WindowButtonHoverBrush (подложка
+                 наведения), WindowButtonCloseHoverBrush (подложка «закрыть»),
+                 WindowButtonCornerRadius (скругление), WindowButtonSize (размер). Кисти/press/фокус
+                 задаются вложенными свойствами WindowChromeHelper.HoverBrush / PressedBrush /
+                 FocusBrush — акцентные варианты и кнопка «закрыть» переопределяют только их.
+                 Примечание: TemplateBinding допустим только в свойствах элементов шаблона, но НЕ
+                 в триггерных Setter'ах (WPF бросает «Тип Expression не является допустимым
+                 значением для Style»), поэтому цвет значка при наведении в шаблонах задаётся
+                 обычным DynamicResource: у базовой кнопки — основной цвет текста, у «закрыть» —
+                 белый. Цвет заливки анимируется прозрачностью слоёв, поэтому кисти можно брать
                  DynamicResource'ом из темы: значения не «замораживаются» в анимациях и
                  корректно обновляются при смене схемы. -->
             <Style x:Key="WindowControlButton" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                 <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Width" Value="46"/>
+                <!-- Размер кнопки (ширина) приходит из темы: 46 — Fluent, 40 — Minimal, 34 — Classic.
+                     Высота фиксирована высотой полосы заголовка (34). -->
+                <Setter Property="Width" Value="{DynamicResource WindowButtonSize}"/>
                 <Setter Property="Height" Value="34"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="ToolTipService.InitialShowDelay" Value="400"/>
-                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="{DynamicResource ItemHoverBrush}"/>
+                <!-- Подложка наведения — из темы. На акцентной шапке (WindowControlButtonOnAccent)
+                     переопределяется полупрозрачным белым, чтобы оставаться читаемой. -->
+                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="{DynamicResource WindowButtonHoverBrush}"/>
                 <Setter Property="local:WindowChromeHelper.PressedBrush" Value="{DynamicResource AccentPressedBrush}"/>
                 <Setter Property="local:WindowChromeHelper.FocusBrush" Value="{DynamicResource AccentBrush}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Grid>
-                                <!-- Круглая подложка: слой под курсором, слой нажатия и кольцо
-                                     фокуса. Прозрачность слоёв анимируется триггерами (плавная
-                                     заливка), масштаб круга даёт тактильный отклик нажатия. -->
+                                <!-- Скруглённая подложка: слой под курсором, слой нажатия и кольцо
+                                     фокуса. Степень скругления приходит из темы (WindowButtonCornerRadius):
+                                     Fluent — круг (15), Minimal — мягкий квадрат (4), Classic — прямоугольник (0).
+                                     Прозрачность слоёв анимируется триггерами (плавная заливка),
+                                     масштаб подложки даёт тактильный отклик нажатия. -->
                                 <Grid x:Name="circleRoot" Width="30" Height="30"
                                       HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Grid.RenderTransform>
                                         <ScaleTransform x:Name="circleScale" CenterX="15" CenterY="15"/>
                                     </Grid.RenderTransform>
-                                    <Border x:Name="hoverLayer" CornerRadius="15"
+                                    <Border x:Name="hoverLayer" CornerRadius="{DynamicResource WindowButtonCornerRadius}"
                                             Background="{TemplateBinding local:WindowChromeHelper.HoverBrush}" Opacity="0"/>
-                                    <Border x:Name="pressLayer" CornerRadius="15"
+                                    <Border x:Name="pressLayer" CornerRadius="{DynamicResource WindowButtonCornerRadius}"
                                             Background="{TemplateBinding local:WindowChromeHelper.PressedBrush}" Opacity="0"/>
-                                    <Border x:Name="focusRing" CornerRadius="15" BorderThickness="1.5" Opacity="0"
+                                    <Border x:Name="focusRing" CornerRadius="{DynamicResource WindowButtonCornerRadius}" BorderThickness="1.5" Opacity="0"
                                             BorderBrush="{TemplateBinding local:WindowChromeHelper.FocusBrush}"/>
                                 </Grid>
                                 <!-- Значок: лёгкое увеличение при наведении, «пружинное»
@@ -184,7 +197,8 @@
 
             <!-- Варианты кнопок для акцентной шапки (активное главное окно / заголовок
                  диалогов): базовый цвет значка ButtonTextBrush (читается на акцентном фоне),
-                 подложка круга — полупрозрачный белый вместо тематического ItemHoverBrush. -->
+                 подложка — полупрозрачный белый, чтобы оставаться читаемой на любой теме.
+                 Радиус и размер наследуются из базового стиля (ресурсы темы). -->
             <Style x:Key="WindowControlButtonOnAccent" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
                 <Setter Property="Foreground" Value="{DynamicResource ButtonTextBrush}"/>
                 <Setter Property="local:WindowChromeHelper.HoverBrush" Value="#33FFFFFF"/>
@@ -192,15 +206,17 @@
                 <Setter Property="local:WindowChromeHelper.FocusBrush" Value="#80FFFFFF"/>
             </Style>
 
-            <!-- Кнопка «закрыть» окна: как WindowControlButton (та же круглая подложка),
-                 но с красным выделением при наведении/нажатии (классический алый) и белым
-                 значком на нём. Значок «белый при наведении» задан отдельным шаблоном —
-                 в триггерном Setter'е нельзя ссылаться на attached-свойство (Expression
-                 недопустим), поэтому шаблон дублируется с одним изменением. -->
+            <!-- Кнопка «закрыть» окна: как WindowControlButton (та же скруглённая подложка),
+                 но с красным выделением при наведении/нажатии и белым значком на нём. Цвет
+                 красной подложки приходит из темы (WindowButtonCloseHoverBrush), радиус и размер
+                 — из тех же ресурсов, что и у обычных кнопок. Значок «белый при наведении»
+                 задан отдельным шаблоном — в триггерном Setter'е нельзя ссылаться на
+                 attached-свойство (Expression недопустим), поэтому шаблон дублируется
+                 с одним изменением. -->
             <Style x:Key="WindowControlCloseButton" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
-                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="#E81123"/>
+                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="{DynamicResource WindowButtonCloseHoverBrush}"/>
                 <Setter Property="local:WindowChromeHelper.PressedBrush" Value="#B91C1C"/>
-                <Setter Property="local:WindowChromeHelper.FocusBrush" Value="#E81123"/>
+                <Setter Property="local:WindowChromeHelper.FocusBrush" Value="{DynamicResource WindowButtonCloseHoverBrush}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -210,11 +226,11 @@
                                     <Grid.RenderTransform>
                                         <ScaleTransform x:Name="circleScale" CenterX="15" CenterY="15"/>
                                     </Grid.RenderTransform>
-                                    <Border x:Name="hoverLayer" CornerRadius="15"
+                                    <Border x:Name="hoverLayer" CornerRadius="{DynamicResource WindowButtonCornerRadius}"
                                             Background="{TemplateBinding local:WindowChromeHelper.HoverBrush}" Opacity="0"/>
-                                    <Border x:Name="pressLayer" CornerRadius="15"
+                                    <Border x:Name="pressLayer" CornerRadius="{DynamicResource WindowButtonCornerRadius}"
                                             Background="{TemplateBinding local:WindowChromeHelper.PressedBrush}" Opacity="0"/>
-                                    <Border x:Name="focusRing" CornerRadius="15" BorderThickness="1.5" Opacity="0"
+                                    <Border x:Name="focusRing" CornerRadius="{DynamicResource WindowButtonCornerRadius}" BorderThickness="1.5" Opacity="0"
                                             BorderBrush="{TemplateBinding local:WindowChromeHelper.FocusBrush}"/>
                                 </Grid>
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center">

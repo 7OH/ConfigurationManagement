@@ -72,6 +72,36 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Применяет полноценную тему по идентификатору (Светлая/Тёмная/Синяя/Зелёная):
+    /// задаёт базовый вариант, схему, стиль кнопок окна и набор иконок, делает схему
+    /// темы активной и сохраняет выбор в настройках. Используется вкладкой
+    /// «Цветовое оформление» окна настроек (Задача 3).
+    /// </summary>
+    public void ApplyFullTheme(string id)
+    {
+        ThemeManager.ApplyFullTheme(id);
+        var theme = ThemeManager.CurrentFullTheme;
+        _settings.FullTheme = theme?.Id ?? _settings.FullTheme;
+        _settings.Theme = ThemeManager.CurrentTheme;
+        _themeName = _settings.Theme;
+        // Схема темы становится активной, чтобы редактор палитры и предпросмотр
+        // показывали цвета выбранной темы.
+        if (theme is not null && theme.Scheme is not null)
+        {
+            var clone = theme.Scheme.Clone();
+            clone.Normalize();
+            _settings.ActiveColorScheme = clone;
+            // Устаревшие раздельные слоты больше не ведутся: схема едина.
+            _settings.LightColorScheme = null;
+            _settings.DarkColorScheme = null;
+        }
+        // Общий цвет папок берётся из активной палитры схемы при построении дерева.
+        RebuildTree();
+        SaveSettingsSilently();
+        OnPropertyChanged(nameof(ThemeName));
+    }
+
+    /// <summary>
     /// Возвращает активную схему (с двумя палитрами). Вариант темы определяет,
     /// какая палитра показывается; сама схема от него не зависит.
     /// </summary>
@@ -89,6 +119,9 @@ public partial class MainViewModel : ViewModelBase
         RebuildTree();
         _settings.Theme = dark ? ThemeManager.DarkThemeName : ThemeManager.LightThemeName;
         _themeName = _settings.Theme;
+        // Переключение базового варианта не меняет полноценную тему (её Id остаётся),
+        // но выбор должен сохраниться в настройках.
+        _settings.FullTheme = ThemeManager.CurrentFullTheme?.Id ?? _settings.FullTheme;
         SaveSettingsSilently();
         OnPropertyChanged(nameof(ThemeName));
     }

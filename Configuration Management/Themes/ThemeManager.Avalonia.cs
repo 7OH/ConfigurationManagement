@@ -32,6 +32,25 @@ namespace Configuration_Management.Themes
         /// <summary>Активная цветовая схема (тема оформления).</summary>
         public static ColorScheme CurrentScheme { get; private set; } = ColorScheme.CreateLight();
 
+        /// <summary>
+        /// Активная полноценная тема (задаётся <see cref="ApplyFullTheme"/>). Хранит выбранный
+        /// идентификатор, стиль кнопок окна, набор иконок и схему; null до первого применения.
+        /// </summary>
+        public static ThemeDefinition? CurrentFullTheme { get; private set; }
+
+        /// <summary>Активный стиль кнопок управления окном (из <see cref="CurrentFullTheme"/>).</summary>
+        public static WindowButtonStyle CurrentWindowButtonStyle { get; private set; } = WindowButtonStyle.Fluent;
+
+        /// <summary>Активный набор иконок (из <see cref="CurrentFullTheme"/>).</summary>
+        public static IconSet CurrentIconSet { get; private set; } = IconSet.Fluent;
+
+        /// <summary>
+        /// Событие смены полноценной темы: поднимается после применения базового варианта,
+        /// схемы, стиля кнопок окна и набора иконок. Слушатели перерисовывают интерфейс
+        /// (меню «Утилиты», кнопки окна, иконки — Задачи 4–6).
+        /// </summary>
+        public static event EventHandler? ThemeChanged;
+
         /// <summary>Каталог пользовательских цветовых схем (JSON-файлы).</summary>
         public static string CustomSchemesDirectory { get; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -51,19 +70,32 @@ namespace Configuration_Management.Themes
             scheme ??= ColorScheme.CreateLight();
             scheme.Normalize();
             CurrentScheme = scheme;
+            // Схема текущей полноценной темы следует за активной: пользовательская схема,
+            // применённая поверх встроенной (ApplyScheme после ApplyFullTheme), остаётся
+            // частью темы и учитывается при переключении базового варианта.
+            if (CurrentFullTheme is not null)
+                CurrentFullTheme.Scheme = scheme;
             ApplyColors(app, scheme, CurrentTheme == DarkThemeName);
         }
 
         /// <summary>
         /// Задаёт базовый вариант темы (светлый/тёмный) и применяет активную схему
-        /// с палитрой этого варианта.
+        /// с палитрой этого варианта. Текущая полноценная тема сохраняет идентификатор
+        /// и параметры оформления, но пересоздаётся с новым вариантом (обратная
+        /// совместимость: вызовы из MainViewModel/LoginWindow продолжают работать).
         /// </summary>
         public static void ApplyTheme(bool dark)
         {
-            CurrentTheme = dark ? DarkThemeName : LightThemeName;
+            var themeName = dark ? DarkThemeName : LightThemeName;
+            var changed = !string.Equals(CurrentTheme, themeName, StringComparison.Ordinal);
+            CurrentTheme = themeName;
+            if (CurrentFullTheme is not null)
+                CurrentFullTheme = ThemeFeatureMap.WithBaseVariant(CurrentFullTheme, dark);
             if (Application.Current is { } app)
                 app.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
             ApplyScheme(CurrentScheme);
+            if (changed)
+                ThemeChanged?.Invoke(null, EventArgs.Empty);
         }
 
         /// <summary>Применяет вариант темы по имени («Light» / «Dark»).</summary>
@@ -77,6 +109,63 @@ namespace Configuration_Management.Themes
             ApplyTheme(next == DarkThemeName);
             return next;
         }
+
+        /// <summary>
+        /// Применяет полноценную тему по идентификатору (см. <see cref="ThemeCatalog"/>):
+        /// задаёт текущее определение, базовый вариант (Light/Dark), стиль кнопок окна
+        /// и набор иконок, применяет схему темы и рассылает <see cref="ThemeChanged"/>.
+        /// Неизвестный или пустой идентификатор ошибкой не является — применяется светлая
+        /// тема по умолчанию. Пользовательская схема при необходимости накладывается
+        /// поверх вызовом <see cref="ApplyScheme"/> (порядок вызовов: сначала
+        /// ApplyFullTheme, затем ApplyScheme(пользовательская схема)).
+        /// </summary>
+        public static void ApplyFullTheme(string? id)
+        {
+            var theme = ThemeFeatureMap.Resolve(id);
+            CurrentFullTheme = ThemeFeatureMap.WithBaseVariant(theme, theme.IsDark);
+            CurrentWindowButtonStyle = CurrentFullTheme.ButtonStyle;
+            CurrentIconSet = CurrentFullTheme.Icons;
+            CurrentTheme = CurrentFullTheme.IsDark ? DarkThemeName : LightThemeName;
+            ApplyScheme(CurrentFullTheme.Scheme);
+            ApplyWindowButtonStyle();
+            ApplyIconSet();
+            ThemeChanged?.Invoke(null, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Выставляет ресурсы стиля кнопок управления окном (подложка наведения, подложка
+        /// кнопки «закрыть», радиус скругления, размер) согласно
+        /// <see cref="CurrentWindowButtonStyle"/>. Ключи описаны в
+        /// <see cref="ThemeFeatureMap"/>; сами кнопки окна начнут их читать в Задаче 4.
+        /// </summary>
+        private static void ApplyWindowButtonStyle()
+        {
+            if (Application.Current is not { } app)
+                return;
+            var metrics = ThemeFeatureMap.ButtonMetrics(CurrentWindowButtonStyle);
+            app.Resources[ThemeFeatureMap.WindowButtonHoverBrushKey] = ParseBrush(metrics.HoverHex);
+            app.Resources[ThemeFeatureMap.WindowButtonCloseHoverBrushKey] = ParseBrush(metrics.CloseHoverHex);
+            app.Resources[ThemeFeatureMap.WindowButtonCornerRadiusKey] = metrics.CornerRadius;
+            app.Resources[ThemeFeatureMap.WindowButtonSizeKey] = metrics.Size;
+        }
+
+        /// <summary>
+        /// Выставляет ресурс активного набора иконок (<see cref="IconSetNameKey"/>) согласно
+        /// <see cref="CurrentIconSet"/>. Оба словаря иконок (Icons.axaml — Fluent и
+        /// IconsOutline.axaml — Outline) подключены в ресурсы приложения; резолв
+        /// (IconHelper) читает этот ресурс и для Outline ищет ключ с суффиксом
+        /// ".Outline", при отсутствии — бесшовный fallback на Fluent (Задача 5).
+        /// </summary>
+        private static void ApplyIconSet()
+        {
+            if (Application.Current is not { } app)
+                return;
+            app.Resources[ThemeFeatureMap.IconSetNameKey] = ThemeFeatureMap.IconSetId(CurrentIconSet);
+        }
+
+        /// <summary>Создаёт кисть из шестнадцатеричного цвета (#RRGGBB), прозрачную при ошибке.</summary>
+        private static IBrush ParseBrush(string hex)
+            => TryParseColor(hex, out var color) ? new SolidColorBrush(color) : Brushes.Transparent;
 
         /// <summary>Возвращает встроенную схему по имени темы («Light»/«Dark») или null.</summary>
         public static ColorScheme? GetBuiltInScheme(string themeName)

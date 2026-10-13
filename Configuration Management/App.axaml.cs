@@ -277,16 +277,16 @@ namespace Configuration_Management
                 {
                     _desktopLifetime = desktop;
 
-                    // Применяем сохранённую цветовую схему (две палитры) и вариант темы.
-                    // Старые раздельные схемы (активная + слоты светлой/тёмной) мигрируются
-                    // в единую схему.
+                    // Применяем сохранённую полноценную тему (FullTheme с миграцией из
+                    // устаревшего Theme) и накладываем поверх пользовательскую цветовую схему
+                    // (две палитры). Старые раздельные схемы (активная + слоты светлой/тёмной)
+                    // мигрируются в единую схему. Порядок важен: сначала встроенная схема темы,
+                    // затем пользовательская — чтобы выбор пользователя не затирался.
                     var mergedScheme = Configuration_Management.Models.ColorScheme.FromLegacy(
                         settings.ActiveColorScheme, settings.LightColorScheme, settings.DarkColorScheme);
-                    var activeTheme = string.IsNullOrWhiteSpace(settings.Theme)
-                        ? ThemeManager.LightThemeName
-                        : settings.Theme;
+                    var fullTheme = settings.NormalizeThemeSelection();
+                    ThemeManager.ApplyFullTheme(fullTheme);
                     ThemeManager.ApplyScheme(mergedScheme);
-                    ThemeManager.ApplyTheme(activeTheme == ThemeManager.DarkThemeName);
 
                     // Компактный режим интерфейса (влияет на метрики отступов/иконок,
                     // должен быть установлен до построения главного окна).

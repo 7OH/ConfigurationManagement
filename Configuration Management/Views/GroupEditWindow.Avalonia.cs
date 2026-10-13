@@ -432,10 +432,9 @@ namespace Configuration_Management
 
         private static Geometry ResolveIcon(string key)
         {
-            if (Application.Current is { } app &&
-                app.TryGetResource(key, null, out var res) && res is Geometry g)
-                return g;
-            return StreamGeometry.Parse("M0,0H1V1H0Z");
+            // Резолв с учётом активного набора иконок (Задача 5): для Outline берётся
+            // контурный вариант, при отсутствии — Fluent-геометрия.
+            return IconHelper.Geometry(key) ?? StreamGeometry.Parse("M0,0H1V1H0Z");
         }
 
         private void ApplyIconPickerColors()

@@ -40,6 +40,7 @@ public partial class MainViewModel : ViewModelBase
     private string _pinnedIconColor = "#FFFFFF";
     private string _pinnedIcon = string.Empty;
     private string _savedTheme = string.Empty;
+    private string _fullTheme = string.Empty;
     private ColorScheme? _activeColorScheme;
     /// <summary>Флаг подписки на событие смены языка (предотвращает дублирование подписки).</summary>
     private bool _languageChangedSubscribed;
@@ -295,6 +296,10 @@ public partial class MainViewModel : ViewModelBase
         _pinnedIconColor = string.IsNullOrWhiteSpace(settings.PinnedIconColor) ? "#FFFFFF" : settings.PinnedIconColor;
         _pinnedIcon = settings.PinnedIcon ?? string.Empty;
         _savedTheme = settings.Theme;
+        // Полноценная тема: к старту главного окна ApplyFullTheme уже применил тему
+        // (App.OnStartup), поэтому берём актуальный идентификатор из ThemeManager;
+        // иначе — мигрируем выбор из устаревшего поля Theme.
+        _fullTheme = Themes.ThemeManager.CurrentFullTheme?.Id ?? settings.NormalizeThemeSelection();
         _fontFamily = string.IsNullOrWhiteSpace(settings.FontFamily)
             ? Themes.ThemeManager.DefaultFontFamily : settings.FontFamily;
         _fontSize = settings.FontSize > 0 ? settings.FontSize : Themes.ThemeManager.DefaultFontSize;

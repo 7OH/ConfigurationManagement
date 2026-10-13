@@ -207,8 +207,10 @@ namespace Configuration_Management
                 {
                     try
                     {
-                        var geom = TryFindResource(key) as Geometry;
-                        if (geom != null)
+                        // Резолв с учётом активного набора иконок (Задача 5): для Outline
+                        // берётся контурный вариант, при отсутствии — Fluent-геометрия.
+                        var geom = Converters.IconKeyToGeometryConverter.ResolveGeometry(key);
+                        if (geom != null && !geom.IsEmpty())
                         {
                             btn.Content = new Path
                             {

@@ -869,6 +869,24 @@
                     <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,0">
                         <StackPanel>
+                            <!-- Полноценная тема (Задача 3): Светлая/Тёмная/Синяя/Зелёная.
+                                 Выбор применяется мгновенно и сохраняется в AppSettings.FullTheme. -->
+                            <GroupBox Header="{loc:Loc Settings.FullTheme}" Padding="8" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <TextBlock Text="{loc:Loc Settings.FullThemeLabel}" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <ComboBox x:Name="FullThemeComboBox" Width="240" Height="34" Margin="10,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource ModernComboBox}"
+                                                  SelectionChanged="OnFullThemeCombo_SelectionChanged"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{loc:Loc Settings.FullTheme.Description}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </GroupBox>
+
                             <GroupBox Header="{loc:Loc Settings.Theme}" Padding="8" Margin="0,0,0,12">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">

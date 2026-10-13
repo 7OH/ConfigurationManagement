@@ -40,6 +40,14 @@ public class ColorScheme
     public Dictionary<string, string> DarkColors { get; set; } = new();
 
     /// <summary>
+    /// Акцентный цвет схемы в формате #RRGGBB (например "#2563EB" для синей темы).
+    /// Необязательное поле: у пользовательских схем может отсутствовать — тогда
+    /// используется акцент активной палитры (см. <see cref="Normalize"/>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AccentColor { get; set; }
+
+    /// <summary>
     /// Ключи ресурсов цветов и соответствующие им ключи локализации подписей
     /// для редактора в настройках. Технический ключ ресурса (первый элемент)
     /// хранится и сравнивается — его НЕ переводим; переводится только подпись.
@@ -146,6 +154,10 @@ public class ColorScheme
 
         FillMissing(LightColors, DefaultLightPalette());
         FillMissing(DarkColors, DefaultDarkPalette());
+
+        // Акцентный цвет: если не задан (старые JSON-файлы) — берём акцент активной палитры.
+        if (string.IsNullOrWhiteSpace(AccentColor))
+            AccentColor = PaletteValue(IsDark, "AccentColor");
     }
 
     private static void FillMissing(Dictionary<string, string> target, Dictionary<string, string> defaults)
@@ -164,7 +176,8 @@ public class ColorScheme
         IsDark = IsDark,
         Colors = Colors is null ? null : new Dictionary<string, string>(Colors, StringComparer.Ordinal),
         LightColors = new Dictionary<string, string>(LightColors, StringComparer.Ordinal),
-        DarkColors = new Dictionary<string, string>(DarkColors, StringComparer.Ordinal)
+        DarkColors = new Dictionary<string, string>(DarkColors, StringComparer.Ordinal),
+        AccentColor = AccentColor
     };
 
     /// <summary>
@@ -208,10 +221,17 @@ public class ColorScheme
     /// <summary>Создаёт встроенную схему «Тёмная» (несёт обе палитры).</summary>
     public static ColorScheme CreateDark() => Create("Тёмная", true);
 
+    /// <summary>Создаёт встроенную схему «Синяя» (несёт обе палитры, синий акцент).</summary>
+    public static ColorScheme CreateBlue() => CreateAccent("Синяя", "#2563EB");
+
+    /// <summary>Создаёт встроенную схему «Зелёная» (несёт обе палитры, зелёный акцент).</summary>
+    public static ColorScheme CreateGreen() => CreateAccent("Зелёная", "#16A34A");
+
     /// <summary>
     /// Создаёт схему с палитрами по умолчанию для обоих режимов. Параметр <paramref name="isDark"/>
     /// сохраняется только в устаревшем поле <see cref="IsDark"/> (для совместимости); сама схема
-    /// всегда содержит и светлую, и тёмную палитру.
+    /// всегда содержит и светлую, и тёмную палитру. Акцентный цвет заполняется стандартным
+    /// акцентом соответствующей палитры (см. <see cref="DefaultLightPalette"/>/<see cref="DefaultDarkPalette"/>).
     /// </summary>
     public static ColorScheme Create(string name, bool isDark)
     {
@@ -220,6 +240,26 @@ public class ColorScheme
             scheme.LightColors[key] = value;
         foreach (var (key, value) in DefaultDarkPalette())
             scheme.DarkColors[key] = value;
+        scheme.AccentColor = (isDark ? DefaultDarkPalette() : DefaultLightPalette())["AccentColor"];
+        return scheme;
+    }
+
+    /// <summary>
+    /// Создаёт схему с палитрами по умолчанию, но с заданным акцентным цветом:
+    /// акцентные ключи обеих палитр заменяются на оттенки <paramref name="accentHex"/>.
+    /// </summary>
+    private static ColorScheme CreateAccent(string name, string accentHex)
+    {
+        var scheme = Create(name, false);
+        scheme.AccentColor = accentHex;
+        scheme.LightColors["AccentColor"] = accentHex;
+        scheme.LightColors["AccentHoverColor"] = Shade(accentHex, 0.9);
+        scheme.LightColors["AccentPressedColor"] = Shade(accentHex, 0.8);
+        scheme.LightColors["SidebarSelectedColor"] = accentHex;
+        scheme.DarkColors["AccentColor"] = accentHex;
+        scheme.DarkColors["AccentHoverColor"] = Shade(accentHex, 1.1);
+        scheme.DarkColors["AccentPressedColor"] = Shade(accentHex, 0.85);
+        scheme.DarkColors["SidebarSelectedColor"] = accentHex;
         return scheme;
     }
 
@@ -394,6 +434,14 @@ public class ColorScheme
                 System.Globalization.CultureInfo.InvariantCulture, out var bb))
             return (rr, gg, bb);
         return (253, 191, 0); // запасной жёлтый акцент
+    }
+
+    /// <summary>Затемняет/осветляет HEX-цвет умножением каналов на коэффициент (0..1 — темнее, >1 — светлее).</summary>
+    private static string Shade(string hex, double factor)
+    {
+        var (r, g, b) = ParseRgb(hex);
+        byte Clamp(double v) => (byte)Math.Clamp(v, 0, 255);
+        return $"#{Clamp(r * factor):X2}{Clamp(g * factor):X2}{Clamp(b * factor):X2}";
     }
 
     private static void RgbToHsl(byte r, byte g, byte b, out double h, out double s, out double l)

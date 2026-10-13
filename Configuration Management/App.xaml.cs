@@ -235,22 +235,22 @@ namespace Configuration_Management
 
                 base.OnStartup(e);
 
-                // Применяем сохранённую цветовую схему (две палитры) и вариант темы.
-                // Старые раздельные схемы (активная + слоты светлой/тёмной) мигрируются
-                // в единую схему.
+                // Применяем сохранённую полноценную тему (FullTheme с миграцией из
+                // устаревшего Theme) и накладываем поверх пользовательскую цветовую схему
+                // (две палитры). Старые раздельные схемы (активная + слоты светлой/тёмной)
+                // мигрируются в единую схему. Порядок важен: сначала встроенная схема темы,
+                // затем пользовательская — чтобы выбор пользователя не затирался.
                 var mergedScheme = Configuration_Management.Models.ColorScheme.FromLegacy(
                     settings.ActiveColorScheme, settings.LightColorScheme, settings.DarkColorScheme);
-                var themeName = string.IsNullOrWhiteSpace(settings.Theme)
-                    ? ThemeManager.LightThemeName
-                    : settings.Theme;
+                var fullTheme = settings.NormalizeThemeSelection();
+                ThemeManager.ApplyFullTheme(fullTheme);
                 ThemeManager.ApplyScheme(mergedScheme);
-                ThemeManager.ApplyTheme(themeName == ThemeManager.DarkThemeName);
 #if DEBUG
                 try
                 {
                     System.IO.File.AppendAllText(
                         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "cm_theme_debug.log"),
-                        $"[startup] theme='{themeName}' dark={themeName == ThemeManager.DarkThemeName} applied='{ThemeManager.CurrentScheme.Name}' " +
+                        $"[startup] fullTheme='{fullTheme}' dark={ThemeManager.CurrentTheme == ThemeManager.DarkThemeName} applied='{ThemeManager.CurrentScheme.Name}' " +
                         $"darkSlot='{settings.DarkColorScheme?.Name}' lightSlot='{settings.LightColorScheme?.Name}' " +
                         $"active='{settings.ActiveColorScheme?.Name}'{System.Environment.NewLine}");
                 }

@@ -15,6 +15,10 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://ConfigurationManagement/Themes/Icons.axaml" />
+                <!-- Второй набор иконок (Outline, Задача 5): ключи с суффиксом ".Outline".
+                     Резолв (IconHelper) выбирает активный набор по ресурсу IconSetName,
+                     который выставляет ThemeManager.ApplyIconSet. -->
+                <ResourceInclude Source="avares://ConfigurationManagement/Themes/IconsOutline.axaml" />
                 <ResourceInclude Source="avares://ConfigurationManagement/Themes/LightTheme.axaml" />
                 <ResourceInclude Source="avares://ConfigurationManagement/Themes/Controls.axaml" />
             </ResourceDictionary.MergedDictionaries>

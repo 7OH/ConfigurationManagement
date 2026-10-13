@@ -54,6 +54,13 @@ public class AppSettings
     public string Theme { get; set; } = string.Empty;
 
     /// <summary>
+    /// Идентификатор полноценной темы (см. <see cref="Themes.ThemeCatalog"/>): "light",
+    /// "dark", "blue", "green" или пусто. Пусто — используется устаревшее поле
+    /// <see cref="Theme"/> (обратная совместимость, см. <see cref="NormalizeThemeSelection"/>).
+    /// </summary>
+    public string FullTheme { get; set; } = string.Empty;
+
+    /// <summary>
     /// Код языка интерфейса, например "ru", "en", "de". Пусто — язык определяется
     /// автоматически (по языку операционной системы, если он доступен, иначе русский).
     /// </summary>
@@ -831,6 +838,24 @@ public class AppSettings
     /// заполняется сервисом проверки для быстрого отображения предыдущего результата).
     /// </summary>
     public Dictionary<string, ConfigUpdateCheckResult> UpdateCheckCache { get; set; } = new();
+
+    /// <summary>
+    /// Приводит выбор темы к актуальному виду (миграция старых настроек):
+    /// если <see cref="FullTheme"/> пуст, а устаревшее поле <see cref="Theme"/>
+    /// равно "Light"/"Dark" — заполняет <see cref="FullTheme"/> значениями
+    /// "light"/"dark". Пустой выбор темы трактуется как светлая тема по умолчанию.
+    /// Возвращает итоговый идентификатор полноценной темы.
+    /// </summary>
+    public string NormalizeThemeSelection()
+    {
+        if (string.IsNullOrWhiteSpace(FullTheme))
+        {
+            FullTheme = string.Equals(Theme, "Dark", StringComparison.OrdinalIgnoreCase)
+                ? "dark"
+                : "light";
+        }
+        return FullTheme;
+    }
 
     /// <summary>
     /// Приводит настройки, загруженные из файла, к безопасному состоянию (issue #64).

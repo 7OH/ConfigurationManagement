@@ -1,0 +1,69 @@
+#if LINUX
+using Avalonia;
+using Avalonia.Media;
+
+namespace Configuration_Management.Themes
+{
+    /// <summary>
+    /// Текущие параметры кнопок управления окном (Задача 4): кисть подложки наведения,
+    /// кисть кнопки «закрыть», радиус скругления подложки и размер кнопки. Значения
+    /// кладёт <see cref="ThemeManager.ApplyWindowButtonStyle"/> в Application.Resources
+    /// по ключам <see cref="ThemeFeatureMap"/>; здесь они читаются кодом, потому что
+    /// шаблоны кнопок строятся в C# (без XAML) и подписаться на ресурсы числовых
+    /// типов (радиус/размер) DynamicResource-привязкой нельзя.
+    /// </summary>
+    internal sealed class WindowButtonThemeMetrics
+    {
+        /// <summary>Высота кнопок окна в обычном масштабе (совпадает с высотой полосы заголовка).</summary>
+        public const double ButtonHeight = 34;
+
+        public IBrush Hover { get; private set; } = Brushes.Transparent;
+        public IBrush CloseHover { get; private set; } = Brushes.Transparent;
+        public double CornerRadius { get; private set; }
+        public double Size { get; private set; }
+
+        /// <summary>
+        /// Читает метрики из ресурсов темы. Если ресурсы ещё не выставлены (до первого
+        /// <see cref="ThemeManager.ApplyFullTheme"/>) или значение имеет неожиданный тип —
+        /// используется fallback на метрики текущего стиля кнопок
+        /// (<see cref="ThemeManager.CurrentWindowButtonStyle"/>).
+        /// </summary>
+        public static WindowButtonThemeMetrics Current()
+        {
+            var fallback = ThemeFeatureMap.ButtonMetrics(ThemeManager.CurrentWindowButtonStyle);
+            var result = new WindowButtonThemeMetrics
+            {
+                Hover = Parse(fallback.HoverHex),
+                CloseHover = Parse(fallback.CloseHoverHex),
+                CornerRadius = fallback.CornerRadius,
+                Size = fallback.Size
+            };
+
+            if (Avalonia.Application.Current?.Resources is not { } resources)
+                return result;
+
+            if (resources.TryGetResource(ThemeFeatureMap.WindowButtonHoverBrushKey, null, out var hover)
+                && hover is IBrush hoverBrush)
+                result.Hover = hoverBrush;
+            if (resources.TryGetResource(ThemeFeatureMap.WindowButtonCloseHoverBrushKey, null, out var closeHover)
+                && closeHover is IBrush closeHoverBrush)
+                result.CloseHover = closeHoverBrush;
+            if (resources.TryGetResource(ThemeFeatureMap.WindowButtonCornerRadiusKey, null, out var radius)
+                && radius is double cornerRadius)
+                result.CornerRadius = cornerRadius;
+            if (resources.TryGetResource(ThemeFeatureMap.WindowButtonSizeKey, null, out var size)
+                && size is double buttonSize)
+                result.Size = buttonSize;
+
+            return result;
+        }
+
+        /// <summary>Создаёт кисть из шестнадцатеричного цвета (#RRGGBB), прозрачную при ошибке.</summary>
+        private static IBrush Parse(string hex)
+        {
+            try { return new SolidColorBrush(Color.Parse(hex)); }
+            catch { return Brushes.Transparent; }
+        }
+    }
+}
+#endif

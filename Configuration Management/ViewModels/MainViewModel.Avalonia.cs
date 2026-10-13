@@ -695,9 +695,22 @@ public partial class MainViewModel : ViewModelBase
             _settings.LightColorScheme = null;
             _settings.DarkColorScheme = null;
 
-            if (string.IsNullOrWhiteSpace(_themeName))
-                _themeName = ThemeManager.LightThemeName;
-            _settings.Theme = _themeName;
+            // Полноценная тема уже применена при старте (App.OnFrameworkInitializationCompleted
+            // вызывает ApplyFullTheme): синхронизируем поля настроек с актуальным выбором,
+            // чтобы перезапуск восстановил ту же тему.
+            if (ThemeManager.CurrentFullTheme is not null)
+            {
+                _themeName = ThemeManager.CurrentTheme;
+                _settings.Theme = _themeName;
+                _settings.FullTheme = ThemeManager.CurrentFullTheme.Id;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_themeName))
+                    _themeName = ThemeManager.LightThemeName;
+                _settings.Theme = _themeName;
+                _settings.FullTheme = _settings.NormalizeThemeSelection();
+            }
 
             // Применяем схему и вариант темы: палитра выбирается по варианту.
             ThemeManager.ApplyScheme(_settings.ActiveColorScheme);

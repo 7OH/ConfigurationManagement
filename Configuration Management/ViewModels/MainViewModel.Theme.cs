@@ -27,6 +27,9 @@ public partial class MainViewModel : ViewModelBase
     public void SaveTheme(string theme)
     {
         _savedTheme = theme;
+        // Идентификатор полноценной темы следует за выбором базового варианта.
+        _fullTheme = string.Equals(theme, Themes.ThemeManager.DarkThemeName, StringComparison.OrdinalIgnoreCase)
+            ? "dark" : "light";
         SaveSettings();
     }
 
@@ -38,6 +41,32 @@ public partial class MainViewModel : ViewModelBase
     {
         var scheme = Themes.ThemeManager.GetBuiltInScheme(theme) ?? Models.ColorScheme.CreateLight();
         ApplyColorScheme(scheme);
+    }
+
+    /// <summary>
+    /// Применяет полноценную тему по идентификатору (Светлая/Тёмная/Синяя/Зелёная):
+    /// задаёт базовый вариант, схему, стиль кнопок окна и набор иконок, делает схему
+    /// темы активной и сохраняет выбор в настройках. Используется вкладкой
+    /// «Цветовое оформление» окна настроек (Задача 3).
+    /// </summary>
+    public void ApplyFullTheme(string id)
+    {
+        Themes.ThemeManager.ApplyFullTheme(id);
+        var theme = Themes.ThemeManager.CurrentFullTheme;
+        _fullTheme = theme?.Id ?? _fullTheme;
+        _savedTheme = Themes.ThemeManager.CurrentTheme;
+        // Схема темы становится активной, чтобы редактор палитры и предпросмотр
+        // показывали цвета выбранной темы.
+        if (theme is not null && theme.Scheme is not null)
+        {
+            var clone = theme.Scheme.Clone();
+            clone.Normalize();
+            _activeColorScheme = clone;
+        }
+        // Общий цвет папок хранится в схеме и применяется при построении дерева.
+        RebuildGroupTree();
+        SaveSettings();
+        LogTheme($"ApplyFullTheme('{id}') -> active='{_activeColorScheme?.Name}'");
     }
 
     /// <summary>
@@ -64,6 +93,9 @@ public partial class MainViewModel : ViewModelBase
         // Убеждаемся, что активная схема применена, затем задаём вариант темы.
         Themes.ThemeManager.ApplyScheme(_activeColorScheme ?? Models.ColorScheme.CreateLight());
         Themes.ThemeManager.ApplyTheme(dark);
+        // Переключение базового варианта не меняет полноценную тему (её Id остаётся),
+        // но выбор должен сохраниться в настройках.
+        _fullTheme = Themes.ThemeManager.CurrentFullTheme?.Id ?? _fullTheme;
         LogTheme($"ApplySchemeForTheme(dark={dark}) -> active='{_activeColorScheme?.Name}'");
     }
 

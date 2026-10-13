@@ -231,6 +231,13 @@ namespace Configuration_Management
             // обновляются сами через LocalizationManager.Source.NotifyAll()).
             LocalizationManager.Instance.LanguageChanged += OnLanguageChanged;
 
+            // Меню «Утилиты» (Задача 6): при смене полноценной темы пересобираем
+            // контекстное меню кнопки, чтобы цвета/иконки обновились на лету.
+            // Меню всё равно пересоздаётся при каждом открытии, подписка гарантирует
+            // мгновенное обновление уже построенного меню; отписка — при закрытии окна.
+            Themes.ThemeManager.ThemeChanged += OnThemeChanged;
+            Closed += (_, _) => Themes.ThemeManager.ThemeChanged -= OnThemeChanged;
+
             _viewModel = viewModel ?? new ViewModels.MainViewModel();
             DataContext = _viewModel;
 

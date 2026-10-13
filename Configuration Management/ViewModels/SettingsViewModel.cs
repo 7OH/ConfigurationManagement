@@ -65,6 +65,40 @@ public sealed class SettingsViewModel
     /// <summary>Список доступных схем: встроенные (Светлая/Тёмная) и пользовательские.</summary>
     public IReadOnlyList<ColorScheme> AvailableColorSchemes() => _viewModel.AvailableColorSchemes();
 
+    // ---- Полноценные темы (Задача 3) ----
+
+    /// <summary>Встроенные полноценные темы (Светлая/Тёмная/Синяя/Зелёная) для выбора в настройках.</summary>
+    public static IReadOnlyList<ThemeDefinition> FullThemes => ThemeCatalog.BuiltIn;
+
+    /// <summary>
+    /// Идентификатор активной полноценной темы (из <see cref="ThemeManager.CurrentFullTheme"/>);
+    /// до первого применения — светлая тема по умолчанию.
+    /// </summary>
+    public string CurrentFullThemeId => ThemeManager.CurrentFullTheme?.Id ?? ThemeCatalog.BuiltIn[0].Id;
+
+    /// <summary>
+    /// true, если имя совпадает с именем встроенной полноценной темы
+    /// (Светлая/Тёмная/Синяя/Зелёная). Такие схемы нельзя переименовывать/удалять
+    /// в списке цветовых схем.
+    /// </summary>
+    public static bool IsBuiltInFullThemeName(string name)
+        => ThemeCatalog.BuiltIn.Any(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Делает схему выбранной полноценной темы текущей редактируемой (без пометки
+    /// «изменена»): редактор палитры и предпросмотр показывают цвета темы. Пока
+    /// пользователь не тронет цвета, схема не сохраняется как пользовательская тема.
+    /// </summary>
+    public void AdoptFullThemeScheme(ThemeDefinition theme)
+    {
+        if (theme?.Scheme is null)
+            return;
+        var scheme = theme.Scheme.Clone();
+        scheme.Normalize();
+        CurrentColorScheme = scheme;
+        _editingSchemes[scheme.Name] = scheme;
+    }
+
     /// <summary>true, если имя соответствует встроенной теме («Светлая»/«Тёмная»).</summary>
     public static bool IsBuiltInName(string name)
         => string.Equals(name, BuiltInLightName, StringComparison.OrdinalIgnoreCase)
@@ -83,6 +117,11 @@ public sealed class SettingsViewModel
             return LocalizationManager.T("Theme.Light");
         if (string.Equals(name, BuiltInDarkName, StringComparison.OrdinalIgnoreCase))
             return LocalizationManager.T("Theme.Dark");
+        // Встроенные полноценные темы «Синяя»/«Зелёная» (Задача 3).
+        var full = ThemeCatalog.BuiltIn.FirstOrDefault(t =>
+            string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (full is not null)
+            return LocalizationManager.T(ThemeFeatureMap.ThemeNameKey(full.Id));
         return name;
     }
 
@@ -112,6 +151,13 @@ public sealed class SettingsViewModel
             source = _viewModel.GetSchemeForTheme(
                 dark ? ThemeManager.DarkThemeName : ThemeManager.LightThemeName).Clone();
             source.Name = dark ? BuiltInDarkName : BuiltInLightName;
+        }
+        else if (ThemeCatalog.BuiltIn.FirstOrDefault(t =>
+                     string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)) is { } fullTheme)
+        {
+            // Встроенная полноценная тема «Синяя»/«Зелёная»: берём её схему из каталога.
+            source = fullTheme.Scheme.Clone();
+            source.Name = fullTheme.Name;
         }
         else
         {

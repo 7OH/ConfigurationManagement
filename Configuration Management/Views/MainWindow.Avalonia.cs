@@ -284,6 +284,23 @@ namespace Configuration_Management
             // создаются в коде через LocalizationManager.T(...), поэтому окно пересобирается,
             // чтобы переведённый текст появился сразу, а не после перезапуска.
             LocalizationManager.Instance.LanguageChanged += OnLanguageChanged;
+
+            // Меню «Утилиты» (Задача 6): при смене полноценной темы пересобираем
+            // контекстное меню кнопки — иконки (активный набор) и цвета (активная схема)
+            // обновляются на лету. Отписка — при реальном закрытии окна (Closed).
+            ThemeManager.ThemeChanged += OnThemeChanged;
+            Closed += (_, _) => ThemeManager.ThemeChanged -= OnThemeChanged;
+        }
+
+        /// <summary>
+        /// Смена полноценной темы (Задача 6): пересоздаём контекстное меню «Утилиты»,
+        /// чтобы иконки и цвета пунктов взялись из актуальных набора и схемы.
+        /// </summary>
+        private void OnThemeChanged(object? sender, EventArgs e)
+        {
+            if (_utilitiesButton is null)
+                return;
+            _utilitiesButton.ContextMenu = BuildUtilitiesMenu();
         }
 
         /// <summary>
@@ -429,6 +446,10 @@ namespace Configuration_Management
         /// <summary>Пункт «Отменить последнюю замену строк подключения» в меню «Утилиты»
         /// (0.3.9.191): IsEnabled синхронизируется с <see cref="MainViewModel.CanUndoConnectionReplace"/>.</summary>
         private MenuItem? _undoConnectionReplaceItem;
+
+        /// <summary>Кнопка «Утилиты» верхней панели: при смене темы пересобирается её ContextMenu
+        /// (Задача 6), поэтому кнопка хранится в поле, а не локально в <c>BuildMainArea</c>.</summary>
+        private Button? _utilitiesButton;
 
         // ======================= Построение UI =======================
 
@@ -741,6 +762,7 @@ namespace Configuration_Management
             ToolTip.SetTip(utilitiesBtn, LocalizationManager.T("Main.UtilitiesTooltip"));
             utilitiesBtn.ContextMenu = utilitiesMenu;
             utilitiesBtn.Click += (_, _) => utilitiesMenu.Open(utilitiesBtn);
+            _utilitiesButton = utilitiesBtn;
             panel.Children.Add(utilitiesBtn);
 
             // «Актуальные релизы» перенесены в подменю «Утилиты» (issue #279), отдельная

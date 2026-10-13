@@ -4,10 +4,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using MaterialDesignThemes.Wpf;
+using System.Windows.Shapes;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
 using Configuration_Management.Services;
+using Configuration_Management.Themes;
 
 namespace Configuration_Management;
 
@@ -60,7 +61,8 @@ public partial class MainWindow
             };
             newMenu.Icon = CreateMenuIcon(
                 UtilitiesMenuCatalog.GroupWpfIconKind(UtilitiesMenuCatalog.GroupNewItems),
-                UtilitiesMenuCatalog.GroupIconColor(UtilitiesMenuCatalog.GroupNewItems));
+                UtilitiesMenuCatalog.ResolveGroupIconColor(
+                    UtilitiesMenuCatalog.GroupNewItems, ActiveScheme, IsDarkTheme));
             foreach (var catalogItem in newItems)
             {
                 var node = new UtilitiesMenuNode { Kind = "item", ItemId = catalogItem.Id };
@@ -124,7 +126,7 @@ public partial class MainWindow
             : UtilitiesMenuCatalog.GroupWpfIconKind(node.GroupId ?? string.Empty);
         var color = !string.IsNullOrWhiteSpace(node.IconColor)
             ? node.IconColor!
-            : UtilitiesMenuCatalog.GroupIconColor(node.GroupId ?? string.Empty);
+            : UtilitiesMenuCatalog.ResolveGroupIconColor(node.GroupId ?? string.Empty, ActiveScheme, IsDarkTheme);
         return CreateMenuIcon(iconKey, color);
     }
 
@@ -161,24 +163,35 @@ public partial class MainWindow
             : catalogItem.WpfIconKind;
         var color = !string.IsNullOrWhiteSpace(node.IconColor)
             ? node.IconColor!
-            : catalogItem.IconColor;
+            : UtilitiesMenuCatalog.ResolveItemIconColor(catalogItem, ActiveScheme, IsDarkTheme);
         return CreateMenuIcon(iconKey, color);
     }
 
-    /// <summary>PackIcon 16×16 по ключу иконки; null — без иконки (пустой/неизвестный ключ).</summary>
-    private PackIcon? CreateMenuIcon(string iconKey, string colorHex)
+    /// <summary>
+    /// Иконка меню 16×16 по ключу (PackIcon-имя каталога или уже ключ геометрии <c>Icon*</c>).
+    /// Геометрия резолвится через <see cref="Converters.IconKeyToGeometryConverter.ResolveGeometry"/>
+    /// с учётом активного набора иконок (Задача 5): для Outline — контурный вариант, при его
+    /// отсутствии — Fluent-геометрия. Цвет — из активной схемы (см. ParseMenuIconColor).
+    /// </summary>
+    private Path? CreateMenuIcon(string iconKey, string colorHex)
     {
         if (string.IsNullOrWhiteSpace(iconKey))
             return null;
-        var kind = PackIconKindFromString(iconKey);
-        if (kind is null)
+        var geometryKey = UtilitiesMenuCatalog.WpfIconGeometryKey(iconKey);
+        if (string.IsNullOrWhiteSpace(geometryKey))
             return null;
-        return new PackIcon
+        var geometry = Converters.IconKeyToGeometryConverter.ResolveGeometry(geometryKey);
+        if (geometry is null || geometry.IsEmpty())
+            return null;
+        return new Path
         {
-            Kind = (PackIconKind)kind,
+            Data = geometry,
+            Fill = ParseMenuIconColor(colorHex),
             Width = 16,
             Height = 16,
-            Foreground = ParseMenuIconColor(colorHex),
+            Stretch = Stretch.Uniform,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
     }
 
@@ -305,45 +318,27 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>PackIconKind по строковому ключу каталога; null — неизвестный ключ (без иконки).</summary>
-    private static PackIconKind? PackIconKindFromString(string key)
+    /// <summary>Активная цветовая схема для построения меню «Утилиты» (Задача 6).</summary>
+    private static Models.ColorScheme ActiveScheme => ThemeManager.CurrentScheme;
+
+    /// <summary>Активен ли тёмный вариант темы (для выбора палитры активной схемы).</summary>
+    private static bool IsDarkTheme => ThemeManager.CurrentTheme == ThemeManager.DarkThemeName;
+
+    /// <summary>
+    /// Смена полноценной темы (Задача 6): пересобираем контекстное меню кнопки «Утилиты»
+    /// и обновляем его цвета/иконки на лету. Меню всё равно пересоздаётся при каждом
+    /// открытии (см. <see cref="BuildUtilitiesMenu"/>), поэтому подписка лишь гарантирует
+    /// мгновенное обновление уже построенного меню при переключении темы.
+    /// </summary>
+    private void OnThemeChanged(object? sender, EventArgs e)
     {
-        switch (key)
-        {
-            case "Magnify": return PackIconKind.Magnify;
-            case "CloudDownload": return PackIconKind.CloudDownload;
-            case "PackageVariant": return PackIconKind.PackageVariant;
-            case "Download": return PackIconKind.Download;
-            case "ServerNetwork": return PackIconKind.ServerNetwork;
-            case "Server": return PackIconKind.Server;
-            case "Lock": return PackIconKind.Lock;
-            case "LockOpenVariant": return PackIconKind.LockOpenVariant;
-            case "Key": return PackIconKind.Key;
-            case "DatabaseExport": return PackIconKind.DatabaseExport;
-            case "MonitorDashboard": return PackIconKind.MonitorDashboard;
-            case "AccountKey": return PackIconKind.AccountKey;
-            case "CalendarClock": return PackIconKind.CalendarClock;
-            case "Cog": return PackIconKind.Cog;
-            case "CodeBraces": return PackIconKind.CodeBraces;
-            case "History": return PackIconKind.History;
-            case "Compare": return PackIconKind.Compare;
-            case "Sitemap": return PackIconKind.Sitemap;
-            case "SourceBranch": return PackIconKind.SourceBranch;
-            case "FileDelimited": return PackIconKind.FileDelimited;
-            case "FileDocument": return PackIconKind.FileDocument;
-            case "FileExport": return PackIconKind.FileExport;
-            case "DatabaseImport": return PackIconKind.DatabaseImport;
-            case "ApplicationCog": return PackIconKind.ApplicationCog;
-            case "CloseNetwork": return PackIconKind.CloseNetwork;
-            case "FindReplace": return PackIconKind.FindReplace;
-            case "UndoVariant": return PackIconKind.UndoVariant;
-            case "FolderRemove": return PackIconKind.FolderRemove;
-            case "Update": return PackIconKind.Update;
-            case "Tune": return PackIconKind.Tune;
-            case "Information": return PackIconKind.Information;
-            case "NewBox": return PackIconKind.NewBox;
-            default: return null;
-        }
+        if (UtilitiesButton is null)
+            return;
+        var menu = BuildUtilitiesMenu();
+        menu.PlacementTarget = UtilitiesButton;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.DataContext = DataContext;
+        UtilitiesButton.ContextMenu = menu;
     }
 }
 #endif

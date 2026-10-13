@@ -160,22 +160,34 @@ namespace Configuration_Management
             var settings = new StackPanel();
 
             // Тема оформления. Редактируемая схема и колбэк обновления редактора объявляются
-            // здесь, чтобы радиокнопки «Светлая/Тёмная» переключали базовую тему именно той
-            // схемы, которую пользователь редактирует (и которая сохраняется по «Применить»).
+            // здесь, чтобы выбор полноценной темы (Светлая/Тёмная/Синяя/Зелёная) показывал
+            // в редакторе палитры именно схему выбранной темы.
             var editedScheme = _viewModel.ActiveColorScheme.Clone();
             System.Action? refreshEditedScheme = null;
             var themeLabel = new TextBlock { Text = LocalizationManager.T("Settings.ThemeLabel"), FontWeight = FontWeight.SemiBold };
             settings.Children.Add(themeLabel);
             var themePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-            var lightTheme = new RadioButton { Content = LocalizationManager.T("Main.LightTheme"), GroupName = "Theme", IsChecked = ThemeManager.CurrentTheme != ThemeManager.DarkThemeName };
-            var darkTheme = new RadioButton { Content = LocalizationManager.T("Main.DarkTheme"), GroupName = "Theme", IsChecked = ThemeManager.CurrentTheme == ThemeManager.DarkThemeName };
-            ThemeChanged(lightTheme, darkTheme, _viewModel, theme =>
+            // Полноценные темы (Задача 3): Светлая/Тёмная/Синяя/Зелёная из каталога.
+            // Выбор применяется мгновенно и сохраняется в AppSettings.FullTheme.
+            var currentFullThemeId = ThemeManager.CurrentFullTheme?.Id ?? ThemeCatalog.BuiltIn[0].Id;
+            foreach (var theme in ThemeCatalog.BuiltIn)
             {
-                editedScheme = _viewModel.GetSchemeForTheme(theme);
-                refreshEditedScheme?.Invoke();
-            });
-            themePanel.Children.Add(lightTheme);
-            themePanel.Children.Add(darkTheme);
+                var button = new RadioButton
+                {
+                    Content = LocalizationManager.T(ThemeFeatureMap.ThemeNameKey(theme.Id)),
+                    GroupName = "FullTheme",
+                    IsChecked = string.Equals(theme.Id, currentFullThemeId, StringComparison.OrdinalIgnoreCase)
+                };
+                ThemeChanged(button, theme.Id, id =>
+                {
+                    // Применяем полноценную тему: цвета, кнопки окна, иконки; сохраняем выбор.
+                    _viewModel.ApplyFullTheme(id);
+                    // Редактор палитры и предпросмотр показывают цвета выбранной темы.
+                    editedScheme = _viewModel.ActiveColorScheme.Clone();
+                    refreshEditedScheme?.Invoke();
+                });
+                themePanel.Children.Add(button);
+            }
             settings.Children.Add(themePanel);
 
             // Язык интерфейса лежит в рамке с заголовком, отступом 8 и полем
@@ -3673,21 +3685,18 @@ namespace Configuration_Management
             return toggle;
         }
 
-        private static void ThemeChanged(
-            RadioButton light, RadioButton dark, MainViewModel viewModel,
-            Action<string> onTheme)
+        /// <summary>
+        /// Подписывает радиокнопку полноценной темы (Задача 3): при её выборе вызывается
+        /// <paramref name="onTheme"/> с идентификатором темы. Повторная отрисовка гасится
+        /// проверкой <c>IsChecked</c> (событие срабатывает и при снятии отметки).
+        /// </summary>
+        private static void ThemeChanged(RadioButton button, string themeId, Action<string> onTheme)
         {
-            light.IsCheckedChanged += (_, _) =>
+            button.IsCheckedChanged += (_, _) =>
             {
-                if (light.IsChecked != true)
+                if (button.IsChecked != true)
                     return;
-                onTheme(ThemeManager.LightThemeName);
-            };
-            dark.IsCheckedChanged += (_, _) =>
-            {
-                if (dark.IsChecked != true)
-                    return;
-                onTheme(ThemeManager.DarkThemeName);
+                onTheme(themeId);
             };
         }
 

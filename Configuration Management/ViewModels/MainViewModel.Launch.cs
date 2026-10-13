@@ -586,6 +586,9 @@ public partial class MainViewModel : ViewModelBase
         s.GroupByGroup = _groupByGroup;
         s.ShowEmptyGroups = _showEmptyGroups;
         s.Theme = _savedTheme;
+        // Идентификатор полноценной темы: актуальный выбор сохраняется и восстанавливается
+        // после перезапуска (см. NormalizeThemeSelection и ApplyFullTheme).
+        s.FullTheme = _fullTheme;
         s.ActiveColorScheme = _activeColorScheme;
         // Устаревшие раздельные слоты больше не ведутся.
         s.LightColorScheme = null;

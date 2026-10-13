@@ -34,10 +34,82 @@ namespace Configuration_Management
             ColorItemsControl.ItemsSource = _colorItems;
             RefreshSchemeComboBox();
             RefreshColorItems();
+            InitializeFullThemes();
 
             // Начальный режим палитры — по текущему варианту темы.
             var dark = Themes.ThemeManager.CurrentTheme == Themes.ThemeManager.DarkThemeName;
             _settings.SetPaletteMode(dark);
+            UpdatePaletteButton();
+            RefreshSchemePreview();
+        }
+
+        // ---- Полноценные темы (Задача 3) ----
+
+        /// <summary>Признак «идёт программная установка выбора полноценной темы».</summary>
+        private bool _suppressFullThemeEvent;
+
+        /// <summary>Элемент списка полноценных тем: идентификатор и локализованное имя.</summary>
+        private sealed class FullThemeComboItem
+        {
+            public string Id { get; init; } = string.Empty;
+            public string DisplayName { get; init; } = string.Empty;
+            public override string ToString() => DisplayName;
+        }
+
+        /// <summary>
+        /// Заполняет список полноценных тем (Светлая/Тёмная/Синяя/Зелёная) и выбирает активную.
+        /// </summary>
+        private void InitializeFullThemes()
+        {
+            if (FullThemeComboBox is null || _settings is null)
+                return;
+
+            _suppressFullThemeEvent = true;
+            try
+            {
+                FullThemeComboBox.Items.Clear();
+                foreach (var theme in SettingsViewModel.FullThemes)
+                {
+                    FullThemeComboBox.Items.Add(new FullThemeComboItem
+                    {
+                        Id = theme.Id,
+                        DisplayName = LocalizationManager.T(ThemeFeatureMap.ThemeNameKey(theme.Id))
+                    });
+                }
+
+                var currentId = _settings.CurrentFullThemeId;
+                FullThemeComboBox.SelectedItem = FullThemeComboBox.Items
+                    .Cast<FullThemeComboItem>()
+                    .FirstOrDefault(i => string.Equals(i.Id, currentId, StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                _suppressFullThemeEvent = false;
+            }
+        }
+
+        /// <summary>
+        /// Обработчик выбора полноценной темы: применяет тему (цвета, кнопки окна, иконки),
+        /// сохраняет выбор в настройках и обновляет редактор палитры и предпросмотр.
+        /// </summary>
+        private void OnFullThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressFullThemeEvent || _settings is null)
+                return;
+            if (FullThemeComboBox.SelectedItem is not FullThemeComboItem item)
+                return;
+
+            // Применяем полноценную тему и сохраняем выбор (AppSettings.FullTheme).
+            _viewModel.ApplyFullTheme(item.Id);
+
+            // Редактор палитры и предпросмотр показывают цвета выбранной темы;
+            // режим палитры — по базовому варианту темы (светлый/тёмный).
+            var theme = ThemeManager.CurrentFullTheme;
+            if (theme is not null)
+                _settings.AdoptFullThemeScheme(theme);
+            _settings.SetPaletteMode(ThemeManager.CurrentTheme == ThemeManager.DarkThemeName);
+            RefreshSchemeComboBox();
+            RefreshColorItems();
             UpdatePaletteButton();
             RefreshSchemePreview();
         }
@@ -98,7 +170,13 @@ namespace Configuration_Management
                 // Гарантируем, что рабочая схема присутствует в списке.
                 if (!items.Any(i => string.Equals(i.Name, _settings.CurrentColorScheme.Name, StringComparison.OrdinalIgnoreCase)))
                 {
-                    items.Add(new SchemeComboItem { Name = _settings.CurrentColorScheme.Name, IsBuiltIn = false });
+                    // Текущая схема может быть встроенной полноценной темой («Синяя»/«Зелёная»):
+                    // её нельзя переименовывать/удалять, как и «Светлую»/«Тёмную».
+                    items.Add(new SchemeComboItem
+                    {
+                        Name = _settings.CurrentColorScheme.Name,
+                        IsBuiltIn = SettingsViewModel.IsBuiltInFullThemeName(_settings.CurrentColorScheme.Name)
+                    });
                 }
                 foreach (var it in items)
                     SchemeComboBox.Items.Add(it);
@@ -120,7 +198,9 @@ namespace Configuration_Management
             var all = _settings.AvailableColorSchemes();
             for (int i = 0; i < all.Count; i++)
             {
-                items.Add(new SchemeComboItem { Name = all[i].Name, IsBuiltIn = i < 2, DisplayName = SettingsViewModel.LocalizedBuiltInName(all[i].Name) });
+                // Встроенные полноценные темы («Синяя»/«Зелёная») тоже считаются встроенными.
+                var builtIn = i < 2 || SettingsViewModel.IsBuiltInFullThemeName(all[i].Name);
+                items.Add(new SchemeComboItem { Name = all[i].Name, IsBuiltIn = builtIn, DisplayName = SettingsViewModel.LocalizedBuiltInName(all[i].Name) });
             }
             return items;
         }

@@ -253,6 +253,103 @@ public static class UtilitiesMenuCatalog
         return null;
     }
 
+    // ======================= Темизация меню (Задача 6) =======================
+    //
+    // Статичные цвета (#RRGGBB) каталога остаются «базовой палитрой» и fallback-значением,
+    // а при построении меню цвета резолвятся из активной схемы (ThemeManager.CurrentScheme)
+    // для активного варианта Light/Dark: те цвета каталога, которые совпадают с ролью
+    // палитры (синий — FolderColor, фиолетовый — FavoriteFolderColor, оранжевый —
+    // FavoriteColor, серый — TextSecondaryColor), берутся из схемы и перекрашиваются
+    // на лету при переключении темы. Остальные (бирюзовый/циан/красный и т.п.) в палитре
+    // схемы отсутствуют и остаются как есть — каталог не привязан к конкретной схеме.
+
+    /// <summary>Ключи палитры схемы по совпадающим статичным цветам каталога.</summary>
+    private static readonly Dictionary<string, string> _paletteKeyByColor = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["#3B82F6"] = "FolderColor",      // синий (в тёмной палитре FolderColor = #3B82F6)
+        ["#2D6CDF"] = "FolderColor",      // синий (в светлой палитре FolderColor = #2D6CDF)
+        ["#8B5CF6"] = "FavoriteFolderColor", // фиолетовый (та же роль в светлой и тёмной палитрах)
+        ["#F59E0B"] = "FavoriteColor",    // оранжевый (в тёмной палитре ярче — #FBBF24)
+        ["#64748B"] = "TextSecondaryColor"  // серый (в тёмной палитре светлее — #CBD5E1)
+    };
+
+    /// <summary>
+    /// Ключ палитры активной схемы для статичного цвета каталога; null — цвет не имеет
+    /// соответствия в схеме и остаётся неизменным при переключении темы.
+    /// </summary>
+    public static string? PaletteKeyForIconColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+            return null;
+        return _paletteKeyByColor.TryGetValue(hex.Trim(), out var key) ? key : null;
+    }
+
+    /// <summary>
+    /// Резолвит цвет иконки меню «Утилиты» из активной схемы: если статичный цвет
+    /// <paramref name="fallbackHex"/> имеет роль в палитре (см. <see cref="PaletteKeyForIconColor"/>),
+    /// возвращается значение схемы <paramref name="scheme"/> для варианта <paramref name="dark"/>
+    /// (с дефолтами палитры, если ключ отсутствует), иначе — сам статичный цвет.
+    /// </summary>
+    public static string ResolveIconColor(string? fallbackHex, ColorScheme? scheme, bool dark)
+    {
+        var paletteKey = PaletteKeyForIconColor(fallbackHex);
+        if (paletteKey is null)
+            return string.IsNullOrWhiteSpace(fallbackHex) ? string.Empty : fallbackHex!;
+        if (scheme is not null)
+            return scheme.PaletteValue(dark, paletteKey);
+        return fallbackHex!;
+    }
+
+    /// <summary>Цвет иконки стандартной группы из активной схемы (fallback — статичный каталога).</summary>
+    public static string ResolveGroupIconColor(string groupId, ColorScheme? scheme, bool dark)
+        => ResolveIconColor(GroupIconColor(groupId), scheme, dark);
+
+    /// <summary>Цвет иконки пункта меню из активной схемы (fallback — статичный каталога).</summary>
+    public static string ResolveItemIconColor(UtilitiesMenuItem item, ColorScheme? scheme, bool dark)
+        => ResolveIconColor(item.IconColor, scheme, dark);
+
+    /// <summary>Маппинг «ключ PickIcon каталога (WPF) → ключ геометрии Icon* (Icons.xaml/Icons.axaml)».</summary>
+    private static readonly IReadOnlyDictionary<string, string> _wpfIconToGeometryMap = BuildWpfIconToGeometryMap();
+
+    private static Dictionary<string, string> BuildWpfIconToGeometryMap()
+    {
+        // Единый источник пар каталога: каждый пункт уже несёт пару
+        // (WpfIconKind — PackIcon для WPF, AvaloniaIconKey — Icon* для обеих платформ);
+        // дубликаты (несколько PackIcon-имён указывают на одну геометрию) складываются
+        // в словарь без конфликтов. Стандартные группы — тем же способом.
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in All)
+        {
+            if (string.IsNullOrWhiteSpace(item.WpfIconKind) || string.IsNullOrWhiteSpace(item.AvaloniaIconKey))
+                continue;
+            map[item.WpfIconKind] = item.AvaloniaIconKey;
+        }
+        foreach (var groupId in new[] { GroupLockOptions, GroupInformation, GroupOperations, GroupNewItems })
+        {
+            var wpfKind = GroupWpfIconKind(groupId);
+            var geometryKey = GroupAvaloniaIconKey(groupId);
+            if (string.IsNullOrWhiteSpace(wpfKind) || string.IsNullOrWhiteSpace(geometryKey))
+                continue;
+            map[wpfKind] = geometryKey;
+        }
+        return map;
+    }
+
+    /// <summary>
+    /// Ключ геометрии (Icon*) для WPF-ключа иконки: ключ <c>Icon*</c> возвращается как есть
+    /// (пользовательские компоновки и редактор могут хранить и такие), PackIcon-имя каталога
+    /// (например «Magnify») отображается на парный ключ геометрии («IconSearch»). Неизвестный
+    /// ключ даёт пустую строку — меню останется без иконки, как и при неизвестном PackIconKind.
+    /// </summary>
+    public static string WpfIconGeometryKey(string? wpfIconKey)
+    {
+        if (string.IsNullOrWhiteSpace(wpfIconKey))
+            return string.Empty;
+        if (wpfIconKey.StartsWith("Icon", StringComparison.Ordinal))
+            return wpfIconKey;
+        return _wpfIconToGeometryMap.TryGetValue(wpfIconKey, out var geometryKey) ? geometryKey : string.Empty;
+    }
+
     private static IReadOnlyList<UtilitiesMenuItem> BuildAll()
     {
         return new List<UtilitiesMenuItem>

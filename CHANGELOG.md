@@ -9,6 +9,37 @@
 > `0.3.x.y`) к сводным выпускам по основным версиям, чтобы отделить значимые
 > возможности от точечных исправлений и регрессий предыдущих сборок.
 
+## [0.3.12.38] — 2026-10-13
+
+### Добавлено
+
+- **Полноценные темы оформления** — тема теперь задаёт не только светлую/тёмную палитру,
+  а цельный набор: цветовая схема + стиль кнопок управления окном + набор иконок +
+  оформление меню «Утилиты». Встроенные темы: **«Светлая»**, **«Тёмная»**, **«Синяя»**,
+  **«Зелёная»** (акцентные цвета: синий `#2563EB`, зелёный `#16A34A`); выбор — в настройках
+  (WPF — выпадающий список, Avalonia — переключатели), выбор сохраняется и восстанавливается
+  после перезапуска. Пользовательские цветовые схемы (JSON) продолжают работать — они
+  оборачиваются в полноценную тему с базовым вариантом Light/Dark.
+- **Модель темы** (`ThemeDefinition`/`ThemeCatalog`): Id/Name/IsDark/Scheme/ButtonStyle/
+  Icons/AccentColor; перечисления `WindowButtonStyle` (Fluent/Minimal/Classic) и `IconSet`
+  (Fluent/Outline); `ColorScheme.AccentColor` + фабрики `CreateBlue()`/`CreateGreen()`;
+  `AppSettings.FullTheme` с миграцией из прежнего `Theme` (Light/Dark → light/dark).
+- **Применение темы** (`ThemeManager.ApplyFullTheme`, обе платформы): применяет цветовую
+  схему (2 палитры), стиль кнопок управления окном и набор иконок, рассылает событие
+  `ThemeChanged`; старт приложения и главное окно применяют сохранённую тему.
+- **Кнопки управления окном** темизируются под стиль (Fluent/Minimal/Classic): радиус,
+  размер, цвета hover/close (WPF — стили на DynamicResource, Avalonia — `WindowControlButton`
+  с подпиской на `ThemeChanged`).
+- **Иконки**: добавлен второй набор контурных иконок Outline (WPF `Themes/IconsOutline.xaml`,
+  Avalonia `IconsOutline.axaml`); иконки резолвятся по активному набору через конвертер/
+  `IconHelper` с бесшовным fallback на Fluent.
+- **Меню «Утилиты»** темизируется: цвета групп/пунктов берутся из активной схемы, иконки —
+  через активный набор, меню пересобирается при `ThemeChanged` (WPF переведён с
+  PackIcon/MaterialDesign на собственную геометрию через конвертер).
+- Добавлены тесты (`ThemeDefinitionTests`, `ThemeCatalogTests`, `ThemeFeatureMapTests`,
+  `AppSettingsThemeMigrationTests`, `FullThemeSelectionTests`, `IconSetResolutionTests`,
+  `ColorSchemeThemeTests`, `UtilitiesMenuThemeTests`); полный прогон — 2698/2698 зелёных.
+
 ## [0.3.12.37] — 2026-10-13
 
 ### Исправлено (issue #371)

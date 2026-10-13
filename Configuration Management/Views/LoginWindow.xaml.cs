@@ -66,11 +66,11 @@ namespace Configuration_Management
                 var settings = repository.LoadSettings();
                 var mergedScheme = Models.ColorScheme.FromLegacy(
                     settings.ActiveColorScheme, settings.LightColorScheme, settings.DarkColorScheme);
-                var themeName = string.IsNullOrWhiteSpace(settings.Theme)
-                    ? Themes.ThemeManager.LightThemeName
-                    : settings.Theme;
+                // Полноценная тема (FullTheme с миграцией из устаревшего Theme), поверх
+                // неё — пользовательская цветовая схема (порядок: сначала тема, затем схема).
+                var fullTheme = settings.NormalizeThemeSelection();
+                Themes.ThemeManager.ApplyFullTheme(fullTheme);
                 Themes.ThemeManager.ApplyScheme(mergedScheme);
-                Themes.ThemeManager.ApplyTheme(themeName == Themes.ThemeManager.DarkThemeName);
             }
             catch
             {

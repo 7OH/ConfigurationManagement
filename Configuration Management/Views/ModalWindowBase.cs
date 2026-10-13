@@ -1126,9 +1126,10 @@ namespace Configuration_Management
 
         /// <summary>
         /// Собственная кнопка управления окном диалога (свернуть/закрыть) в духе
-        /// macOS/VSCode: круглая подложка, плавные переходы цвета и масштаба, значок
-        /// Segoe Fluent-стиля. У кнопки «закрыть» красная подложка при наведении/нажатии
-        /// и белый значок, как у главного окна.
+        /// macOS/VSCode: скруглённая подложка, плавные переходы цвета и масштаба, значок
+        /// Segoe Fluent-стиля. Параметры подложки (кисть наведения, скругление, размер)
+        /// приходят из темы, как у кнопок главного окна (Задача 4). У кнопки «закрыть»
+        /// красная подложка при наведении/нажатии и белый значок, как у главного окна.
         /// </summary>
         private sealed class DialogWindowControlButton : Button
         {
@@ -1138,13 +1139,14 @@ namespace Configuration_Management
             private const string CloseData = "M3.5,3.5 L10.5,10.5 M10.5,3.5 L3.5,10.5";
             private const string MaximizeData = "M4,4 L10,4 L10,10 L4,10 Z";
 
-            /// <summary>Диаметр круглой подложки кнопки диалога.</summary>
+            /// <summary>Диаметр подложки кнопки диалога (без учёта скругления).</summary>
             private const double CircleDiameter = 26;
 
             private readonly DialogWindowControlKind _kind;
             private readonly Avalonia.Controls.Shapes.Path _glyph;
 
             private IBrush _hoverBg = Brushes.Transparent;
+            private IBrush _closeHoverBg = Brushes.Transparent;
             private IBrush _pressedBg = Brushes.Transparent;
             private IBrush _baseGlyphBrush = Brushes.Transparent;
             private IBrush _accentBrush = Brushes.Transparent;
@@ -1152,21 +1154,26 @@ namespace Configuration_Management
             private bool _pressed;
             private bool _focused;
 
+            /// <summary>Скругление подложки из темы (как в главном окне).</summary>
+            private double _cornerRadius = CircleDiameter / 2;
+
             // Части шаблона: задаются при его применении, до этого null (ApplyState
             // вызывается и из конструктора, поэтому обращения защищены проверкой).
+            private Border? _circle;
             private ScaleTransform? _circleScale;
             private ScaleTransform? _glyphScale;
             private Border? _focusRing;
 
-            // Красная подложка кнопки «закрыть» (классический алый), не зависит от темы:
-            // наведение — алый, нажатие — темнее. Значок на ней всегда белый.
-            private static readonly IBrush CloseHoverBrush = new SolidColorBrush(Color.Parse("#E81123"));
+            // Красная подложка кнопки «закрыть» при нажатии: алый при наведении приходит
+            // из темы (WindowButtonCloseHoverBrush), нажатие — темнее. Значок на ней белый.
             private static readonly IBrush ClosePressedBrush = new SolidColorBrush(Color.Parse("#B91C1C"));
 
             public DialogWindowControlButton(DialogWindowControlKind kind)
             {
                 _kind = kind;
 
+                // Ширина далее переопределяется метриками темы (ApplyWindowButtonTheme);
+                // здесь — стартовый размер Fluent. Высота фиксирована высотой заголовка диалога.
                 Width = UiMetrics.Scaled(40);
                 Height = UiMetrics.Scaled(30);
                 Padding = new Thickness(0);
@@ -1184,28 +1191,31 @@ namespace Configuration_Management
                         new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<DialogWindowControlButton>((_, _) =>
                         {
                             var diameter = UiMetrics.Scaled(CircleDiameter);
+                            // Скругление из темы (как в главном окне), ограничено половиной
+                            // диаметра, чтобы подложка не выходила за свои границы.
+                            var radius = UiMetrics.Scaled(Math.Min(_cornerRadius, CircleDiameter / 2));
 
-                            var circle = new Border
+                            _circle = new Border
                             {
                                 Width = diameter,
                                 Height = diameter,
-                                CornerRadius = new CornerRadius(diameter / 2),
+                                CornerRadius = new CornerRadius(radius),
                                 HorizontalAlignment = HorizontalAlignment.Center,
                                 VerticalAlignment = VerticalAlignment.Center
                             };
-                            circle[!Border.BackgroundProperty] = new TemplateBinding(TemplatedControl.BackgroundProperty);
-                            UiMetrics.AddBrushTransition(circle, background: true, border: false);
+                            _circle[!Border.BackgroundProperty] = new TemplateBinding(TemplatedControl.BackgroundProperty);
+                            UiMetrics.AddBrushTransition(_circle, background: true, border: false);
 
                             _circleScale = new ScaleTransform();
-                            circle.RenderTransform = _circleScale;
+                            _circle.RenderTransform = _circleScale;
                             UiMetrics.AddScaleTransition(_circleScale, 90);
 
-                            // Кольцо фокуса: тонкая акцентная обводка вокруг круга.
+                            // Кольцо фокуса: тонкая акцентная обводка вокруг подложки.
                             _focusRing = new Border
                             {
                                 Width = diameter,
                                 Height = diameter,
-                                CornerRadius = new CornerRadius(diameter / 2),
+                                CornerRadius = new CornerRadius(radius),
                                 BorderThickness = new Thickness(1.5),
                                 BorderBrush = Brushes.Transparent,
                                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -1226,7 +1236,7 @@ namespace Configuration_Management
                             UiMetrics.AddScaleTransition(_glyphScale, 110);
 
                             var root = new Grid();
-                            root.Children.Add(circle);
+                            root.Children.Add(_circle);
                             root.Children.Add(_focusRing);
                             root.Children.Add(presenter);
                             return root;
@@ -1258,7 +1268,9 @@ namespace Configuration_Management
                     ThemeBrushes.Observe(this, "TextPrimaryColorBrush", b => { _baseGlyphBrush = b; ApplyState(); });
                 else
                     ThemeBrushes.Bind(_glyph, Avalonia.Controls.Shapes.Path.StrokeProperty, "TextPrimaryColorBrush");
-                ThemeBrushes.Observe(this, "ItemHoverBrush", b => { _hoverBg = b; ApplyState(); });
+                // Подложка наведения берётся не из схемы, а из стиля кнопок окна
+                // (WindowButtonHoverBrush кладёт ThemeManager по WindowButtonStyle,
+                // Задача 4), поэтому наблюдение ItemHoverBrush здесь не нужно.
                 ThemeBrushes.Observe(this, "AccentPressedBrush", b => { _pressedBg = b; ApplyState(); });
                 ThemeBrushes.Observe(this, "AccentBrush", b => { _accentBrush = b; ApplyState(); });
 
@@ -1270,7 +1282,40 @@ namespace Configuration_Management
                 this.GetObservable(IsEnabledProperty).Subscribe(new BoolObserver(_ => ApplyState()));
                 this.GetObservable(IsKeyboardFocusWithinProperty).Subscribe(new BoolObserver(v => { _focused = v; ApplyState(); }));
 
+                // Метрики стиля кнопок (кисти/радиус/размер) читаются из ресурсов темы
+                // и обновляются при смене полноценной темы (ThemeManager.ApplyFullTheme).
+                ApplyWindowButtonTheme();
+                ThemeManager.ThemeChanged += OnThemeChanged;
+            }
+
+            /// <summary>
+            /// Применяет метрики стиля кнопок окна (<see cref="WindowButtonThemeMetrics"/>):
+            /// кисти наведения, размер кнопки и скругление подложки. Вызывается при создании
+            /// кнопки и при смене полноценной темы.
+            /// </summary>
+            private void ApplyWindowButtonTheme()
+            {
+                var metrics = WindowButtonThemeMetrics.Current();
+                _hoverBg = metrics.Hover;
+                _closeHoverBg = metrics.CloseHover;
+                _cornerRadius = metrics.CornerRadius;
+                Width = UiMetrics.Scaled(metrics.Size);
+                var radius = UiMetrics.Scaled(Math.Min(_cornerRadius, CircleDiameter / 2));
+                if (_circle is not null)
+                    _circle.CornerRadius = new CornerRadius(radius);
+                if (_focusRing is not null)
+                    _focusRing.CornerRadius = new CornerRadius(radius);
                 ApplyState();
+            }
+
+            /// <summary>Смена полноценной темы: перечитываем метрики кнопок окна.</summary>
+            private void OnThemeChanged(object? sender, EventArgs e) => ApplyWindowButtonTheme();
+
+            /// <summary>Подписка на смену темы снимается вместе с выходом кнопки из дерева.</summary>
+            protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+            {
+                base.OnDetachedFromVisualTree(e);
+                ThemeManager.ThemeChanged -= OnThemeChanged;
             }
 
             private void ApplyState()
@@ -1289,9 +1334,10 @@ namespace Configuration_Management
 
                 if (_kind == DialogWindowControlKind.Close)
                 {
-                    // Кнопка «закрыть»: красная подложка при наведении/нажатии, значок — белый.
+                    // Кнопка «закрыть»: красная подложка при наведении/нажатии (алый из темы),
+                    // значок — белый.
                     var redActive = _pressed || _hovered;
-                    Background = _pressed ? ClosePressedBrush : (_hovered ? CloseHoverBrush : Brushes.Transparent);
+                    Background = _pressed ? ClosePressedBrush : (_hovered ? _closeHoverBg : Brushes.Transparent);
                     _glyph.Stroke = redActive ? Brushes.White : _baseGlyphBrush;
                 }
                 else

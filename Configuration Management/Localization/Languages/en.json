@@ -496,6 +496,9 @@
     "Settings.DefaultArch": "Default bitness",
     "Settings.SystemTitleBar": "System window title bar",
     "Settings.Theme": "Color theme",
+    "Settings.FullTheme": "Full theme",
+    "Settings.FullThemeLabel": "Theme:",
+    "Settings.FullTheme.Description": "The full theme sets colors, window button style and icon set. The choice is applied immediately and saved.",
     "Settings.Colors": "Colors",
     "Settings.Preview": "Preview",
     "Settings.ChooseColorTooltip": "Choose color",
@@ -1381,6 +1384,8 @@
     "Main.SelectedBaseNoName": "(selected base)",
     "Theme.Light": "Light",
     "Theme.Dark": "Dark",
+    "Theme.Blue": "Blue",
+    "Theme.Green": "Green",
     "Main.LightTheme": "Light theme",
     "Main.DarkTheme": "Dark theme",
 

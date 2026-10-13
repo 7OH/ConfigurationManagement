@@ -17,18 +17,28 @@ namespace Configuration_Management
     public static class IconHelper
     {
         /// <summary>
-        /// Разрешает StreamGeometry по ключу из Icons.axaml. При отсутствии ключа
-        /// возвращает геометрию «папки» как запасной вариант (как в IconKeyToGeometryConverter).
+        /// Разрешает StreamGeometry по ключу из Icons.axaml. Резолв учитывает активный
+        /// набор иконок (Задача 5): для Outline ищет ключ с суффиксом ".Outline"
+        /// (IconsOutline.axaml), при отсутствии — бесшовный fallback на Fluent-геометрию
+        /// (Icons.axaml), затем на запасную «папку» (как в IconKeyToGeometryConverter).
         /// </summary>
         public static Geometry? Geometry(string key)
         {
-            if (Application.Current is { } app &&
-                app.TryGetResource(key, null, out var res) && res is Geometry g)
-                return g;
+            if (string.IsNullOrWhiteSpace(key))
+                key = "IconFolder";
 
-            if (Application.Current is { } app2 &&
-                app2.TryGetResource("IconFolder", null, out var fallback) && fallback is Geometry fg)
-                return fg;
+            var set = Themes.ThemeFeatureMap.ParseIconSet(
+                Application.Current is { } app0
+                    && app0.TryGetResource(Themes.ThemeFeatureMap.IconSetNameKey, null, out var setName)
+                        ? setName as string
+                        : null);
+
+            foreach (var candidate in Themes.ThemeFeatureMap.IconResolutionCandidates(key, set))
+            {
+                if (Application.Current is { } app &&
+                    app.TryGetResource(candidate, null, out var res) && res is Geometry g)
+                    return g;
+            }
 
             return null;
         }

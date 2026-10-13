@@ -1713,7 +1713,9 @@ namespace Configuration_Management
                     Header = LocalizationManager.T("Utilities.Submenu.NewItems"),
                     Icon = MenuIcon(
                         UtilitiesMenuCatalog.GroupAvaloniaIconKey(UtilitiesMenuCatalog.GroupNewItems),
-                        UtilitiesMenuCatalog.GroupIconColor(UtilitiesMenuCatalog.GroupNewItems))
+                        UtilitiesMenuCatalog.ResolveGroupIconColor(
+                            UtilitiesMenuCatalog.GroupNewItems, ThemeManager.CurrentScheme,
+                            ThemeManager.CurrentTheme == ThemeManager.DarkThemeName))
                 };
                 newMenu.Styled(Themes.ControlThemes.ModernMenuItem);
                 foreach (var catalogItem in newItems)
@@ -1788,7 +1790,9 @@ namespace Configuration_Management
                 : UtilitiesMenuCatalog.GroupAvaloniaIconKey(node.GroupId ?? string.Empty);
             var color = !string.IsNullOrWhiteSpace(node.IconColor)
                 ? node.IconColor!
-                : UtilitiesMenuCatalog.GroupIconColor(node.GroupId ?? string.Empty);
+                : UtilitiesMenuCatalog.ResolveGroupIconColor(
+                    node.GroupId ?? string.Empty, ThemeManager.CurrentScheme,
+                    ThemeManager.CurrentTheme == ThemeManager.DarkThemeName);
             return MenuIcon(iconKey, color);
         }
 
@@ -1812,7 +1816,9 @@ namespace Configuration_Management
                     : catalogItem.AvaloniaIconKey;
                 var color = !string.IsNullOrWhiteSpace(node.IconColor)
                     ? node.IconColor!
-                    : catalogItem.IconColor;
+                    : UtilitiesMenuCatalog.ResolveItemIconColor(
+                        catalogItem, ThemeManager.CurrentScheme,
+                        ThemeManager.CurrentTheme == ThemeManager.DarkThemeName);
                 if (!string.IsNullOrWhiteSpace(iconKey) && !string.IsNullOrWhiteSpace(color))
                     item.Icon = MenuIcon(iconKey, color);
             }
