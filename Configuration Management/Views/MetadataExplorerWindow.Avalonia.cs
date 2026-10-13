@@ -54,12 +54,12 @@ namespace Configuration_Management
         public MetadataExplorerWindow(IReadOnlyList<Infobase> bases, Infobase? selectedBase)
         {
             Title = LocalizationManager.T("MetadataExplorer.Title");
-            // issue #365: ширина = MinWidth = 1180 — панель источника (радиокнопки +
-            // ComboBox баз 280 + путь .cf 320 + «Обзор…» 100 + «Загрузить» 120 +
-            // отступы) требует ~1150; при прежних 1080 правая кнопка обрезалась.
-            Width = 1180;
+            // issue #365: ширина = MinWidth = 1380 — панель источника (радиокнопки +
+            // ComboBox баз 280 + путь .cf 320 + платформа 200 + «Обзор…» 100 +
+            // «Загрузить» 120 + отступы); при 1180 правая кнопка обрезалась.
+            Width = 1380;
             Height = 640;
-            MinWidth = 1180;
+            MinWidth = 1380;
             MinHeight = 480;
             FontSize = 13;
             CanResize = true;
@@ -264,6 +264,31 @@ namespace Configuration_Management
             });
             cfBox.Bind(InputElement.IsEnabledProperty, new Binding("IsSourceCf"));
 
+            // issue #365: версия платформы для распаковки .cf — editable ComboBox
+            // (как PlatformBox в ConfigDiffSetupWindow): при выборе базы подставляется её
+            // платформа, при «Файл .cf» — максимальная установленная; текст можно
+            // изменить вручную (Text-привязка срабатывает и при вводе).
+            var platformLabel = new TextBlock
+            {
+                Text = LocalizationManager.T("MetadataExplorer.Platform"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var platformBox = new ComboBox
+            {
+                Width = 200,
+                IsEditable = true,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch
+            };
+            platformBox.ItemsSource = _vm.PlatformVersions;
+            platformBox.Bind(TextBox.TextProperty, new Binding("SelectedPlatformVersion", BindingMode.TwoWay)
+            {
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+            });
+            platformBox.Bind(InputElement.IsEnabledProperty, new Binding("IsSourceCf"));
+            ToolTip.SetTip(platformBox, LocalizationManager.T("MetadataExplorer.PlatformHint"));
+
             var browseButton = BuildActionButton(LocalizationManager.T("MetadataExplorer.Browse"), () => _vm.BrowseCf());
             browseButton.Width = 100;
             browseButton.Bind(InputElement.IsEnabledProperty, new Binding("IsSourceCf"));
@@ -279,7 +304,7 @@ namespace Configuration_Management
                 Orientation = Orientation.Horizontal,
                 Spacing = 10,
                 Margin = new Thickness(0, 10, 0, 0),
-                Children = { radioBase, radioCf, baseCombo, cfBox, browseButton, loadButton }
+                Children = { radioBase, radioCf, baseCombo, cfBox, platformLabel, platformBox, browseButton, loadButton }
             };
             return panel;
         }

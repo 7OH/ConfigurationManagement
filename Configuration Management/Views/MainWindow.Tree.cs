@@ -764,23 +764,17 @@ namespace Configuration_Management
         {
             if (MainTree is null)
                 return;
-            var wasVirtualizing = VirtualizingPanel.GetIsVirtualizing(MainTree);
-            if (!wasVirtualizing)
-            {
-                MainTree.UpdateLayout();
-                return;
-            }
 
-            VirtualizingPanel.SetIsVirtualizing(MainTree, false);
-            try
-            {
-                MainTree.UpdateLayout();
-            }
-            finally
-            {
-                VirtualizingPanel.SetIsVirtualizing(MainTree, wasVirtualizing);
-                MainTree.UpdateLayout();
-            }
+            // issue #373: сброс виртуализации на самом TreeView (0.3.12.25) не доводил
+            // перерисовку строк тегов до конца — вложенные панели TreeViewItem имеют
+            // собственный IsVirtualizing=true из стиля контейнера, поэтому уже
+            // материализованные строки сохраняли прежнюю высоту/видимость строки тегов
+            // («где-то совсем нет, где-то еле видно»). Пересобираем дерево целиком —
+            // как в Avalonia-версии (MainViewModel.Avalonia.Display.ShowTags → ApplyFilter):
+            // контейнеры создаются заново с актуальным значением ShowTags, высота строк
+            // пересчитывается. Позиция прокрутки и выделение восстанавливаются событиями
+            // TreeRebuilding/TreeRebuilt (issue #252).
+            _viewModel?.RebuildGroupTree();
         }
 
         private void OnMainTree_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)

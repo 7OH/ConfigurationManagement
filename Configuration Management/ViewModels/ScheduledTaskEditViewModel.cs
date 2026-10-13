@@ -170,6 +170,15 @@ public class ScheduledTaskEditViewModel : ViewModelBase
         new ScheduledTaskOption("Days", LocalizationManager.T("Schedule.Repeat.Unit.Days"))
     };
 
+    /// <summary>
+    /// Находит пункт списка по значению (issue #372). Окно использует результат для
+    /// установки <c>SelectedItem</c> вместо <c>SelectedValuePath</c>/<c>SelectedValue</c>:
+    /// закрытый ModernComboBox показывал ключ («Backup») вместо названия («Резервная копия»).
+    /// null/пустое значение или отсутствие совпадения — null.
+    /// </summary>
+    public static ScheduledTaskOption? FindOption(IReadOnlyList<ScheduledTaskOption>? options, string? value)
+        => options?.FirstOrDefault(o => string.Equals(o.Value, value, StringComparison.Ordinal));
+
     /// <summary>Нужны ли опции проверки платформы (issue #366).</summary>
     public bool NeedsPlatformCheck => Kind is ScheduledTaskKind.PlatformUpdateCheck;
 

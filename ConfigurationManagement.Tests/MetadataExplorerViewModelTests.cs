@@ -494,6 +494,105 @@ public sealed class MetadataExplorerViewModelTests : IDisposable
         Assert.Single(vm.TreeNodes);
     }
 
+    // ===================== Платформа (issue #365) =====================
+
+    /// <summary>VM с подменяемым источником установленных платформ (без файловой системы).
+    /// Выбранная база берётся из того же списка (иначе Contains(selectedBase) === false).</summary>
+    private static MetadataExplorerViewModel CreatePlatformVm(
+        FakeMetadataExplorerService? fake = null,
+        IReadOnlyList<Infobase>? bases = null,
+        Infobase? selectedBase = null,
+        IReadOnlyList<string>? installed = null)
+    {
+        var list = bases ?? (selectedBase is not null
+            ? new[] { selectedBase }
+            : new[] { CreateBase() });
+        return new MetadataExplorerViewModel(
+            list,
+            selectedBase ?? list[0],
+            fake ?? new FakeMetadataExplorerService(),
+            new RecordingDialogs(),
+            installedPlatformsProvider: () => installed ?? new[] { "8.3.27.2214", "8.3.26.1656" });
+    }
+
+    [Fact]
+    public void Platform_ConstructorWithBaseVersion_AddsVersionToListAndSelectsIt()
+    {
+        // Версия базы, которой нет среди установленных, добавляется в список доступных.
+        var baseWithVersion = CreateBase("Бухгалтерия");
+        baseWithVersion.PlatformVersion = "8.3.24.1646";
+        var vm = CreatePlatformVm(
+            installed: new[] { "8.3.27.2214", "8.3.26.1656" },
+            selectedBase: baseWithVersion);
+
+        Assert.Equal("8.3.24.1646", vm.SelectedPlatformVersion);
+        Assert.Equal(
+            new[] { "8.3.27.2214", "8.3.26.1656", "8.3.24.1646" },
+            vm.PlatformVersions.ToArray());
+    }
+
+    [Fact]
+    public void Platform_Constructor_WithoutInstalled_FallsBackToBaseVersion()
+    {
+        var vm = CreatePlatformVm(installed: Array.Empty<string>());
+
+        Assert.Equal("8.3.27.1644", vm.SelectedPlatformVersion);
+        Assert.Single(vm.PlatformVersions);
+    }
+
+    [Fact]
+    public void Platform_ChangingSelectedBase_UpdatesVersion()
+    {
+        var first = CreateBase("Первая");
+        first.PlatformVersion = "8.3.24.1646";
+        var second = CreateBase("Вторая");
+        second.PlatformVersion = "8.3.25.1800";
+        var vm = CreatePlatformVm(bases: new[] { first, second }, selectedBase: first);
+
+        vm.SelectedBase = second;
+
+        Assert.Equal("8.3.25.1800", vm.SelectedPlatformVersion);
+        Assert.Contains("8.3.25.1800", vm.PlatformVersions);
+    }
+
+    [Fact]
+    public void Platform_SwitchToCf_SetsMaxInstalledVersion()
+    {
+        var vm = CreatePlatformVm(
+            installed: new[] { "8.3.27.2214", "8.3.26.1656" },
+            selectedBase: CreateBase());
+
+        // До переключения — версия базы.
+        Assert.Equal("8.3.27.1644", vm.SelectedPlatformVersion);
+
+        vm.IsSourceCf = true;
+
+        Assert.Equal(MetadataExplorerViewModel.SourceMode.Cf, vm.Mode);
+        Assert.Equal("8.3.27.2214", vm.SelectedPlatformVersion);
+    }
+
+    [Fact]
+    public async Task Platform_ManualEntry_IsPassedToDumpFromCf()
+    {
+        var dumpDir = CreateDumpWithoutSubsystems();
+        var cfPath = Path.Combine(_tempRoot, "manual.cf");
+        File.WriteAllText(cfPath, "cf");
+        var fake = new FakeMetadataExplorerService
+        {
+            CfResult = new MetadataDump(dumpDir, "Розница", "3.0.14.168")
+        };
+        var vm = CreatePlatformVm(fake, installed: new[] { "8.3.26.1656" });
+        vm.IsSourceCf = true;
+        // Пользователь ввёл собственную версию платформы.
+        vm.SelectedPlatformVersion = "9.9.9.9";
+        vm.CfPath = cfPath;
+
+        await vm.LoadAsync();
+
+        Assert.Equal(1, fake.CfCalls);
+        Assert.Equal("9.9.9.9", fake.LastPlatformVersion);
+    }
+
     // ===================== Этап 5: блокировка и ограничения объёма =====================
 
     [Fact]

@@ -38,8 +38,9 @@ public sealed class BackgroundDownloadManager
         /// <summary>Стабильный идентификатор (например, «platform:8.3.27.2214:file.zip»).</summary>
         public string Id { get; }
 
-        /// <summary>Человекочитаемый заголовок для индикатора (имя файла/цепочки).</summary>
-        public string Title { get; }
+        /// <summary>Человекочитаемый заголовок для индикатора (имя файла/цепочки);
+        /// может уточняться через <see cref="BackgroundDownloadManager.UpdateTitle"/>.</summary>
+        public string Title { get; internal set; }
 
         /// <summary>Прогресс 0..1 (обновляется через <see cref="BackgroundDownloadManager.ReportProgress"/>).</summary>
         public double Progress { get; internal set; }
@@ -150,6 +151,23 @@ public sealed class BackgroundDownloadManager
                 return;
             entry.Progress = Math.Clamp(progress, 0, 1);
             entry.EstimatedRemaining = entry.Eta.Update(entry.Progress);
+        }
+
+        RaiseChanged();
+    }
+
+    /// <summary>Уточняет заголовок активной загрузки (issue #352: имя текущего файла
+    /// цепочки обновлений вместо названия конфигурации). Неактивные/несуществующие
+    /// записи игнорируются; пустой/пробельный заголовок не применяется.</summary>
+    public void UpdateTitle(string id, string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return;
+        lock (_lock)
+        {
+            if (!_downloads.TryGetValue(id, out var entry) || !entry.IsActive)
+                return;
+            entry.Title = title;
         }
 
         RaiseChanged();

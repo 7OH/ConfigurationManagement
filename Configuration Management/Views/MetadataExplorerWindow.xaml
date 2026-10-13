@@ -1,6 +1,5 @@
-<!-- issue #365: ширина окна = MinWidth = 1180 — панель источника (радиокнопки +
-     ComboBox баз 280 + путь .cf 320 + «Обзор…» 100 + «Загрузить» 120 + отступы)
-     требует ~1150, при прежних 1080 правая кнопка «Загрузить» обрезалась.
+<!-- issue #365: ширина окна = MinWidth = 1380 — панель источника (радиокнопки +
+     ComboBox баз 280 + путь .cf 320 + платформа 200 + «Обзор…» 100 + «Загрузить» 120 + отступы).
      ResizeMode=CanResize — у изменяемых окон WindowChromeHelper добавляет
      типовую кнопку «развернуть/восстановить» в шапке (как у «Серверов 1С»). -->
 <Window x:Class="Configuration_Management.MetadataExplorerWindow"
@@ -10,7 +9,7 @@
         xmlns:conv="clr-namespace:Configuration_Management.Converters"
         xmlns:vm="clr-namespace:Configuration_Management.ViewModels"
         Icon="{StaticResource AppIcon}"
-        Height="640" Width="1180" MinHeight="480" MinWidth="1180"
+        Height="640" Width="1380" MinHeight="480" MinWidth="1380"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
@@ -117,6 +116,17 @@
                      VerticalContentAlignment="Center" Margin="0,0,8,0"
                      IsEnabled="{Binding IsSourceCf}"
                      ToolTip="{loc:Loc MetadataExplorer.CfPathHint}"/>
+            <!-- issue #365: версия платформы для распаковки .cf — editable ComboBox
+                 (как PlatformBox в ConfigDiffSetupWindow): при выборе базы подставляется
+                 её платформа, при «Файл .cf» — максимальная установленная; значение
+                 можно изменить вручную (Text-привязка срабатывает и при вводе). -->
+            <TextBlock Text="{loc:Loc MetadataExplorer.Platform}" VerticalAlignment="Center"
+                       Margin="0,0,6,0" ToolTip="{loc:Loc MetadataExplorer.PlatformHint}"/>
+            <ComboBox Width="200" ItemsSource="{Binding PlatformVersions}"
+                      Text="{Binding SelectedPlatformVersion, UpdateSourceTrigger=PropertyChanged}"
+                      IsEditable="True" VerticalAlignment="Center" Margin="0,0,10,0"
+                      IsEnabled="{Binding IsSourceCf}"
+                      ToolTip="{loc:Loc MetadataExplorer.PlatformHint}"/>
             <Button Width="100" Content="{loc:Loc MetadataExplorer.Browse}" Command="{Binding BrowseCfCommand}"
                     Margin="0,0,8,0" IsEnabled="{Binding IsSourceCf}"/>
             <Button Width="120" Content="{loc:Loc MetadataExplorer.Load}" Command="{Binding LoadCommand}"

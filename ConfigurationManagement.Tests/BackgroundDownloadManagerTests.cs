@@ -327,4 +327,54 @@ public sealed class BackgroundDownloadManagerTests
         manager.Cancel("cancel");
         Assert.Null(cancelled.EstimatedRemaining);
     }
+
+    [Fact]
+    public void UpdateTitle_UpdatesActiveEntryAndRaisesChanged()
+    {
+        // issue #352: заголовок цепочки меняется на имя текущего скачиваемого файла.
+        var manager = new BackgroundDownloadManager();
+        var changed = 0;
+        manager.Changed += () => changed++;
+        manager.Start("chain:УТ 11", "УТ 11");
+
+        manager.UpdateTitle("chain:УТ 11", "Trade_11_5_27_93_updsetup.zip");
+
+        Assert.Equal("Trade_11_5_27_93_updsetup.zip", manager.Snapshot()[0].Title);
+        Assert.Equal(2, changed); // старт + обновление заголовка
+    }
+
+    [Fact]
+    public void UpdateTitle_IgnoresInactiveOrUnknownEntries()
+    {
+        var manager = new BackgroundDownloadManager();
+        var changed = 0;
+        manager.Changed += () => changed++;
+
+        // Неизвестный id — без изменений и без события.
+        manager.UpdateTitle("unknown", "file.zip");
+        Assert.Equal(0, changed);
+
+        // Завершённая запись заголовок не меняет.
+        var entry = manager.Start("id", "Старый");
+        manager.Complete("id");
+        manager.UpdateTitle("id", "Новый");
+
+        Assert.Equal("Старый", entry.Title);
+        Assert.Equal(2, changed); // только старт + завершение
+    }
+
+    [Fact]
+    public void UpdateTitle_EmptyOrWhitespace_IsIgnored()
+    {
+        var manager = new BackgroundDownloadManager();
+        var changed = 0;
+        manager.Changed += () => changed++;
+        var entry = manager.Start("id", "Заголовок");
+
+        manager.UpdateTitle("id", string.Empty);
+        manager.UpdateTitle("id", "   ");
+
+        Assert.Equal("Заголовок", entry.Title);
+        Assert.Equal(1, changed); // только старт
+    }
 }

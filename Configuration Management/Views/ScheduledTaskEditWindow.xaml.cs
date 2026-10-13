@@ -48,20 +48,18 @@ public partial class ScheduledTaskEditWindow : Window
         TimeBox.Text = _vm.Time;
         CfgPathBox.Text = _vm.ConfigFilePath;
 
-        // Отображение элементов списка задаёт ItemTemplate в XAML (ScheduleOptionTemplate):
-        // DisplayMemberPath из code-behind применялся уже после первой отрисовки, и закрытый
-        // ComboBox показывал ToString() — ключ («Backup») вместо названия (issue #372).
+        // Отображение элементов списка задаёт ItemTemplate в XAML (ScheduleOptionTemplate),
+        // а выбор ставится через SelectedItem (issue #372): SelectedValuePath/SelectedValue
+        // в связке с кастомным шаблоном ModernComboBox показывали в закрытом поле ключ
+        // («Backup») вместо названия («Резервная копия»).
         KindCombo.ItemsSource = _vm.KindOptions;
-        KindCombo.SelectedValuePath = "Value";
-        KindCombo.SelectedValue = _vm.Kind.ToString();
+        KindCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.KindOptions, _vm.Kind.ToString());
 
         ScenarioCombo.ItemsSource = _vm.ScenarioOptions;
-        ScenarioCombo.SelectedValuePath = "Value";
-        ScenarioCombo.SelectedValue = string.IsNullOrEmpty(_vm.SelectedScenarioId) ? null : _vm.SelectedScenarioId;
+        ScenarioCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.ScenarioOptions, _vm.SelectedScenarioId);
 
         InfobaseCombo.ItemsSource = _vm.InfobaseOptions;
-        InfobaseCombo.SelectedValuePath = "Value";
-        InfobaseCombo.SelectedValue = string.IsNullOrEmpty(_vm.SelectedInfobaseId) ? null : _vm.SelectedInfobaseId;
+        InfobaseCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.InfobaseOptions, _vm.SelectedInfobaseId);
 
         MonCheck.IsChecked = _vm.IsMonday;
         TueCheck.IsChecked = _vm.IsTuesday;
@@ -86,8 +84,7 @@ public partial class ScheduledTaskEditWindow : Window
         PlatformIncludeTestCheck.IsChecked = _vm.PlatformCheckIncludeTestVersions;
         PlatformNotifyLabel.Text = T("Schedule.PlatformCheck.Notify");
         PlatformNotifyCombo.ItemsSource = _vm.NotifyOptions;
-        PlatformNotifyCombo.SelectedValuePath = "Value";
-        PlatformNotifyCombo.SelectedValue = _vm.PlatformNotifyChannel.ToString();
+        PlatformNotifyCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.NotifyOptions, _vm.PlatformNotifyChannel.ToString());
 
         // Опции проверки обновления конфигурации (issue #367): ComboBox редактируемый —
         // можно выбрать имя из списка баз либо ввести вручную.
@@ -96,8 +93,7 @@ public partial class ScheduledTaskEditWindow : Window
         ConfigCombo.Text = _vm.ConfigCheckConfiguration;
         ConfigNotifyLabel.Text = T("Schedule.PlatformCheck.Notify");
         ConfigNotifyCombo.ItemsSource = _vm.NotifyOptions;
-        ConfigNotifyCombo.SelectedValuePath = "Value";
-        ConfigNotifyCombo.SelectedValue = _vm.ConfigCheckNotifyChannel.ToString();
+        ConfigNotifyCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.NotifyOptions, _vm.ConfigCheckNotifyChannel.ToString());
 
         // Повтор с интервалом и «Уведомлять об отсутствии» (issue #366/#367).
         // Значение флага обязательно грузится из VM: раньше галочка «Повторять с
@@ -108,8 +104,7 @@ public partial class ScheduledTaskEditWindow : Window
         RepeatValueLabel.Text = T("Schedule.Repeat.ValueLabel");
         RepeatValueBox.Text = _vm.RepeatIntervalValueText;
         RepeatUnitCombo.ItemsSource = _vm.RepeatUnitOptions;
-        RepeatUnitCombo.SelectedValuePath = "Value";
-        RepeatUnitCombo.SelectedValue = _vm.RepeatIntervalUnit.ToString();
+        RepeatUnitCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.RepeatUnitOptions, _vm.RepeatIntervalUnit.ToString());
         PlatformNotifyNoUpdatesCheck.Content = T("Schedule.PlatformCheck.NotifyWhenNoUpdates");
         PlatformNotifyNoUpdatesCheck.IsChecked = _vm.PlatformCheckNotifyWhenNoUpdates;
         ConfigNotifyNoUpdatesCheck.Content = T("Schedule.ConfigCheck.NotifyWhenNoUpdates");
@@ -144,12 +139,12 @@ public partial class ScheduledTaskEditWindow : Window
     /// </summary>
     private void RestoreOptionSelections()
     {
-        KindCombo.SelectedValue = _vm.Kind.ToString();
-        ScenarioCombo.SelectedValue = string.IsNullOrEmpty(_vm.SelectedScenarioId) ? null : _vm.SelectedScenarioId;
-        InfobaseCombo.SelectedValue = string.IsNullOrEmpty(_vm.SelectedInfobaseId) ? null : _vm.SelectedInfobaseId;
-        PlatformNotifyCombo.SelectedValue = _vm.PlatformNotifyChannel.ToString();
-        ConfigNotifyCombo.SelectedValue = _vm.ConfigCheckNotifyChannel.ToString();
-        RepeatUnitCombo.SelectedValue = _vm.RepeatIntervalUnit.ToString();
+        KindCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.KindOptions, _vm.Kind.ToString());
+        ScenarioCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.ScenarioOptions, _vm.SelectedScenarioId);
+        InfobaseCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.InfobaseOptions, _vm.SelectedInfobaseId);
+        PlatformNotifyCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.NotifyOptions, _vm.PlatformNotifyChannel.ToString());
+        ConfigNotifyCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.NotifyOptions, _vm.ConfigCheckNotifyChannel.ToString());
+        RepeatUnitCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.RepeatUnitOptions, _vm.RepeatIntervalUnit.ToString());
         ApplyKindVisibility();
     }
 
@@ -159,7 +154,7 @@ public partial class ScheduledTaskEditWindow : Window
     {
         get
         {
-            var value = KindCombo.SelectedValue as string ?? "Backup";
+            var value = (KindCombo.SelectedItem as ScheduledTaskOption)?.Value ?? "Backup";
             return Enum.TryParse<ScheduledTaskKind>(value, out var kind) ? kind : ScheduledTaskKind.Backup;
         }
     }
@@ -211,16 +206,16 @@ public partial class ScheduledTaskEditWindow : Window
     /// <summary>Перечитывает сценарии после возврата из окна «Сценарии резервирования».</summary>
     private void ReloadScenarios()
     {
-        var selected = ScenarioCombo.SelectedValue as string;
+        var selected = (ScenarioCombo.SelectedItem as ScheduledTaskOption)?.Value;
         var scenarios = AppServices.GetRequiredService<IBackupScenarioStore>().LoadAll();
         _vm.UpdateScenarios(scenarios);
 
         ScenarioCombo.ItemsSource = _vm.ScenarioOptions;
-        ScenarioCombo.DisplayMemberPath = "Text";
-        ScenarioCombo.SelectedValuePath = "Value";
-        ScenarioCombo.SelectedValue = string.IsNullOrEmpty(selected) || !_vm.ScenarioOptions.Any(o => o.Value == selected)
-            ? (string.IsNullOrEmpty(_vm.SelectedScenarioId) ? null : _vm.SelectedScenarioId)
-            : selected;
+        ScenarioCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(
+            _vm.ScenarioOptions,
+            string.IsNullOrEmpty(selected) || !_vm.ScenarioOptions.Any(o => o.Value == selected)
+                ? _vm.SelectedScenarioId
+                : selected);
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -241,20 +236,20 @@ public partial class ScheduledTaskEditWindow : Window
         _vm.Time = TimeBox.Text ?? "";
         _vm.Kind = SelectedKind;
         _vm.ConfigFilePath = CfgPathBox.Text ?? "";
-        _vm.SelectedScenarioId = ScenarioCombo.SelectedValue as string ?? "";
-        _vm.SelectedInfobaseId = InfobaseCombo.SelectedValue as string ?? "";
+        _vm.SelectedScenarioId = (ScenarioCombo.SelectedItem as ScheduledTaskOption)?.Value ?? "";
+        _vm.SelectedInfobaseId = (InfobaseCombo.SelectedItem as ScheduledTaskOption)?.Value ?? "";
         _vm.PlatformCheckExpression = PlatformExpressionBox.Text ?? "";
         _vm.PlatformCheckIncludeTestVersions = PlatformIncludeTestCheck.IsChecked == true;
-        if (Enum.TryParse<PlatformUpdateNotifyChannel>(PlatformNotifyCombo.SelectedValue as string, out var notifyChannel))
+        if (Enum.TryParse<PlatformUpdateNotifyChannel>((PlatformNotifyCombo.SelectedItem as ScheduledTaskOption)?.Value, out var notifyChannel))
             _vm.PlatformNotifyChannel = notifyChannel;
         // Для редактируемого ComboBox значение — введённый/выбранный текст (issue #367).
         _vm.ConfigCheckConfiguration = ConfigCombo.Text ?? "";
-        if (Enum.TryParse<PlatformUpdateNotifyChannel>(ConfigNotifyCombo.SelectedValue as string, out var configNotifyChannel))
+        if (Enum.TryParse<PlatformUpdateNotifyChannel>((ConfigNotifyCombo.SelectedItem as ScheduledTaskOption)?.Value, out var configNotifyChannel))
             _vm.ConfigCheckNotifyChannel = configNotifyChannel;
         // Повтор с интервалом и опции «Уведомлять об отсутствии» (issue #366/#367).
         _vm.RepeatEnabled = RepeatCheck.IsChecked == true;
         _vm.RepeatIntervalValueText = RepeatValueBox.Text ?? "";
-        if (Enum.TryParse<ScheduledTaskRepeatUnit>(RepeatUnitCombo.SelectedValue as string, out var repeatUnit))
+        if (Enum.TryParse<ScheduledTaskRepeatUnit>((RepeatUnitCombo.SelectedItem as ScheduledTaskOption)?.Value, out var repeatUnit))
             _vm.RepeatIntervalUnit = repeatUnit;
         _vm.PlatformCheckNotifyWhenNoUpdates = PlatformNotifyNoUpdatesCheck.IsChecked == true;
         _vm.ConfigCheckNotifyWhenNoUpdates = ConfigNotifyNoUpdatesCheck.IsChecked == true;

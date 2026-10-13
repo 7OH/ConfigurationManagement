@@ -29,6 +29,12 @@ public partial class ActualReleasesWindow : Window
 
     private readonly ActualReleasesViewModel _viewModel;
 
+    /// <summary>Все информационные базы списка (для фильтра «Только в базах», issue #375).</summary>
+    private readonly IReadOnlyList<Infobase> _bases;
+
+    /// <summary>Фильтр «Только в базах» (issue #375): по умолчанию включён.</summary>
+    private bool _onlyInBases = true;
+
     /// <summary>
     /// Открывает окно «Актуальные релизы».
     /// </summary>
@@ -40,6 +46,7 @@ public partial class ActualReleasesWindow : Window
         DataContext = _viewModel;
         RowsGrid.ItemsSource = _viewModel.Rows;
 
+        _bases = LoadBases();
         BuildRows();
         _viewModel.RefreshCommands();
 
@@ -93,9 +100,16 @@ public partial class ActualReleasesWindow : Window
         try
         {
             var all = _store.LoadAll();
+            // Фильтр «Только в базах» (issue #375): при включённой галочке оставляем
+            // конфигурации, присутствующие в списке баз (привязка или эвристика).
+            var presentCodes = _onlyInBases
+                ? ActualReleasesBaseFilter.CollectPresentConfigCodes(all, _bases)
+                : null;
             foreach (var config in all)
             {
                 if (!config.IsTracked)
+                    continue;
+                if (presentCodes is not null && !ActualReleasesBaseFilter.IsPresent(config, presentCodes))
                     continue;
 
                 var editions = config.Editions;
@@ -122,6 +136,42 @@ public partial class ActualReleasesWindow : Window
     {
         row.PropertyChanged += OnRowPropertyChanged;
         _viewModel.Rows.Add(row);
+    }
+
+    /// <summary>Загружает список баз для фильтра «Только в базах» (issue #375).</summary>
+    private IReadOnlyList<Infobase> LoadBases()
+    {
+        try
+        {
+            return AppServices.GetRequiredService<IInfobaseRepository>().Load();
+        }
+        catch (Exception ex)
+        {
+            // Контейнер не настроен/ошибка чтения — фильтр работает по пустому списку.
+            _logger.Warn("Не удалось загрузить список баз для фильтра «Только в базах»: " + ex.Message);
+            return Array.Empty<Infobase>();
+        }
+    }
+
+    /// <summary>Переключение галочки «Только в базах» (issue #375): пересобирает список.</summary>
+    private void OnOnlyInBasesChanged(object sender, RoutedEventArgs e)
+    {
+        // Событие может сработать при инициализации XAML (IsChecked="True") до создания VM.
+        if (_viewModel is null)
+            return;
+        _onlyInBases = OnlyInBasesCheck.IsChecked == true;
+        RebuildRows();
+    }
+
+    /// <summary>Пересобирает строки списка с учётом текущего фильтра (issue #375).</summary>
+    private void RebuildRows()
+    {
+        foreach (var row in _viewModel.Rows)
+            row.PropertyChanged -= OnRowPropertyChanged;
+        _viewModel.Rows.Clear();
+        BuildRows();
+        _viewModel.RefreshCommands();
+        UpdateProgressColumnVisibility();
     }
 
     /// <summary>Реакция на изменение состояния пакетной проверки (видимость колонки прогресса).</summary>

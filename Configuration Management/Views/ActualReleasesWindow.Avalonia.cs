@@ -33,6 +33,12 @@ namespace Configuration_Management
 
         private readonly ActualReleasesViewModel _viewModel;
 
+        /// <summary>Все информационные базы списка (для фильтра «Только в базах», issue #375).</summary>
+        private readonly IReadOnlyList<Infobase> _bases;
+
+        /// <summary>Фильтр «Только в базах» (issue #375): по умолчанию включён.</summary>
+        private bool _onlyInBases = true;
+
         private readonly StackPanel _rowsPanel = new();
         private readonly Dictionary<ActualReleaseRowViewModel, TextBlock> _latestTexts = new();
         private readonly Dictionary<ActualReleaseRowViewModel, TextBlock> _statusTexts = new();
@@ -59,6 +65,7 @@ namespace Configuration_Management
             CanResize = true;
 
             _viewModel = new ActualReleasesViewModel(OnCheckAll);
+            _bases = LoadBases();
             BuildRows();
             foreach (var row in _viewModel.Rows)
                 AddRow(row);
@@ -83,9 +90,16 @@ namespace Configuration_Management
             try
             {
                 var all = _store.LoadAll();
+                // Фильтр «Только в базах» (issue #375): при включённой галочке оставляем
+                // конфигурации, присутствующие в списке баз (привязка или эвристика).
+                var presentCodes = _onlyInBases
+                    ? ActualReleasesBaseFilter.CollectPresentConfigCodes(all, _bases)
+                    : null;
                 foreach (var config in all)
                 {
                     if (!config.IsTracked)
+                        continue;
+                    if (presentCodes is not null && !ActualReleasesBaseFilter.IsPresent(config, presentCodes))
                         continue;
 
                     var editions = config.Editions;
@@ -104,6 +118,40 @@ namespace Configuration_Management
             {
                 _logger.Error("Ошибка построения списка отслеживаемых конфигураций", ex);
             }
+        }
+
+        /// <summary>Загружает список баз для фильтра «Только в базах» (issue #375).</summary>
+        private IReadOnlyList<Infobase> LoadBases()
+        {
+            try
+            {
+                return AppServices.GetRequiredService<IInfobaseRepository>().Load();
+            }
+            catch (Exception ex)
+            {
+                // Контейнер не настроен/ошибка чтения — фильтр работает по пустому списку.
+                _logger.Warn("Не удалось загрузить список баз для фильтра «Только в базах»: " + ex.Message);
+                return Array.Empty<Infobase>();
+            }
+        }
+
+        /// <summary>Пересобирает строки списка с учётом текущего фильтра (issue #375).</summary>
+        private void RebuildRows()
+        {
+            _rowsPanel.Children.Clear();
+            _latestTexts.Clear();
+            _statusTexts.Clear();
+            _errorTexts.Clear();
+            _progressPanels.Clear();
+            _progressBars.Clear();
+            _progressTexts.Clear();
+            _checkButtons.Clear();
+            _downloadButtons.Clear();
+            _viewModel.Rows.Clear();
+            BuildRows();
+            foreach (var row in _viewModel.Rows)
+                AddRow(row);
+            RefreshCommands();
         }
 
         /// <summary>Выполняет точечную проверку одной строки.</summary>
@@ -377,6 +425,21 @@ namespace Configuration_Management
                 Margin = new Thickness(8, 8, 8, 4)
             };
             toolbar.Children.Add(_checkAllButton);
+
+            // Фильтр «Только в базах» (issue #375): по умолчанию включён.
+            var onlyInBasesCheck = new CheckBox
+            {
+                Content = T("Updates.OnlyInBases"),
+                IsChecked = _onlyInBases,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            onlyInBasesCheck.Styled(ControlThemes.CacheCleanCheckBox);
+            onlyInBasesCheck.Click += (_, _) =>
+            {
+                _onlyInBases = onlyInBasesCheck.IsChecked == true;
+                RebuildRows();
+            };
+            toolbar.Children.Add(onlyInBasesCheck);
 
             var toolbarBorder = new Border
             {

@@ -383,20 +383,26 @@ public class OneCUpdatesService : IOneCUpdatesService
 
             // Урезанный каталог (issue #371): releases.1c.ru/project/<nick> без параметра
             // allUpdates=true отдаёт только последние релизы, и версия может не распарситься
-            // (например УПП/Розница, len≈11760). Повторяем запрос с allUpdates=true#updates —
-            // полный каталог содержит таблицу версий.
-            if (string.IsNullOrWhiteSpace(latest) && isProject)
+            // (УПП/Розница, len≈11760) либо распарситься НЕВЕРНО — короткая страница содержит
+            // посторонние токены («4.2.0» — версия другого продукта) и версии платформы 8.x
+            // вместо версии конфигурации (см. LooksLikeForeignVersion). Повторяем запрос с
+            // allUpdates=true#updates — полный каталог содержит таблицу версий (#versionsTable).
+            if (isProject && (string.IsNullOrWhiteSpace(latest) || LooksLikeForeignVersion(latest)))
             {
                 var fullUrl = BuildAllUpdatesCatalogUrl(url);
                 if (!fullUrl.Equals(url, StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.Warn($"[Updates] Первый проход не дал версию ({url}) — запрашиваю полный каталог: {fullUrl}");
+                    _logger.Warn($"[Updates] Первый проход дал ненадёжный результат ('{latest}', {url}) — " +
+                        $"запрашиваю полный каталог: {fullUrl}");
                     var fullBody = await FetchCatalogBodyAsync(fullUrl, ct).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(fullBody))
                     {
-                        latest = ParseLatestVersionFromProjectHtml(fullBody);
-                        if (!string.IsNullOrWhiteSpace(latest))
+                        var fullLatest = ParseLatestVersionFromProjectHtml(fullBody);
+                        if (!string.IsNullOrWhiteSpace(fullLatest))
+                        {
+                            latest = fullLatest;
                             _logger.Info($"[Updates] Версия {latest} определена по полному каталогу ({fullUrl}).");
+                        }
                     }
                 }
             }
@@ -489,9 +495,10 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <summary>Регулярное выражение для ссылки на страницу файлов релиза вида
-    /// <c>/version_files?nick=…&ver=…</c> (текст ссылки — номер версии).</summary>
+    /// <c>/version_files?nick=…&ver=…</c> (текст ссылки — номер версии). Захватывает
+    /// адрес <c>href</c> (для платформенного парсера каталога, issue #371) и текст.</summary>
     private static readonly Regex VersionFilesLinkRegex =
-        new(@"href\s*=\s*[""'][^""']*version_files[^""']*ver\s*=[^""']*[""'][^>]*>\s*(?<ver>[^<]+?)</a>",
+        new(@"href\s*=\s*[""'](?<href>[^""']*version_files[^""']*ver\s*=[^""']*)[""'][^>]*>\s*(?<ver>[^<]+?)</a>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
     /// <summary>
@@ -510,37 +517,74 @@ public class OneCUpdatesService : IOneCUpdatesService
         new(@"data-(?:ver|version)\s*=\s*[""'](?<ver>\d{1,4}(?:\.\d{1,4}){1,3})[""']",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
+    /// <summary>Кандидат версии из HTML каталога: нормализованная версия и ссылка на страницу
+    /// файлов релиза (может быть пустой — версия получена из атрибута карточки <c>data-ver</c>
+    /// или токена текста).</summary>
+    internal readonly record struct VersionCatalogCandidate(string Version, string? VersionFilesUrl);
+
     /// <summary>
-    /// Извлекает последнюю (самую новую) версию из HTML-страницы <c>releases.1c.ru/project/<nick></c>.
-    /// Работает и с полным каталогом (таблица <c>id="versionsTable"</c>, ссылки
-    /// <c>version_files?…&ver=…</c>), и с «урезанным» списком релизов (нет таблицы,
-    /// текст ссылки может не содержать версии, версия — в query адреса или атрибутах
-    /// карточек). Возвращает максимальную из найденных версий или пустую строку.
+    /// Извлекает последнюю (самую новую) версию из HTML-страницы <c>releases.1c.ru/project/<nick></c>
+    /// (единая логика сбора — <see cref="CollectVersionCandidatesFromHtml"/>, issue #371).
+    /// Возвращает максимальную из найденных версий или пустую строку.
     /// </summary>
     internal static string ParseLatestVersionFromProjectHtml(string? html)
     {
-        if (string.IsNullOrWhiteSpace(html))
-            return string.Empty;
+        var candidates = CollectVersionCandidatesFromHtml(html);
 
-        // Кандидаты версий: текст ссылок version_files/version_file + ver= из их href.
-        var candidates = new List<string>();
+        // Максимальная из найденных (порядок строк в HTML может не совпадать с новизной).
+        Version? best = null;
+        string bestText = string.Empty;
+        foreach (var candidate in candidates)
+        {
+            if (!TryParseVersion(candidate.Version, out var parsed))
+                continue;
+            if (best is null || parsed > best)
+            {
+                best = parsed;
+                bestText = candidate.Version;
+            }
+        }
+
+        return bestText;
+    }
+
+    /// <summary>
+    /// Единый сборщик кандидатов версий из HTML-страницы <c>releases.1c.ru/project/<nick></c>
+    /// (issue #371): используется <see cref="ParseLatestVersionFromProjectHtml"/> и
+    /// <see cref="OneCPlatformCatalogParser.ParseVersions(string, string)"/>. Каскад источников:
+    /// 1) таблица <c>id="versionsTable"</c> (классический каталог);
+    /// 2) ссылки <c>version_files</c>/<c>version_file</c> по всему HTML (версия из текста
+    ///    ссылки или query-параметра <c>ver=</c>);
+    /// 3) атрибуты <c>data-ver</c>/<c>data-version</c> карточек нового дизайна;
+    /// 4) версионные токены текста (<see cref="ExtractVersionTokens"/>, ужесточённый фильтр).
+    /// Следующий каскад используется только при пустом результате предыдущего. Версии
+    /// дедуплицируются и возвращаются в порядке появления в HTML. Internal — для юнит-тестов
+    /// и платформенного парсера каталога.
+    /// </summary>
+    internal static List<VersionCatalogCandidate> CollectVersionCandidatesFromHtml(string? html)
+    {
+        var candidates = new List<VersionCatalogCandidate>();
+        if (string.IsNullOrWhiteSpace(html))
+            return candidates;
+
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        void AddCandidate(string? candidate)
+        void Add(string? version, string? href)
         {
-            if (string.IsNullOrWhiteSpace(candidate))
+            if (string.IsNullOrWhiteSpace(version))
                 return;
-            var ver = WebUtility.HtmlDecode(candidate.Trim());
-            if (ver.Length > 0 && seen.Add(ver))
-                candidates.Add(ver);
+            var ver = WebUtility.HtmlDecode(version.Trim());
+            if (ver.Length == 0 || !seen.Add(ver))
+                return;
+            candidates.Add(new VersionCatalogCandidate(ver, NormalizeHrefForCatalog(href)));
         }
 
         void CollectLinks(string fragment)
         {
             foreach (Match link in VersionFilesLinkRegex.Matches(fragment))
-                AddCandidate(link.Groups["ver"].Value);
+                Add(link.Groups["ver"].Value, link.Groups["href"].Value);
             foreach (Match link in VersionPageHrefQueryRegex.Matches(fragment))
-                AddCandidate(ExtractVersionFromQuery(link.Groups["href"].Value));
+                Add(ExtractVersionFromQuery(link.Groups["href"].Value), link.Groups["href"].Value);
         }
 
         // 1) Классический каталог: таблица #versionsTable (первая строка — последняя версия).
@@ -558,7 +602,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (candidates.Count == 0)
         {
             foreach (Match m in DataVersionAttrRegex.Matches(html))
-                AddCandidate(m.Groups["ver"].Value);
+                Add(m.Groups["ver"].Value, null);
         }
 
         // 4) Последний запасной путь (короткие страницы без таблицы/ссылок/атрибутов,
@@ -567,24 +611,19 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (candidates.Count == 0)
         {
             foreach (var t in ExtractVersionTokens(html))
-                AddCandidate(t);
+                Add(t, null);
         }
 
-        // Максимальная из найденных (порядок строк в HTML может не совпадать с новизной).
-        Version? best = null;
-        string bestText = string.Empty;
-        foreach (var candidate in candidates)
-        {
-            if (!TryParseVersion(candidate, out var parsed))
-                continue;
-            if (best is null || parsed > best)
-            {
-                best = parsed;
-                bestText = candidate;
-            }
-        }
+        return candidates;
+    }
 
-        return bestText;
+    /// <summary>Нормализует ссылку на страницу файлов релиза из HTML: декодирование
+    /// HTML-сущностей («&» → «&», issue #330/#352) и trim. null/пусто — пустая строка.</summary>
+    private static string NormalizeHrefForCatalog(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return string.Empty;
+        return WebUtility.HtmlDecode(raw.Trim());
     }
 
     /// <summary>Извлекает значение параметра <c>ver</c> из query-части URL-адреса ссылки
@@ -622,7 +661,9 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <summary>
     /// Извлекает из HTML-страницы каталога все 3–4-частные версионные токены (например
     /// <c>8.3.26.1656</c>), отсекая даты и «годоподобные» токены (первый или последний сегмент
-    /// ≥ 1900, например <c>2026.10.12</c> или <c>10.12.2026</c>). Дубликаты не повторяются.
+    /// ≥ 1900, например <c>2026.10.12</c> или <c>10.12.2026</c>) и посторонние версии
+    /// (первый сегмент вне 1–3 или 8 — «4.2.0» на странице Розницы/УПП это версия чужого
+    /// продукта, issue #371). Дубликаты не повторяются.
     /// Internal — для юнит-тестов (OneCUpdatesParsingTests).
     /// </summary>
     internal static IEnumerable<string> ExtractVersionTokens(string? html)
@@ -646,8 +687,28 @@ public class OneCUpdatesService : IOneCUpdatesService
             if (first >= 1900 || last >= 1900)
                 continue; // дата/год
 
+            // Версии конфигураций 1С начинаются с 1–3 (БП 3.0, ЗУП 3.1, УПП 1.3, Розница 2.3/3.0),
+            // платформа — с 8 (8.3.x/8.5.x). Посторонние токены («4.2.0» — версия другого
+            // продукта на короткой странице Розницы/УПП) версиями каталога не являются.
+            if (first is not (1 or 2 or 3 or 8))
+                continue;
+
             yield return candidate;
         }
+    }
+
+    /// <summary>
+    /// True, если версия НЕ похожа на версию конфигурации 1С (issue #371): первый сегмент вне
+    /// диапазона 1–3 (версии конфигураций 1С начинаются с 1/2/3, платформа — с 8). «8.3.27.2214»
+    /// — версия платформы, «4.2.0» — посторонний продукт: обе «подозрительны» на странице
+    /// каталога конфигурации, нужен повтор с полным каталогом (<c>allUpdates=true</c>).
+    /// Internal — для юнит-тестов.
+    /// </summary>
+    internal static bool LooksLikeForeignVersion(string? version)
+    {
+        if (!TryParseVersion(version, out var parsed))
+            return false;
+        return parsed.Major is < 1 or > 3;
     }
 
     /// <summary>

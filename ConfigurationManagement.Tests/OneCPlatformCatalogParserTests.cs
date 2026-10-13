@@ -132,6 +132,72 @@ public sealed class OneCPlatformCatalogParserTests
         Assert.Equal(new[] { "8.3.27.2214", "8.3.26.1890" }, releases.Select(r => r.Version));
     }
 
+    [Fact]
+    public void ParseVersions_CardDesignCatalog_ParsesVersions()
+    {
+        // issue #371: каталоги Розницы/УПП используют карточный дизайн вместо #versionsTable —
+        // релизы перечислены карточками с data-ver/data-version атрибутами и ссылками
+        // version_file (единственное число, версия в query). Список версий должен быть непустым.
+        var html = """
+            <html><body>
+            <h1>Розница</h1>
+            <div class="release-card" data-ver="3.0.14.168">
+              <a href="/version_file?nick=Retail30&ver=3.0.14.168&path=Retail30%5c3_0_14_168%5c1CEnterprise_updsetup.zip">Дистрибутив обновления</a>
+            </div>
+            <div class="release-card" data-version="3.0.13.4">
+              <a href="/version_file?nick=Retail30&ver=3.0.13.4&path=Retail30%5c3_0_13_4%5c1CEnterprise_updsetup.zip">Дистрибутив обновления</a>
+            </div>
+            <div class="release-card" data-ver="2.3.12.41">
+              <a href="/version_file?nick=Retail22&ver=2.3.12.41&path=Retail22%5c2_3_12_41%5c1CEnterprise_updsetup.zip">Дистрибутив обновления</a>
+            </div>
+            </body></html>
+            """;
+
+        var releases = OneCPlatformCatalogParser.ParseVersions(html);
+
+        Assert.Equal(3, releases.Count);
+        Assert.Equal(new[] { "3.0.14.168", "3.0.13.4", "2.3.12.41" }, releases.Select(r => r.Version));
+
+        // Версия из ссылки version_file сохраняет адрес страницы файлов.
+        Assert.Equal("/version_file?nick=Retail30&ver=3.0.14.168&path=Retail30%5c3_0_14_168%5c1CEnterprise_updsetup.zip",
+            releases[0].VersionFilesUrl);
+    }
+
+    [Fact]
+    public void ParseVersions_CardDesignWithoutLinks_ParsesVersionsFromTokens()
+    {
+        // Урезанная короткая страница без таблицы, ссылок version_file и data-атрибутов:
+        // версии находятся в тексте. Посторонний «4.2.0» (первый сегмент вне 1–3/8) отсекается.
+        var html = """
+            <html><body>
+            <h1>Управление производственным предприятием</h1>
+            <p>Версия: 4.2.0</p>
+            <p>Доступные версии: 1.3.285.2, 1.3.281.1</p>
+            <p>Дата публикации: 2026.10.12</p>
+            </body></html>
+            """;
+
+        var releases = OneCPlatformCatalogParser.ParseVersions(html);
+
+        Assert.Equal(2, releases.Count);
+        Assert.Equal(new[] { "1.3.285.2", "1.3.281.1" }, releases.Select(r => r.Version));
+
+        // Версия из токена текста не несёт адреса страницы файлов — сервис построит его из ника.
+        Assert.True(releases.All(r => string.IsNullOrEmpty(r.VersionFilesUrl)));
+    }
+
+    [Fact]
+    public void ParseVersions_CardDesignWithForeignTokenOnly_ReturnsEmpty()
+    {
+        // Только посторонний токен («4.2.0») на короткой странице не даёт версий каталога —
+        // парсер не выдаёт мусор.
+        var html = "<html><body><p>Версия: 4.2.0</p><p>7.1.0</p></body></html>";
+
+        var releases = OneCPlatformCatalogParser.ParseVersions(html);
+
+        Assert.Empty(releases);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

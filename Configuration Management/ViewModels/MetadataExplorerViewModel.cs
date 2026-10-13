@@ -48,6 +48,7 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     private readonly IDialogService _dialogs;
     private readonly Action<Action>? _dispatchToUi;
     private readonly IAppLogger? _logger;
+    private readonly IReadOnlyList<string> _installedPlatforms;
 
     /// <summary>
     /// Проверка блокировки запуска конфигуратора для базы (этап 5): возвращает причину
@@ -118,6 +119,11 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     /// Логгер приложения (issue #365): ошибки операций пишутся в app-лог с полным
     /// текстом исключения; null (тесты) — резолвится из <see cref="AppServices"/>.
     /// </param>
+    /// <param name="installedPlatformsProvider">
+    /// Источник установленных версий платформы 1С (отсортированы по убыванию новизны,
+    /// первая — максимальная); null — реальный <see cref="PlatformVersionService"/>
+    /// (тесты передают лямбду, чтобы не зависеть от файловой системы).
+    /// </param>
     public MetadataExplorerViewModel(
         IReadOnlyList<Infobase> bases,
         Infobase? selectedBase,
@@ -125,13 +131,18 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
         IDialogService dialogs,
         Action<Action>? dispatchToUi = null,
         Func<Infobase, string?>? designerBlockCheck = null,
-        IAppLogger? logger = null)
+        IAppLogger? logger = null,
+        Func<IReadOnlyList<string>>? installedPlatformsProvider = null)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _dispatchToUi = dispatchToUi;
         _designerBlockCheck = designerBlockCheck ?? DefaultDesignerBlockCheck;
         _logger = logger ?? TryResolveLogger();
+
+        _installedPlatforms = (installedPlatformsProvider ?? ResolveInstalledPlatformVersions)();
+        foreach (var platform in _installedPlatforms)
+            PlatformVersions.Add(platform);
 
         foreach (var infobase in bases ?? Array.Empty<Infobase>())
             Bases.Add(infobase);
@@ -140,6 +151,10 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             SelectedBase = selectedBase;
         else if (Bases.Count > 0)
             SelectedBase = Bases[0];
+
+        // Значение по умолчанию: версия предвыбранной базы, иначе — максимальная
+        // установленная платформа (issue #365).
+        SyncPlatformSelection();
     }
 
     /// <summary>Смена этапа операции (текст для окна прогресса). Может вызываться из фонового потока.</summary>
@@ -150,11 +165,31 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
     /// <summary>Все информационные базы списка (ComboBox).</summary>
     public ObservableCollection<Infobase> Bases { get; } = new();
 
-    /// <summary>Выбранная база (источник «База»).</summary>
+    /// <summary>Выбранная база (источник «База»): при смене подставляется её платформа.</summary>
     public Infobase? SelectedBase
     {
         get => _selectedBase;
-        set => SetProperty(ref _selectedBase, value);
+        set
+        {
+            if (SetProperty(ref _selectedBase, value))
+                OnSelectedBaseChanged(value);
+        }
+    }
+
+    /// <summary>Доступные версии платформы 1С: установленные + версия выбранной базы.</summary>
+    public ObservableCollection<string> PlatformVersions { get; } = new();
+
+    private string? _selectedPlatformVersion;
+
+    /// <summary>
+    /// Выбранная версия платформы для распаковки файла .cf (editable ComboBox в окне):
+    /// подставляется платформа базы (при выборе базы) или максимальная установленная
+    /// (при переключении на «Файл .cf»), пользователь может изменить вручную (issue #365).
+    /// </summary>
+    public string? SelectedPlatformVersion
+    {
+        get => _selectedPlatformVersion;
+        set => SetProperty(ref _selectedPlatformVersion, value);
     }
 
     /// <summary>Текущий источник выгрузки.</summary>
@@ -167,7 +202,72 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsSourceBase));
                 OnPropertyChanged(nameof(IsSourceCf));
+                OnModeChanged(value);
             }
+        }
+    }
+
+    /// <summary>Смена базы: подставляем её платформу (issue #365).</summary>
+    private void OnSelectedBaseChanged(Infobase? infobase)
+    {
+        var version = infobase?.PlatformVersion;
+        if (string.IsNullOrWhiteSpace(version))
+            return;
+        AddPlatformVersion(version);
+        if (Mode == SourceMode.Base)
+            SelectedPlatformVersion = version;
+    }
+
+    /// <summary>Переключение на «Файл .cf»: автоматически ставим максимальную установленную
+    /// платформу, но пользователь может изменить вручную (issue #365).</summary>
+    private void OnModeChanged(SourceMode mode)
+    {
+        if (mode == SourceMode.Cf && _installedPlatforms.Count > 0)
+            SelectedPlatformVersion = _installedPlatforms[0];
+    }
+
+    /// <summary>Заполняет список платформ и выбор по умолчанию при открытии окна
+    /// (версия предвыбранной базы, иначе — максимальная установленная).</summary>
+    private void SyncPlatformSelection()
+    {
+        var baseVersion = SelectedBase?.PlatformVersion;
+        if (!string.IsNullOrWhiteSpace(baseVersion))
+        {
+            AddPlatformVersion(baseVersion);
+            SelectedPlatformVersion = baseVersion;
+        }
+        else if (_installedPlatforms.Count > 0)
+        {
+            SelectedPlatformVersion = _installedPlatforms[0];
+        }
+    }
+
+    /// <summary>Добавляет версию в список доступных, если её там ещё нет.</summary>
+    private void AddPlatformVersion(string version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return;
+        if (PlatformVersions.Any(p => string.Equals(p, version, StringComparison.OrdinalIgnoreCase)))
+            return;
+        PlatformVersions.Add(version);
+    }
+
+    /// <summary>Установленные версии платформы 1С, отсортированные по убыванию новизны
+    /// (первая — максимальная); при ошибке сканирования — пустой список.</summary>
+    private static IReadOnlyList<string> ResolveInstalledPlatformVersions()
+    {
+        try
+        {
+            return PlatformVersionService.FindInstalledVersionInfos()
+                .Select(v => v.Display)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch
+        {
+            // Платформы не найдены / сканирование недоступно — работаем без списка.
+            return Array.Empty<string>();
         }
     }
 
@@ -423,8 +523,13 @@ public sealed class MetadataExplorerViewModel : ViewModelBase
                 }
 
                 StageChanged?.Invoke(LocalizationManager.T("MetadataExplorer.Status.Dumping"));
+                // issue #365: версия платформы берётся из выбора пользователя (ComboBox);
+                // пустой выбор — прежний fallback (платформа базы/LastFileCreate/максим.).
+                var platformVersion = string.IsNullOrWhiteSpace(SelectedPlatformVersion)
+                    ? ResolvePlatformVersion()
+                    : SelectedPlatformVersion;
                 dump = await _service
-                    .DumpFromCfAsync(cfPath, ResolvePlatformVersion(), progress)
+                    .DumpFromCfAsync(cfPath, platformVersion, progress)
                     .ConfigureAwait(false);
             }
 

@@ -359,6 +359,25 @@ public sealed class UpdateCheckCatalogTests : IDisposable
     }
 
     [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_TrimmedCatalogWithPlatformToken_RetriesFullCatalog()
+    {
+        // issue #371: короткая страница каталога (УПП/Розница) без таблицы #versionsTable
+        // содержит только версию платформы («8.3.26.1656») — первый проход даёт
+        // «подозрительную» версию (первый сегмент ≥ 4). Служба повторяет запрос с
+        // allUpdates=true#updates — полный каталог содержит таблицу версий конфигурации.
+        var handler = new TrimmedCatalogHandler();
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Розница", "3.0.14.100", "https://releases.1c.ru/project/Retail30");
+
+        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
+        Assert.Equal("3.0.14.168", result.LatestVersion);
+        Assert.Equal(2, handler.ProjectRequests);
+        Assert.Equal(1, handler.FullCatalogRequests);
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task CheckForUpdatesAsync_302WithoutLocation_CredentialsFromItsAccountsStore_Succeeds()
     {
         // #334/#333: учётные данные ИТС берутся из справочника (its_accounts.json), а НЕ из
@@ -456,6 +475,70 @@ public sealed class UpdateCheckCatalogTests : IDisposable
             response.RequestMessage = request;
             return Task.FromResult(response);
         }
+    }
+
+    /// <summary>
+    /// Обработчик сценария «урезанный каталог» (issue #371): первый запрос project/<ник>
+    /// без allUpdates=true возвращает короткую страницу без таблицы версий (в тексте — версия
+    /// платформы «8.3.x»), повторный запрос с allUpdates=true — полный каталог с таблицей
+    /// #versionsTable и правильной версией конфигурации.
+    /// </summary>
+    private sealed class TrimmedCatalogHandler : HttpMessageHandler
+    {
+        private int _requests;
+
+        public int ProjectRequests => _requests;
+        public int FullCatalogRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? string.Empty;
+            _requests++;
+            HttpResponseMessage response;
+
+            if (url.Contains("allUpdates=true", StringComparison.OrdinalIgnoreCase))
+            {
+                FullCatalogRequests++;
+                response = Ok(FullCatalogHtml);
+            }
+            else if (url.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok(TrimmedHtml);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        // Урезанный каталог: нет таблицы/ссылок/атрибутов, в тексте — только версия платформы
+        // 8.x (последний сегмент < 1900, чтобы не отсекалась как «дата»).
+        private const string TrimmedHtml = """
+            <html><body>
+            <h1>Розница</h1>
+            <p>Последняя версия: 8.3.26.1656</p>
+            <p>Дата публикации: 2026.10.12</p>
+            </body></html>
+            """;
+
+        // Полный каталог allUpdates=true: таблица #versionsTable с версией конфигурации.
+        private const string FullCatalogHtml = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td>1</td><td><a href="/version_files?nick=Retail30&ver=3.0.14.168">3.0.14.168</a></td></tr>
+              <tr><td>2</td><td><a href="/version_files?nick=Retail30&ver=3.0.13.4">3.0.13.4</a></td></tr>
+            </table>
+            </body></html>
+            """;
     }
 
     /// <summary>Fake репозитория: настройки портала в памяти, базы/группы пустые.</summary>

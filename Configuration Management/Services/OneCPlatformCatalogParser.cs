@@ -185,16 +185,19 @@ public static class OneCPlatformCatalogParser
             }
         }
 
-        // 2) Запасной путь: регресс к поиску всех version_files-ссылок во всём HTML.
+        // 2) Запасной путь (урезанные каталоги и карточный дизайн Розницы/УПП, issue #371):
+        //    единый сборщик кандидатов — ссылки version_files/version_file по всему HTML
+        //    (версия из текста или ver= query), атрибуты data-ver/data-version, версионные
+        //    токены текста с ужесточённым фильтром (см. OneCUpdatesService.CollectVersionCandidatesFromHtml).
         if (entries.Count == 0)
         {
-            foreach (Match link in VersionFilesLinkRegex.Matches(html))
+            foreach (var candidate in OneCUpdatesService.CollectVersionCandidatesFromHtml(html))
             {
-                var rawVersion = link.Groups["ver"].Value;
-                var isTest = IsTestMarker(rawVersion);
-                var version = isTest ? ExtractLeadingVersion(rawVersion) : NormalizeVersion(rawVersion);
-                if (IsValidVersionText(version))
-                    entries.Add((version, NormalizeHref(link.Groups["href"].Value), new List<string>(), isTest));
+                var isTest = IsTestMarker(candidate.Version);
+                var version = isTest ? ExtractLeadingVersion(candidate.Version) : NormalizeVersion(candidate.Version);
+                if (!IsValidVersionText(version))
+                    continue;
+                entries.Add((version, NormalizeHref(candidate.VersionFilesUrl), new List<string>(), isTest));
             }
         }
 
@@ -480,7 +483,7 @@ public static class OneCPlatformCatalogParser
     /// страницей без дистрибутивов — список «Выбор файла» оставался пустым
     /// (issue #330, комментарий 7OH от 2026-10-08).
     /// </summary>
-    private static string NormalizeHref(string raw)
+    private static string NormalizeHref(string? raw)
     {
         var decoded = WebUtility.HtmlDecode(raw ?? string.Empty);
         var sb = new StringBuilder(decoded.Length);

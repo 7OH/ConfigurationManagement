@@ -22,6 +22,11 @@
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
 
+        <!-- Галочка-фильтр «Только в базах» (issue #375): темизируется, как в остальных окнах. -->
+        <Style TargetType="CheckBox" BasedOn="{StaticResource ModernMaterialCheckBox}">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
         <Style x:Key="SelectAllButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -283,13 +288,22 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0" Height="36" HorizontalAlignment="Left" Style="{StaticResource PrimaryButtonStyle}"
-                    Command="{Binding CheckAllCommand}">
-                <StackPanel Orientation="Horizontal">
-                    <materialDesign:PackIcon Kind="CloudDownloadOutline" Width="16" Height="16" Foreground="White"/>
-                    <TextBlock Text="{loc:Loc Updates.BatchCheck}" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="White"/>
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button Height="36" Style="{StaticResource PrimaryButtonStyle}"
+                        Command="{Binding CheckAllCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="CloudDownloadOutline" Width="16" Height="16" Foreground="White"/>
+                        <TextBlock Text="{loc:Loc Updates.BatchCheck}" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="White"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Фильтр «Только в базах» (issue #375): по умолчанию включён; список
+                     фильтруется конфигурациями, присутствующими в списке баз (привязка
+                     или эвристика). -->
+                <CheckBox x:Name="OnlyInBasesCheck" Content="{loc:Loc Updates.OnlyInBases}"
+                          IsChecked="True" VerticalAlignment="Center" Margin="16,0,0,0"
+                          Checked="OnOnlyInBasesChanged" Unchecked="OnOnlyInBasesChanged"/>
+            </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Width="120" Height="36" Style="{StaticResource OutlineButtonStyle}" Click="OnClose_Click">

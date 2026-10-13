@@ -912,6 +912,11 @@ public partial class UpdateCheckWindow : Window
         if (skipped > 0)
             _logger.Info($"Пропущено уже скачанных файлов цепочки «{_row.Name}»: {skipped} из {variant.Steps.Count}.");
 
+        // issue #352: заголовок фоновой загрузки — имя первого файла цепочки (не название
+        // конфигурации «УТ 11»); далее в цикле обновляется на имя текущего файла.
+        if (pending.Count > 0)
+            UpdateChainTitle(chainId, targetPaths[pending[0]]);
+
         if (pending.Count == 0)
         {
             // Цепочка уже полностью скачана — фоновая запись сразу завершается.
@@ -935,6 +940,9 @@ public partial class UpdateCheckWindow : Window
             var step = variant.Steps[i];
             var url = OneCUpdatesService.ToAbsoluteVersionFilesUrl(step.VersionFilesUrl, _row.Url);
             var targetPath = targetPaths[i];
+
+            // issue #352: в индикаторе главного окна показываем имя скачиваемого файла.
+            UpdateChainTitle(chainId, targetPath);
 
             var baseText = string.Format(
                 LocalizationManager.T("Updates.Chain.DownloadProgress"), n + 1, total, step.Version);
@@ -1073,6 +1081,18 @@ public partial class UpdateCheckWindow : Window
         {
             _logger.Warn("Не удалось открыть папку цепочки обновлений: " + ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Уточняет заголовок фоновой загрузки цепочки именем файла (issue #352): в индикаторе
+    /// главного окна вместо названия конфигурации («УТ 11») показывается имя скачиваемого
+    /// файла; пустое имя (резолв не удался) — заголовок не меняется.
+    /// </summary>
+    private static void UpdateChainTitle(string chainId, string targetPath)
+    {
+        var fileName = Path.GetFileName(targetPath);
+        if (!string.IsNullOrWhiteSpace(fileName))
+            Services.BackgroundDownloadManager.Default.UpdateTitle(chainId, fileName);
     }
 
     private static string SanitizeFileName(string name)
