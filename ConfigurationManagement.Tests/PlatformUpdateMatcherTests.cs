@@ -291,6 +291,76 @@ public sealed class PlatformUpdateMatcherTests
         Assert.Equal("8.3.27.2214", installed.AvailableVersion);
     }
 
+    // --- Merge: issue #361 (0.3.12.27) — цель обновления относительно МАКСИМАЛЬНОЙ
+    // установленной линии («искать только версии больше той максимальной, что сейчас
+    // есть на компе по 3-м цифрам») ---
+
+    [Fact]
+    public void Merge_ThreePart_MaxInstalledLineHigher_NoUpdateForLowerLines()
+    {
+        // Сценарий из debug-лога 7OH: установлены 8.3.26.1656 и 8.5.4.1878 (максимальная
+        // линия 8.5.4), база закреплена за 8.3.26 (3 сегмента), каталог содержит только
+        // 8.3.x. Обновления нет: в каталоге нет версий с первыми 3 сегментами > 8.5.4.
+        var bases = new[] { NewBase("8.3.26") };
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656", "8.5.4.1878" },
+            Releases("8.3.27.2214", "8.3.26.1890"),
+            bases);
+
+        var lower = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(lower.IsInstalled);
+        Assert.False(lower.HasUpdate); // 8.3.27.2214 < максимальной установленной линии 8.5.4
+        Assert.Null(lower.AvailableVersion);
+
+        var max = matches.Single(m => m.Version == "8.5.4.1878");
+        Assert.True(max.IsInstalled);
+        Assert.False(max.HasUpdate);
+        Assert.Null(max.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_ThreePart_MaxInstalledLineHigher_UpdateToNewerThanMax()
+    {
+        // Если в каталоге появилась версия с первыми 3 сегментами строго больше
+        // максимальной установленной линии (8.5.4) — она становится обновлением
+        // для всех установленных версий ниже неё.
+        var bases = new[] { NewBase("8.3.26") };
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656", "8.5.4.1878" },
+            Releases("8.3.27.2214", "8.6.0.100"),
+            bases);
+
+        var lower = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.True(lower.HasUpdate);
+        Assert.Equal("8.6.0.100", lower.AvailableVersion);
+
+        var max = matches.Single(m => m.Version == "8.5.4.1878");
+        Assert.True(max.HasUpdate);
+        Assert.Equal("8.6.0.100", max.AvailableVersion);
+    }
+
+    [Fact]
+    public void Merge_ThreePart_NewerBuildOfInstalledMaxLine_NotUpdate()
+    {
+        // Установлены 8.3.26.1656 и 8.3.27.2214 (максимальная линия 8.3.27), базы
+        // закреплены за 8.3.26 и 8.3.27 (3 сегмента). В каталоге есть 8.3.27.2325
+        // (та же линия 8.3.27, не установлена) — она НЕ обновление: её первые 3 сегмента
+        // не больше максимальной установленной линии 8.3.27.
+        var bases = new[] { NewBase("8.3.26"), NewBase("8.3.27") };
+        var matches = PlatformUpdateMatcher.Merge(
+            new[] { "8.3.26.1656", "8.3.27.2214" },
+            Releases("8.3.27.2325"),
+            bases);
+
+        var lower = matches.Single(m => m.Version == "8.3.26.1656");
+        Assert.False(lower.HasUpdate);
+        Assert.Null(lower.AvailableVersion);
+
+        var max = matches.Single(m => m.Version == "8.3.27.2214");
+        Assert.False(max.HasUpdate);
+        Assert.Null(max.AvailableVersion);
+    }
+
     // --- CountCompatibleBases ---
 
     [Fact]

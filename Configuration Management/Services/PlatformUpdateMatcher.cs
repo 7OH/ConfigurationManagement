@@ -25,7 +25,10 @@ public static class PlatformUpdateMatcher
     /// (<see cref="PlatformUpdateMatch.HasUpdate"/> = false): база использует полную
     /// версию неспроста.</description></item>
     /// <item><description>Если compatible-база указывает <b>3 сегмента</b> (напр. «8.3.26») —
-    /// обновлением считается только версия со строго большими первыми 3 сегментами
+    /// обновлением считается только версия со строго большими первыми 3 сегментами,
+    /// чем <b>максимальная установленная линия</b> («искать только версии больше той
+    /// максимальной, что сейчас есть на компе по 3-м цифрам», issue #361, 0.3.12.27):
+    /// если максимальная установленная линия уже новее всех доступных — обновления нет
     /// (новые сборки в той же линии 8.3.26.x обновлением не считаются).</description></item>
     /// <item><description>Без compatible-баз — прежнее поведение: любая более новая версия
     /// (полное 4-сегментное сравнение).</description></item>
@@ -92,6 +95,18 @@ public static class PlatformUpdateMatcher
                 .First()
             : null;
 
+        // Issue #361 (0.3.12.27): максимальная установленная линия (первые 3 сегмента) —
+        // в режиме ThreePart обновлением считается только версия, чьи первые 3 сегмента
+        // строго больше ЭТОЙ линии («искать только версии больше той максимальной, что
+        // сейчас есть на компе по 3-м цифрам»). Если максимальная установленная линия
+        // уже новее всех доступных версий — обновления нет ни для одной установленной.
+        var maxInstalledLine = installedVersions.Count > 0
+            ? installedVersions
+                .Select(v => FirstSegments(v, 3))
+                .OrderByDescending(l => l, VersionComparer.Instance)
+                .First()
+            : null;
+
         // Issue #361 (0.3.12.11): уже установленные версии исключаются из кандидатов
         // обновления — установленная версия (или её точный доступный дубль) не должна
         // получать «Есть обновление».
@@ -108,10 +123,14 @@ public static class PlatformUpdateMatcher
             {
                 if (mode == UpdateCheckMode.ThreePart)
                 {
-                    // Issue #361: обновление — только в более новую ЛИНИЮ (первые 3 сегмента строго больше).
-                    var installedLine = FirstSegments(version, 3);
+                    // Issue #361 (0.3.12.27): обновление — только версия, чьи первые 3 сегмента
+                    // строго больше МАКСИМАЛЬНОЙ установленной линии (а не линии самой версии):
+                    // «искать только версии больше той максимальной, что сейчас есть на компе
+                    // по 3-м цифрам». Если максимальная установленная линия уже новее всех
+                    // доступных версий — обновления нет («Установлена»).
+                    var targetLine = maxInstalledLine ?? FirstSegments(version, 3);
                     newest = releaseReleases
-                        .Where(r => IsLineStrictlyNewer(r.Version, installedLine)
+                        .Where(r => IsLineStrictlyNewer(r.Version, targetLine)
                             && !installedVersionSet.Contains(r.Version))
                         .OrderByDescending(r => r.Version, VersionComparer.Instance)
                         .Select(r => r.Version)
