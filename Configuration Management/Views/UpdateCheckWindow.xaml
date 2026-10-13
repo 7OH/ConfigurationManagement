@@ -293,12 +293,22 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- Нижняя панель: Проверить / Скачать цепочку / Скачать / Закрыть -->
+        <!-- Нижняя панель: Список конфигураций / Проверить / Скачать цепочку / Скачать / Закрыть -->
         <Grid Grid.Row="3" Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
+
+            <!-- issue #371: кнопка «Список конфигураций» — открыть список типовых
+                 конфигураций, чтобы проверить ссылки каталогов релизов сразу. -->
+            <Button Grid.Column="0" MinWidth="180" Height="40" HorizontalAlignment="Left"
+                    Style="{StaticResource OutlineButtonStyle}" Click="OnOpenConfigListClick">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="DatabaseSettings" Width="16" Height="16"/>
+                    <TextBlock Text="{loc:Loc Updates.OpenConfigList}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                 <!-- Ширины кнопок не фиксированы (только минимальные): при любом шрифте и масштабе

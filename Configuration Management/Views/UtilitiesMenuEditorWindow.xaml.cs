@@ -56,6 +56,55 @@ namespace Configuration_Management
             }
         }
 
+        /// <summary>«Новая группа»: диалог имени/иконки → команда создания группы.</summary>
+        private void OnAddGroupClick(object sender, RoutedEventArgs e)
+        {
+            var dialog = new UtilitiesGroupEditWindow(_vm.CatalogIcons) { Owner = this };
+            if (dialog.ShowDialog() == true && dialog.Result is not null)
+                _vm.AddGroupCommand.Execute(dialog.Result);
+        }
+
+        /// <summary>«Правка группы»: диалог с текущим именем/иконкой → команда переименования.</summary>
+        private void OnEditGroupClick(object sender, RoutedEventArgs e)
+        {
+            var item = _vm.SelectedItem;
+            if (item is null)
+                return;
+            var dialog = new UtilitiesGroupEditWindow(
+                _vm.CatalogIcons,
+                item.Title,
+                item.Node.IconKey) { Owner = this };
+            if (dialog.ShowDialog() == true && dialog.Result is not null)
+                _vm.EditGroupCommand.Execute(dialog.Result);
+        }
+
+        /// <summary>«Удалить группу»: подтверждение; при непустой группе — предложение
+        /// переместить элементы с подгруппами в корень (issue #374).</summary>
+        private void OnDeleteGroupClick(object sender, RoutedEventArgs e)
+        {
+            var item = _vm.SelectedItem;
+            if (item is null)
+                return;
+            var dialogs = AppServices.GetRequiredService<IDialogService>();
+            var title = LocalizationManager.T("Utilities.Editor.DeleteGroupTitle");
+            if (item.Children.Count > 0)
+            {
+                var message = string.Format(
+                    LocalizationManager.T("Utilities.Editor.DeleteGroupWithItems"),
+                    item.Title);
+                if (dialogs.Confirm(message, title))
+                    _vm.DeleteGroupCommand.Execute(true);
+            }
+            else
+            {
+                var message = string.Format(
+                    LocalizationManager.T("Utilities.Editor.DeleteGroupEmpty"),
+                    item.Title);
+                if (dialogs.Confirm(message, title))
+                    _vm.DeleteGroupCommand.Execute(false);
+            }
+        }
+
         /// <summary>«Готово»: сохраняет компоновку и закрывает окно.</summary>
         private void OnOk_Click(object sender, RoutedEventArgs e)
         {

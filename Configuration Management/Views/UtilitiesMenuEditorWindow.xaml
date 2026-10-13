@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:loc="clr-namespace:Configuration_Management.Localization"
+        xmlns:conv="clr-namespace:Configuration_Management.Converters"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         mc:Ignorable="d"
         Title="{loc:Loc Utilities.Editor.Title}"
@@ -21,11 +22,26 @@
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
         <Style TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}"/>
-        <!-- Шаблон узла дерева: чекбокс видимости + заголовок + пометка вида -->
+        <!-- Превью иконок каталога (issue #374): строковый ключ → PackIconKind. -->
+        <conv:PackIconKindConverter x:Key="PackIconKindConverter"/>
+        <!-- Шаблон узла дерева: чекбокс видимости + иконка + заголовок + пометка вида -->
         <HierarchicalDataTemplate x:Key="MenuNodeTemplate" ItemsSource="{Binding Children}">
             <StackPanel Orientation="Horizontal">
                 <CheckBox IsChecked="{Binding IsVisible}" VerticalAlignment="Center"
                           ToolTip="{loc:Loc Utilities.Editor.VisibleTooltip}"/>
+                <materialDesign:PackIcon Kind="{Binding DisplayIconKey, Converter={StaticResource PackIconKindConverter}}"
+                                         Width="16" Height="16" Margin="4,0,0,0" VerticalAlignment="Center"
+                                         Foreground="{Binding DisplayIconColor}">
+                    <materialDesign:PackIcon.Style>
+                        <Style TargetType="materialDesign:PackIcon">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DisplayIconKey}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </materialDesign:PackIcon.Style>
+                </materialDesign:PackIcon>
                 <TextBlock Text="{Binding Title}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding KindLabel}" Margin="8,0,0,0" VerticalAlignment="Center"
                            FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -65,7 +81,8 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="{loc:Loc Utilities.Editor.TreeHeader}"
                                Margin="4,4,4,8" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    <TreeView x:Name="MenuTree" ItemTemplate="{StaticResource MenuNodeTemplate}"
+                    <TreeView x:Name="MenuTree" ItemsSource="{Binding Roots}"
+                              ItemTemplate="{StaticResource MenuNodeTemplate}"
                               SelectedItemChanged="OnTree_SelectedItemChanged"
                               BorderThickness="0" Background="Transparent"/>
                 </DockPanel>
@@ -85,9 +102,19 @@
                             ToolTip="{loc:Loc Utilities.Editor.MoveDownTooltip}" Padding="10,6" Margin="0,0,6,0">
                         <materialDesign:PackIcon Kind="ArrowDown" Width="16" Height="16"/>
                     </Button>
-                    <Button Style="{StaticResource ModernButton}" Command="{Binding AddGroupCommand}"
-                            ToolTip="{loc:Loc Utilities.Editor.AddGroupTooltip}" Padding="10,6">
+                    <Button Style="{StaticResource ModernButton}" Click="OnAddGroupClick"
+                            ToolTip="{loc:Loc Utilities.Editor.AddGroupTooltip}" Padding="10,6" Margin="0,0,6,0">
                         <materialDesign:PackIcon Kind="FolderPlus" Width="16" Height="16"/>
+                    </Button>
+                    <Button Style="{StaticResource ModernButton}" Click="OnEditGroupClick"
+                            ToolTip="{loc:Loc Utilities.Editor.EditGroupTooltip}" Padding="10,6" Margin="0,0,6,0"
+                            IsEnabled="{Binding CanEditGroup}">
+                        <materialDesign:PackIcon Kind="Pencil" Width="16" Height="16"/>
+                    </Button>
+                    <Button Style="{StaticResource ModernButton}" Click="OnDeleteGroupClick"
+                            ToolTip="{loc:Loc Utilities.Editor.DeleteGroupTooltip}" Padding="10,6"
+                            IsEnabled="{Binding CanDeleteGroup}">
+                        <materialDesign:PackIcon Kind="Delete" Width="16" Height="16"/>
                     </Button>
                 </StackPanel>
 
@@ -117,8 +144,18 @@
                         <TextBlock Text="{loc:Loc Utilities.Editor.ApplyIcon}" VerticalAlignment="Center"/>
                     </Button>
                     <ComboBox x:Name="IconCombo" ItemsSource="{Binding CatalogIcons}"
-                              DisplayMemberPath="Label" SelectedValuePath="Key"
-                              SelectedValue="{Binding SelectedIconKey}"/>
+                              SelectedValuePath="Key" SelectedValue="{Binding SelectedIconKey}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="{Binding Key, Converter={StaticResource PackIconKindConverter}}"
+                                                             Width="16" Height="16" Margin="0,0,6,0"
+                                                             VerticalAlignment="Center" Foreground="{Binding Color}"/>
+                                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </DockPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                     <Button Style="{StaticResource ModernButton}" Click="OnExternalIcon_Click" Padding="10,6" Margin="0,0,6,0">
@@ -142,12 +179,14 @@
                             <TextBlock Text="{loc:Loc Utilities.Editor.Save}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource ModernButton}" Command="{Binding LoadCommand}" Padding="10,6" Margin="0,0,6,0">
+                    <Button Style="{StaticResource ModernButton}" Command="{Binding LoadCommand}" Padding="10,6">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="FolderDownload" Width="16" Height="16" Margin="0,0,4,0"/>
                             <TextBlock Text="{loc:Loc Utilities.Editor.Load}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                     <Button Style="{StaticResource ModernButton}" Command="{Binding ResetDefaultCommand}" Padding="10,6">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="Restore" Width="16" Height="16" Margin="0,0,4,0"/>

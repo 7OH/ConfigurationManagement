@@ -8,6 +8,23 @@ using Configuration_Management.Services;
 
 namespace Configuration_Management.ViewModels;
 
+/// <summary>Параметры создания/правки группы в редакторе меню «Утилиты» (issue #374):
+/// имя группы и ключ иконки каталога (пустой — без иконки).</summary>
+public sealed class UtilitiesGroupEditParams
+{
+    public UtilitiesGroupEditParams(string title, string? iconKey)
+    {
+        Title = title;
+        IconKey = iconKey;
+    }
+
+    /// <summary>Имя группы.</summary>
+    public string Title { get; }
+
+    /// <summary>Ключ иконки каталога (пустой — без иконки).</summary>
+    public string? IconKey { get; }
+}
+
 /// <summary>
 /// Редактор структуры меню «Утилиты» (issue #374): дерево компоновки с перемещением
 /// пунктов (вверх/вниз/в группу), отключением (видимость), созданием групп, назначением
@@ -33,7 +50,9 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         MoveUpCommand = new RelayCommand(_ => MoveSelected(-1), _ => CanMoveSelected(-1));
         MoveDownCommand = new RelayCommand(_ => MoveSelected(1), _ => CanMoveSelected(1));
         MoveToGroupCommand = new RelayCommand(_ => MoveSelectedToGroup(), _ => CanMoveToGroup());
-        AddGroupCommand = new RelayCommand(_ => AddGroup());
+        AddGroupCommand = new RelayCommand(p => AddGroup(p as UtilitiesGroupEditParams));
+        EditGroupCommand = new RelayCommand(p => EditGroup(p as UtilitiesGroupEditParams), _ => CanEditGroup);
+        DeleteGroupCommand = new RelayCommand(p => DeleteGroup(p is bool b && b), _ => CanDeleteGroup);
         SetCatalogIconCommand = new RelayCommand(p => ApplyCatalogIcon(p as string));
         SetExternalIconCommand = new RelayCommand(p => ApplyExternalIcon(p as string));
         ClearIconCommand = new RelayCommand(_ => ClearSelectedIcon(), _ => CanClearIcon());
@@ -53,7 +72,7 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         get => _selectedItem;
         set
         {
-            if (SetPropertyWithRelated(ref _selectedItem, value, nameof(SelectedItem), nameof(HasSelection), nameof(CanMoveSelected), nameof(CanMoveToGroup), nameof(CanClearIcon)))
+            if (SetPropertyWithRelated(ref _selectedItem, value, nameof(SelectedItem), nameof(HasSelection), nameof(CanMoveSelected), nameof(CanMoveToGroup), nameof(CanClearIcon), nameof(CanEditGroup), nameof(CanDeleteGroup)))
                 RaiseCommandsCanExecuteChanged();
         }
     }
@@ -67,6 +86,12 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
 
     /// <summary>Выбран ли узел (для UI-включения кнопок).</summary>
     public bool HasSelection => SelectedItem is not null;
+
+    /// <summary>Можно ли править выбранный узел как группу (кнопка «Правка группы»).</summary>
+    public bool CanEditGroup => IsGroup(SelectedItem);
+
+    /// <summary>Можно ли удалить выбранную группу (кнопка «Удалить группу»).</summary>
+    public bool CanDeleteGroup => IsGroup(SelectedItem);
 
     /// <summary>Выбранный ключ иконки каталога (ComboBox редактора).</summary>
     public string SelectedIconKey
@@ -90,6 +115,8 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
     public RelayCommand MoveDownCommand { get; }
     public RelayCommand MoveToGroupCommand { get; }
     public RelayCommand AddGroupCommand { get; }
+    public RelayCommand EditGroupCommand { get; }
+    public RelayCommand DeleteGroupCommand { get; }
     public RelayCommand SetCatalogIconCommand { get; }
     public RelayCommand SetExternalIconCommand { get; }
     public RelayCommand ClearIconCommand { get; }
@@ -179,18 +206,19 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         RaiseCommandsCanExecuteChanged();
     }
 
-    private void AddGroup()
+    private void AddGroup(UtilitiesGroupEditParams? editParams)
     {
+        var title = editParams is not null && !string.IsNullOrWhiteSpace(editParams.Title)
+            ? editParams.Title!.Trim()
+            : LocalizationManager.T("Utilities.Editor.NewGroup");
         var group = new UtilitiesMenuNode
         {
             Kind = "group",
             GroupId = null,
-            CustomTitle = LocalizationManager.T("Utilities.Editor.NewGroup"),
+            CustomTitle = title,
         };
-        var parent = SelectedItem is not null
-            && string.Equals(SelectedItem.Node.Kind, "group", StringComparison.Ordinal)
-            ? SelectedItem
-            : null;
+        ApplyIconToNode(group, editParams?.IconKey);
+        var parent = IsGroup(SelectedItem) ? SelectedItem : null;
         var item = new UtilitiesMenuNodeItem(group, parent);
         if (parent is null)
             Roots.Add(item);
@@ -199,6 +227,59 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         Groups.Add(item);
         SelectedItem = item;
     }
+
+    /// <summary>Переименование выбранной группы (диалог «Правка группы»).</summary>
+    private void EditGroup(UtilitiesGroupEditParams? editParams)
+    {
+        var item = SelectedItem;
+        if (item is null || !IsGroup(item) || editParams is null)
+            return;
+        if (!string.IsNullOrWhiteSpace(editParams.Title))
+            item.Node.CustomTitle = editParams.Title!.Trim();
+        ApplyIconToNode(item.Node, editParams.IconKey);
+        item.NotifyChanged();
+    }
+
+    /// <summary>Удаление выбранной группы; при <paramref name="moveToRoot"/> дети переносятся
+    /// в корень на место группы (с сохранением порядка), иначе группа удаляется вместе с детьми.</summary>
+    private void DeleteGroup(bool moveToRoot)
+    {
+        var item = SelectedItem;
+        if (item is null || !IsGroup(item))
+            return;
+        var siblings = item.Parent is null ? Roots : item.Parent.Children;
+        if (moveToRoot && item.Children.Count > 0)
+        {
+            var index = siblings.IndexOf(item);
+            var children = item.Children.ToList();
+            foreach (var child in children)
+            {
+                child.Parent = null;
+                siblings.Insert(index++, child);
+            }
+        }
+        siblings.Remove(item);
+        Groups.Remove(item);
+        SelectedItem = null;
+        RaiseCommandsCanExecuteChanged();
+    }
+
+    /// <summary>Назначает иконку каталога узлу (ключ → ключ+цвет, сброс внешнего файла).</summary>
+    private void ApplyIconToNode(UtilitiesMenuNode node, string? iconKey)
+    {
+        if (node is null || string.IsNullOrWhiteSpace(iconKey))
+            return;
+        var option = CatalogIcons.FirstOrDefault(o => string.Equals(o.Key, iconKey, StringComparison.Ordinal));
+        if (option is null)
+            return;
+        node.IconKey = option.Key;
+        node.IconColor = option.Color;
+        node.ExternalIconPath = null;
+    }
+
+    /// <summary>True — узел является группой (подменю).</summary>
+    private static bool IsGroup(UtilitiesMenuNodeItem? item) =>
+        item is not null && string.Equals(item.Node.Kind, "group", StringComparison.Ordinal);
 
     private void ApplyCatalogIcon(string? key)
     {
@@ -306,6 +387,8 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         MoveDownCommand.RaiseCanExecuteChanged();
         MoveToGroupCommand.RaiseCanExecuteChanged();
         ClearIconCommand.RaiseCanExecuteChanged();
+        EditGroupCommand.RaiseCanExecuteChanged();
+        DeleteGroupCommand.RaiseCanExecuteChanged();
     }
 
     private static IReadOnlyList<UtilitiesIconOption> BuildCatalogIcons()
@@ -405,11 +488,23 @@ public sealed class UtilitiesMenuNodeItem : ViewModelBase
     /// <summary>Строка для списка групп: заголовок.</summary>
     public string GroupLabel => Title;
 
+    /// <summary>Ключ иконки каталога для отображения в дереве (пусто — без иконки).</summary>
+    public string DisplayIconKey => Node.IconKey ?? string.Empty;
+
+    /// <summary>Цвет иконки каталога (#RRGGBB) для отображения в дереве.</summary>
+    public string DisplayIconColor => Node.IconColor ?? string.Empty;
+
+    /// <summary>Есть ли иконка каталога для отображения в дереве (видимость превью).</summary>
+    public bool HasDisplayIcon => !string.IsNullOrWhiteSpace(Node.IconKey);
+
     /// <summary>Оповещает UI об изменении внешних свойств узла (иконка, заголовок).</summary>
     public void NotifyChanged()
     {
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(KindLabel));
         OnPropertyChanged(nameof(GroupLabel));
+        OnPropertyChanged(nameof(DisplayIconKey));
+        OnPropertyChanged(nameof(DisplayIconColor));
+        OnPropertyChanged(nameof(HasDisplayIcon));
     }
 }

@@ -345,6 +345,14 @@ namespace Configuration_Management
             win.ShowSync(this);
         }
 
+        /// <summary>Открывает список типовых конфигураций (issue #371): пользователь может
+        /// проверить ссылки каталогов релизов и редакции сразу, не закрывая окно проверки.</summary>
+        private void OnOpenConfigListClick()
+        {
+            var win = new ConfigTypesEditWindow();
+            win.ShowSync(this);
+        }
+
         /// <summary>Обновляет ссылку каталога релизов: текст, активность и вид (issue #323).
         /// Валидный http/https-адрес — кликабельная ссылка (AccentBrush, подчёркивание, курсор Hand,
         /// ToolTip); пустой/невалидный адрес («—») — обычный вторичный текст без перехода.</summary>
@@ -1524,10 +1532,24 @@ namespace Configuration_Management
             Grid.SetRow(card, 1);
             grid.Children.Add(card);
 
-            // Нижняя панель: «Проверить», «Скачать», закрыть.
+            // Нижняя панель: «Список конфигураций», «Проверить», «Скачать», закрыть.
             var bottom = new Grid { Margin = new Thickness(0, 14, 0, 0) };
             bottom.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
             bottom.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+            // issue #371: кнопка «Список конфигураций» — открыть список типовых
+            // конфигураций, чтобы проверить ссылки каталогов релизов сразу.
+            var configListButton = new Button
+            {
+                Content = T("Updates.OpenConfigList"),
+                MinWidth = 160,
+                Height = 40,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            configListButton.Styled(ControlThemes.SecondaryButton);
+            configListButton.Click += (_, _) => OnOpenConfigListClick();
+            Grid.SetColumn(configListButton, 0);
+            bottom.Children.Add(configListButton);
 
             var buttons = new StackPanel
             {

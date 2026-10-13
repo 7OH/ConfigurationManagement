@@ -111,13 +111,19 @@ namespace Configuration_Management
                 _vm.SelectedItem = _tree.SelectedItem as UtilitiesMenuNodeItem;
         }
 
-        /// <summary>Строка узла: чекбокс видимости + заголовок + пометка вида.</summary>
+        /// <summary>Строка узла: чекбокс видимости + иконка + заголовок + пометка вида.</summary>
         private Control BuildTreeRow(UtilitiesMenuNodeItem? node)
         {
             if (node is null)
                 return new TextBlock { Text = string.Empty };
             var check = new CheckBox().Styled(ControlThemes.CacheCleanCheckBox);
             check.Bind(ToggleButton.IsCheckedProperty, new Binding("IsVisible"));
+            var icon = IconHelper.MakeIcon(node.DisplayIconKey, 16, "TextPrimaryBrush");
+            if (icon is not null)
+            {
+                icon.Margin = new Thickness(4, 0, 0, 0);
+                icon.Bind(Control.IsVisibleProperty, new Binding("HasDisplayIcon"));
+            }
             var title = new TextBlock { Text = node.Title, Margin = new Thickness(6, 0, 0, 0) };
             title.Bind(TextBlock.TextProperty, new Binding("Title"));
             var kind = new TextBlock
@@ -130,6 +136,8 @@ namespace Configuration_Management
             kind.Bind(TextBlock.TextProperty, new Binding("KindLabel"));
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0 };
             row.Children.Add(check);
+            if (icon is not null)
+                row.Children.Add(icon);
             row.Children.Add(title);
             row.Children.Add(kind);
             return row;
@@ -144,7 +152,9 @@ namespace Configuration_Management
             var moveRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
             moveRow.Children.Add(ActionButton("IconArrowUp", "Utilities.Editor.MoveUpTooltip", _vm.MoveUpCommand));
             moveRow.Children.Add(ActionButton("IconArrowDown", "Utilities.Editor.MoveDownTooltip", _vm.MoveDownCommand));
-            moveRow.Children.Add(ActionButton("IconFolderPlus", "Utilities.Editor.AddGroupTooltip", _vm.AddGroupCommand));
+            moveRow.Children.Add(IconClickButton("IconFolderPlus", "Utilities.Editor.AddGroupTooltip", OnAddGroupClick));
+            moveRow.Children.Add(IconClickButton("IconPencil", "Utilities.Editor.EditGroupTooltip", OnEditGroupClick, "CanEditGroup"));
+            moveRow.Children.Add(IconClickButton("IconDelete", "Utilities.Editor.DeleteGroupTooltip", OnDeleteGroupClick, "CanDeleteGroup"));
             panel.Children.Add(moveRow);
 
             // Поместить в группу.
@@ -162,7 +172,7 @@ namespace Configuration_Management
             panel.Children.Add(SectionHeader("Utilities.Editor.IconHeader", top: 14));
             _iconCombo.ItemsSource = _vm.CatalogIcons;
             _iconCombo.ItemTemplate = new FuncDataTemplate<UtilitiesIconOption>(
-                (o, _) => new TextBlock { Text = o.Label });
+                (o, _) => BuildIconRow(o));
             // В Avalonia нет SelectedValuePath: ключ выбранной иконки пишем в VM вручную.
             _iconCombo.SelectionChanged += (_, _) =>
             {
@@ -186,8 +196,10 @@ namespace Configuration_Management
             var fileRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
             fileRow.Children.Add(ActionButton("IconSave", null, _vm.SaveCommand, caption: "Utilities.Editor.Save"));
             fileRow.Children.Add(ActionButton("IconFolderDownload", null, _vm.LoadCommand, caption: "Utilities.Editor.Load"));
-            fileRow.Children.Add(ActionButton("IconRestore", null, _vm.ResetDefaultCommand, caption: "Utilities.Editor.Reset"));
             panel.Children.Add(fileRow);
+            var fileRow2 = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 6, 0, 0) };
+            fileRow2.Children.Add(ActionButton("IconRestore", null, _vm.ResetDefaultCommand, caption: "Utilities.Editor.Reset"));
+            panel.Children.Add(fileRow2);
 
             // Пояснение.
             var hint = new Border
@@ -259,6 +271,36 @@ namespace Configuration_Management
             return button;
         }
 
+        /// <summary>Кнопка-иконка с обработчиком клика (диалоги групп, issue #374).
+        /// <paramref name="enabledBinding"/> — имя свойства ViewModel для IsEnabled (или null).</summary>
+        private Button IconClickButton(string iconKey, string? tooltipKey, Action onClick, string? enabledBinding = null)
+        {
+            var button = new Button
+            {
+                Content = IconHelper.MakeIcon(iconKey, 16, "TextPrimaryBrush"),
+                Padding = new Thickness(10, 6),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            button.Styled(ControlThemes.ModernButton);
+            if (tooltipKey is not null)
+                ToolTip.SetTip(button, LocalizationManager.T(tooltipKey));
+            if (enabledBinding is not null)
+                button.Bind(Button.IsEnabledProperty, new Binding(enabledBinding));
+            button.Click += (_, _) => onClick();
+            return button;
+        }
+
+        /// <summary>Строка иконки каталога: превью слева + подпись (issue #374).</summary>
+        private Control BuildIconRow(UtilitiesIconOption option)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            var icon = IconHelper.MakeIcon(option.Key, 16, "TextPrimaryBrush");
+            if (icon is not null)
+                row.Children.Add(icon);
+            row.Children.Add(new TextBlock { Text = option.Label, VerticalAlignment = VerticalAlignment.Center });
+            return row;
+        }
+
         /// <summary>Иконка из внешнего файла: системный диалог выбора файла.</summary>
         private void OnExternalIconClick()
         {
@@ -274,6 +316,54 @@ namespace Configuration_Management
             catch
             {
                 // Диалог недоступен — просто не назначаем иконку.
+            }
+        }
+
+        /// <summary>«Новая группа»: диалог имени/иконки → команда создания группы.</summary>
+        private void OnAddGroupClick()
+        {
+            var dialog = new UtilitiesGroupEditWindow(_vm.CatalogIcons);
+            dialog.ShowSync(this);
+            if (dialog.Result is not null)
+                _vm.AddGroupCommand.Execute(dialog.Result);
+        }
+
+        /// <summary>«Правка группы»: диалог с текущим именем/иконкой → команда переименования.</summary>
+        private void OnEditGroupClick()
+        {
+            var item = _vm.SelectedItem;
+            if (item is null)
+                return;
+            var dialog = new UtilitiesGroupEditWindow(_vm.CatalogIcons, item.Title, item.Node.IconKey);
+            dialog.ShowSync(this);
+            if (dialog.Result is not null)
+                _vm.EditGroupCommand.Execute(dialog.Result);
+        }
+
+        /// <summary>«Удалить группу»: подтверждение; при непустой группе — предложение
+        /// переместить элементы с подгруппами в корень (issue #374).</summary>
+        private void OnDeleteGroupClick()
+        {
+            var item = _vm.SelectedItem;
+            if (item is null)
+                return;
+            var dialogs = AppServices.GetRequiredService<IDialogService>();
+            var title = LocalizationManager.T("Utilities.Editor.DeleteGroupTitle");
+            if (item.Children.Count > 0)
+            {
+                var message = string.Format(
+                    LocalizationManager.T("Utilities.Editor.DeleteGroupWithItems"),
+                    item.Title);
+                if (dialogs.Confirm(message, title))
+                    _vm.DeleteGroupCommand.Execute(true);
+            }
+            else
+            {
+                var message = string.Format(
+                    LocalizationManager.T("Utilities.Editor.DeleteGroupEmpty"),
+                    item.Title);
+                if (dialogs.Confirm(message, title))
+                    _vm.DeleteGroupCommand.Execute(false);
             }
         }
 

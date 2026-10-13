@@ -381,19 +381,40 @@ public class OneCUpdatesService : IOneCUpdatesService
                     ? ParseLatestVersionFromJson(body)
                     : ParseLatestVersion(body);
 
-            // Урезанный каталог (issue #371): releases.1c.ru/project/<nick> без параметра
+            // Детальная диагностика (CM_UPDATES, issue #371): тип URL, длина ответа,
+            // найденные кандидаты версий и выбранная версия — чтобы понять, откуда
+            // берётся неверная версия (например «2.2.10» на странице Розницы/УПП).
+            if (UpdatesTraceEnabled)
+            {
+                var kind = isProject ? "project" : (isVersionFiles ? "version_files" : "legacy");
+                _logger.Info($"[Updates] Ответ: kind={kind}, len={body.Length}, url={url}");
+                var candidates = CollectVersionCandidatesFromHtml(body);
+                if (candidates.Count > 0)
+                {
+                    var list = string.Join(", ", candidates.Select(c => c.Version));
+                    _logger.Info($"[Updates] Кандидаты версий ({candidates.Count}): {list}");
+                }
+                else
+                {
+                    _logger.Warn($"[Updates] Кандидатов версий не найдено (len={body.Length}).");
+                }
+                _logger.Info($"[Updates] Выбрана версия: '{latest}'.");
+            }
+
+            // Полный каталог (issue #371): releases.1c.ru/project/<nick> без параметра
             // allUpdates=true отдаёт только последние релизы, и версия может не распарситься
             // (УПП/Розница, len≈11760) либо распарситься НЕВЕРНО — короткая страница содержит
-            // посторонние токены («4.2.0» — версия другого продукта) и версии платформы 8.x
-            // вместо версии конфигурации (см. LooksLikeForeignVersion). Повторяем запрос с
-            // allUpdates=true#updates — полный каталог содержит таблицу версий (#versionsTable).
-            if (isProject && (string.IsNullOrWhiteSpace(latest) || LooksLikeForeignVersion(latest)))
+            // посторонние токены («2.2.10» — версия другого продукта) и версии платформы 8.x
+            // вместо версии конфигурации. Полный каталог (allUpdates=true#updates) содержит
+            // таблицу версий (#versionsTable) и даёт корректную последнюю версию — запрашиваем
+            // его ВСЕГДА для project-URL, а версию короткой страницы используем как fallback.
+            if (isProject)
             {
                 var fullUrl = BuildAllUpdatesCatalogUrl(url);
                 if (!fullUrl.Equals(url, StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.Warn($"[Updates] Первый проход дал ненадёжный результат ('{latest}', {url}) — " +
-                        $"запрашиваю полный каталог: {fullUrl}");
+                    if (UpdatesTraceEnabled)
+                        _logger.Info($"[Updates] Первый проход: '{latest}' ({url}) — запрашиваю полный каталог: {fullUrl}");
                     var fullBody = await FetchCatalogBodyAsync(fullUrl, ct).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(fullBody))
                     {
@@ -403,6 +424,14 @@ public class OneCUpdatesService : IOneCUpdatesService
                             latest = fullLatest;
                             _logger.Info($"[Updates] Версия {latest} определена по полному каталогу ({fullUrl}).");
                         }
+                        else if (UpdatesTraceEnabled)
+                        {
+                            _logger.Warn($"[Updates] Полный каталог не дал версии (len={fullBody.Length}): {fullUrl}");
+                        }
+                    }
+                    else if (UpdatesTraceEnabled)
+                    {
+                        _logger.Warn($"[Updates] Полный каталог недоступен ({fullUrl}) — остаюсь на версии короткой страницы '{latest}'.");
                     }
                 }
             }
@@ -460,6 +489,9 @@ public class OneCUpdatesService : IOneCUpdatesService
             return null;
         }
     }
+
+    /// <summary>Включена ли детальная диагностика проверки обновлений (CM_UPDATES, issue #371).</summary>
+    private static bool UpdatesTraceEnabled => TraceFlags.IsEnabled(TraceFlags.UpdatesFlag);
 
     /// <summary>
     /// Устойчиво ищет в HTML-странице каталога ссылки на архивы дистрибутивов вида

@@ -229,6 +229,14 @@ public partial class UpdateCheckWindow : Window
         win.ShowDialog();
     }
 
+    /// <summary>Открывает список типовых конфигураций (issue #371): пользователь может
+    /// проверить ссылки каталогов релизов и редакции сразу, не закрывая окно проверки.</summary>
+    private void OnOpenConfigListClick(object sender, RoutedEventArgs e)
+    {
+        var win = new ConfigTypesEditWindow { Owner = this };
+        win.ShowDialog();
+    }
+
     /// <summary>Обновляет ссылку каталога релизов: текст, активность и вид (issue #323).
     /// Валидный http/https-адрес — кликабельная ссылка (AccentBrush, подчёркивание, ToolTip);
     /// пустой/невалидный адрес («—») — обычный вторичный текст без перехода.</summary>

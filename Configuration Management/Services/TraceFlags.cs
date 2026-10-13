@@ -50,6 +50,11 @@ public static class TraceFlags
     /// <summary>Флаг INFO-диагностики редиректов/входа портала 1С (CM_REDIRECT).</summary>
     public const string RedirectFlag = "CM_REDIRECT";
 
+    /// <summary>Флаг детальной диагностики проверки обновлений конфигураций (CM_UPDATES):
+    /// URL, длина ответа, найденные кандидаты версий с источником, выбранная версия
+    /// и решение о повторе с полным каталогом (issue #371).</summary>
+    public const string UpdatesFlag = "CM_UPDATES";
+
     private static readonly object Lock = new();
     private static string? _configDirectoryOverride;
     private static string? _profileDataDirectory;

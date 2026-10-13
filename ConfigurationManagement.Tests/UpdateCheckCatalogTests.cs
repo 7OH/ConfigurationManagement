@@ -378,6 +378,41 @@ public sealed class UpdateCheckCatalogTests : IDisposable
     }
 
     [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_ShortPageWithForeignLookingVersion_AlwaysUsesFullCatalog()
+    {
+        // issue #371 (0.3.12.37): короткая страница Розницы/УПП содержит посторонний токен
+        // «2.2.10» — первый сегмент 2, поэтому LooksLikeForeignVersion его НЕ отсекает, и
+        // прежний повтор только при «подозрительной» версии не срабатывал. Теперь полный
+        // каталог (allUpdates=true) запрашивается ВСЕГДА для project-URL — он даёт верную
+        // 3.0.14.168.
+        var handler = new ForeignLookingVersionHandler();
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Розница", "3.0.14.100", "https://releases.1c.ru/project/Retail30");
+
+        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
+        Assert.Equal("3.0.14.168", result.LatestVersion);
+        Assert.Equal(1, handler.FullCatalogRequests);
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_FullCatalogUnavailable_FallsBackToShortPage()
+    {
+        // issue #371: полный каталог недоступен (500) — служба остаётся на версии короткой
+        // страницы (fallback), а не возвращает «версия не распарсена».
+        var handler = new FullCatalogFailsHandler();
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Розница", "3.0.14.100", "https://releases.1c.ru/project/Retail30");
+
+        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
+        Assert.Equal("3.0.14.168", result.LatestVersion);
+        Assert.Equal(1, handler.FullCatalogRequests);
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task CheckForUpdatesAsync_302WithoutLocation_CredentialsFromItsAccountsStore_Succeeds()
     {
         // #334/#333: учётные данные ИТС берутся из справочника (its_accounts.json), а НЕ из
@@ -537,6 +572,114 @@ public sealed class UpdateCheckCatalogTests : IDisposable
               <tr><td>1</td><td><a href="/version_files?nick=Retail30&ver=3.0.14.168">3.0.14.168</a></td></tr>
               <tr><td>2</td><td><a href="/version_files?nick=Retail30&ver=3.0.13.4">3.0.13.4</a></td></tr>
             </table>
+            </body></html>
+            """;
+    }
+
+    /// <summary>
+    /// Обработчик сценария «посторонняя версия 2.2.10» (issue #371, 0.3.12.37): короткая
+    /// страница без таблицы содержит токен «2.2.10» (первый сегмент 2 — НЕ «подозрительный»
+    /// для LooksLikeForeignVersion), полный каталог allUpdates=true — таблицу с верной
+    /// версией конфигурации 3.0.14.168.
+    /// </summary>
+    private sealed class ForeignLookingVersionHandler : HttpMessageHandler
+    {
+        public int FullCatalogRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (url.Contains("allUpdates=true", StringComparison.OrdinalIgnoreCase))
+            {
+                FullCatalogRequests++;
+                response = Ok(FullCatalogHtml);
+            }
+            else if (url.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok(ShortPageHtml);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        // Короткая страница: посторонний «2.2.10» (версия другого продукта) — первый сегмент 2,
+        // поэтому прежний фильтр «подозрительной версии» его не ловил (issue #371).
+        private const string ShortPageHtml = """
+            <html><body>
+            <h1>Розница</h1>
+            <p>Версия: 2.2.10</p>
+            <p>Дата публикации: 2026.10.12</p>
+            </body></html>
+            """;
+
+        // Полный каталог allUpdates=true: таблица #versionsTable с версией конфигурации.
+        private const string FullCatalogHtml = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td>1</td><td><a href="/version_files?nick=Retail30&ver=3.0.14.168">3.0.14.168</a></td></tr>
+              <tr><td>2</td><td><a href="/version_files?nick=Retail30&ver=3.0.13.4">3.0.13.4</a></td></tr>
+            </table>
+            </body></html>
+            """;
+    }
+
+    /// <summary>
+    /// Обработчик сценария «полный каталог недоступен» (issue #371, 0.3.12.37): короткая
+    /// страница даёт корректную версию, а запрос allUpdates=true возвращает 500 — служба
+    /// должна остаться на версии короткой страницы (fallback).
+    /// </summary>
+    private sealed class FullCatalogFailsHandler : HttpMessageHandler
+    {
+        public int FullCatalogRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (url.Contains("allUpdates=true", StringComparison.OrdinalIgnoreCase))
+            {
+                FullCatalogRequests++;
+                response = new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            }
+            else if (url.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok(ShortPageHtml);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        // Короткая страница с корректной версией конфигурации (fallback).
+        private const string ShortPageHtml = """
+            <html><body>
+            <h1>Розница</h1>
+            <p>Версия: 3.0.14.168</p>
+            <p>Дата публикации: 2026.10.12</p>
             </body></html>
             """;
     }
