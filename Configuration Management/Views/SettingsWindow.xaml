@@ -1588,6 +1588,36 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ============ Вкладка «Меню „Утилиты“» (issue #374) ============ -->
+            <TabItem Style="{StaticResource SettingsTabItem}">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Apps" Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                        <TextBlock Text="{loc:Loc Settings.TabUtilitiesMenu}" VerticalAlignment="Center"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Margin="4,12,4,0" Padding="0,0,4,0">
+                    <StackPanel>
+                        <CheckBox x:Name="UtilitiesMenuEditingCheck" Content="{loc:Loc Settings.UtilitiesMenu.EditingEnabled}"
+                                  Margin="0,0,0,8"/>
+                        <Button Click="OnUtilitiesMenuEdit_Click" Style="{StaticResource ModernButton}"
+                                HorizontalAlignment="Left" Padding="12,7" Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Tune" Width="16" Height="16" Margin="0,0,6,0"
+                                    VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Loc Settings.UtilitiesMenu.EditButton}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Text="{loc:Loc Settings.UtilitiesMenu.Hint}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
+                                   TextWrapping="Wrap" Margin="0,0,12,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ============ Вкладка «ibases.v8i» ============ -->
             <TabItem Style="{StaticResource SettingsTabItem}">
                 <TabItem.Header>

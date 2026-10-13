@@ -1689,221 +1689,272 @@ namespace Configuration_Management
             var menu = new ContextMenu().Styled(Themes.ControlThemes.ModernContextMenu);
             if (_vm is null)
                 return menu;
+            var vm = _vm;
 
-            // Командная палитра (Ctrl+K, issue #312): быстрый поиск баз и команд
-            // интерфейса. Стоит первым пунктом «Утилит», чтобы о функции было легко
-            // вспомнить; сама в список команд палитры не добавляется (иначе рекурсия).
-            menu.Items.Add(MenuAction("Main.CommandPalette", _vm.CommandPaletteCommand, _vm.HotkeyCommandPalette, "IconSearch", "#3B82F6"));
-            menu.Items.Add(MenuSeparator());
+            // Компоновка меню «Утилиты» (issue #374): стандартная при выключенной правке
+            // структуры (обратная совместимость) или пользовательская из
+            // utilities_menu_layout.json при включённой (UtilitiesMenuEditingEnabled).
+            var store = AppServices.TryGetService<IUtilitiesMenuLayoutStore>();
+            var layout = UtilitiesMenuResolver.Resolve(vm.Settings, store);
+            if (layout is null)
+                return menu;
 
-            // Верхний уровень (issue #318): «Актуальные релизы», встроенный монитор серверов
-            // и внешняя оснастка остаются на верхнем уровне — частые пункты не углубляются
-            // в подменю.
-            menu.Items.Add(MenuAction("Updates.ActualReleasesTitle", _vm.ShowActualReleasesCommand, _vm.HotkeyActualReleases, "IconCloudDownload", "#14B8A6"));
-            // Автообновление платформы 1С (функция 9, этап 0.3.9.214): Ctrl+F9.
-            menu.Items.Add(MenuAction("PlatformUpdate.WindowTitle", _vm.ShowPlatformUpdateCommand, _vm.HotkeyPlatformUpdate, "IconCloudDownload", "#14B8A6"));
-            // Скачивание нужной версии платформы 1С (issue #330): выбор версии/разрядности
-            // и скачивание дистрибутива без автоматической установки.
-            menu.Items.Add(MenuAction("PlatformDownload.WindowTitle", _vm.ShowPlatformDownloadCommand, "", "IconCloudDownload", "#22C55E"));
+            AppendAvaloniaNodes(menu.Items, layout.Root);
 
-            // Встроенный монитор серверов 1С (0.3.9.124, цикл 0.3.9.123–126): подключение
-            // к серверу через rac, кластеры/процессы/сеансы/соединения/блокировки. Не связан
-            // с конкретной базой — активен при любой строке (issue #295). Хоткей Ctrl+Alt+S
-            // передан встроенному монитору (решение планирования, раздел 5).
-            menu.Items.Add(MenuAction("ServerMonitor.Title", _vm.ServerMonitorCommand, _vm.HotkeyServerConsole, "IconServer", "#14B8A6"));
-            // Внешняя оснастка осталась (решение планирования): «Консоль администрирования
-            // серверов (внешняя)» — без хоткея.
-            menu.Items.Add(MenuAction("Admin.ServerConsoleExternal", _vm.OpenServerConsoleCommand, null, "IconServer", "#64748B"));
-
-            menu.Items.Add(MenuSeparator());
-
-            // «Блокировка приложения» перенесена из контекстного меню базы в «Утилиты»
-            // (issue #294): временная блокировка интерфейса паролем.
-            menu.Items.Add(MenuAction("AppLock.LockTitle", _vm.LockAppCommand, _vm.HotkeyLockApp, "IconExitToApp", "#8B5CF6", "AppLock.MenuTooltip"));
-
-            // Подменю «Опции блокировки» (issue #318): приватные базы, пароль блокировки
-            // и резервирование свернуты в подменю, чтобы сократить высоту меню «Утилиты».
-            var lockOptionsMenu = new MenuItem
+            // «Новинки программы» (issue #374): пункты каталога с признаком «новинка»,
+            // отсутствующие в компоновке, автоматически попадают в подменю в конце меню,
+            // пока пользователь не разместит их в редакторе структуры.
+            var newItems = UtilitiesMenuResolver.CollectNewItems(layout);
+            if (newItems.Count > 0)
             {
-                Header = LocalizationManager.T("Utilities.Submenu.LockOptions"),
-                Icon = MenuIcon("IconExitToApp", "#8B5CF6")
-            };
-            lockOptionsMenu.Styled(Themes.ControlThemes.ModernMenuItem);
-            // Приватные базы (0.3.9.85): разблокировка паролем профиля открывает скрытые
-            // базы; при отсутствии пароля профиля — предлагает его задать.
-            lockOptionsMenu.Items.Add(MenuAction("Private.OpenCommand", _vm.UnlockPrivateBasesCommand, "", "IconAccountKey", "#22C55E"));
-            // Смена пароля блокировки: пароль больше не «одноразовый» (issue #294).
-            lockOptionsMenu.Items.Add(MenuAction("AppLock.ChangeMenu", _vm.ChangeAppLockCommand, "", "IconAccountKey", "#8B5CF6", "AppLock.ChangeMenuTooltip"));
-            lockOptionsMenu.Items.Add(MenuSeparator());
-            // «Выполнить резервирование» (issue #293): запуск сценария резервирования
-            // для выбранной базы; хоткей Ctrl+F7 показан на пункте.
-            lockOptionsMenu.Items.Add(MenuAction("Backup.RunTitle", _vm.RunBackupScenarioCommand, _vm.HotkeyRunBackup, "IconDatabaseExport", "#22C55E"));
-            menu.Items.Add(lockOptionsMenu);
-
-            menu.Items.Add(MenuSeparator());
-
-            // Подменю «Информация» (issue #318): справка о состоянии баз, типовых
-            // конфигурациях, расписаниях и статистике.
-            var informationMenu = new MenuItem
-            {
-                Header = LocalizationManager.T("Utilities.Submenu.Information"),
-                Icon = MenuIcon("IconInfo", "#0EA5E9")
-            };
-            informationMenu.Styled(Themes.ControlThemes.ModernMenuItem);
-            // Центр обслуживания (0.3.9.89): сводная панель состояния всех баз —
-            // доступность, последняя копия, размер, кэш, конфигурация, возраст данных,
-            // проверка обновлений.
-            informationMenu.Items.Add(MenuAction("Maintenance.Title", _vm.MaintenanceCenterCommand, null, "IconMonitoring", "#0EA5E9"));
-            informationMenu.Items.Add(MenuSeparator());
-
-            var manageItem = new MenuItem { Header = LocalizationManager.T("Updates.ManageList") };
-            manageItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            manageItem.Click += (_, _) => _vm.OpenConfigTypesEdit();
-            informationMenu.Items.Add(manageItem);
-
-            // Учётные данные ИТС (issue #333): справочник логинов/паролей сайта 1С.
-            var itsAccountsItem = new MenuItem
-            {
-                Header = LocalizationManager.T("ItsAccounts.MenuItem"),
-                Icon = MenuIcon("IconAccountKey", "#14B8A6")
-            };
-            itsAccountsItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            itsAccountsItem.Click += (_, _) => _vm.OpenItsAccounts();
-            informationMenu.Items.Add(itsAccountsItem);
-
-            informationMenu.Items.Add(MenuSeparator());
-
-            // Задания по расписанию (issue #286): резервная копия, обновление конфигурации
-            // ИБ, «копия → обновление», обновление приложения. Открывается отложенно,
-            // чтобы попап меню успел закрыться (та же проблема, что в issue #288).
-            var scheduleItem = new MenuItem { Header = LocalizationManager.T("Schedule.Title") };
-            scheduleItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            scheduleItem.Icon = MenuIcon("IconScheduler", "#14B8A6");
-            scheduleItem.Click += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                var win = new ScheduledTasksWindow();
-                win.ShowSync(this);
-            });
-            informationMenu.Items.Add(scheduleItem);
-
-            // «Сценарии резервирования» и «Выполнить резервирование» не привязаны к конкретной
-            // базе, поэтому перенесены из контекстного меню базы в «Утилиты» (issue #293).
-            informationMenu.Items.Add(MenuAction("Backup.ScenariosTitle", _vm.ShowBackupScenariosCommand, null, "IconSettings", "#F59E0B"));
-            informationMenu.Items.Add(MenuSeparator());
-            // Сценарии запуска скриптов (issue #308): настройка сценариев; выполнение
-            // выбранного сценария для базы — F5 и контекстное меню строки.
-            informationMenu.Items.Add(MenuAction("Script.SettingsTitle", _vm.ShowScriptsSettingsCommand, null, "IconScript", "#06B6D4"));
-            informationMenu.Items.Add(MenuSeparator());
-            // Статистика использования баз (0.3.9.95): аналитика по истории запусков —
-            // число запусков, первый/последний запуск, сводка и распределение по дням недели.
-            informationMenu.Items.Add(MenuAction("Stats.Title", _vm.UsageStatisticsCommand, null, "IconHistory", "#14B8A6"));
-            menu.Items.Add(informationMenu);
-
-            // Подменю «Операции» (issue #318): сравнение конфигураций, хранилища,
-            // экспорт/импорт списка баз и обслуживание процессов.
-            var operationsMenu = new MenuItem
-            {
-                Header = LocalizationManager.T("Utilities.Submenu.Operations"),
-                Icon = MenuIcon("IconTune", "#06B6D4")
-            };
-            operationsMenu.Styled(Themes.ControlThemes.ModernMenuItem);
-            // Сравнение конфигураций (0.3.9.99): сравнение конфигурации базы с .cf
-            // или двух .cf между собой; отчёт об отличиях по типам метаданных.
-            operationsMenu.Items.Add(MenuAction("ConfigDiff.Title", _vm.ConfigDiffCommand, null, "IconCompare", "#06B6D4"));
-            // Обозреватель метаданных (0.3.9.133): дерево метаданных конфигурации
-            // (подсистемы → типы → объекты) без интерактивного конфигуратора — выгрузка
-            // XML через /DumpConfigToFiles, источник — база или файл .cf. Иконки Sitemap
-            // в Themes/Icons.axaml нет — переиспользуем IconCompare (как у сравнения).
-            operationsMenu.Items.Add(MenuAction("MetadataExplorer.Title", _vm.MetadataExplorerCommand, null, "IconCompare", "#06B6D4"));
-            operationsMenu.Items.Add(MenuSeparator());
-            // Пакетное обновление конфигураций из хранилищ (0.3.9.88): окно-чеклист
-            // баз с заполненным хранилищем + последовательный прогон с логом.
-            operationsMenu.Items.Add(MenuAction("RepoUpdate.Title", _vm.RepositoryBatchUpdateCommand, null, "IconCloudDownload", "#06B6D4"));
-            // Обозреватель хранилища конфигурации (0.3.9.128): окно для выбранной базы
-            // с хранилищем — подключение, список версий и состав версии.
-            operationsMenu.Items.Add(MenuAction("RepositoryBrowser.Title", _vm.RepositoryBrowserCommand, null, "IconCloudDownload", "#8B5CF6"));
-            operationsMenu.Items.Add(MenuSeparator());
-            // Экспорт списка баз в CSV (0.3.9.91): видимые сейчас базы выгружаются
-            // в CSV-файл, открываемый в Excel (UTF-8 BOM, разделитель «;»).
-            operationsMenu.Items.Add(MenuAction("Utilities.ExportCsv", _vm.ExportBasesCsvCommand, null, "IconFileExport", "#22C55E"));
-            // Экспорт отчёта по базам в HTML (0.3.9.131): самодостаточный файл со сводкой
-            // и таблицами по группам, открывается в любом браузере.
-            operationsMenu.Items.Add(MenuAction("Utilities.ExportHtml", _vm.ExportBasesHtmlCommand, null, "IconFileDocument", "#F59E0B"));
-            // Экспорт/импорт полного состояния списка баз в JSON (0.3.9.122): в отличие
-            // от CSV переносится всё — базы со всеми полями, иерархия групп, теги,
-            // закладки 1–9, закрепление, приватные базы (при разблокированном профиле);
-            // импорт — добавляющий, дубликаты по строке подключения пропускаются.
-            operationsMenu.Items.Add(MenuAction("Utilities.ExportJson", _vm.ExportBasesJsonCommand, null, "IconFileExport", "#06B6D4"));
-            operationsMenu.Items.Add(MenuAction("Utilities.ImportJson", _vm.ImportBasesJsonCommand, null, "IconImport", "#06B6D4"));
-            // Импорт информационных баз из кластера сервера 1С через утилиту rac (0.3.9.174,
-            // цикл 0.3.9.172–0.3.9.175): подключение к ragent/RAS, выбор кластера, чеклист
-            // баз с пометкой дубликатов, добавление недостающих групп по имени кластера.
-            operationsMenu.Items.Add(MenuAction("ClusterImport.Title", _vm.ImportClusterInfobasesCommand, null, "IconImport", "#06B6D4"));
-            operationsMenu.Items.Add(MenuSeparator());
-            // Инспектор процессов 1С (0.3.9.93): таблица запущенных процессов платформы
-            // с режимом, пользователем, PID и завершением выбранного процесса.
-            operationsMenu.Items.Add(MenuAction("ProcessInspector.Title", _vm.ProcessInspectorCommand, null, "IconApplicationCog", "#0EA5E9"));
-            // Завершение процессов платформы (issue #279): принудительное завершение
-            // процессов 1С, связанных с базой.
-            var killProcessesItem = new MenuItem { Header = LocalizationManager.T("Settings.Bases.KillProcesses") };
-            killProcessesItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            killProcessesItem.Icon = MenuIcon("IconClose", "#F59E0B");
-            killProcessesItem.Click += (_, _) => _vm.KillOneCProcesses();
-            operationsMenu.Items.Add(killProcessesItem);
-            operationsMenu.Items.Add(MenuSeparator());
-            // Массовая замена строк подключения (0.3.9.191, функция 6; issue #357):
-            // пункты перенесены из «Утилит» верхнего уровня в подменю «Операции»,
-            // отдельной группой с разделителями после «Завершить процессы 1С».
-            // «Отменить последнюю замену» активна, пока есть запись о последней
-            // операции (одноуровневая история).
-            var replaceConnectionsItem = new MenuItem { Header = LocalizationManager.T("Main.UtilitiesConnectionReplace") };
-            replaceConnectionsItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            replaceConnectionsItem.Icon = MenuIcon("IconFindReplace", "#F59E0B");
-            replaceConnectionsItem.Click += (_, _) => OnUtilitiesConnectionReplaceClick();
-            operationsMenu.Items.Add(replaceConnectionsItem);
-
-            _undoConnectionReplaceItem = new MenuItem { Header = LocalizationManager.T("Main.UtilitiesUndoConnectionReplace") };
-            _undoConnectionReplaceItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            _undoConnectionReplaceItem.Icon = MenuIcon("IconUndo", "#F59E0B");
-            _undoConnectionReplaceItem.IsEnabled = _vm.CanUndoConnectionReplace;
-            _undoConnectionReplaceItem.Click += (_, _) => OnUtilitiesUndoConnectionReplaceClick();
-            operationsMenu.Items.Add(_undoConnectionReplaceItem);
-            // Блокировка сеансов информационной базы (функция №20, Ctrl+Alt+L): установка
-            // периода блокировки сеансов ИБ. Пункт существовал в «Утилитах» Avalonia с
-            // исходного состава меню (в WPF он только в контекстном меню строки).
-            operationsMenu.Items.Add(MenuSeparator());
-            operationsMenu.Items.Add(MenuAction("SessionLock.Title", _vm.ShowSessionLockCommand, _vm.HotkeySessionLock, "IconRights", "#EF4444"));
-            operationsMenu.Items.Add(MenuSeparator());
-            // Удаление отсутствующих файловых баз (issue #279): очистка списка от баз,
-            // чей каталог больше не существует.
-            var removeMissingItem = new MenuItem { Header = LocalizationManager.T("Settings.Bases.RemoveMissing") };
-            removeMissingItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            removeMissingItem.Icon = MenuIcon("IconFolderRemove", "#EF4444");
-            removeMissingItem.Click += (_, _) => _vm.RemoveMissingFileBases();
-            operationsMenu.Items.Add(removeMissingItem);
-            menu.Items.Add(operationsMenu);
-
-            menu.Items.Add(MenuSeparator());
-
-            var checkUpdatesItem = new MenuItem { Header = LocalizationManager.T("Settings.About.CheckForUpdates") };
-            checkUpdatesItem.Styled(Themes.ControlThemes.ModernMenuItem);
-            // Значок как у кнопки проверки обновлений в окне настроек (возле версии): Update/#3B82F6 (issue #282).
-            checkUpdatesItem.Icon = MenuIcon("IconUpdate", "#3B82F6");
-            checkUpdatesItem.Click += async (_, _) =>
-            {
-                try
+                menu.Items.Add(MenuSeparator());
+                var newMenu = new MenuItem
                 {
-                    var updateService = AppServices.GetRequiredService<UpdateService>();
-                    await updateService.CheckForUpdatesManualAsync();
-                }
-                catch
+                    Header = LocalizationManager.T("Utilities.Submenu.NewItems"),
+                    Icon = MenuIcon(
+                        UtilitiesMenuCatalog.GroupAvaloniaIconKey(UtilitiesMenuCatalog.GroupNewItems),
+                        UtilitiesMenuCatalog.GroupIconColor(UtilitiesMenuCatalog.GroupNewItems))
+                };
+                newMenu.Styled(Themes.ControlThemes.ModernMenuItem);
+                foreach (var catalogItem in newItems)
                 {
-                    // Внутренние ошибки уже показаны в UpdateService; здесь только страхуемся.
+                    var node = new UtilitiesMenuNode { Kind = "item", ItemId = catalogItem.Id };
+                    var item = CreateAvaloniaItem(node);
+                    if (item is not null)
+                        newMenu.Items.Add(item);
                 }
+                menu.Items.Add(newMenu);
+            }
+
+            // Меню строится один раз при старте (в отличие от WPF, где оно пересобирается
+            // при каждом открытии), поэтому динамическую доступность «Отменить последнюю
+            // замену строк подключения» обновляем при открытии меню.
+            menu.Opening += (_, _) =>
+            {
+                if (_undoConnectionReplaceItem is not null)
+                    _undoConnectionReplaceItem.IsEnabled = vm.CanUndoConnectionReplace;
             };
-            menu.Items.Add(checkUpdatesItem);
 
             return menu;
+        }
+
+        /// <summary>Рекурсивно добавляет узлы компоновки в целевой список пунктов меню (issue #374).</summary>
+        private void AppendAvaloniaNodes(ItemCollection target, List<UtilitiesMenuNode> nodes)
+        {
+            if (nodes is null || target is null)
+                return;
+            foreach (var node in nodes)
+            {
+                if (node is null || !node.Visible)
+                    continue;
+                if (node.SeparatorBefore && target.Count > 0)
+                    target.Add(MenuSeparator());
+                if (string.Equals(node.Kind, "group", StringComparison.Ordinal))
+                {
+                    var sub = new MenuItem
+                    {
+                        Header = AvaloniaGroupTitle(node),
+                        Icon = AvaloniaGroupIcon(node)
+                    };
+                    sub.Styled(Themes.ControlThemes.ModernMenuItem);
+                    AppendAvaloniaNodes(sub.Items, node.Children);
+                    target.Add(sub);
+                }
+                else
+                {
+                    var item = CreateAvaloniaItem(node);
+                    if (item is not null)
+                        target.Add(item);
+                }
+            }
+        }
+
+        /// <summary>Заголовок группы: пользовательский или локализованный стандартный.</summary>
+        private string AvaloniaGroupTitle(UtilitiesMenuNode node)
+        {
+            if (!string.IsNullOrWhiteSpace(node.CustomTitle))
+                return node.CustomTitle!;
+            var key = UtilitiesMenuCatalog.GroupTitleKey(node.GroupId ?? string.Empty);
+            return string.IsNullOrEmpty(key) ? string.Empty : LocalizationManager.T(key);
+        }
+
+        /// <summary>Иконка группы: внешний файл → пользовательская → стандартная каталога.</summary>
+        private Control? AvaloniaGroupIcon(UtilitiesMenuNode node)
+        {
+            if (!string.IsNullOrWhiteSpace(node.ExternalIconPath))
+                return CreateAvaloniaExternalIcon(node.ExternalIconPath!);
+            var iconKey = !string.IsNullOrWhiteSpace(node.IconKey)
+                ? node.IconKey!
+                : UtilitiesMenuCatalog.GroupAvaloniaIconKey(node.GroupId ?? string.Empty);
+            var color = !string.IsNullOrWhiteSpace(node.IconColor)
+                ? node.IconColor!
+                : UtilitiesMenuCatalog.GroupIconColor(node.GroupId ?? string.Empty);
+            return MenuIcon(iconKey, color);
+        }
+
+        /// <summary>Создаёт пункт меню по узлу-ссылке на пункт каталога (null — неизвестный пункт).</summary>
+        private MenuItem? CreateAvaloniaItem(UtilitiesMenuNode node)
+        {
+            var catalogItem = UtilitiesMenuCatalog.Find(node.ItemId);
+            if (catalogItem is null)
+                return null;
+
+            var item = new MenuItem { Header = LocalizationManager.T(catalogItem.TextKey) };
+            item.Styled(Themes.ControlThemes.ModernMenuItem);
+            if (!string.IsNullOrWhiteSpace(node.ExternalIconPath))
+            {
+                item.Icon = CreateAvaloniaExternalIcon(node.ExternalIconPath!);
+            }
+            else
+            {
+                var iconKey = !string.IsNullOrWhiteSpace(node.IconKey)
+                    ? node.IconKey!
+                    : catalogItem.AvaloniaIconKey;
+                var color = !string.IsNullOrWhiteSpace(node.IconColor)
+                    ? node.IconColor!
+                    : catalogItem.IconColor;
+                if (!string.IsNullOrWhiteSpace(iconKey) && !string.IsNullOrWhiteSpace(color))
+                    item.Icon = MenuIcon(iconKey, color);
+            }
+            var gesture = AvaloniaHotkey(catalogItem.HotkeyKey);
+            if (Controls.HotkeyBox.TryParse(gesture, out var parsed) && parsed is not null)
+                item.InputGesture = parsed;
+            ApplyAvaloniaCommand(item, catalogItem);
+            return item;
+        }
+
+        /// <summary>Изображение из внешнего файла (иконка «извне», назначается в редакторе структуры).</summary>
+        private Control? CreateAvaloniaExternalIcon(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return null;
+            try
+            {
+                return new Image
+                {
+                    Source = new Avalonia.Media.Imaging.Bitmap(path),
+                    Width = 16,
+                    Height = 16
+                };
+            }
+            catch
+            {
+                // Нечитаемый/отсутствующий файл иконки не должен ронять построение меню.
+                return null;
+            }
+        }
+
+        /// <summary>Хоткей пункта по имени свойства MainViewModel (из каталога); null — нет хоткея.</summary>
+        private string? AvaloniaHotkey(string? hotkeyKey)
+        {
+            if (string.IsNullOrWhiteSpace(hotkeyKey))
+                return null;
+            switch (hotkeyKey)
+            {
+                case "HotkeyCommandPalette": return _vm?.HotkeyCommandPalette;
+                case "HotkeyActualReleases": return _vm?.HotkeyActualReleases;
+                case "HotkeyPlatformUpdate": return _vm?.HotkeyPlatformUpdate;
+                case "HotkeyServerConsole": return _vm?.HotkeyServerConsole;
+                case "HotkeyLockApp": return _vm?.HotkeyLockApp;
+                case "HotkeyRunBackup": return _vm?.HotkeyRunBackup;
+                case "HotkeySessionLock": return _vm?.HotkeySessionLock;
+                default: return null;
+            }
+        }
+
+        /// <summary>Привязывает команду/действие к пункту меню по виду команды каталога.</summary>
+        private void ApplyAvaloniaCommand(MenuItem item, UtilitiesMenuItem catalogItem)
+        {
+            switch (catalogItem.CommandKind)
+            {
+                case UtilitiesMenuCommandKind.CommandPalette:
+                    item.Command = _vm!.CommandPaletteCommand; break;
+                case UtilitiesMenuCommandKind.ShowActualReleases:
+                    item.Command = _vm!.ShowActualReleasesCommand; break;
+                case UtilitiesMenuCommandKind.ShowPlatformUpdate:
+                    item.Command = _vm!.ShowPlatformUpdateCommand; break;
+                case UtilitiesMenuCommandKind.ShowPlatformDownload:
+                    item.Command = _vm!.ShowPlatformDownloadCommand; break;
+                case UtilitiesMenuCommandKind.ServerMonitor:
+                    item.Command = _vm!.ServerMonitorCommand; break;
+                case UtilitiesMenuCommandKind.OpenServerConsole:
+                    item.Command = _vm!.OpenServerConsoleCommand; break;
+                case UtilitiesMenuCommandKind.LockApp:
+                    item.Command = _vm!.LockAppCommand; break;
+                case UtilitiesMenuCommandKind.UnlockPrivateBases:
+                    item.Command = _vm!.UnlockPrivateBasesCommand; break;
+                case UtilitiesMenuCommandKind.ChangeAppLock:
+                    item.Command = _vm!.ChangeAppLockCommand; break;
+                case UtilitiesMenuCommandKind.RunBackupScenario:
+                    item.Command = _vm!.RunBackupScenarioCommand; break;
+                case UtilitiesMenuCommandKind.MaintenanceCenter:
+                    item.Command = _vm!.MaintenanceCenterCommand; break;
+                case UtilitiesMenuCommandKind.OpenConfigTypesEdit:
+                    item.Click += (_, _) => _vm!.OpenConfigTypesEdit(); break;
+                case UtilitiesMenuCommandKind.OpenItsAccounts:
+                    item.Click += (_, _) => _vm!.OpenItsAccounts(); break;
+                case UtilitiesMenuCommandKind.OpenScheduledTasks:
+                    item.Click += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        var win = new ScheduledTasksWindow();
+                        win.ShowSync(this);
+                    }); break;
+                case UtilitiesMenuCommandKind.ShowBackupScenarios:
+                    item.Command = _vm!.ShowBackupScenariosCommand; break;
+                case UtilitiesMenuCommandKind.ShowScriptsSettings:
+                    item.Command = _vm!.ShowScriptsSettingsCommand; break;
+                case UtilitiesMenuCommandKind.UsageStatistics:
+                    item.Command = _vm!.UsageStatisticsCommand; break;
+                case UtilitiesMenuCommandKind.ConfigDiff:
+                    item.Command = _vm!.ConfigDiffCommand; break;
+                case UtilitiesMenuCommandKind.MetadataExplorer:
+                    item.Command = _vm!.MetadataExplorerCommand; break;
+                case UtilitiesMenuCommandKind.RepositoryBatchUpdate:
+                    item.Command = _vm!.RepositoryBatchUpdateCommand; break;
+                case UtilitiesMenuCommandKind.RepositoryBrowser:
+                    item.Command = _vm!.RepositoryBrowserCommand; break;
+                case UtilitiesMenuCommandKind.ExportBasesCsv:
+                    item.Command = _vm!.ExportBasesCsvCommand; break;
+                case UtilitiesMenuCommandKind.ExportBasesHtml:
+                    item.Command = _vm!.ExportBasesHtmlCommand; break;
+                case UtilitiesMenuCommandKind.ExportBasesJson:
+                    item.Command = _vm!.ExportBasesJsonCommand; break;
+                case UtilitiesMenuCommandKind.ImportBasesJson:
+                    item.Command = _vm!.ImportBasesJsonCommand; break;
+                case UtilitiesMenuCommandKind.ImportClusterInfobases:
+                    item.Command = _vm!.ImportClusterInfobasesCommand; break;
+                case UtilitiesMenuCommandKind.ProcessInspector:
+                    item.Command = _vm!.ProcessInspectorCommand; break;
+                case UtilitiesMenuCommandKind.KillOneCProcesses:
+                    // В Avalonia-версии MainViewModel это методы, а не команды.
+                    item.Click += (_, _) => _vm!.KillOneCProcesses(); break;
+                case UtilitiesMenuCommandKind.ConnectionReplace:
+                    item.Click += (_, _) => OnUtilitiesConnectionReplaceClick(); break;
+                case UtilitiesMenuCommandKind.UndoConnectionReplace:
+                    item.IsEnabled = _vm!.CanUndoConnectionReplace;
+                    // Запоминаем пункт, чтобы обновлять его доступность при открытии меню
+                    // и по событию PropertyChanged (MainWindow.Avalonia.cs).
+                    _undoConnectionReplaceItem = item;
+                    item.Click += (_, _) => OnUtilitiesUndoConnectionReplaceClick(); break;
+                case UtilitiesMenuCommandKind.RemoveMissingFileBases:
+                    // В Avalonia-версии MainViewModel это методы, а не команды.
+                    item.Click += (_, _) => _vm!.RemoveMissingFileBases(); break;
+                case UtilitiesMenuCommandKind.CheckForUpdates:
+                    item.Click += async (_, _) =>
+                    {
+                        try
+                        {
+                            var updateService = AppServices.GetRequiredService<UpdateService>();
+                            await updateService.CheckForUpdatesManualAsync();
+                        }
+                        catch
+                        {
+                            // Внутренние ошибки уже показаны в UpdateService; здесь только страхуемся.
+                        }
+                    }; break;
+                case UtilitiesMenuCommandKind.SessionLock:
+                    item.Command = _vm!.ShowSessionLockCommand; break;
+            }
         }
 
         private ContextMenu BuildRowContextMenu()

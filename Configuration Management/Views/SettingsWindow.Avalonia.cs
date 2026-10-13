@@ -37,6 +37,9 @@ namespace Configuration_Management
     {
         private readonly MainViewModel _viewModel;
 
+        /// <summary>Чекбокс «Правка структуры меню „Утилиты“» (issue #374): читается в «Сохранить».</summary>
+        private ToggleButton? _utilitiesMenuEditingCheck;
+
         /// <summary>Пара «подпись режима функциональности — канонический код» для списка выбора (issue #263).</summary>
         private sealed class FunctionalModeOption
         {
@@ -2961,6 +2964,17 @@ namespace Configuration_Management
                     Padding = new Thickness(0, 0, 4, 0)
                 });
 
+            // ===== Меню «Утилиты» (issue #374): правка структуры меню =====
+            var utilitiesMenu = BuildUtilitiesMenuTab();
+            var tabUtilitiesMenu = MainTab("IconApps", "Settings.TabUtilitiesMenu",
+                new ScrollViewer
+                {
+                    Content = utilitiesMenu,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    // Отступ прокрутки из разметки (SettingsWindow.xaml:1486).
+                    Margin = new Thickness(4, 12, 4, 0)
+                });
+
             // ===== О программе =====
             var about = BuildAboutTab();
             var tabAbout = MainTab("IconInformationOutline", "Settings.TabAbout",
@@ -2984,6 +2998,7 @@ namespace Configuration_Management
             tabs.Items.Add(tabGeneral);
             tabs.Items.Add(tabBases);
             tabs.Items.Add(tabProfile);
+            tabs.Items.Add(tabUtilitiesMenu);
             tabs.Items.Add(tabAbout);
 
             Grid.SetRow(tabs, 0);
@@ -3137,6 +3152,8 @@ namespace Configuration_Management
 
                 // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
                 _viewModel.ConfirmCustomActions = confirmCustomActionsCheck.IsChecked == true;
+                // Правка структуры меню «Утилиты» (issue #374).
+                _viewModel.UtilitiesMenuEditingEnabled = _utilitiesMenuEditingCheck?.IsChecked == true;
 
                 // Порог предупреждения «Свободно на диске» в Центре обслуживания (0.3.9.96).
                 if (int.TryParse(freeSpaceWarningBox.Text, out var freeSpaceWarningGb))
@@ -3683,6 +3700,61 @@ namespace Configuration_Management
             return r;
         }
 
+
+        /// <summary>
+        /// Содержимое вкладки «Меню „Утилиты“» (issue #374): чекбокс правки структуры
+        /// и кнопка «Настроить структуру…» (открывает редактор компоновки).
+        /// </summary>
+        private Control BuildUtilitiesMenuTab()
+        {
+            var panel = new StackPanel { Spacing = 6 };
+            _utilitiesMenuEditingCheck = SettingsSwitch(
+                "Settings.UtilitiesMenu.EditingEnabled", _viewModel.UtilitiesMenuEditingEnabled,
+                "IconApps", "#3B82F6", "Settings.UtilitiesMenu.EditingEnabledTooltip");
+            _utilitiesMenuEditingCheck.Margin = new Thickness(0, 0, 0, 6);
+            panel.Children.Add(_utilitiesMenuEditingCheck);
+
+            var editButton = new Button
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 6,
+                    Children =
+                    {
+                        IconHelper.MakeIcon("IconTune", 16, "TextPrimaryBrush"),
+                        new TextBlock
+                        {
+                            Text = LocalizationManager.T("Settings.UtilitiesMenu.EditButton"),
+                            VerticalAlignment = VerticalAlignment.Center
+                        }
+                    }
+                },
+                Padding = new Thickness(12, 7),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            editButton.Styled(ControlThemes.ModernButton);
+            editButton.Click += (_, _) => OpenUtilitiesMenuEditor();
+            panel.Children.Add(editButton);
+
+            panel.Children.Add(Hint(LocalizationManager.T("Settings.UtilitiesMenu.Hint"), bottom: 0));
+            return panel;
+        }
+
+        /// <summary>Открывает редактор структуры меню «Утилиты» (issue #374).</summary>
+        private void OpenUtilitiesMenuEditor()
+        {
+            try
+            {
+                var store = AppServices.TryGetService<IUtilitiesMenuLayoutStore>();
+                var win = new UtilitiesMenuEditorWindow(store);
+                win.ShowDialogSync(this);
+            }
+            catch
+            {
+                // Не критично: редактор не открылся — настройка останется прежней.
+            }
+        }
 
         private Control BuildAboutTab()
         {

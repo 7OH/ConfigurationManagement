@@ -59,10 +59,10 @@
          поэтому AssemblyVersion/FileVersion/Version ограничены 4 частями, а точная
          пользовательская версия «0.3.1.1» задаётся через InformationalVersion
          и выводится в заголовок окна. -->
-    <Version>0.3.12.28</Version>
-    <AssemblyVersion>0.3.12.28</AssemblyVersion>
-    <FileVersion>0.3.12.28</FileVersion>
-    <InformationalVersion>0.3.12.28</InformationalVersion>
+    <Version>0.3.12.29</Version>
+    <AssemblyVersion>0.3.12.29</AssemblyVersion>
+    <FileVersion>0.3.12.29</FileVersion>
+    <InformationalVersion>0.3.12.29</InformationalVersion>
     <!-- RID/SelfContained только при publish, чтобы обычный dotnet run/build не ломался -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
@@ -543,6 +543,10 @@
          подключаются явно (имена не совпадают с глобом *.Avalonia.cs). -->
     <Compile Include="ViewModels\MetadataExplorerViewModel.cs" />
     <Compile Include="ViewModels\MetadataTreeNodeViewModel.cs" />
+    <!-- ViewModel редактора структуры меню «Утилиты» (issue #374): чистый .NET без
+         платформенных зависимостей, используется обеими платформами — на Linux
+         подключается явно (имя не совпадает с глобом *.Avalonia.cs). -->
+    <Compile Include="ViewModels\UtilitiesMenuEditorViewModel.cs" />
     <!-- Клонирование клиент-серверной ИБ (0.3.9.100, функция №10): модель запроса
          и чистые сервисы планировщика/оркестратора — используются и Windows,
          и Linux; на Linux подключаются явно паттерном Remove+Include. -->

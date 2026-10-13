@@ -60,7 +60,10 @@ public partial class MainWindow
 
     /// <summary>
     /// Открывает выпадающее меню «Утилиты» верхней панели по клику на её кнопке (issue #262):
-    /// глобальные команды, не привязанные к конкретной базе.
+    /// глобальные команды, не привязанные к конкретной базе. Начиная с 0.3.12.29 (issue #374)
+    /// меню строится ДИНАМИЧЕСКИ по каталогу UtilitiesMenuCatalog + компоновке
+    /// UtilitiesMenuLayout (стандартная или пользовательская из utilities_menu_layout.json),
+    /// а не статическим XAML, как раньше.
     /// </summary>
     private void OnUtilitiesMenuButton_Click(object sender, RoutedEventArgs e)
     {
@@ -68,11 +71,16 @@ public partial class MainWindow
         // OnConfiguratorMenuClick, OnClearCacheMenuClick): раскрываем меню под кнопкой
         // (PlacementMode.Bottom) и передаём DataContext окна, чтобы Command/InputGestureText
         // пунктов резолвились, а меню позиционировалось как в Linux (issue #282).
-        if (sender is not System.Windows.Controls.Button btn || btn.ContextMenu is null)
+        if (sender is not System.Windows.Controls.Button btn)
             return;
-        btn.ContextMenu.PlacementTarget = btn;
-        btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-        btn.ContextMenu.DataContext = DataContext;
+
+        // Меню строится заново при каждом открытии: компоновка могла измениться
+        // (правка структуры в редакторе, смена настройки UtilitiesMenuEditingEnabled).
+        var menu = BuildUtilitiesMenu();
+        menu.PlacementTarget = btn;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.DataContext = DataContext;
+        btn.ContextMenu = menu;
 
         // Открываем меню ОТЛОЖЕННО (как OnLaunchSplitButton_Click, см. MainWindow.Events.cs):
         // при синхронном открытии прямо в обработчике клика WPF не успевает измерить и

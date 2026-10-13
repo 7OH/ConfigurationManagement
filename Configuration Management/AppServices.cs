@@ -98,6 +98,10 @@ public static class AppServices
         // server_ports.json рядом с настройками — порт на каждый сервис (кластер,
         // rac/монитор, хранилище) в разрезе сервера. Чистый сервис — без UI-зависимостей.
         services.AddSingleton<IServerPortsStore, ServerPortsStore>();
+        // Компоновка меню «Утилиты» (issue #374): пользовательская структура меню —
+        // utilities_menu_layout.json рядом с настройками, по образцу CustomActionsStore.
+        // Чистый сервис — без UI-зависимостей.
+        services.AddSingleton<IUtilitiesMenuLayoutStore, UtilitiesMenuLayoutStore>();
         // Обозреватель хранилища конфигурации (цикл 0.3.9.127–0.3.9.130): пакетные операции
         // хранилища через DESIGNER (выгрузка версии .cf, отчёт по истории, захват/отмена
         // захвата) + состав версии. Чистый сервис — без UI-зависимостей.

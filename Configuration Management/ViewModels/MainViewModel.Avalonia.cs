@@ -44,6 +44,23 @@ public partial class MainViewModel : ViewModelBase
 
     private AppSettings _settings = new();
 
+    /// <summary>
+    /// Текущие настройки приложения (issue #374): нужны построителю меню «Утилиты»
+    /// для выбора компоновки (стандартная/пользовательская) по
+    /// <see cref="AppSettings.UtilitiesMenuEditingEnabled"/>.
+    /// </summary>
+    public AppSettings Settings => _settings;
+
+    /// <summary>
+    /// Разрешить правку структуры меню «Утилиты» (issue #374). По умолчанию выключено —
+    /// меню строится по стандартной компоновке (обратная совместимость).
+    /// </summary>
+    public bool UtilitiesMenuEditingEnabled
+    {
+        get => _settings.UtilitiesMenuEditingEnabled;
+        set => _settings.UtilitiesMenuEditingEnabled = value;
+    }
+
     /// <summary>Глобальное действие по двойному щелчку на базе (функция №28 StartManager).</summary>
     private string _defaultDoubleClickAction = DoubleClickAction.GlobalDefault;
 

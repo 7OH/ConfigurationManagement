@@ -118,6 +118,9 @@ namespace Configuration_Management
             // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
             if (ConfirmCustomActionsCheck != null)
                 ConfirmCustomActionsCheck.IsChecked = viewModel.ConfirmCustomActions;
+            // Правка структуры меню «Утилиты» (issue #374).
+            if (UtilitiesMenuEditingCheck != null)
+                UtilitiesMenuEditingCheck.IsChecked = viewModel.UtilitiesMenuEditingEnabled;
             // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) и временная блокировка
             // приложения паролем (функция №19): показываем текущие значения сочетаний.
             if (HotkeySessionLockBox != null)
@@ -355,6 +358,20 @@ namespace Configuration_Management
             {
                 // Инициализация подсказок не должна ломать открытие окна настроек.
             }
+        }
+
+        /// <summary>
+        /// Открывает редактор структуры меню «Утилиты» (issue #374): дерево компоновки,
+        /// перемещение/отключение/группировка пунктов, иконки, сохранение/загрузка в файл.
+        /// </summary>
+        private void OnUtilitiesMenuEdit_Click(object sender, RoutedEventArgs e)
+        {
+            var store = AppServices.TryGetService<IUtilitiesMenuLayoutStore>();
+            var win = new UtilitiesMenuEditorWindow(store)
+            {
+                Owner = this,
+            };
+            win.ShowDialog();
         }
 
         private void OnSave_Click(object sender, RoutedEventArgs e)
@@ -598,6 +615,8 @@ namespace Configuration_Management
                 _viewModel.ItsAccountId = selection.Id ?? "";
             // Подтверждение выполнения пользовательских действий (функция 7, 0.3.9.197).
             _viewModel.ConfirmCustomActions = ConfirmCustomActionsCheck?.IsChecked ?? true;
+            // Правка структуры меню «Утилиты» (issue #374).
+            _viewModel.UtilitiesMenuEditingEnabled = UtilitiesMenuEditingCheck?.IsChecked ?? false;
             _viewModel.SaveSettings();
 
             var templatePaths = TemplatePathsList?.Items.Cast<string>().Where(s => !string.IsNullOrWhiteSpace(s)).ToList()

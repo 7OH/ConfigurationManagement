@@ -201,6 +201,22 @@ public partial class MainViewModel : ViewModelBase
     // Меню закладок (issue #356): настраиваемый хоткей, по умолчанию Ctrl+B.
     private string _hotkeyBookmarksMenu = "Ctrl+B";
     private string _hotkeySwitchUser = "";
+    /// <summary>
+    /// Разрешить правку структуры меню «Утилиты» (issue #374): при включении меню
+    /// строится по пользовательской компоновке из файла <c>utilities_menu_layout.json</c>.
+    /// </summary>
+    private bool _utilitiesMenuEditingEnabled;
+
+    /// <summary>
+    /// Разрешить правку структуры меню «Утилиты» (issue #374). По умолчанию выключено —
+    /// меню строится по стандартной компоновке (обратная совместимость).
+    /// </summary>
+    public bool UtilitiesMenuEditingEnabled
+    {
+        get => _utilitiesMenuEditingEnabled;
+        set => SetProperty(ref _utilitiesMenuEditingEnabled, value);
+    }
+
     private string _sortField = "Name";
     private bool _sortAscending = true;
     /// <summary>Направление сортировки подгрупп по имени (true — А→Я, false — Я→А).</summary>
@@ -319,6 +335,9 @@ public partial class MainViewModel : ViewModelBase
         _allowMultipleInstances = settings.AllowMultipleInstances;
         _checkForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
         _autoUpdateEnabled = settings.AutoUpdateEnabled;
+        // Правка структуры меню «Утилиты» (issue #374): по умолчанию выключена —
+        // меню строится по стандартной компоновке (обратная совместимость).
+        _utilitiesMenuEditingEnabled = settings.UtilitiesMenuEditingEnabled;
         _comConnectorNameTemplate = settings.ComConnectorNameTemplate ?? "";
         // Кэш шаблона в коннекторе заполняем сразу, а не ленивым чтением файла (issue #175):
         // иначе результат зависел бы от того, случилось ли COM-чтение до смены активного

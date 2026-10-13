@@ -46,4 +46,18 @@ public abstract class ViewModelBase : INotifyPropertyChanged
             OnPropertyChanged(name);
         return true;
     }
+
+    /// <summary>
+    /// Устанавливает значение и дополнительно уведомляет о связанных свойствах.
+    /// Имя своего свойства передаётся первым (сигнатура совпадает с Avalonia-версией
+    /// ViewModelBase, чтобы общие ViewModel обеих платформ использовали один вызов).
+    /// </summary>
+    protected bool SetPropertyWithRelated<T>(ref T field, T value, string propertyName, params string[] relatedProperties)
+    {
+        if (!SetProperty(ref field, value, propertyName))
+            return false;
+        foreach (var name in relatedProperties)
+            OnPropertyChanged(name);
+        return true;
+    }
 }

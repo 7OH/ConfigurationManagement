@@ -1,0 +1,429 @@
+using Configuration_Management.Models;
+
+namespace Configuration_Management.Services;
+
+/// <summary>
+/// Вид команды пункта меню «Утилиты»: каталог хранит только метаданные пункта,
+/// а фактическую команду/действие резолвит построитель меню платформы (WPF/Avalonia),
+/// у которого есть доступ к <c>MainViewModel</c> и обработчикам окна.
+/// </summary>
+public enum UtilitiesMenuCommandKind
+{
+    /// <summary>Командная палитра (Ctrl+K).</summary>
+    CommandPalette,
+
+    /// <summary>Окно «Актуальные релизы».</summary>
+    ShowActualReleases,
+
+    /// <summary>Окно «Обновление платформы 1С».</summary>
+    ShowPlatformUpdate,
+
+    /// <summary>Окно «Скачивание платформы 1С».</summary>
+    ShowPlatformDownload,
+
+    /// <summary>Встроенный монитор серверов 1С.</summary>
+    ServerMonitor,
+
+    /// <summary>Внешняя консоль администрирования серверов.</summary>
+    OpenServerConsole,
+
+    /// <summary>Временная блокировка приложения паролем.</summary>
+    LockApp,
+
+    /// <summary>Разблокировка приватных баз.</summary>
+    UnlockPrivateBases,
+
+    /// <summary>Смена пароля блокировки приложения.</summary>
+    ChangeAppLock,
+
+    /// <summary>Выполнить сценарий резервирования.</summary>
+    RunBackupScenario,
+
+    /// <summary>Центр обслуживания.</summary>
+    MaintenanceCenter,
+
+    /// <summary>Список типовых конфигураций (правка).</summary>
+    OpenConfigTypesEdit,
+
+    /// <summary>Справочник учётных записей ИТС.</summary>
+    OpenItsAccounts,
+
+    /// <summary>Задания по расписанию.</summary>
+    OpenScheduledTasks,
+
+    /// <summary>Сценарии резервирования.</summary>
+    ShowBackupScenarios,
+
+    /// <summary>Настройка сценариев запуска скриптов.</summary>
+    ShowScriptsSettings,
+
+    /// <summary>Статистика использования баз.</summary>
+    UsageStatistics,
+
+    /// <summary>Сравнение конфигураций.</summary>
+    ConfigDiff,
+
+    /// <summary>Обозреватель метаданных.</summary>
+    MetadataExplorer,
+
+    /// <summary>Пакетное обновление конфигураций из хранилищ.</summary>
+    RepositoryBatchUpdate,
+
+    /// <summary>Обозреватель хранилища конфигурации.</summary>
+    RepositoryBrowser,
+
+    /// <summary>Экспорт списка баз в CSV.</summary>
+    ExportBasesCsv,
+
+    /// <summary>Экспорт отчёта по базам в HTML.</summary>
+    ExportBasesHtml,
+
+    /// <summary>Экспорт списка баз в JSON.</summary>
+    ExportBasesJson,
+
+    /// <summary>Импорт списка баз из JSON.</summary>
+    ImportBasesJson,
+
+    /// <summary>Импорт баз из кластера сервера 1С.</summary>
+    ImportClusterInfobases,
+
+    /// <summary>Инспектор процессов 1С.</summary>
+    ProcessInspector,
+
+    /// <summary>Завершение процессов платформы 1С.</summary>
+    KillOneCProcesses,
+
+    /// <summary>Массовая замена строк подключения.</summary>
+    ConnectionReplace,
+
+    /// <summary>Отмена последней замены строк подключения (динамическая доступность).</summary>
+    UndoConnectionReplace,
+
+    /// <summary>Удаление отсутствующих файловых баз.</summary>
+    RemoveMissingFileBases,
+
+    /// <summary>Проверка обновлений приложения.</summary>
+    CheckForUpdates,
+
+    /// <summary>Блокировка сеансов информационной базы (только Avalonia/Linux).</summary>
+    SessionLock
+}
+
+/// <summary>
+/// Пункт каталога меню «Утилиты»: стабильные метаданные, не зависящие от платформы.
+/// Иконки задаются парами «ключ для WPF (PackIcon Kind) / ключ для Avalonia (Icon*)»,
+/// потому что наборы иконок двух UI-фреймворков не совпадают.
+/// </summary>
+public sealed class UtilitiesMenuItem
+{
+    /// <param name="id">Стабильный идентификатор пункта (сохраняется в файле компоновки).</param>
+    /// <param name="textKey">Ключ локализации заголовка.</param>
+    /// <param name="defaultGroup">Стандартная группа: <see cref="UtilitiesMenuCatalog.GroupTopLevel"/> и др.</param>
+    /// <param name="wpfIconKind">Ключ иконки materialDesign PackIcon (WPF).</param>
+    /// <param name="avaloniaIconKey">Ключ иконки Icon* из Themes/Icons.axaml (Avalonia).</param>
+    /// <param name="iconColor">Цвет иконки #RRGGBB.</param>
+    /// <param name="commandKind">Вид команды для построителя меню.</param>
+    /// <param name="hotkeyKey">Имя свойства MainViewModel с хоткеем (или null).</param>
+    /// <param name="linuxOnly">Пункт есть только в меню Avalonia/Linux.</param>
+    /// <param name="isNew">Признак «новинка»: при сохранённой компоновке попадает в «Новинки программы».</param>
+    public UtilitiesMenuItem(string id, string textKey, string defaultGroup,
+        string wpfIconKind, string avaloniaIconKey, string iconColor,
+        UtilitiesMenuCommandKind commandKind, string? hotkeyKey = null,
+        bool linuxOnly = false, bool isNew = false)
+    {
+        Id = id;
+        TextKey = textKey;
+        DefaultGroup = defaultGroup;
+        WpfIconKind = wpfIconKind;
+        AvaloniaIconKey = avaloniaIconKey;
+        IconColor = iconColor;
+        CommandKind = commandKind;
+        HotkeyKey = hotkeyKey;
+        LinuxOnly = linuxOnly;
+        IsNew = isNew;
+    }
+
+    /// <summary>Стабильный идентификатор пункта.</summary>
+    public string Id { get; }
+
+    /// <summary>Ключ локализации заголовка.</summary>
+    public string TextKey { get; }
+
+    /// <summary>Стандартная группа (TopLevel / LockOptions / Information / Operations).</summary>
+    public string DefaultGroup { get; }
+
+    /// <summary>Ключ иконки materialDesign PackIcon (WPF).</summary>
+    public string WpfIconKind { get; }
+
+    /// <summary>Ключ иконки Icon* из Themes/Icons.axaml (Avalonia).</summary>
+    public string AvaloniaIconKey { get; }
+
+    /// <summary>Цвет иконки #RRGGBB.</summary>
+    public string IconColor { get; }
+
+    /// <summary>Вид команды для построителя меню.</summary>
+    public UtilitiesMenuCommandKind CommandKind { get; }
+
+    /// <summary>Имя свойства MainViewModel с хоткеем (или null).</summary>
+    public string? HotkeyKey { get; }
+
+    /// <summary>Пункт есть только в меню Avalonia/Linux.</summary>
+    public bool LinuxOnly { get; }
+
+    /// <summary>Признак «новинка» (для подменю «Новинки программы»).</summary>
+    public bool IsNew { get; }
+}
+
+/// <summary>
+/// Каталог всех известных пунктов меню «Утилиты» (issue #374) — единый источник истины
+/// о составе меню. Новые пункты, добавляемые в будущих версиях, помечаются
+/// <see cref="UtilitiesMenuItem.IsNew"/> и при сохранённой пользовательской компоновке
+/// автоматически попадают в подменю «Новинки программы».
+/// </summary>
+public static class UtilitiesMenuCatalog
+{
+    /// <summary>Стандартная группа: верхний уровень меню.</summary>
+    public const string GroupTopLevel = "TopLevel";
+
+    /// <summary>Стандартная группа: подменю «Опции блокировки».</summary>
+    public const string GroupLockOptions = "LockOptions";
+
+    /// <summary>Стандартная группа: подменю «Информация».</summary>
+    public const string GroupInformation = "Information";
+
+    /// <summary>Стандартная группа: подменю «Операции».</summary>
+    public const string GroupOperations = "Operations";
+
+    /// <summary>Служебная группа: «Новинки программы» (авто-добавление новых пунктов).</summary>
+    public const string GroupNewItems = "NewItems";
+
+    /// <summary>Ключ локализации заголовка стандартной группы.</summary>
+    public static string GroupTitleKey(string groupId) => groupId switch
+    {
+        GroupLockOptions => "Utilities.Submenu.LockOptions",
+        GroupInformation => "Utilities.Submenu.Information",
+        GroupOperations => "Utilities.Submenu.Operations",
+        GroupNewItems => "Utilities.Submenu.NewItems",
+        _ => string.Empty
+    };
+
+    /// <summary>Ключ иконки стандартной группы для WPF (PackIcon Kind); пусто — без иконки.</summary>
+    public static string GroupWpfIconKind(string groupId) => groupId switch
+    {
+        GroupLockOptions => "Lock",
+        GroupInformation => "Information",
+        GroupOperations => "Tune",
+        GroupNewItems => "NewBox",
+        _ => string.Empty
+    };
+
+    /// <summary>Ключ иконки стандартной группы для Avalonia (Icon*); пусто — без иконки.</summary>
+    public static string GroupAvaloniaIconKey(string groupId) => groupId switch
+    {
+        GroupLockOptions => "IconExitToApp",
+        GroupInformation => "IconInfo",
+        GroupOperations => "IconTune",
+        GroupNewItems => "IconNewBox",
+        _ => string.Empty
+    };
+
+    /// <summary>Цвет иконки стандартной группы (#RRGGBB).</summary>
+    public static string GroupIconColor(string groupId) => groupId switch
+    {
+        GroupLockOptions => "#8B5CF6",
+        GroupInformation => "#0EA5E9",
+        GroupOperations => "#06B6D4",
+        GroupNewItems => "#22C55E",
+        _ => string.Empty
+    };
+
+    /// <summary>Все известные пункты меню «Утилиты» в порядке стандартной компоновки.</summary>
+    public static IReadOnlyList<UtilitiesMenuItem> All { get; } = BuildAll();
+
+    /// <summary>Возвращает пункт каталога по идентификатору (или null).</summary>
+    public static UtilitiesMenuItem? Find(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return null;
+        foreach (var item in All)
+        {
+            if (string.Equals(item.Id, id, StringComparison.Ordinal))
+                return item;
+        }
+        return null;
+    }
+
+    private static IReadOnlyList<UtilitiesMenuItem> BuildAll()
+    {
+        return new List<UtilitiesMenuItem>
+        {
+            // ---- Верхний уровень ----
+            new("CommandPalette", "Main.CommandPalette", GroupTopLevel,
+                "Magnify", "IconSearch", "#3B82F6", UtilitiesMenuCommandKind.CommandPalette, "HotkeyCommandPalette"),
+            new("ActualReleases", "Updates.ActualReleasesTitle", GroupTopLevel,
+                "CloudDownload", "IconCloudDownload", "#14B8A6", UtilitiesMenuCommandKind.ShowActualReleases, "HotkeyActualReleases"),
+            new("PlatformUpdate", "PlatformUpdate.WindowTitle", GroupTopLevel,
+                "PackageVariant", "IconCloudDownload", "#14B8A6", UtilitiesMenuCommandKind.ShowPlatformUpdate, "HotkeyPlatformUpdate"),
+            new("PlatformDownload", "PlatformDownload.WindowTitle", GroupTopLevel,
+                "Download", "IconCloudDownload", "#22C55E", UtilitiesMenuCommandKind.ShowPlatformDownload),
+            new("ServerMonitor", "ServerMonitor.Title", GroupTopLevel,
+                "ServerNetwork", "IconServer", "#14B8A6", UtilitiesMenuCommandKind.ServerMonitor, "HotkeyServerConsole"),
+            new("ServerConsoleExternal", "Admin.ServerConsoleExternal", GroupTopLevel,
+                "Server", "IconServer", "#64748B", UtilitiesMenuCommandKind.OpenServerConsole),
+
+            // ---- Опции блокировки ----
+            new("AppLock", "AppLock.LockTitle", GroupTopLevel,
+                "Lock", "IconExitToApp", "#8B5CF6", UtilitiesMenuCommandKind.LockApp, "HotkeyLockApp"),
+            new("UnlockPrivateBases", "Private.OpenCommand", GroupLockOptions,
+                "LockOpenVariant", "IconAccountKey", "#22C55E", UtilitiesMenuCommandKind.UnlockPrivateBases),
+            new("ChangeAppLock", "AppLock.ChangeMenu", GroupLockOptions,
+                "Key", "IconAccountKey", "#8B5CF6", UtilitiesMenuCommandKind.ChangeAppLock),
+            new("RunBackupScenario", "Backup.RunTitle", GroupLockOptions,
+                "DatabaseExport", "IconDatabaseExport", "#22C55E", UtilitiesMenuCommandKind.RunBackupScenario, "HotkeyRunBackup"),
+
+            // ---- Информация ----
+            new("MaintenanceCenter", "Maintenance.Title", GroupInformation,
+                "MonitorDashboard", "IconMonitoring", "#0EA5E9", UtilitiesMenuCommandKind.MaintenanceCenter),
+            new("ConfigTypesEdit", "Updates.ManageList", GroupInformation,
+                string.Empty, string.Empty, string.Empty, UtilitiesMenuCommandKind.OpenConfigTypesEdit),
+            new("ItsAccounts", "ItsAccounts.MenuItem", GroupInformation,
+                "AccountKey", "IconAccountKey", "#14B8A6", UtilitiesMenuCommandKind.OpenItsAccounts),
+            new("ScheduledTasks", "Schedule.Title", GroupInformation,
+                "CalendarClock", "IconScheduler", "#14B8A6", UtilitiesMenuCommandKind.OpenScheduledTasks),
+            new("BackupScenarios", "Backup.ScenariosTitle", GroupInformation,
+                "Cog", "IconSettings", "#F59E0B", UtilitiesMenuCommandKind.ShowBackupScenarios),
+            new("ScriptsSettings", "Script.SettingsTitle", GroupInformation,
+                "CodeBraces", "IconScript", "#06B6D4", UtilitiesMenuCommandKind.ShowScriptsSettings),
+            new("UsageStatistics", "Stats.Title", GroupInformation,
+                "History", "IconHistory", "#14B8A6", UtilitiesMenuCommandKind.UsageStatistics),
+
+            // ---- Операции ----
+            new("ConfigDiff", "ConfigDiff.Title", GroupOperations,
+                "Compare", "IconCompare", "#06B6D4", UtilitiesMenuCommandKind.ConfigDiff),
+            new("MetadataExplorer", "MetadataExplorer.Title", GroupOperations,
+                "Sitemap", "IconCompare", "#06B6D4", UtilitiesMenuCommandKind.MetadataExplorer),
+            new("RepositoryBatchUpdate", "RepoUpdate.Title", GroupOperations,
+                "SourceBranch", "IconCloudDownload", "#06B6D4", UtilitiesMenuCommandKind.RepositoryBatchUpdate),
+            new("RepositoryBrowser", "RepositoryBrowser.Title", GroupOperations,
+                "SourceBranch", "IconCloudDownload", "#8B5CF6", UtilitiesMenuCommandKind.RepositoryBrowser),
+            new("ExportCsv", "Utilities.ExportCsv", GroupOperations,
+                "FileDelimited", "IconFileExport", "#22C55E", UtilitiesMenuCommandKind.ExportBasesCsv),
+            new("ExportHtml", "Utilities.ExportHtml", GroupOperations,
+                "FileDocument", "IconFileDocument", "#F59E0B", UtilitiesMenuCommandKind.ExportBasesHtml),
+            new("ExportJson", "Utilities.ExportJson", GroupOperations,
+                "FileExport", "IconFileExport", "#06B6D4", UtilitiesMenuCommandKind.ExportBasesJson),
+            new("ImportJson", "Utilities.ImportJson", GroupOperations,
+                "DatabaseImport", "IconImport", "#06B6D4", UtilitiesMenuCommandKind.ImportBasesJson),
+            new("ClusterImport", "ClusterImport.Title", GroupOperations,
+                "DatabaseImport", "IconImport", "#06B6D4", UtilitiesMenuCommandKind.ImportClusterInfobases),
+            new("ProcessInspector", "ProcessInspector.Title", GroupOperations,
+                "ApplicationCog", "IconApplicationCog", "#0EA5E9", UtilitiesMenuCommandKind.ProcessInspector),
+            new("KillOneCProcesses", "Settings.Bases.KillProcesses", GroupOperations,
+                "CloseNetwork", "IconClose", "#F59E0B", UtilitiesMenuCommandKind.KillOneCProcesses),
+            new("ConnectionReplace", "Main.UtilitiesConnectionReplace", GroupOperations,
+                "FindReplace", "IconFindReplace", "#F59E0B", UtilitiesMenuCommandKind.ConnectionReplace),
+            new("UndoConnectionReplace", "Main.UtilitiesUndoConnectionReplace", GroupOperations,
+                "UndoVariant", "IconUndo", "#F59E0B", UtilitiesMenuCommandKind.UndoConnectionReplace),
+            new("RemoveMissingFileBases", "Settings.Bases.RemoveMissing", GroupOperations,
+                "FolderRemove", "IconFolderRemove", "#EF4444", UtilitiesMenuCommandKind.RemoveMissingFileBases),
+
+            // ---- Только Avalonia/Linux ----
+            new("SessionLock", "SessionLock.Title", GroupOperations,
+                "ShieldLockOutline", "IconRights", "#EF4444", UtilitiesMenuCommandKind.SessionLock, "HotkeySessionLock",
+                linuxOnly: true),
+
+            // ---- Низ меню ----
+            new("CheckForUpdates", "Settings.About.CheckForUpdates", GroupTopLevel,
+                "Update", "IconUpdate", "#3B82F6", UtilitiesMenuCommandKind.CheckForUpdates)
+        };
+    }
+}
+
+/// <summary>
+/// Построитель стандартной компоновки меню «Утилиты»: воспроизводит текущую статическую
+/// структуру (порядок, группы, разделители), чтобы при выключенной правке меню выглядело
+/// ровно как до появления настройки (обратная совместимость).
+/// </summary>
+public static class UtilitiesMenuLayouts
+{
+    /// <summary>Стандартная компоновка меню «Утилиты» (текущая структура).</summary>
+    public static UtilitiesMenuLayout Default()
+    {
+        var layout = new UtilitiesMenuLayout();
+        layout.Root = new List<UtilitiesMenuNode>
+        {
+            Item("CommandPalette"),
+            Item("ActualReleases", separatorBefore: true),
+            Item("PlatformUpdate"),
+            Item("PlatformDownload"),
+            Item("ServerMonitor"),
+            Item("ServerConsoleExternal"),
+            Item("AppLock", separatorBefore: true),
+            Group(UtilitiesMenuCatalog.GroupLockOptions, new List<UtilitiesMenuNode>
+            {
+                Item("UnlockPrivateBases"),
+                Item("ChangeAppLock"),
+                Item("RunBackupScenario", separatorBefore: true)
+            }),
+            Group(UtilitiesMenuCatalog.GroupInformation, new List<UtilitiesMenuNode>
+            {
+                Item("MaintenanceCenter"),
+                Item("ConfigTypesEdit", separatorBefore: true),
+                Item("ItsAccounts"),
+                Item("ScheduledTasks", separatorBefore: true),
+                Item("BackupScenarios"),
+                Item("ScriptsSettings", separatorBefore: true),
+                Item("UsageStatistics")
+            }, separatorBefore: true),
+            Group(UtilitiesMenuCatalog.GroupOperations, new List<UtilitiesMenuNode>
+            {
+                Item("ConfigDiff"),
+                Item("MetadataExplorer"),
+                Item("RepositoryBatchUpdate", separatorBefore: true),
+                Item("RepositoryBrowser"),
+                Item("ExportCsv", separatorBefore: true),
+                Item("ExportHtml"),
+                Item("ExportJson"),
+                Item("ImportJson"),
+                Item("ClusterImport"),
+                Item("ProcessInspector", separatorBefore: true),
+                Item("KillOneCProcesses"),
+                Item("ConnectionReplace", separatorBefore: true),
+                Item("UndoConnectionReplace"),
+                // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) есть только в меню
+                // Avalonia/Linux: WPF-построитель отфильтрует пункт по LinuxOnly,
+                // а на Linux он останется (как в статическом меню до issue #374).
+                Item("SessionLock", separatorBefore: true),
+                Item("RemoveMissingFileBases", separatorBefore: true)
+            }, separatorBefore: true),
+            Item("CheckForUpdates", separatorBefore: true)
+        };
+        return layout;
+    }
+
+    /// <summary>Узел-пункт каталога.</summary>
+    public static UtilitiesMenuNode Item(string itemId, bool separatorBefore = false)
+    {
+        var node = new UtilitiesMenuNode
+        {
+            Kind = "item",
+            ItemId = itemId,
+            SeparatorBefore = separatorBefore
+        };
+        return node;
+    }
+
+    /// <summary>Узел-группа (подменю).</summary>
+    public static UtilitiesMenuNode Group(string groupId, List<UtilitiesMenuNode> children,
+        bool separatorBefore = false)
+    {
+        var node = new UtilitiesMenuNode
+        {
+            Kind = "group",
+            GroupId = groupId,
+            Children = children,
+            SeparatorBefore = separatorBefore
+        };
+        return node;
+    }
+}
