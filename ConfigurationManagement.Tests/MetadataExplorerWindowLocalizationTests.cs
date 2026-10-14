@@ -125,6 +125,9 @@ public sealed class MetadataExplorerWindowLocalizationTests
     {
         // issue #365: ширина окна = MinWidth (панель источника не обрезается), а у
         // изменяемого окна WindowChromeHelper рисует типовую кнопку максимизации.
+        // После перекомпоновки панели источника в 2 строки окно сжато до 900/800
+        // (было 1380): строка 2 («Файл» + путь .cf + «Обзор…» + «Загрузить») занимает
+        // ~640px, поэтому MinWidth=800 достаточно, чтобы кнопка «Загрузить» не обрезалась.
         var xaml = ReadProjectFile("Configuration Management", "Views", "MetadataExplorerWindow.xaml");
         xaml = Regex.Replace(xaml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
         var windowTag = xaml[..xaml.IndexOf('>')];
@@ -133,7 +136,7 @@ public sealed class MetadataExplorerWindowLocalizationTests
 
         var minWidth = Regex.Match(windowTag, "MinWidth=\"([0-9.]+)\"");
         Assert.True(minWidth.Success, "MinWidth не задан.");
-        Assert.True(double.Parse(minWidth.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) >= 1140,
+        Assert.True(double.Parse(minWidth.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) >= 800,
             "MinWidth меньше ширины панели источника — кнопка «Загрузить» будет обрезаться.");
     }
 }

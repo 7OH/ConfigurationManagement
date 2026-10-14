@@ -40,10 +40,15 @@ public partial class ScheduledTasksWindow : Window
         CopyButton.Content = T("Common.Copy");
         DeleteButton.Content = T("Common.Delete");
 
-        KindFilterCombo.ItemsSource = BuildKindFilterOptions();
-        KindFilterCombo.DisplayMemberPath = "Text";
-        KindFilterCombo.SelectedValuePath = "Value";
-        KindFilterCombo.SelectedIndex = 0;
+        // Отображение пунктов фильтра задаёт ItemTemplate в XAML (ScheduleFilterOptionTemplate),
+        // а выбор «Все типы» ставится через SelectedItem (issue #372): SelectedValuePath/
+        // SelectedValue в связке с кастомным шаблоном ModernComboBox показывали в закрытом
+        // поле ToString() элемента — длинную строку «KindFilterOption { Value = ..., Text = ... }»
+        // вместо «Все типы». SelectionBoxItemTemplate в WPF read-only — WPF сам копирует
+        // ItemTemplate в закрытую часть, а ToString() => Text — надёжный fallback.
+        var filterOptions = BuildKindFilterOptions();
+        KindFilterCombo.ItemsSource = filterOptions;
+        KindFilterCombo.SelectedItem = filterOptions[0];
         // Подсказка поиска (placeholder через ToolTip, чтобы не мешать вводу).
         SearchBox.ToolTip = T("Schedule.Filter.Placeholder");
 
@@ -53,7 +58,11 @@ public partial class ScheduledTasksWindow : Window
     private static string T(string key) => LocalizationManager.T(key);
 
     /// <summary>Вариант фильтра по типу: «Все типы» плюс каждый тип задания.</summary>
-    private sealed record KindFilterOption(string Value, string Text, ScheduledTaskKind? Kind);
+    private sealed record KindFilterOption(string Value, string Text, ScheduledTaskKind? Kind)
+    {
+        /// <summary>Отображение в закрытом комбобоксе без явной привязки (issue #372).</summary>
+        public override string ToString() => Text;
+    }
 
     private static IReadOnlyList<KindFilterOption> BuildKindFilterOptions()
     {

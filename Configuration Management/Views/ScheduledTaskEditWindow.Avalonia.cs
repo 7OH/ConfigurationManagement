@@ -267,8 +267,46 @@ public sealed class ScheduledTaskEditWindow : ModalWindowBase
             Content = panel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         });
+#if DEBUG
+        // Диагностика отображения закрытых комбобоксов (issue #372): язык, значения
+        // локализации и состояние выбранных пунктов — чтобы зафиксировать, почему поле
+        // показывает ключ вместо названия. Пишется в schedule-debug.log при CM_SCHEDULE_DEBUG=1.
+        LogOptionSelections("build");
+#endif
         return root;
     }
+
+#if DEBUG
+    /// <summary>
+    /// Диагностика отображения закрытых комбобоксов (issue #372): язык, значения локализации
+    /// и состояние выбранных пунктов — чтобы зафиксировать, почему поле показывает ключ
+    /// вместо названия. Пишется в schedule-debug.log при CM_SCHEDULE_DEBUG=1.
+    /// </summary>
+    private void LogOptionSelections(string stage)
+    {
+        if (!ScheduleDebug.IsEnabled)
+            return;
+        ScheduleDebug.Log($"[{stage}] lang={LocalizationManager.Instance.CurrentLanguage}, " +
+            $"T(Schedule.Kind.Backup)='{T("Schedule.Kind.Backup")}'");
+        LogCombo("Kind", _kindCombo);
+        LogCombo("Scenario", _scenarioCombo);
+        LogCombo("Infobase", _infobaseCombo);
+        LogCombo("PlatformNotify", _platformNotifyCombo);
+        LogCombo("ConfigNotify", _configNotifyCombo);
+        LogCombo("RepeatUnit", _repeatUnitCombo);
+    }
+
+    private static void LogCombo(string name, ComboBox combo)
+    {
+        var selected = combo.SelectedItem;
+        var text = selected is ScheduledTaskOption o
+            ? $"Value='{o.Value}', Text='{o.Text}'"
+            : selected?.ToString() ?? "null";
+        var box = combo.SelectionBoxItem;
+        ScheduleDebug.Log($"[{name}] SelectedItem type={selected?.GetType().Name ?? "null"}, {text}; " +
+            $"SelectionBoxItem={box?.ToString() ?? "null"} (type={box?.GetType().Name ?? "null"})");
+    }
+#endif
 
     private void BuildDayChecks()
     {

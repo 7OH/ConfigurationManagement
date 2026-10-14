@@ -110,6 +110,13 @@ public partial class ScheduledTaskEditWindow : Window
         ConfigNotifyNoUpdatesCheck.Content = T("Schedule.ConfigCheck.NotifyWhenNoUpdates");
         ConfigNotifyNoUpdatesCheck.IsChecked = _vm.ConfigCheckNotifyWhenNoUpdates;
 
+#if DEBUG
+        // Диагностика отображения закрытых комбобоксов (issue #372): язык, значения
+        // локализации и состояние выбранных пунктов — чтобы зафиксировать, почему поле
+        // показывает ключ вместо названия. Пишется в schedule-debug.log при CM_SCHEDULE_DEBUG=1.
+        LogOptionSelections("ctor");
+#endif
+
         ApplyKindVisibility();
 
         // Фокус в поле «Наименование» (issue #299): отложенный вызов после показа окна —
@@ -145,8 +152,43 @@ public partial class ScheduledTaskEditWindow : Window
         PlatformNotifyCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.NotifyOptions, _vm.PlatformNotifyChannel.ToString());
         ConfigNotifyCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.NotifyOptions, _vm.ConfigCheckNotifyChannel.ToString());
         RepeatUnitCombo.SelectedItem = ScheduledTaskEditViewModel.FindOption(_vm.RepeatUnitOptions, _vm.RepeatIntervalUnit.ToString());
+#if DEBUG
+        LogOptionSelections("restore");
+#endif
         ApplyKindVisibility();
     }
+
+#if DEBUG
+    /// <summary>
+    /// Диагностика отображения закрытых комбобоксов (issue #372): язык, значения локализации
+    /// и состояние выбранных пунктов — чтобы зафиксировать, почему поле показывает ключ
+    /// вместо названия. Пишется в schedule-debug.log при CM_SCHEDULE_DEBUG=1.
+    /// </summary>
+    private void LogOptionSelections(string stage)
+    {
+        if (!ScheduleDebug.IsEnabled)
+            return;
+        ScheduleDebug.Log($"[{stage}] lang={LocalizationManager.Instance.CurrentLanguage}, " +
+            $"T(Schedule.Kind.Backup)='{T("Schedule.Kind.Backup")}'");
+        LogCombo("Kind", KindCombo);
+        LogCombo("Scenario", ScenarioCombo);
+        LogCombo("Infobase", InfobaseCombo);
+        LogCombo("PlatformNotify", PlatformNotifyCombo);
+        LogCombo("ConfigNotify", ConfigNotifyCombo);
+        LogCombo("RepeatUnit", RepeatUnitCombo);
+    }
+
+    private static void LogCombo(string name, System.Windows.Controls.ComboBox combo)
+    {
+        var selected = combo.SelectedItem;
+        var text = selected is ScheduledTaskOption o
+            ? $"Value='{o.Value}', Text='{o.Text}'"
+            : selected?.ToString() ?? "null";
+        var box = combo.SelectionBoxItem;
+        ScheduleDebug.Log($"[{name}] SelectedItem type={selected?.GetType().Name ?? "null"}, {text}; " +
+            $"SelectionBoxItem={box?.ToString() ?? "null"} (type={box?.GetType().Name ?? "null"})");
+    }
+#endif
 
     private static string T(string key) => LocalizationManager.T(key);
 

@@ -175,16 +175,28 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     public static ScheduledTaskOption? FindOption(IReadOnlyList<ScheduledTaskOption>? options, string? value)
         => options?.FirstOrDefault(o => string.Equals(o.Value, value, StringComparison.Ordinal));
 
-    private static IReadOnlyList<ScheduledTaskOption> BuildKindOptions() => new[]
+    private static IReadOnlyList<ScheduledTaskOption> BuildKindOptions()
     {
-        new ScheduledTaskOption("Backup", LocalizationManager.T("Schedule.Kind.Backup")),
-        new ScheduledTaskOption("UpdateConfig", LocalizationManager.T("Schedule.Kind.UpdateConfig")),
-        new ScheduledTaskOption("BackupThenUpdateConfig", LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig")),
-        new ScheduledTaskOption("CheckIntegrity", LocalizationManager.T("Schedule.Kind.CheckIntegrity")),
-        new ScheduledTaskOption("UpdateApp", LocalizationManager.T("Schedule.Kind.UpdateApp")),
-        new ScheduledTaskOption("PlatformUpdateCheck", LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck")),
-        new ScheduledTaskOption("ConfigurationUpdateCheck", LocalizationManager.T("Schedule.Kind.ConfigurationUpdateCheck"))
-    };
+        var options = new[]
+        {
+            new ScheduledTaskOption("Backup", LocalizationManager.T("Schedule.Kind.Backup")),
+            new ScheduledTaskOption("UpdateConfig", LocalizationManager.T("Schedule.Kind.UpdateConfig")),
+            new ScheduledTaskOption("BackupThenUpdateConfig", LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig")),
+            new ScheduledTaskOption("CheckIntegrity", LocalizationManager.T("Schedule.Kind.CheckIntegrity")),
+            new ScheduledTaskOption("UpdateApp", LocalizationManager.T("Schedule.Kind.UpdateApp")),
+            new ScheduledTaskOption("PlatformUpdateCheck", LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck")),
+            new ScheduledTaskOption("ConfigurationUpdateCheck", LocalizationManager.T("Schedule.Kind.ConfigurationUpdateCheck"))
+        };
+#if DEBUG
+        // Диагностика локализации опций (issue #372): язык и текст первой опции — чтобы
+        // зафиксировать, что ключ («Backup») не подменяет название («Резервная копия»).
+        if (ScheduleDebug.IsEnabled)
+            ScheduleDebug.Log($"[BuildKindOptions] lang={LocalizationManager.Instance.CurrentLanguage}, " +
+                $"T(Schedule.Kind.Backup)='{LocalizationManager.T("Schedule.Kind.Backup")}', " +
+                $"first.Text='{options[0].Text}'");
+#endif
+        return options;
+    }
 
     private static IReadOnlyList<ScheduledTaskOption> BuildNotifyOptions() => new[]
     {

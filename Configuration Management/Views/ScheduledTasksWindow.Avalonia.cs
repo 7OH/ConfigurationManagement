@@ -51,7 +51,11 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
     private static string T(string key) => LocalizationManager.T(key);
 
     /// <summary>Вариант фильтра по типу: «Все типы» плюс каждый тип задания.</summary>
-    private sealed record KindFilterOption(string Value, string Text, ScheduledTaskKind? Kind);
+    private sealed record KindFilterOption(string Value, string Text, ScheduledTaskKind? Kind)
+    {
+        /// <summary>Отображение в закрытом комбобоксе без явной привязки (issue #372).</summary>
+        public override string ToString() => Text;
+    }
 
     private static IReadOnlyList<KindFilterOption> BuildKindFilterOptions()
     {
@@ -73,9 +77,17 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
         _kindFilter.Width = 240;
-        _kindFilter.ItemsSource = BuildKindFilterOptions();
+        var filterOptions = BuildKindFilterOptions();
+        _kindFilter.ItemsSource = filterOptions;
         _kindFilter.ItemsPanel = null;
-        _kindFilter.SelectedItem = _kindFilter.ItemsSource.Cast<object>().FirstOrDefault();
+        // Шаблон пункта фильтра (issue #372): один и тот же шаблон идёт и в раскрытый список,
+        // и в закрытую часть (SelectionBoxItemTemplate) — иначе закрытый комбобокс рендерит
+        // ToString() элемента («KindFilterOption { Value = ..., Text = ... }») вместо названия.
+        var filterTemplate = new FuncDataTemplate<KindFilterOption>((item, _) =>
+            new TextBlock { Text = item?.Text ?? string.Empty });
+        _kindFilter.ItemTemplate = filterTemplate;
+        _kindFilter.SelectionBoxItemTemplate = filterTemplate;
+        _kindFilter.SelectedItem = filterOptions.FirstOrDefault();
         _kindFilter.SelectionChanged += (_, _) =>
         {
             _filterKind = (_kindFilter.SelectedItem as KindFilterOption)?.Kind;

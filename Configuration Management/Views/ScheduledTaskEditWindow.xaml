@@ -23,7 +23,10 @@
              повтора): явный ItemTemplate вместо DisplayMemberPath из code-behind.
              Закрытый комбобокс с ModernComboBox рисует выбранный элемент до применения
              DisplayMemberPath и показывал ToString() — то есть ключ («Backup»)
-             вместо названия («Резервная копия»), issue #372. -->
+             вместо названия («Резервная копия»), issue #372.
+             SelectionBoxItemTemplate в WPF — read-only (RegisterReadOnly), его нельзя
+             задать из разметки; WPF сам копирует ItemTemplate в закрытую часть при смене
+             выбора, а ToString() => Text у ScheduledTaskOption — надёжный fallback. -->
         <DataTemplate x:Key="ScheduleOptionTemplate">
             <TextBlock Text="{Binding Text}"/>
         </DataTemplate>
@@ -89,13 +92,15 @@
                          сценарий, не закрывая окно задания по расписанию. -->
                     <DockPanel>
                         <Button x:Name="ScenariosButton" DockPanel.Dock="Right" Width="100" Content="Сценарии…" Padding="6,4" Margin="8,0,0,0" Click="Scenarios_Click"/>
-                        <ComboBox x:Name="ScenarioCombo" Margin="0,0,0,0" ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
+                        <ComboBox x:Name="ScenarioCombo" Margin="0,0,0,0"
+                                  ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                     </DockPanel>
                 </StackPanel>
 
                 <StackPanel x:Name="InfobasePanel" Grid.Row="6" Grid.ColumnSpan="2" Margin="0,0,0,8">
                     <TextBlock Text="Информационная база" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                    <ComboBox x:Name="InfobaseCombo" Margin="0,0,0,0" ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
+                    <ComboBox x:Name="InfobaseCombo" Margin="0,0,0,0"
+                              ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="CfgPanel" Grid.Row="7" Grid.ColumnSpan="2" Margin="0,0,0,8">
@@ -114,7 +119,8 @@
                     <TextBox x:Name="PlatformExpressionBox" Margin="0,0,0,8"/>
                     <CheckBox x:Name="PlatformIncludeTestCheck" Content="Учесть тестовые" Margin="0,0,0,8"/>
                     <TextBlock x:Name="PlatformNotifyLabel" Text="Куда уведомлять" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                    <ComboBox x:Name="PlatformNotifyCombo" Margin="0,0,0,0" ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
+                    <ComboBox x:Name="PlatformNotifyCombo" Margin="0,0,0,0"
+                              ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                     <CheckBox x:Name="PlatformNotifyNoUpdatesCheck" Content="Уведомлять об отсутствии" Margin="0,8,0,0"/>
                 </StackPanel>
 
@@ -125,7 +131,8 @@
                     <TextBlock x:Name="ConfigLabel" Text="Конфигурация" VerticalAlignment="Center" Margin="0,0,8,8"/>
                     <ComboBox x:Name="ConfigCombo" IsEditable="True" Margin="0,0,0,8"/>
                     <TextBlock x:Name="ConfigNotifyLabel" Text="Куда уведомлять" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                    <ComboBox x:Name="ConfigNotifyCombo" Margin="0,0,0,0" ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
+                    <ComboBox x:Name="ConfigNotifyCombo" Margin="0,0,0,0"
+                              ItemTemplate="{StaticResource ScheduleOptionTemplate}"/>
                     <CheckBox x:Name="ConfigNotifyNoUpdatesCheck" Content="Уведомлять об отсутствии" Margin="0,8,0,0"/>
                 </StackPanel>
 

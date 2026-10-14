@@ -24,12 +24,24 @@
             <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
         </Style>
+        <!-- Пункт фильтра по типу (issue #372): явный ItemTemplate вместо DisplayMemberPath
+             из code-behind. Закрытый ModernComboBox рисует выбранный элемент до применения
+             DisplayMemberPath и показывал ToString() — длинную строку
+             «KindFilterOption { Value = ..., Text = ... }» вместо «Все типы»/«Резервная копия».
+             SelectionBoxItemTemplate в WPF — read-only (RegisterReadOnly), его нельзя задать
+             из разметки; WPF сам копирует ItemTemplate в закрытую часть при смене выбора,
+             а ToString() => Text у KindFilterOption — надёжный fallback. -->
+        <DataTemplate x:Key="ScheduleFilterOptionTemplate">
+            <TextBlock Text="{Binding Text}"/>
+        </DataTemplate>
     </Window.Resources>
 
     <DockPanel Margin="14">
         <!-- Фильтры списка (issue #372, п. 1–2): отбор по типу действия и поиск по всем полям. -->
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <ComboBox x:Name="KindFilterCombo" Width="240" Margin="0,0,8,0" SelectionChanged="KindFilterCombo_SelectionChanged"/>
+            <ComboBox x:Name="KindFilterCombo" Width="240" Margin="0,0,8,0"
+                      ItemTemplate="{StaticResource ScheduleFilterOptionTemplate}"
+                      SelectionChanged="KindFilterCombo_SelectionChanged"/>
             <TextBox x:Name="SearchBox" Width="320" TextChanged="SearchBox_TextChanged"/>
         </StackPanel>
 
