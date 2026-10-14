@@ -87,6 +87,13 @@ public partial class MainWindow
                 continue;
             if (node.SeparatorBefore && target.Count > 0)
                 target.Add(new Separator());
+            if (string.Equals(node.Kind, "separator", StringComparison.Ordinal))
+            {
+                // Узел-разделитель (issue #374): отдельный элемент дерева компоновки.
+                if (target.Count > 0)
+                    target.Add(new Separator());
+                continue;
+            }
             if (string.Equals(node.Kind, "group", StringComparison.Ordinal))
             {
                 var sub = new MenuItem

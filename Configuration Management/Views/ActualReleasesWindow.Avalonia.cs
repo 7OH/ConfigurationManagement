@@ -91,9 +91,13 @@ namespace Configuration_Management
             {
                 var all = _store.LoadAll();
                 // Фильтр «Только в базах» (issue #375): при включённой галочке оставляем
-                // конфигурации, присутствующие в списке баз (привязка или эвристика).
+                // конфигурации, присутствующие в списке баз (привязка или эвристика), а также
+                // редакции, встречающиеся в версиях баз (если версии известны).
                 var presentCodes = _onlyInBases
                     ? ActualReleasesBaseFilter.CollectPresentConfigCodes(all, _bases)
+                    : null;
+                var presentReds = _onlyInBases
+                    ? ActualReleasesBaseFilter.CollectPresentEditionReds(all, _bases)
                     : null;
                 foreach (var config in all)
                 {
@@ -109,8 +113,16 @@ namespace Configuration_Management
                     }
                     else
                     {
+                        var presentRedsForConfig = presentReds is not null
+                            && presentReds.TryGetValue(config.Code, out var reds)
+                                ? reds
+                                : null;
                         foreach (var edition in editions)
+                        {
+                            if (!ActualReleasesBaseFilter.IsEditionPresent(edition, presentRedsForConfig))
+                                continue;
                             _viewModel.Rows.Add(new ActualReleaseRowViewModel(config, edition, OnCheckRow, OnDownloadRow));
+                        }
                     }
                 }
             }

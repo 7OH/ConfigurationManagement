@@ -153,6 +153,7 @@ namespace Configuration_Management
             moveRow.Children.Add(ActionButton("IconArrowUp", "Utilities.Editor.MoveUpTooltip", _vm.MoveUpCommand));
             moveRow.Children.Add(ActionButton("IconArrowDown", "Utilities.Editor.MoveDownTooltip", _vm.MoveDownCommand));
             moveRow.Children.Add(IconClickButton("IconFolderPlus", "Utilities.Editor.AddGroupTooltip", OnAddGroupClick));
+            moveRow.Children.Add(IconClickButton("IconMinus", "Utilities.Editor.AddSeparatorTooltip", () => _vm.AddSeparatorCommand.Execute(null)));
             moveRow.Children.Add(IconClickButton("IconPencil", "Utilities.Editor.EditGroupTooltip", OnEditGroupClick, "CanEditGroup"));
             moveRow.Children.Add(IconClickButton("IconDelete", "Utilities.Editor.DeleteGroupTooltip", OnDeleteGroupClick, "CanDeleteGroup"));
             panel.Children.Add(moveRow);
@@ -167,6 +168,9 @@ namespace Configuration_Management
             groupRow.Children.Add(_groupCombo);
             groupRow.Children.Add(ActionButton("IconFolderMove", null, _vm.MoveToGroupCommand, caption: "Utilities.Editor.MoveToGroup"));
             panel.Children.Add(groupRow);
+            var rootRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 6, 0, 0) };
+            rootRow.Children.Add(ActionButton("IconArrowUp", "Utilities.Editor.MoveToRootTooltip", _vm.MoveToRootCommand, caption: "Utilities.Editor.MoveToRoot"));
+            panel.Children.Add(rootRow);
 
             // Иконки.
             panel.Children.Add(SectionHeader("Utilities.Editor.IconHeader", top: 14));

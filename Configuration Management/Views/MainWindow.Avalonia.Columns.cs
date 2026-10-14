@@ -413,6 +413,16 @@ namespace Configuration_Management
             settings.ShowDialog(this);
         }
 
+        /// <summary>Открывает окно настроек сразу на вкладке «Меню „Утилиты“» (issue #374).</summary>
+        private void OpenSettingsOnUtilitiesMenuTab()
+        {
+            if (_vm is null)
+                return;
+            var settings = new Configuration_Management.SettingsWindow(_vm);
+            settings.SelectUtilitiesMenuTab();
+            settings.ShowDialog(this);
+        }
+
         /// <summary>
         /// Блок кнопок над списком: развернуть и свернуть все группы и две
         /// сортировки групп (только при группировке), а также переключатель

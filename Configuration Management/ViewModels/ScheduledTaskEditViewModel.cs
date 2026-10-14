@@ -31,12 +31,28 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     private IReadOnlyList<BackupScenario> _scenarios;
     private readonly IReadOnlyList<Infobase> _infobases;
 
+    // Списки опций кэшируются (issue #372): свойства KindOptions/NotifyOptions/… создавали
+    // НОВЫЕ экземпляры при каждом обращении, из-за чего FindOption(...) возвращал пункт из
+    // другого массива, чем ItemsSource, и SelectedItem не совпадал с элементами списка —
+    // закрытый комбобокс показывал ключ вместо названия.
+    private readonly IReadOnlyList<ScheduledTaskOption> _kindOptions = BuildKindOptions();
+    private readonly IReadOnlyList<ScheduledTaskOption> _notifyOptions = BuildNotifyOptions();
+    private readonly IReadOnlyList<ScheduledTaskOption> _repeatUnitOptions = BuildRepeatUnitOptions();
+    private IReadOnlyList<ScheduledTaskOption> _scenarioOptions;
+    private readonly IReadOnlyList<ScheduledTaskOption> _infobaseOptions;
+
     public ScheduledTaskEditViewModel(ScheduledTask? task,
         IReadOnlyList<BackupScenario> scenarios,
         IReadOnlyList<Infobase> infobases)
     {
         _scenarios = scenarios ?? Array.Empty<BackupScenario>();
         _infobases = infobases ?? Array.Empty<Infobase>();
+        _scenarioOptions = _scenarios
+            .Select(s => new ScheduledTaskOption(s.Id, s.Name))
+            .ToList();
+        _infobaseOptions = _infobases
+            .Select(b => new ScheduledTaskOption(b.Id, b.Name))
+            .ToList();
 
         Name = task?.Name ?? "";
         Enabled = task?.Enabled ?? true;
@@ -103,24 +119,11 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     public bool IsSaturday { get; set; }
     public bool IsSunday { get; set; }
 
-    /// <summary>Доступные типы задания для выпадающего списка.</summary>
-    public IReadOnlyList<ScheduledTaskOption> KindOptions => new[]
-    {
-        new ScheduledTaskOption("Backup", LocalizationManager.T("Schedule.Kind.Backup")),
-        new ScheduledTaskOption("UpdateConfig", LocalizationManager.T("Schedule.Kind.UpdateConfig")),
-        new ScheduledTaskOption("BackupThenUpdateConfig", LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig")),
-        new ScheduledTaskOption("CheckIntegrity", LocalizationManager.T("Schedule.Kind.CheckIntegrity")),
-        new ScheduledTaskOption("UpdateApp", LocalizationManager.T("Schedule.Kind.UpdateApp")),
-        new ScheduledTaskOption("PlatformUpdateCheck", LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck")),
-        new ScheduledTaskOption("ConfigurationUpdateCheck", LocalizationManager.T("Schedule.Kind.ConfigurationUpdateCheck"))
-    };
+    /// <summary>Доступные типы задания для выпадающего списка (кэш — issue #372).</summary>
+    public IReadOnlyList<ScheduledTaskOption> KindOptions => _kindOptions;
 
     /// <summary>Доступные каналы уведомления проверок платформы/конфигурации (issue #366/#367).</summary>
-    public IReadOnlyList<ScheduledTaskOption> NotifyOptions => new[]
-    {
-        new ScheduledTaskOption("MainWindow", LocalizationManager.T("Schedule.PlatformCheck.Notify.MainWindow")),
-        new ScheduledTaskOption("SystemNotifications", LocalizationManager.T("Schedule.PlatformCheck.Notify.System"))
-    };
+    public IReadOnlyList<ScheduledTaskOption> NotifyOptions => _notifyOptions;
 
     /// <summary>
     /// Имена конфигураций из списка баз для выбора в форме (issue #367): ComboBox
@@ -129,10 +132,8 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     public IReadOnlyList<string> ConfigurationOptions =>
         ConfigurationUpdateCheckLogic.ConfigurationNames(_infobases);
 
-    /// <summary>Доступные сценарии резервирования.</summary>
-    public IReadOnlyList<ScheduledTaskOption> ScenarioOptions => _scenarios
-        .Select(s => new ScheduledTaskOption(s.Id, s.Name))
-        .ToList();
+    /// <summary>Доступные сценарии резервирования (кэш — issue #372).</summary>
+    public IReadOnlyList<ScheduledTaskOption> ScenarioOptions => _scenarioOptions;
 
     /// <summary>
     /// Обновляет список доступных сценариев после возврата из окна «Сценарии резервирования»
@@ -142,12 +143,13 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     public void UpdateScenarios(IReadOnlyList<BackupScenario> scenarios)
     {
         _scenarios = scenarios ?? Array.Empty<BackupScenario>();
+        _scenarioOptions = _scenarios
+            .Select(s => new ScheduledTaskOption(s.Id, s.Name))
+            .ToList();
     }
 
-    /// <summary>Доступные информационные базы.</summary>
-    public IReadOnlyList<ScheduledTaskOption> InfobaseOptions => _infobases
-        .Select(b => new ScheduledTaskOption(b.Id, b.Name))
-        .ToList();
+    /// <summary>Доступные информационные базы (кэш — issue #372).</summary>
+    public IReadOnlyList<ScheduledTaskOption> InfobaseOptions => _infobaseOptions;
 
     /// <summary>Нужен ли выбор сценария (для типов с резервной копией).</summary>
     public bool NeedsScenario => Kind is ScheduledTaskKind.Backup or ScheduledTaskKind.BackupThenUpdateConfig;
@@ -161,14 +163,8 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     /// <summary>Нужен ли путь к файлу .cf (для обновления конфигурации).</summary>
     public bool NeedsCfgFile => Kind is ScheduledTaskKind.UpdateConfig or ScheduledTaskKind.BackupThenUpdateConfig;
 
-    /// <summary>Доступные единицы интервала повтора (issue #366/#367).</summary>
-    public IReadOnlyList<ScheduledTaskOption> RepeatUnitOptions => new[]
-    {
-        new ScheduledTaskOption("Seconds", LocalizationManager.T("Schedule.Repeat.Unit.Seconds")),
-        new ScheduledTaskOption("Minutes", LocalizationManager.T("Schedule.Repeat.Unit.Minutes")),
-        new ScheduledTaskOption("Hours", LocalizationManager.T("Schedule.Repeat.Unit.Hours")),
-        new ScheduledTaskOption("Days", LocalizationManager.T("Schedule.Repeat.Unit.Days"))
-    };
+    /// <summary>Доступные единицы интервала повтора (issue #366/#367; кэш — issue #372).</summary>
+    public IReadOnlyList<ScheduledTaskOption> RepeatUnitOptions => _repeatUnitOptions;
 
     /// <summary>
     /// Находит пункт списка по значению (issue #372). Окно использует результат для
@@ -178,6 +174,31 @@ public class ScheduledTaskEditViewModel : ViewModelBase
     /// </summary>
     public static ScheduledTaskOption? FindOption(IReadOnlyList<ScheduledTaskOption>? options, string? value)
         => options?.FirstOrDefault(o => string.Equals(o.Value, value, StringComparison.Ordinal));
+
+    private static IReadOnlyList<ScheduledTaskOption> BuildKindOptions() => new[]
+    {
+        new ScheduledTaskOption("Backup", LocalizationManager.T("Schedule.Kind.Backup")),
+        new ScheduledTaskOption("UpdateConfig", LocalizationManager.T("Schedule.Kind.UpdateConfig")),
+        new ScheduledTaskOption("BackupThenUpdateConfig", LocalizationManager.T("Schedule.Kind.BackupThenUpdateConfig")),
+        new ScheduledTaskOption("CheckIntegrity", LocalizationManager.T("Schedule.Kind.CheckIntegrity")),
+        new ScheduledTaskOption("UpdateApp", LocalizationManager.T("Schedule.Kind.UpdateApp")),
+        new ScheduledTaskOption("PlatformUpdateCheck", LocalizationManager.T("Schedule.Kind.PlatformUpdateCheck")),
+        new ScheduledTaskOption("ConfigurationUpdateCheck", LocalizationManager.T("Schedule.Kind.ConfigurationUpdateCheck"))
+    };
+
+    private static IReadOnlyList<ScheduledTaskOption> BuildNotifyOptions() => new[]
+    {
+        new ScheduledTaskOption("MainWindow", LocalizationManager.T("Schedule.PlatformCheck.Notify.MainWindow")),
+        new ScheduledTaskOption("SystemNotifications", LocalizationManager.T("Schedule.PlatformCheck.Notify.System"))
+    };
+
+    private static IReadOnlyList<ScheduledTaskOption> BuildRepeatUnitOptions() => new[]
+    {
+        new ScheduledTaskOption("Seconds", LocalizationManager.T("Schedule.Repeat.Unit.Seconds")),
+        new ScheduledTaskOption("Minutes", LocalizationManager.T("Schedule.Repeat.Unit.Minutes")),
+        new ScheduledTaskOption("Hours", LocalizationManager.T("Schedule.Repeat.Unit.Hours")),
+        new ScheduledTaskOption("Days", LocalizationManager.T("Schedule.Repeat.Unit.Days"))
+    };
 
     /// <summary>Нужны ли опции проверки платформы (issue #366).</summary>
     public bool NeedsPlatformCheck => Kind is ScheduledTaskKind.PlatformUpdateCheck;

@@ -8,7 +8,9 @@ namespace Configuration_Management.Services;
 /// Фильтр «Только в базах» окна «Актуальные релизы» (issue #375): определяет, какие
 /// типовые конфигурации присутствуют в списке информационных баз — как по явной
 /// привязке (<see cref="Infobase.UpdateConfigCode"/>), так и по эвристике
-/// (<see cref="Infobase.ConfigurationName"/>). Чистая функция без UI — покрыта тестами.
+/// (<see cref="Infobase.ConfigurationName"/>), а также какие редакции (Red) встречаются
+/// в версиях баз (<see cref="Infobase.ConfigurationVersion"/>). Чистая функция без UI —
+/// покрыта тестами.
 /// </summary>
 public static class ActualReleasesBaseFilter
 {
@@ -30,21 +32,46 @@ public static class ActualReleasesBaseFilter
         {
             if (infobase is null)
                 continue;
+            var config = FindConfig(configs, infobase);
+            if (config is not null && !string.IsNullOrWhiteSpace(config.Code))
+                result.Add(config.Code);
+        }
 
-            // 1) Явная привязка: код типовой конфигурации базы (issue #322/#346).
-            var byCode = ConfigTypeMatcher.FindByCode(configs, infobase.UpdateConfigCode);
-            if (byCode is not null && !string.IsNullOrWhiteSpace(byCode.Code))
+        return result;
+    }
+
+    /// <summary>
+    /// Возвращает для каждой присутствующей конфигурации набор редакций (Red), встречающихся
+    /// в версиях баз (issue #375). Ключ — код конфигурации, значение — множество значений
+    /// Red (например «1.3»), извлечённых из <see cref="Infobase.ConfigurationVersion"/>
+    /// (например «1.3.285.1»). Пустое множество — версии баз не сопоставлены, фильтр по
+    /// редакциям не применяется. Пустой список конфигураций/баз или null — пустой результат.
+    /// </summary>
+    public static Dictionary<string, HashSet<string>> CollectPresentEditionReds(
+        IReadOnlyList<OneCConfigType>? configs, IReadOnlyList<Infobase>? bases)
+    {
+        var result = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        if (configs is null || configs.Count == 0 || bases is null || bases.Count == 0)
+            return result;
+
+        foreach (var infobase in bases)
+        {
+            if (infobase is null)
+                continue;
+            var config = FindConfig(configs, infobase);
+            if (config is null || string.IsNullOrWhiteSpace(config.Code))
+                continue;
+
+            var red = ExtractRed(infobase.ConfigurationVersion);
+            if (red is null)
+                continue; // версия базы не задана — редакцию не сопоставляем
+
+            if (!result.TryGetValue(config.Code, out var reds))
             {
-                result.Add(byCode.Code);
-                continue;
+                reds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                result[config.Code] = reds;
             }
-
-            // 2) Эвристика: имя конфигурации базы (вкладка «Платформа»).
-            if (string.IsNullOrWhiteSpace(infobase.ConfigurationName))
-                continue;
-            var byName = ConfigTypeMatcher.FindByInfobaseName(configs, infobase.ConfigurationName);
-            if (byName is not null && !string.IsNullOrWhiteSpace(byName.Code))
-                result.Add(byName.Code);
+            reds.Add(red);
         }
 
         return result;
@@ -59,4 +86,45 @@ public static class ActualReleasesBaseFilter
         => config is not null
            && !string.IsNullOrWhiteSpace(config.Code)
            && presentCodes.Contains(config.Code);
+
+    /// <summary>
+    /// True, если редакция должна быть показана при фильтре «Только в базах» (issue #375):
+    /// редакция без Red, либо отсутствие сопоставленных редакций (нет данных о версиях баз),
+    /// либо Red редакции есть в наборе сопоставленных редакций.
+    /// </summary>
+    public static bool IsEditionPresent(OneCConfigEdition? edition, HashSet<string>? presentReds)
+    {
+        if (edition is null)
+            return false;
+        if (string.IsNullOrWhiteSpace(edition.Red))
+            return true; // редакция без версии — фильтровать нечем
+        if (presentReds is null || presentReds.Count == 0)
+            return true; // нет данных о версиях баз — показываем все редакции
+        return presentReds.Contains(edition.Red);
+    }
+
+    /// <summary>Находит типовую конфигурацию для базы: по привязке (приоритет), иначе по эвристике имени.</summary>
+    private static OneCConfigType? FindConfig(IReadOnlyList<OneCConfigType> configs, Infobase infobase)
+    {
+        var byCode = ConfigTypeMatcher.FindByCode(configs, infobase.UpdateConfigCode);
+        if (byCode is not null)
+            return byCode;
+        if (string.IsNullOrWhiteSpace(infobase.ConfigurationName))
+            return null;
+        return ConfigTypeMatcher.FindByInfobaseName(configs, infobase.ConfigurationName);
+    }
+
+    /// <summary>
+    /// Извлекает «Ред» из версии конфигурации базы (например «1.3» из «1.3.285.1»):
+    /// первые два сегмента. null, если версия не задана или содержит меньше двух сегментов.
+    /// </summary>
+    private static string? ExtractRed(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return null;
+        var parts = version.Split('.');
+        if (parts.Length < 2)
+            return null;
+        return parts[0] + "." + parts[1];
+    }
 }

@@ -760,7 +760,17 @@ namespace Configuration_Management
             };
             utilitiesBtn.Styled(Themes.ControlThemes.IconButton);
             ToolTip.SetTip(utilitiesBtn, LocalizationManager.T("Main.UtilitiesTooltip"));
-            utilitiesBtn.ContextMenu = utilitiesMenu;
+            // ПКМ по заголовку «Утилиты» — быстрый доступ к правке меню (issue #374):
+            // отдельное контекстное меню открывает настройки на вкладке «Меню „Утилиты“».
+            var editMenu = new MenuItem
+            {
+                Header = LocalizationManager.T("Utilities.Editor.Title")
+            };
+            editMenu.Styled(Themes.ControlThemes.ModernMenuItem);
+            editMenu.Click += (_, _) => OpenSettingsOnUtilitiesMenuTab();
+            var editContextMenu = new ContextMenu();
+            editContextMenu.Items.Add(editMenu);
+            utilitiesBtn.ContextMenu = editContextMenu;
             utilitiesBtn.Click += (_, _) => utilitiesMenu.Open(utilitiesBtn);
             _utilitiesButton = utilitiesBtn;
             panel.Children.Add(utilitiesBtn);

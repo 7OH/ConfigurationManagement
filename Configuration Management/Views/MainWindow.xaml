@@ -663,6 +663,15 @@
                             <Button x:Name="UtilitiesButton" Click="OnUtilitiesMenuButton_Click"
                                     Style="{DynamicResource IconButton}" Margin="0,0,2,0" Padding="10,7"
                                     ToolTip="{loc:Loc Main.UtilitiesTooltip}">
+                                <!-- ПКМ по заголовку «Утилиты» — быстрый доступ к правке меню
+                                     (issue #374): открывает настройки на вкладке «Меню „Утилиты“». -->
+                                <Button.ContextMenu>
+                                    <ContextMenu Style="{DynamicResource ModernContextMenu}">
+                                        <MenuItem Header="{loc:Loc Utilities.Editor.Title}"
+                                                  Click="OnUtilitiesMenuEditSettings_Click"
+                                                  Style="{DynamicResource ModernMenuItem}"/>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
                                 <StackPanel Orientation="Horizontal">
                                     <!-- Отдельная иконка (Apps-сетка), чтобы не путать с «Конфигуратором»
                                          (гаечный ключ Wrench) — issue #282. -->

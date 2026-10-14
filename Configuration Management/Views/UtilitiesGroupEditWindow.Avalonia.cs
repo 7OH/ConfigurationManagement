@@ -51,7 +51,14 @@ namespace Configuration_Management
 
             Content = BuildLayout();
             UpdateOkEnabled();
-            Opened += (_, _) => _nameBox.Focus();
+            Opened += (_, _) =>
+            {
+                // Активное поле «Имя» с выделением текста (issue #374).
+                _nameBox.Focus();
+                _nameBox.SelectAll();
+                // Диалог чуть выше центра владельца (issue #374).
+                Position = new PixelPoint(Position.X, Math.Max(0, Position.Y - 120));
+            };
         }
 
         /// <summary>Результат диалога: имя и ключ иконки (null — отмена).</summary>

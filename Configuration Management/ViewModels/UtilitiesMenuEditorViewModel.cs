@@ -49,8 +49,10 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
 
         MoveUpCommand = new RelayCommand(_ => MoveSelected(-1), _ => CanMoveSelected(-1));
         MoveDownCommand = new RelayCommand(_ => MoveSelected(1), _ => CanMoveSelected(1));
-        MoveToGroupCommand = new RelayCommand(_ => MoveSelectedToGroup(), _ => CanMoveToGroup());
+        MoveToGroupCommand = new RelayCommand(_ => MoveSelectedToGroup(), _ => CanMoveToGroup);
+        MoveToRootCommand = new RelayCommand(_ => MoveSelectedToRoot(), _ => CanMoveToRoot);
         AddGroupCommand = new RelayCommand(p => AddGroup(p as UtilitiesGroupEditParams));
+        AddSeparatorCommand = new RelayCommand(_ => AddSeparator());
         EditGroupCommand = new RelayCommand(p => EditGroup(p as UtilitiesGroupEditParams), _ => CanEditGroup);
         DeleteGroupCommand = new RelayCommand(p => DeleteGroup(p is bool b && b), _ => CanDeleteGroup);
         SetCatalogIconCommand = new RelayCommand(p => ApplyCatalogIcon(p as string));
@@ -72,8 +74,14 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         get => _selectedItem;
         set
         {
-            if (SetPropertyWithRelated(ref _selectedItem, value, nameof(SelectedItem), nameof(HasSelection), nameof(CanMoveSelected), nameof(CanMoveToGroup), nameof(CanClearIcon), nameof(CanEditGroup), nameof(CanDeleteGroup)))
+            if (SetPropertyWithRelated(ref _selectedItem, value, nameof(SelectedItem), nameof(HasSelection), nameof(CanMoveSelected), nameof(CanMoveToGroup), nameof(CanMoveToRoot), nameof(CanClearIcon), nameof(CanEditGroup), nameof(CanDeleteGroup)))
+            {
+                // Показываем в поле выбора иконки текущую (эффективную) иконку узла —
+                // в т.ч. для пунктов меню и типовых групп, у которых иконка берётся из
+                // каталога, а не из компоновки (issue #374).
+                SelectedIconKey = value?.EffectiveIconKey ?? string.Empty;
                 RaiseCommandsCanExecuteChanged();
+            }
         }
     }
 
@@ -90,8 +98,11 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
     /// <summary>Можно ли править выбранный узел как группу (кнопка «Правка группы»).</summary>
     public bool CanEditGroup => IsGroup(SelectedItem);
 
-    /// <summary>Можно ли удалить выбранную группу (кнопка «Удалить группу»).</summary>
-    public bool CanDeleteGroup => IsGroup(SelectedItem);
+    /// <summary>Можно ли удалить выбранный узел (группа или разделитель) — единая кнопка удаления.</summary>
+    public bool CanDeleteGroup => IsGroup(SelectedItem) || IsSeparator(SelectedItem);
+
+    /// <summary>Можно ли перенести выбранный узел в корень дерева (issue #374).</summary>
+    public bool CanMoveToRoot => SelectedItem is not null && SelectedItem.Parent is not null;
 
     /// <summary>Выбранный ключ иконки каталога (ComboBox редактора).</summary>
     public string SelectedIconKey
@@ -114,7 +125,9 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
     public RelayCommand MoveUpCommand { get; }
     public RelayCommand MoveDownCommand { get; }
     public RelayCommand MoveToGroupCommand { get; }
+    public RelayCommand MoveToRootCommand { get; }
     public RelayCommand AddGroupCommand { get; }
+    public RelayCommand AddSeparatorCommand { get; }
     public RelayCommand EditGroupCommand { get; }
     public RelayCommand DeleteGroupCommand { get; }
     public RelayCommand SetCatalogIconCommand { get; }
@@ -183,20 +196,31 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         RaiseCommandsCanExecuteChanged();
     }
 
-    private bool CanMoveToGroup()
+    /// <summary>Можно ли поместить выбранный узел в выбранную группу (issue #374).</summary>
+    public bool CanMoveToGroup
     {
-        var item = SelectedItem;
-        var group = SelectedGroup;
-        return item is not null && group is not null
-            && !ReferenceEquals(item, group)
-            && !string.Equals(item.Node.Kind, "group", StringComparison.Ordinal);
+        get
+        {
+            var item = SelectedItem;
+            var group = SelectedGroup;
+            if (item is null || group is null || ReferenceEquals(item, group))
+                return false;
+            // Группу можно вложить в другую группу, но нельзя — в саму себя или в своего
+            // потомка (иначе получится цикл) — issue #374.
+            for (var p = group; p is not null; p = p.Parent)
+            {
+                if (ReferenceEquals(p, item))
+                    return false;
+            }
+            return true;
+        }
     }
 
     private void MoveSelectedToGroup()
     {
         var item = SelectedItem;
         var group = SelectedGroup;
-        if (item is null || group is null || !CanMoveToGroup())
+        if (item is null || group is null || !CanMoveToGroup)
             return;
         var siblings = item.Parent is null ? Roots : item.Parent.Children;
         siblings.Remove(item);
@@ -204,6 +228,40 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         group.Children.Add(item);
         SelectedItem = item;
         RaiseCommandsCanExecuteChanged();
+    }
+
+    /// <summary>Переносит выбранный узел в корень дерева (issue #374).</summary>
+    private void MoveSelectedToRoot()
+    {
+        var item = SelectedItem;
+        if (item is null || item.Parent is null)
+            return;
+        item.Parent.Children.Remove(item);
+        item.Parent = null;
+        Roots.Add(item);
+        SelectedItem = item;
+        RaiseCommandsCanExecuteChanged();
+    }
+
+    /// <summary>Добавляет узел-разделитель после выбранного узла (или в конец корня) — issue #374.</summary>
+    private void AddSeparator()
+    {
+        var node = new UtilitiesMenuNode { Kind = "separator" };
+        var selected = SelectedItem;
+        if (selected is not null)
+        {
+            var siblings = selected.Parent is null ? Roots : selected.Parent.Children;
+            var index = siblings.IndexOf(selected);
+            var item = new UtilitiesMenuNodeItem(node, selected.Parent);
+            siblings.Insert(index + 1, item);
+            SelectedItem = item;
+        }
+        else
+        {
+            var item = new UtilitiesMenuNodeItem(node, null);
+            Roots.Add(item);
+            SelectedItem = item;
+        }
     }
 
     private void AddGroup(UtilitiesGroupEditParams? editParams)
@@ -240,12 +298,23 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         item.NotifyChanged();
     }
 
-    /// <summary>Удаление выбранной группы; при <paramref name="moveToRoot"/> дети переносятся
-    /// в корень на место группы (с сохранением порядка), иначе группа удаляется вместе с детьми.</summary>
+    /// <summary>Удаление выбранного узла: разделитель удаляется сразу; группа — при
+    /// <paramref name="moveToRoot"/> дети переносятся в корень на место группы (с сохранением
+    /// порядка), иначе группа удаляется вместе с детьми.</summary>
     private void DeleteGroup(bool moveToRoot)
     {
         var item = SelectedItem;
-        if (item is null || !IsGroup(item))
+        if (item is null)
+            return;
+        if (IsSeparator(item))
+        {
+            var sepSiblings = item.Parent is null ? Roots : item.Parent.Children;
+            sepSiblings.Remove(item);
+            SelectedItem = null;
+            RaiseCommandsCanExecuteChanged();
+            return;
+        }
+        if (!IsGroup(item))
             return;
         var siblings = item.Parent is null ? Roots : item.Parent.Children;
         if (moveToRoot && item.Children.Count > 0)
@@ -280,6 +349,10 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
     /// <summary>True — узел является группой (подменю).</summary>
     private static bool IsGroup(UtilitiesMenuNodeItem? item) =>
         item is not null && string.Equals(item.Node.Kind, "group", StringComparison.Ordinal);
+
+    /// <summary>True — узел является разделителем (issue #374).</summary>
+    private static bool IsSeparator(UtilitiesMenuNodeItem? item) =>
+        item is not null && string.Equals(item.Node.Kind, "separator", StringComparison.Ordinal);
 
     private void ApplyCatalogIcon(string? key)
     {
@@ -449,11 +522,14 @@ public sealed class UtilitiesMenuNodeItem : ViewModelBase
     /// <summary>Дочерние узлы (для групп).</summary>
     public ObservableCollection<UtilitiesMenuNodeItem> Children { get; } = new();
 
-    /// <summary>Заголовок узла: пользовательский/локализованный для групп, словарь для пунктов.</summary>
+    /// <summary>Заголовок узла: разделитель / пользовательский или локализованный заголовок
+    /// группы / словарь для пунктов.</summary>
     public string Title
     {
         get
         {
+            if (string.Equals(Node.Kind, "separator", StringComparison.Ordinal))
+                return LocalizationManager.T("Utilities.Editor.SeparatorLabel");
             if (string.Equals(Node.Kind, "group", StringComparison.Ordinal))
             {
                 if (!string.IsNullOrWhiteSpace(Node.CustomTitle))
@@ -468,11 +544,13 @@ public sealed class UtilitiesMenuNodeItem : ViewModelBase
         }
     }
 
-    /// <summary>Пометка вида: «группа» / «пункт».</summary>
+    /// <summary>Пометка вида: «группа» / «пункт» / «разделитель».</summary>
     public string KindLabel =>
-        string.Equals(Node.Kind, "group", StringComparison.Ordinal)
-            ? LocalizationManager.T("Utilities.Editor.KindGroup")
-            : LocalizationManager.T("Utilities.Editor.KindItem");
+        string.Equals(Node.Kind, "separator", StringComparison.Ordinal)
+            ? LocalizationManager.T("Utilities.Editor.KindSeparator")
+            : string.Equals(Node.Kind, "group", StringComparison.Ordinal)
+                ? LocalizationManager.T("Utilities.Editor.KindGroup")
+                : LocalizationManager.T("Utilities.Editor.KindItem");
 
     /// <summary>Видимость узла (чекбокс в дереве).</summary>
     public bool IsVisible
@@ -488,14 +566,48 @@ public sealed class UtilitiesMenuNodeItem : ViewModelBase
     /// <summary>Строка для списка групп: заголовок.</summary>
     public string GroupLabel => Title;
 
-    /// <summary>Ключ иконки каталога для отображения в дереве (пусто — без иконки).</summary>
-    public string DisplayIconKey => Node.IconKey ?? string.Empty;
+    /// <summary>
+    /// Эффективный ключ иконки для отображения: пользовательская из компоновки, иначе —
+    /// из каталога (для пунктов меню и типовых групп), для разделителя — служебная
+    /// иконка-линия (issue #374). Пусто — без иконки.
+    /// </summary>
+    public string EffectiveIconKey
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Node.IconKey))
+                return Node.IconKey!;
+            if (string.Equals(Node.Kind, "separator", StringComparison.Ordinal))
+                return "Minus";
+            if (string.Equals(Node.Kind, "group", StringComparison.Ordinal))
+                return UtilitiesMenuCatalog.GroupWpfIconKind(Node.GroupId ?? string.Empty);
+            return UtilitiesMenuCatalog.Find(Node.ItemId)?.WpfIconKind ?? string.Empty;
+        }
+    }
 
-    /// <summary>Цвет иконки каталога (#RRGGBB) для отображения в дереве.</summary>
-    public string DisplayIconColor => Node.IconColor ?? string.Empty;
+    /// <summary>Эффективный цвет иконки (#RRGGBB): пользовательский из компоновки, иначе — из каталога.</summary>
+    public string EffectiveIconColor
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Node.IconColor))
+                return Node.IconColor!;
+            if (string.Equals(Node.Kind, "separator", StringComparison.Ordinal))
+                return "#9CA3AF";
+            if (string.Equals(Node.Kind, "group", StringComparison.Ordinal))
+                return UtilitiesMenuCatalog.GroupIconColor(Node.GroupId ?? string.Empty);
+            return UtilitiesMenuCatalog.Find(Node.ItemId)?.IconColor ?? string.Empty;
+        }
+    }
 
-    /// <summary>Есть ли иконка каталога для отображения в дереве (видимость превью).</summary>
-    public bool HasDisplayIcon => !string.IsNullOrWhiteSpace(Node.IconKey);
+    /// <summary>Ключ иконки для отображения в дереве (пусто — без иконки).</summary>
+    public string DisplayIconKey => EffectiveIconKey;
+
+    /// <summary>Цвет иконки (#RRGGBB) для отображения в дереве.</summary>
+    public string DisplayIconColor => EffectiveIconColor;
+
+    /// <summary>Есть ли иконка для отображения в дереве (видимость превью).</summary>
+    public bool HasDisplayIcon => !string.IsNullOrWhiteSpace(EffectiveIconKey);
 
     /// <summary>Оповещает UI об изменении внешних свойств узла (иконка, заголовок).</summary>
     public void NotifyChanged()
@@ -503,6 +615,8 @@ public sealed class UtilitiesMenuNodeItem : ViewModelBase
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(KindLabel));
         OnPropertyChanged(nameof(GroupLabel));
+        OnPropertyChanged(nameof(EffectiveIconKey));
+        OnPropertyChanged(nameof(EffectiveIconColor));
         OnPropertyChanged(nameof(DisplayIconKey));
         OnPropertyChanged(nameof(DisplayIconColor));
         OnPropertyChanged(nameof(HasDisplayIcon));

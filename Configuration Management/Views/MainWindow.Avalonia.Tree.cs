@@ -1751,6 +1751,13 @@ namespace Configuration_Management
                     continue;
                 if (node.SeparatorBefore && target.Count > 0)
                     target.Add(MenuSeparator());
+                if (string.Equals(node.Kind, "separator", StringComparison.Ordinal))
+                {
+                    // Узел-разделитель (issue #374): отдельный элемент дерева компоновки.
+                    if (target.Count > 0)
+                        target.Add(MenuSeparator());
+                    continue;
+                }
                 if (string.Equals(node.Kind, "group", StringComparison.Ordinal))
                 {
                     var sub = new MenuItem

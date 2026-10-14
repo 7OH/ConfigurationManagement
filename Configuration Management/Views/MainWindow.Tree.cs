@@ -765,16 +765,48 @@ namespace Configuration_Management
             if (MainTree is null)
                 return;
 
-            // issue #373: сброс виртуализации на самом TreeView (0.3.12.25) не доводил
-            // перерисовку строк тегов до конца — вложенные панели TreeViewItem имеют
-            // собственный IsVirtualizing=true из стиля контейнера, поэтому уже
-            // материализованные строки сохраняли прежнюю высоту/видимость строки тегов
-            // («где-то совсем нет, где-то еле видно»). Пересобираем дерево целиком —
-            // как в Avalonia-версии (MainViewModel.Avalonia.Display.ShowTags → ApplyFilter):
-            // контейнеры создаются заново с актуальным значением ShowTags, высота строк
-            // пересчитывается. Позиция прокрутки и выделение восстанавливаются событиями
-            // TreeRebuilding/TreeRebuilt (issue #252).
-            _viewModel?.RebuildGroupTree();
+            // issue #373: при изменении ShowTags привязка видимости строки тегов
+            // обновляется, но виртуализация кэширует высоту уже материализованных
+            // контейнеров — строки не перемеряются («где-то совсем нет, где-то еле
+            // видно»). Сброс виртуализации только на самом TreeView (0.3.12.25) не
+            // доводил перерисовку до конца: вложенные панели TreeViewItem имеют
+            // собственный IsVirtualizing=true из стиля контейнера. Полная пересборка
+            // дерева (0.3.12.31, RebuildGroupTree) решает проблему, но на больших
+            // списках занимает ~1 секунду. Вместо неё сбрасываем виртуализацию на
+            // ВСЕХ вложенных панелях — контейнеры перемеряются с актуальной высотой
+            // строки тегов без пересоздания дерева, прокрутка и выделение не теряются.
+            var panels = new List<VirtualizingStackPanel>();
+            CollectVirtualizingPanels(MainTree, panels);
+            if (panels.Count == 0)
+            {
+                MainTree.UpdateLayout();
+                return;
+            }
+
+            foreach (var panel in panels)
+                VirtualizingPanel.SetIsVirtualizing(panel, false);
+            try
+            {
+                MainTree.UpdateLayout();
+            }
+            finally
+            {
+                foreach (var panel in panels)
+                    VirtualizingPanel.SetIsVirtualizing(panel, true);
+                MainTree.UpdateLayout();
+            }
+        }
+
+        /// <summary>Собирает все виртуализирующие панели в визуальном дереве (рекурсивно).</summary>
+        private static void CollectVirtualizingPanels(DependencyObject root, List<VirtualizingStackPanel> result)
+        {
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is VirtualizingStackPanel panel)
+                    result.Add(panel);
+                CollectVirtualizingPanels(child, result);
+            }
         }
 
         private void OnMainTree_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)

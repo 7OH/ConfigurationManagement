@@ -38,7 +38,14 @@ namespace Configuration_Management
             if (IconCombo.SelectedItem is null && icons.Count > 0)
                 IconCombo.SelectedItem = icons[0];
 
-            Loaded += (_, _) => NameBox.Focus();
+            Loaded += (_, _) =>
+            {
+                // Активное поле «Имя» с выделением текста (issue #374).
+                NameBox.Focus();
+                NameBox.SelectAll();
+                // Диалог чуть выше центра владельца (issue #374).
+                Top = Math.Max(SystemParameters.WorkArea.Top, Top - 120);
+            };
         }
 
         /// <summary>Результат диалога: имя и ключ иконки (null — отмена).</summary>

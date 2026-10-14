@@ -20,12 +20,14 @@ public sealed class ActualReleasesBaseFilterTests
         Editions = { new OneCConfigEdition { Name = "1.0", Red = "1.0" } },
     };
 
-    private static Infobase Base(string name, string updateConfigCode = "", string configurationName = "") => new()
+    private static Infobase Base(
+        string name, string updateConfigCode = "", string configurationName = "", string configurationVersion = "") => new()
     {
         Id = name,
         Name = name,
         UpdateConfigCode = updateConfigCode,
         ConfigurationName = configurationName,
+        ConfigurationVersion = configurationVersion,
     };
 
     [Fact]
@@ -147,5 +149,121 @@ public sealed class ActualReleasesBaseFilterTests
         var present = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "BP" };
 
         Assert.False(ActualReleasesBaseFilter.IsPresent(null, present));
+    }
+
+    [Fact]
+    public void CollectPresentEditionReds_ByBinding_ReturnsRedFromVersion()
+    {
+        var configs = new List<OneCConfigType> { Config("UPP", "Управление производственным предприятием") };
+        var bases = new List<Infobase>
+        {
+            Base("УПП 1.3", updateConfigCode: "UPP", configurationVersion: "1.3.285.1"),
+        };
+
+        var reds = ActualReleasesBaseFilter.CollectPresentEditionReds(configs, bases);
+
+        Assert.True(reds.TryGetValue("UPP", out var set));
+        Assert.Contains("1.3", set);
+    }
+
+    [Fact]
+    public void CollectPresentEditionReds_ByHeuristic_ReturnsRedFromVersion()
+    {
+        var configs = new List<OneCConfigType> { Config("UPP", "Управление производственным предприятием") };
+        var bases = new List<Infobase>
+        {
+            Base("УПП", configurationName: "Управление производственным предприятием", configurationVersion: "1.2.10.1"),
+        };
+
+        var reds = ActualReleasesBaseFilter.CollectPresentEditionReds(configs, bases);
+
+        Assert.True(reds.TryGetValue("UPP", out var set));
+        Assert.Contains("1.2", set);
+    }
+
+    [Fact]
+    public void CollectPresentEditionReds_NoVersion_ReturnsEmpty()
+    {
+        // Версия базы не задана — редакции не сопоставляются, запись для конфигурации
+        // не создаётся (в окне тогда показываются все редакции, см. IsEditionPresent_NoReds).
+        var configs = new List<OneCConfigType> { Config("UPP", "Управление производственным предприятием") };
+        var bases = new List<Infobase> { Base("УПП", updateConfigCode: "UPP") };
+
+        var reds = ActualReleasesBaseFilter.CollectPresentEditionReds(configs, bases);
+
+        Assert.Empty(reds);
+    }
+
+    [Fact]
+    public void CollectPresentEditionReds_MultipleBases_CollectsAllReds()
+    {
+        var configs = new List<OneCConfigType> { Config("UPP", "Управление производственным предприятием") };
+        var bases = new List<Infobase>
+        {
+            Base("УПП 1.2", updateConfigCode: "UPP", configurationVersion: "1.2.10.1"),
+            Base("УПП 1.3", updateConfigCode: "UPP", configurationVersion: "1.3.285.1"),
+        };
+
+        var reds = ActualReleasesBaseFilter.CollectPresentEditionReds(configs, bases);
+
+        Assert.True(reds.TryGetValue("UPP", out var set));
+        Assert.Contains("1.2", set);
+        Assert.Contains("1.3", set);
+    }
+
+    [Fact]
+    public void CollectPresentEditionReds_NoMatch_ReturnsEmpty()
+    {
+        var configs = new List<OneCConfigType> { Config("UPP", "Управление производственным предприятием") };
+        var bases = new List<Infobase>
+        {
+            Base("Неизвестная", configurationName: "Моя самописная", configurationVersion: "1.3.1.1"),
+        };
+
+        var reds = ActualReleasesBaseFilter.CollectPresentEditionReds(configs, bases);
+
+        Assert.Empty(reds);
+    }
+
+    [Fact]
+    public void IsEditionPresent_RedInSet_ReturnsTrue()
+    {
+        var edition = new OneCConfigEdition { Name = "1.3", Red = "1.3" };
+        var reds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "1.3" };
+
+        Assert.True(ActualReleasesBaseFilter.IsEditionPresent(edition, reds));
+    }
+
+    [Fact]
+    public void IsEditionPresent_RedNotInSet_ReturnsFalse()
+    {
+        var edition = new OneCConfigEdition { Name = "1.2", Red = "1.2" };
+        var reds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "1.3" };
+
+        Assert.False(ActualReleasesBaseFilter.IsEditionPresent(edition, reds));
+    }
+
+    [Fact]
+    public void IsEditionPresent_NoReds_ReturnsTrue()
+    {
+        var edition = new OneCConfigEdition { Name = "1.2", Red = "1.2" };
+
+        Assert.True(ActualReleasesBaseFilter.IsEditionPresent(edition, null));
+        Assert.True(ActualReleasesBaseFilter.IsEditionPresent(edition, new HashSet<string>()));
+    }
+
+    [Fact]
+    public void IsEditionPresent_EditionWithoutRed_ReturnsTrue()
+    {
+        var edition = new OneCConfigEdition { Name = "Без версии", Red = "" };
+        var reds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "1.3" };
+
+        Assert.True(ActualReleasesBaseFilter.IsEditionPresent(edition, reds));
+    }
+
+    [Fact]
+    public void IsEditionPresent_NullEdition_ReturnsFalse()
+    {
+        Assert.False(ActualReleasesBaseFilter.IsEditionPresent(null, new HashSet<string>()));
     }
 }

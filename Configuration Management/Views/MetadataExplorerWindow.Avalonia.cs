@@ -54,12 +54,12 @@ namespace Configuration_Management
         public MetadataExplorerWindow(IReadOnlyList<Infobase> bases, Infobase? selectedBase)
         {
             Title = LocalizationManager.T("MetadataExplorer.Title");
-            // issue #365: ширина = MinWidth = 1380 — панель источника (радиокнопки +
-            // ComboBox баз 280 + путь .cf 320 + платформа 200 + «Обзор…» 100 +
-            // «Загрузить» 120 + отступы); при 1180 правая кнопка обрезалась.
-            Width = 1380;
+            // issue #365: панель источника перекомпонована в 2 строки (строка 1 — база +
+            // платформа, строка 2 — файл .cf + «Обзор…» + «Загрузить»), поэтому окно
+            // сжато по горизонтали: Width/MinWidth = 900/800 (было 1380).
+            Width = 900;
             Height = 640;
-            MinWidth = 1380;
+            MinWidth = 800;
             MinHeight = 480;
             FontSize = 13;
             CanResize = true;
@@ -299,14 +299,28 @@ namespace Configuration_Management
             ThemeBrushes.Bind(loadButton, Button.BackgroundProperty, "AccentBrush");
             ThemeBrushes.Bind(loadButton, Button.ForegroundProperty, "TextOnAccentBrush");
 
-            var panel = new StackPanel
+            // issue #365 (перекомпоновка): строка 1 — «Информационная база» + ComboBox баз
+            // + выбор платформы; строка 2 — «Файл» + путь .cf + «Обзор…» + «Загрузить».
+            // Окно сжато по горизонтали (Width/MinWidth = 900/800).
+            var row1 = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 Spacing = 10,
-                Margin = new Thickness(0, 10, 0, 0),
-                Children = { radioBase, radioCf, baseCombo, cfBox, platformLabel, platformBox, browseButton, loadButton }
+                Children = { radioBase, baseCombo, platformLabel, platformBox }
             };
-            return panel;
+            var row2 = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 10,
+                Margin = new Thickness(0, 8, 0, 0),
+                Children = { radioCf, cfBox, browseButton, loadButton }
+            };
+            return new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Margin = new Thickness(0, 10, 0, 0),
+                Children = { row1, row2 }
+            };
         }
 
         /// <summary>

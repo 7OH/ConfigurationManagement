@@ -59,6 +59,9 @@ namespace Configuration_Management
         /// <summary>Вкладка «Отображение» внутри главного контрола вкладок.</summary>
         private TabItem? _displayTab;
 
+        /// <summary>Вкладка «Меню „Утилиты“» внутри главного контрола вкладок (issue #374).</summary>
+        private TabItem? _utilitiesMenuTab;
+
         /// <summary>Контрол вложенных вкладок раздела «Отображение» (Значки/Колонки/…).</summary>
         private TabControl? _displaySubTabs;
 
@@ -72,6 +75,16 @@ namespace Configuration_Management
                 _settingsTabs.SelectedItem = _displayTab;
             if (_displaySubTabs is not null)
                 _displaySubTabs.SelectedIndex = 1;
+        }
+
+        /// <summary>
+        /// Переключает окно настроек сразу на вкладку «Меню „Утилиты“» (issue #374).
+        /// Используется из контекстного меню кнопки «Утилиты» главного окна.
+        /// </summary>
+        public void SelectUtilitiesMenuTab()
+        {
+            if (_settingsTabs is not null && _utilitiesMenuTab is not null)
+                _settingsTabs.SelectedItem = _utilitiesMenuTab;
         }
 
         /// <summary>
@@ -2986,6 +2999,7 @@ namespace Configuration_Management
                     // Отступ прокрутки из разметки (SettingsWindow.xaml:1486).
                     Margin = new Thickness(4, 12, 4, 0)
                 });
+            _utilitiesMenuTab = tabUtilitiesMenu;
 
             // ===== О программе =====
             var about = BuildAboutTab();

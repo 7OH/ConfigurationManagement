@@ -272,4 +272,190 @@ public sealed class UtilitiesMenuEditorViewModelTests
         var option = new UtilitiesIconOption("Cog", "#FFFFFF");
         Assert.Equal("Cog (#FFFFFF)", option.Label);
     }
+
+    // ---- Разделители (issue #374) ----
+
+    [Fact]
+    public void AddSeparator_NoSelection_AddsToRoot()
+    {
+        var vm = CreateViewModel();
+        var before = vm.Roots.Count;
+
+        vm.AddSeparatorCommand.Execute(null);
+
+        Assert.Equal(before + 1, vm.Roots.Count);
+        var sep = vm.Roots[^1];
+        Assert.Equal("separator", sep.Node.Kind);
+        Assert.True(ReferenceEquals(vm.SelectedItem, sep));
+    }
+
+    [Fact]
+    public void AddSeparator_AfterSelected_InsertsSibling()
+    {
+        var vm = CreateViewModel();
+        var item = vm.Roots.FirstOrDefault(n => string.Equals(n.Node.Kind, "item", StringComparison.Ordinal));
+        if (item is null)
+            return;
+        vm.SelectedItem = item;
+        var index = vm.Roots.IndexOf(item);
+
+        vm.AddSeparatorCommand.Execute(null);
+
+        Assert.Equal("separator", vm.Roots[index + 1].Node.Kind);
+        Assert.True(ReferenceEquals(vm.SelectedItem, vm.Roots[index + 1]));
+    }
+
+    [Fact]
+    public void DeleteSeparator_RemovesIt()
+    {
+        var vm = CreateViewModel();
+        vm.AddSeparatorCommand.Execute(null);
+        var sep = vm.SelectedItem!;
+        var before = vm.Roots.Count;
+
+        vm.DeleteGroupCommand.Execute(false);
+
+        Assert.Equal(before - 1, vm.Roots.Count);
+        Assert.False(vm.Roots.Contains(sep));
+        Assert.Null(vm.SelectedItem);
+    }
+
+    // ---- Перенос в корень (issue #374) ----
+
+    [Fact]
+    public void MoveToRoot_MovesSelectedToRoot()
+    {
+        var vm = CreateViewModel();
+        var group = vm.Groups[0];
+        var item = vm.Roots.FirstOrDefault(n => string.Equals(n.Node.Kind, "item", StringComparison.Ordinal));
+        if (item is null)
+            return;
+        // Кладём пункт в группу.
+        vm.SelectedItem = item;
+        vm.SelectedGroup = group;
+        vm.MoveToGroupCommand.Execute(null);
+        Assert.True(ReferenceEquals(item.Parent, group));
+
+        // Переносим в корень.
+        vm.MoveToRootCommand.Execute(null);
+
+        Assert.Null(item.Parent);
+        Assert.True(vm.Roots.Contains(item));
+    }
+
+    [Fact]
+    public void MoveToRoot_RootItem_DoesNothing()
+    {
+        var vm = CreateViewModel();
+        var item = vm.Roots.FirstOrDefault(n => string.Equals(n.Node.Kind, "item", StringComparison.Ordinal));
+        if (item is null)
+            return;
+        vm.SelectedItem = item;
+        var before = vm.Roots.Count;
+
+        vm.MoveToRootCommand.Execute(null);
+
+        Assert.Equal(before, vm.Roots.Count);
+        Assert.True(vm.Roots.Contains(item));
+    }
+
+    // ---- Перемещение группы в группу (issue #374) ----
+
+    [Fact]
+    public void MoveGroupIntoGroup_MovesGroup()
+    {
+        var vm = CreateViewModel();
+        vm.AddGroupCommand.Execute(new UtilitiesGroupEditParams("Внешняя", null));
+        var outer = vm.SelectedItem!;
+        vm.AddGroupCommand.Execute(new UtilitiesGroupEditParams("Внутренняя", null));
+        var inner = vm.SelectedItem!;
+        Assert.True(ReferenceEquals(inner.Parent, outer));
+
+        // Переносим внешнюю группу в другую группу дерева.
+        var target = vm.Groups.FirstOrDefault(g => !ReferenceEquals(g, outer) && !ReferenceEquals(g, inner));
+        if (target is null)
+            return;
+        vm.SelectedItem = outer;
+        vm.SelectedGroup = target;
+        Assert.True(vm.CanMoveToGroup);
+
+        vm.MoveToGroupCommand.Execute(null);
+
+        Assert.True(ReferenceEquals(outer.Parent, target));
+        Assert.True(target.Children.Contains(outer));
+    }
+
+    [Fact]
+    public void MoveGroupIntoItself_NotAllowed()
+    {
+        var vm = CreateViewModel();
+        vm.AddGroupCommand.Execute(new UtilitiesGroupEditParams("Группа", null));
+        var group = vm.SelectedItem!;
+
+        vm.SelectedItem = group;
+        vm.SelectedGroup = group;
+
+        Assert.False(vm.CanMoveToGroup);
+    }
+
+    [Fact]
+    public void MoveGroupIntoOwnDescendant_NotAllowed()
+    {
+        var vm = CreateViewModel();
+        vm.AddGroupCommand.Execute(new UtilitiesGroupEditParams("Внешняя", null));
+        var outer = vm.SelectedItem!;
+        vm.AddGroupCommand.Execute(new UtilitiesGroupEditParams("Внутренняя", null));
+        var inner = vm.SelectedItem!;
+
+        // Внешнюю нельзя вложить во внутреннюю (свою подгруппу).
+        vm.SelectedItem = outer;
+        vm.SelectedGroup = inner;
+
+        Assert.False(vm.CanMoveToGroup);
+    }
+
+    // ---- Эффективные иконки (issue #374) ----
+
+    [Fact]
+    public void EffectiveIconKey_ForItem_ReturnsCatalogIcon()
+    {
+        var vm = CreateViewModel();
+        var item = vm.Roots.FirstOrDefault(n => string.Equals(n.Node.Kind, "item", StringComparison.Ordinal));
+        if (item is null)
+            return;
+        var catalog = Configuration_Management.Services.UtilitiesMenuCatalog.Find(item.Node.ItemId);
+
+        Assert.Equal(catalog?.WpfIconKind ?? string.Empty, item.EffectiveIconKey);
+        Assert.Equal(catalog?.IconColor ?? string.Empty, item.EffectiveIconColor);
+    }
+
+    [Fact]
+    public void EffectiveIconKey_ForBuiltInGroup_ReturnsCatalogIcon()
+    {
+        var vm = CreateViewModel();
+        var group = vm.Groups.FirstOrDefault(g => !string.IsNullOrWhiteSpace(g.Node.GroupId));
+        if (group is null)
+            return;
+
+        Assert.Equal(
+            Configuration_Management.Services.UtilitiesMenuCatalog.GroupWpfIconKind(group.Node.GroupId!),
+            group.EffectiveIconKey);
+    }
+
+    [Fact]
+    public void EffectiveIconKey_CustomIconOverridesCatalog()
+    {
+        var vm = CreateViewModel();
+        var icon = vm.CatalogIcons.FirstOrDefault();
+        if (icon is null)
+            return;
+        var item = vm.Roots.FirstOrDefault(n => string.Equals(n.Node.Kind, "item", StringComparison.Ordinal));
+        if (item is null)
+            return;
+        item.Node.IconKey = icon.Key;
+        item.Node.IconColor = icon.Color;
+
+        Assert.Equal(icon.Key, item.EffectiveIconKey);
+        Assert.Equal(icon.Color, item.EffectiveIconColor);
+    }
 }

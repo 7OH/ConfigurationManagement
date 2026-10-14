@@ -95,5 +95,16 @@ public partial class MainWindow
             }),
             System.Windows.Threading.DispatcherPriority.Input);
     }
+
+    /// <summary>
+    /// ПКМ по заголовку «Утилиты» → «Настройка меню „Утилиты“» (issue #374): открывает
+    /// окно настроек сразу на вкладке «Меню „Утилиты“» для быстрого доступа к правке.
+    /// </summary>
+    private void OnUtilitiesMenuEditSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SettingsWindow(_viewModel) { Owner = this };
+        dialog.SelectUtilitiesMenuTab();
+        dialog.ShowDialog();
+    }
 }
 #endif
