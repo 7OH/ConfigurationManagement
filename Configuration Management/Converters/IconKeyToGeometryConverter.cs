@@ -17,7 +17,7 @@ namespace Configuration_Management.Converters;
 /// переключение набора не даёт устаревших значений — TryFindResource не вызывается
 /// на каждую строку списка.
 /// </summary>
-public class IconKeyToGeometryConverter : IValueConverter
+public class IconKeyToGeometryConverter : IValueConverter, IMultiValueConverter
 {
     private static readonly ConcurrentDictionary<string, Geometry> Cache = new(StringComparer.Ordinal);
 
@@ -62,5 +62,17 @@ public class IconKeyToGeometryConverter : IValueConverter
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+
+    /// <summary>
+    /// Вариант для MultiBinding (0.3.12.60): values[0] — ключ иконки, values[1] —
+    /// <see cref="IconSetState.Current"/>. Второе значение нужно только как триггер:
+    /// при смене набора иконок привязка перевычисляется и иконка перерисовывается
+    /// без перезапуска (набор по-прежнему читается из ресурса IconSetName).
+    /// </summary>
+    public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
+        => Convert(values.Length > 0 ? values[0] : null, targetType, parameter, culture);
+
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }

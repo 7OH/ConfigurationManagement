@@ -97,8 +97,31 @@ namespace Configuration_Management
         private static Control BuildIcon(string key, double size, out Avalonia.Controls.Shapes.Path path)
         {
             path = new Avalonia.Controls.Shapes.Path { Data = Geometry(key) };
+
+            // Слои иконки (0.3.12.60): фоновый полупрозрачный (Duotone-набор Glass) — той же
+            // кистью, что и основной; основной; «блик» (IconGlossBrush, у Windows XP — объёмный
+            // градиент) — по контуру основного. Кисть и контур фона/блика следуют за основным
+            // путём, поэтому код, который потом красит path.Fill, менять не нужно.
+            var back = new Avalonia.Controls.Shapes.Path
+            {
+                Data = BackGeometry(key),
+                Opacity = Themes.ThemeFeatureMap.BackLayerOpacity,
+                IsHitTestVisible = false
+            };
+            back.Bind(Avalonia.Controls.Shapes.Shape.FillProperty,
+                path.GetObservable(Avalonia.Controls.Shapes.Shape.FillProperty));
+            var gloss = new Avalonia.Controls.Shapes.Path { IsHitTestVisible = false };
+            gloss.Bind(Avalonia.Controls.Shapes.Path.DataProperty,
+                path.GetObservable(Avalonia.Controls.Shapes.Path.DataProperty));
+            if (Application.Current is not null)
+                Themes.ThemeBrushes.Bind(gloss, Avalonia.Controls.Shapes.Shape.FillProperty,
+                    Themes.ThemeFeatureMap.IconGlossBrushKey);
+
             var canvas = new Canvas { Width = IconViewportSize, Height = IconViewportSize };
+            canvas.Children.Add(back);
             canvas.Children.Add(path);
+            canvas.Children.Add(gloss);
+            Track(path, back, key);
             return new Viewbox
             {
                 Width = size,
@@ -108,6 +131,87 @@ namespace Configuration_Management
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Child = canvas
             };
+        }
+
+        /// <summary>
+        /// Фоновый слой иконки активного набора (ключ &lt;Ключ&gt;.Back.&lt;Набор&gt;) или null,
+        /// если у набора слоя нет. В отличие от <see cref="Geometry"/> не откатывается на
+        /// Fluent и «папку»: у базового набора фонового слоя нет.
+        /// </summary>
+        public static Geometry? BackGeometry(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key) || Application.Current is not { } app)
+                return null;
+            var set = Themes.IconSetState.Instance.Current;
+            if (set == Themes.IconSet.Fluent)
+                return null;
+            var backKey = Themes.ThemeFeatureMap.IconKeyForSet(Themes.ThemeFeatureMap.BackLayerKey(key), set);
+            return app.TryGetResource(backKey, null, out var res) && res is Geometry g ? g : null;
+        }
+
+        /// <summary>
+        /// Меняет иконку уже построенного значка (например, статус базы): запоминает новый
+        /// ключ, чтобы при смене темы значок перечитался из нового набора, и обновляет
+        /// основной и фоновый слои. Используйте вместо прямого path.Data = Geometry(key).
+        /// </summary>
+        public static void SetIcon(Avalonia.Controls.Shapes.Path path, string key)
+        {
+            if (path is null)
+                return;
+            path.Data = Geometry(key);
+            if (Tracked.TryGetValue(path, out var state))
+            {
+                state.Key = key;
+                state.Back.Data = BackGeometry(key);
+            }
+        }
+
+        /// <summary>
+        /// Отключает автоматическое обновление значка при смене набора иконок — для путей,
+        /// чей Data задан привязкой (её перекрыло бы обновление из IconHelper).
+        /// </summary>
+        public static void Untrack(Avalonia.Controls.Shapes.Path path)
+        {
+            if (path is not null && Tracked.TryGetValue(path, out var state))
+                state.Key = null;
+        }
+
+        /// <summary>Состояние отслеживаемого значка: текущий ключ и фоновый слой.</summary>
+        private sealed class TrackedIcon
+        {
+            public string? Key;
+            public Avalonia.Controls.Shapes.Path Back = null!;
+        }
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<
+            Avalonia.Controls.Shapes.Path, TrackedIcon> Tracked = new();
+
+        /// <summary>
+        /// Подписывает значок на смену темы (0.3.12.60), пока он в визуальном дереве:
+        /// при смене набора иконок контур перечитывается по запомненному ключу. Подписка
+        /// снимается при откреплении, поэтому значки пересобираемых строк не укореняются.
+        /// </summary>
+        private static void Track(Avalonia.Controls.Shapes.Path path, Avalonia.Controls.Shapes.Path back, string key)
+        {
+            var state = new TrackedIcon { Key = key, Back = back };
+            Tracked.AddOrUpdate(path, state);
+
+            void OnThemeChanged(object? sender, EventArgs e)
+            {
+                if (state.Key is null)
+                    return;
+                path.Data = Geometry(state.Key);
+                back.Data = BackGeometry(state.Key);
+            }
+
+            path.AttachedToVisualTree += (_, _) =>
+            {
+                Themes.ThemeManager.ThemeChanged -= OnThemeChanged;
+                Themes.ThemeManager.ThemeChanged += OnThemeChanged;
+                // Набор мог смениться, пока значок был вне дерева.
+                OnThemeChanged(null, EventArgs.Empty);
+            };
+            path.DetachedFromVisualTree += (_, _) => Themes.ThemeManager.ThemeChanged -= OnThemeChanged;
         }
 
         /// <summary>Координатное поле контуров Icons.axaml, оно же viewport PackIcon.</summary>

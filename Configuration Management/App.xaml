@@ -4,6 +4,7 @@
              xmlns:local="clr-namespace:Configuration_Management"
              xmlns:conv="clr-namespace:Configuration_Management.Converters"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:themes="clr-namespace:Configuration_Management.Themes"
             >
     <Application.Resources>
         <ResourceDictionary>
@@ -28,6 +29,48 @@
             <conv:IconKeyToGeometryConverter x:Key="IconKeyToGeometryConverter"/>
             <!-- Цвет точки «база запущена» (issue #310): зелёный/оранжевый/красный. -->
             <conv:RunningDotColorConverter x:Key="RunningDotColorConverter"/>
+
+            <!-- ===================== Значки PackIcon по набору иконок (0.3.12.60) =====================
+                 Неявный стиль заменяет шаблон materialDesign:PackIcon: геометрия берётся из
+                 активного набора иконок темы (Pack.<Kind>.<Набор> в Icons<Набор>.xaml) через
+                 PackIconGeometryConverter, а при Fluent — родная геометрия PackIcon. Слои:
+                 фоновый полупрозрачный (Duotone-набор Glass), основной и «блик» (IconGlossBrush,
+                 у Windows XP — объёмный градиент). Привязка к IconSetState.Current перерисовывает
+                 все значки сразу при смене темы. Локальные стили PackIcon наследуют этот стиль
+                 через BasedOn="{StaticResource {x:Type materialDesign:PackIcon}}". -->
+            <SolidColorBrush x:Key="IconGlossBrush" Color="Transparent"/>
+            <Style TargetType="{x:Type materialDesign:PackIcon}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type materialDesign:PackIcon}">
+                            <Viewbox FlowDirection="{TemplateBinding FlowDirection}">
+                                <Canvas Width="24" Height="24">
+                                    <Path Fill="{TemplateBinding Foreground}" Opacity="0.25">
+                                        <Path.Data>
+                                            <MultiBinding Converter="{x:Static conv:PackIconGeometryConverter.Back}">
+                                                <Binding Path="Kind" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                                <Binding Path="Current" Source="{x:Static themes:IconSetState.Instance}"/>
+                                                <Binding Path="Data" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                            </MultiBinding>
+                                        </Path.Data>
+                                    </Path>
+                                    <Path x:Name="FrontPath" Fill="{TemplateBinding Foreground}">
+                                        <Path.Data>
+                                            <MultiBinding Converter="{x:Static conv:PackIconGeometryConverter.Front}">
+                                                <Binding Path="Kind" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                                <Binding Path="Current" Source="{x:Static themes:IconSetState.Instance}"/>
+                                                <Binding Path="Data" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                            </MultiBinding>
+                                        </Path.Data>
+                                    </Path>
+                                    <Path Data="{Binding Data, ElementName=FrontPath}"
+                                          Fill="{DynamicResource IconGlossBrush}" IsHitTestVisible="False"/>
+                                </Canvas>
+                            </Viewbox>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
             <!-- ===================== Иконка приложения 0.2.6.10 ===================== -->
             <DrawingImage x:Key="AppIcon">

@@ -168,6 +168,79 @@ namespace Configuration_Management.Themes
             if (Application.Current is not { } app)
                 return;
             app.Resources[ThemeFeatureMap.IconSetNameKey] = ThemeFeatureMap.IconSetId(CurrentIconSet);
+
+            // Живое переключение (0.3.12.60): базовые ключи (IconAdd, GlyphWindowClose, …)
+            // переопределяются в собственных ресурсах приложения геометрией активного набора —
+            // DynamicResource-потребители (axaml) перерисовываются сразу; иконки, собранные
+            // кодом (IconHelper), перечитывают ключ по событию ThemeChanged.
+            foreach (var key in AppliedIconOverrides)
+                app.Resources.Remove(key);
+            AppliedIconOverrides.Clear();
+            foreach (var pair in ThemeFeatureMap.IconOverrides(CurrentIconSet, BaseIconKeys(app),
+                         key => app.TryGetResource(key, null, out var v) && v is not null))
+            {
+                if (app.TryGetResource(pair.Value, null, out var resource) && resource is not null)
+                {
+                    app.Resources[pair.Key] = resource;
+                    AppliedIconOverrides.Add(pair.Key);
+                }
+            }
+
+            // «Блик» поверх иконок (Windows XP) и уведомление подписчиков набора.
+            var gloss = ThemeFeatureMap.IconGloss(CurrentIconSet);
+            app.Resources[ThemeFeatureMap.IconGlossBrushKey] = gloss is { } g
+                ? CreateGlossBrush(g.Top, g.Bottom, g.Stop)
+                : Brushes.Transparent;
+            IconSetState.Instance.Current = CurrentIconSet;
+        }
+
+        /// <summary>Ключи, переопределённые последним <see cref="ApplyIconSet"/>.</summary>
+        private static readonly List<string> AppliedIconOverrides = new();
+
+        private static List<string>? _baseIconKeys;
+
+        /// <summary>
+        /// Ключи геометрий базового словаря Themes/Icons.axaml (Icon*, Glyph*), собранные один
+        /// раз: именно их набор иконок переопределяет при переключении.
+        /// </summary>
+        private static IEnumerable<string> BaseIconKeys(Application app)
+        {
+            if (_baseIconKeys is not null)
+                return _baseIconKeys;
+            var keys = new List<string>();
+            foreach (var provider in app.Resources.MergedDictionaries)
+            {
+                if (provider is not Avalonia.Markup.Xaml.Styling.ResourceInclude include ||
+                    include.Source is null ||
+                    !include.Source.ToString().EndsWith("Themes/Icons.axaml", StringComparison.OrdinalIgnoreCase) ||
+                    include.Loaded is not IResourceDictionary dict)
+                    continue;
+                foreach (var pair in dict)
+                {
+                    if (pair.Key is string name && pair.Value is Geometry)
+                        keys.Add(name);
+                }
+            }
+            _baseIconKeys = keys;
+            return keys;
+        }
+
+        /// <summary>Вертикальный градиент «блика» иконки (верх → низ, гаснет к доле stop).</summary>
+        private static IBrush CreateGlossBrush(string top, string bottom, double stop)
+        {
+            TryParseColor(top, out var topColor);
+            TryParseColor(bottom, out var bottomColor);
+            return new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+                GradientStops =
+                {
+                    new GradientStop(topColor, 0),
+                    new GradientStop(bottomColor, stop),
+                    new GradientStop(bottomColor, 1)
+                }
+            };
         }
 
         /// <summary>Создаёт кисть из шестнадцатеричного цвета (#RRGGBB), прозрачную при ошибке.</summary>

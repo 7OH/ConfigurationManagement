@@ -29,6 +29,9 @@
                 <ResourceInclude Source="avares://ConfigurationManagement/Themes/LightTheme.axaml" />
                 <ResourceInclude Source="avares://ConfigurationManagement/Themes/Controls.axaml" />
             </ResourceDictionary.MergedDictionaries>
+            <!-- «Блик» поверх иконок (0.3.12.60): у набора Windows XP ThemeManager.ApplyIconSet
+                 подменяет кисть объёмным градиентом, у остальных наборов она прозрачна. -->
+            <SolidColorBrush x:Key="IconGlossBrush" Color="Transparent"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

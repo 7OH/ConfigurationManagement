@@ -58,8 +58,12 @@ public sealed class IconSetCoverageTests
                 continue;
             if (file.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (Match m in Regex.Matches(File.ReadAllText(file),
+                var text = File.ReadAllText(file);
+                foreach (Match m in Regex.Matches(text,
                              "PackIcon[^>]*?\\sKind=\"([A-Za-z0-9]+)\"", RegexOptions.Singleline))
+                    kinds.Add(m.Groups[1].Value);
+                // Kind в сеттерах стилей и триггеров PackIcon.
+                foreach (Match m in Regex.Matches(text, "Property=\"Kind\" Value=\"([A-Za-z0-9]+)\""))
                     kinds.Add(m.Groups[1].Value);
             }
             else if (file.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))

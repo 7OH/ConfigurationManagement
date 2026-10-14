@@ -1846,13 +1846,13 @@ namespace Configuration_Management
 
             if (searching)
             {
-                _emptyIcon.Data = IconHelper.Geometry("IconSearch");
+                IconHelper.SetIcon(_emptyIcon, "IconSearch");
                 _emptyTitle.Text = LocalizationManager.T("Main.EmptyNoResults");
                 _emptyHint.Text = LocalizationManager.T("Main.EmptyNoResultsHint");
             }
             else
             {
-                _emptyIcon.Data = IconHelper.Geometry("IconDatabase");
+                IconHelper.SetIcon(_emptyIcon, "IconDatabase");
                 _emptyTitle.Text = LocalizationManager.T("Main.EmptyNoBases");
                 _emptyHint.Text = LocalizationManager.T("Main.EmptyNoBasesHint");
             }

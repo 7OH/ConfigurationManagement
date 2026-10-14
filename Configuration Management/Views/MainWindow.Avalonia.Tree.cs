@@ -353,7 +353,7 @@ namespace Configuration_Management
                 void OnStatusChanged(object? _, PropertyChangedEventArgs e)
                 {
                     if (e.PropertyName == nameof(Infobase.StatusIconKey))
-                        statusPath.Data = IconHelper.Geometry(ib.StatusIconKey);
+                        IconHelper.SetIcon(statusPath, ib.StatusIconKey);
                     if (e.PropertyName == nameof(Infobase.StatusColorHex))
                         statusPath.Fill = new SolidColorBrush(Color.Parse(ib.StatusColorHex));
                     if (e.PropertyName == nameof(Infobase.StatusDisplay))
@@ -799,8 +799,18 @@ namespace Configuration_Management
             // (MainWindow.xaml:1709). Контур привязывается к самому Path внутри
             // холста: у Viewbox такого свойства нет, и привязка молча не работала.
             var headerIcon = IconHelper.MakeIcon("IconDatabase", UiMetrics.Scaled(28), out var headerIconPath);
-            headerIconPath.Bind(Avalonia.Controls.Shapes.Path.DataProperty,
-                new Binding("RightPanelIconKey") { Converter = IconKeyConverter });
+            // Контур задан привязкой — авто-обновление IconHelper отключается, а смену набора
+            // иконок привязка ловит сама через IconSetState.Current (0.3.12.60).
+            IconHelper.Untrack(headerIconPath);
+            headerIconPath.Bind(Avalonia.Controls.Shapes.Path.DataProperty, new MultiBinding
+            {
+                Bindings =
+                {
+                    new Binding("RightPanelIconKey"),
+                    new Binding(nameof(Themes.IconSetState.Current)) { Source = Themes.IconSetState.Instance }
+                },
+                Converter = IconKeyConverter
+            });
             ThemeBrushes.Bind(headerIconPath, Avalonia.Controls.Shapes.Path.FillProperty, "AccentBrush");
             headerIcon.Margin = new Thickness(0, 0, 10, 0);
             headerIcon.Bind(Control.IsVisibleProperty, new Binding("HasRightPanelIcon"));
@@ -1348,8 +1358,18 @@ namespace Configuration_Management
         }
 
         /// <summary>Ключ значка в геометрию из Icons.axaml для привязок заголовка.</summary>
-        private static readonly Avalonia.Data.Converters.FuncValueConverter<string?, Geometry?> IconKeyConverter =
-            new(key => string.IsNullOrEmpty(key) ? null : IconHelper.Geometry(key));
+        private static readonly Avalonia.Data.Converters.FuncMultiValueConverter<object?, Geometry?> IconKeyConverter =
+            new(values =>
+            {
+                // values: ключ значка и активный набор иконок (последний — только триггер).
+                string? key = null;
+                foreach (var v in values)
+                {
+                    key = v as string;
+                    break;
+                }
+                return string.IsNullOrEmpty(key) ? null : IconHelper.Geometry(key);
+            });
 
         /// <summary>Рамка бейджа правой панели с явным фоном, как в разметке WPF.</summary>
         private static Border Badge(string backHex) =>

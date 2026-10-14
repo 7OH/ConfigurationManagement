@@ -3034,15 +3034,7 @@ namespace Configuration_Management
             var saveBrush = new SolidColorBrush(Color.Parse("#16A34A"));
             var onSaveBrush = Brushes.White;
             var okContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-            okContent.Children.Add(new Avalonia.Controls.Shapes.Path
-            {
-                Width = UiMetrics.Scaled(16),
-                Height = UiMetrics.Scaled(16),
-                Data = IconHelper.Geometry("IconSave"),
-                Stretch = Stretch.Uniform,
-                Fill = onSaveBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            });
+            okContent.Children.Add(IconHelper.MakeIcon("IconSave", UiMetrics.Scaled(16), onSaveBrush));
             okContent.Children.Add(new TextBlock
             {
                 Text = LocalizationManager.T("Common.Save"),
@@ -3283,15 +3275,7 @@ namespace Configuration_Management
             // ни здесь.
             var dangerBrush = new SolidColorBrush(Color.Parse("#EF4444"));
             var cancelContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-            cancelContent.Children.Add(new Avalonia.Controls.Shapes.Path
-            {
-                Width = UiMetrics.Scaled(16),
-                Height = UiMetrics.Scaled(16),
-                Data = IconHelper.Geometry("IconClose"),
-                Stretch = Stretch.Uniform,
-                Fill = dangerBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            });
+            cancelContent.Children.Add(IconHelper.MakeIcon("IconClose", UiMetrics.Scaled(16), dangerBrush));
             cancelContent.Children.Add(new TextBlock
             {
                 Text = LocalizationManager.T("Common.Cancel"),

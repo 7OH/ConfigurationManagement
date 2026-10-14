@@ -33,7 +33,7 @@
                                          Width="16" Height="16" Margin="4,0,0,0" VerticalAlignment="Center"
                                          Foreground="{Binding DisplayIconColor}">
                     <materialDesign:PackIcon.Style>
-                        <Style TargetType="materialDesign:PackIcon">
+                        <Style TargetType="materialDesign:PackIcon" BasedOn="{StaticResource {x:Type materialDesign:PackIcon}}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding DisplayIconKey}" Value="">
                                     <Setter Property="Visibility" Value="Collapsed"/>

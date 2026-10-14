@@ -1,6 +1,7 @@
 <Window x:Class="Configuration_Management.GroupPickerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:themes="clr-namespace:Configuration_Management.Themes"
         xmlns:vm="clr-namespace:Configuration_Management.ViewModels"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:controls="clr-namespace:Configuration_Management.Controls"
@@ -272,8 +273,15 @@
                                         VerticalAlignment="Center"
                                         Background="{Binding HeaderBrush}">
                                     <Path Width="18" Height="18" Stretch="Uniform"
-                                          Fill="{Binding IconBrush}"
-                                          Data="{Binding Icon, Converter={StaticResource IconKeyToGeometryConverter}}"/>
+                                          Fill="{Binding IconBrush}">
+                                        <Path.Data>
+                                            <!-- Набор иконок темы (0.3.12.60): привязка к IconSetState перерисовывает иконку при смене темы. -->
+                                            <MultiBinding Converter="{StaticResource IconKeyToGeometryConverter}">
+                                                <Binding Path="Icon"/>
+                                                <Binding Path="Current" Source="{x:Static themes:IconSetState.Instance}"/>
+                                            </MultiBinding>
+                                        </Path.Data>
+                                    </Path>
                                 </Border>
                                 <TextBlock Text="{Binding DisplayName}" FontSize="14" VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextPrimaryBrush}"

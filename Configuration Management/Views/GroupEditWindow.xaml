@@ -312,7 +312,7 @@
                         </ControlTemplate>
                     </Button.Template>
                     <StackPanel Orientation="Horizontal">
-                        <Path Data="{StaticResource IconSave}" Fill="White" Width="16" Height="16"
+                        <Path Data="{DynamicResource IconSave}" Fill="White" Width="16" Height="16"
                               Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
                         <TextBlock Text="{loc:Loc Common.Save}" VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold"/>
                     </StackPanel>
@@ -336,7 +336,7 @@
                         </ControlTemplate>
                     </Button.Template>
                     <StackPanel Orientation="Horizontal">
-                        <Path Data="{StaticResource IconClear}" Fill="#EF4444" Width="14" Height="14"
+                        <Path Data="{DynamicResource IconClear}" Fill="#EF4444" Width="14" Height="14"
                               Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
                         <TextBlock Text="{loc:Loc Common.Cancel}" VerticalAlignment="Center" Foreground="#EF4444" FontWeight="SemiBold"/>
                     </StackPanel>

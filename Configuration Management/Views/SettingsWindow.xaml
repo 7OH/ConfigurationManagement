@@ -367,7 +367,7 @@
                                             <materialDesign:PackIcon Grid.Column="0" Width="14" Height="14"
                                                                      Margin="0,2,8,0" VerticalAlignment="Top">
                                                 <materialDesign:PackIcon.Style>
-                                                    <Style TargetType="materialDesign:PackIcon">
+                                                    <Style TargetType="materialDesign:PackIcon" BasedOn="{StaticResource {x:Type materialDesign:PackIcon}}">
                                                         <Setter Property="Kind" Value="Folder"/>
                                                         <Setter Property="Foreground" Value="#F59E0B"/>
                                                         <Style.Triggers>
@@ -1046,7 +1046,7 @@
                                                 Style="{DynamicResource IconButton}"
                                                 ToolTip="{loc:Loc Theme.Dark}">
                                             <Path x:Name="PaletteToggleIcon" Width="18" Height="18" Stretch="Uniform"
-                                                  Data="{StaticResource IconMoon}" Fill="#8B5CF6"/>
+                                                  Data="{DynamicResource IconMoon}" Fill="#8B5CF6"/>
                                         </Button>
                                         <TextBlock x:Name="PaletteStateText" Text="{loc:Loc Theme.Light}"
                                                    VerticalAlignment="Center" Margin="8,0,0,0"

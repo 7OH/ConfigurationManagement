@@ -166,6 +166,80 @@ public static class ThemeFeatureMap
     }
 
     /// <summary>
+    /// Суффикс ключа фонового (полупрозрачного) слоя иконки: у Duotone-набора Glass
+    /// рядом с IconAdd.Glass лежит IconAdd.Back.Glass (0.3.12.59). Базовый ключ слоя —
+    /// IconAdd.Back; в базовом наборе его нет, поэтому слой рисуется только у Glass.
+    /// </summary>
+    public const string BackLayerSuffix = ".Back";
+
+    /// <summary>Непрозрачность фонового слоя иконки (как у Phosphor Duotone — 0.2–0.3).</summary>
+    public const double BackLayerOpacity = 0.25;
+
+    /// <summary>
+    /// Ключ ресурса кисти «блика» поверх иконки (0.3.12.60): у набора Windows XP —
+    /// вертикальный градиент от полупрозрачного белого к прозрачному (объёмный «Luna»-вид
+    /// любой иконки независимо от её цвета), у остальных наборов — прозрачная кисть.
+    /// </summary>
+    public const string IconGlossBrushKey = "IconGlossBrush";
+
+    /// <summary>
+    /// Цвета «блика» иконки для набора: (верх, низ, доля высоты, где блик гаснет) в
+    /// формате #AARRGGBB, либо null — блика нет. Сейчас блик есть только у Windows XP.
+    /// </summary>
+    public static (string Top, string Bottom, double Stop)? IconGloss(IconSet set) => set switch
+    {
+        IconSet.WindowsXp => ("#99FFFFFF", "#00FFFFFF", 0.55),
+        _ => null
+    };
+
+    /// <summary>Ключ фонового слоя иконки: IconAdd → IconAdd.Back.</summary>
+    public static string BackLayerKey(string key) => key + BackLayerSuffix;
+
+    /// <summary>
+    /// Ключ варианта значка materialDesign:PackIcon в наборе: Pack.&lt;Kind&gt;.&lt;Набор&gt;
+    /// (фоновый слой — Pack.&lt;Kind&gt;.Back.&lt;Набор&gt;). Для Fluent возвращает null:
+    /// базовый набор рисует собственную геометрию PackIcon.
+    /// </summary>
+    public static string? PackIconKey(string kind, IconSet set, bool back = false)
+    {
+        if (set == IconSet.Fluent || string.IsNullOrWhiteSpace(kind))
+            return null;
+        return "Pack." + kind + (back ? BackLayerSuffix : string.Empty) + "." + IconSetId(set);
+    }
+
+    /// <summary>
+    /// Переопределения базовых ключей иконок для живого переключения набора (0.3.12.60):
+    /// пары (базовый ключ → ключ ресурса набора), которые менеджер тем кладёт в
+    /// собственные ресурсы приложения поверх подключённых словарей. Тогда все
+    /// потребители DynamicResource (IconAdd, GlyphWindowClose, …) получают геометрию
+    /// активного набора сразу, без перезапуска. Для каждого базового ключа берётся
+    /// вариант набора (если есть) и его фоновый слой (если есть). Для Fluent список пуст —
+    /// прежние переопределения просто снимаются.
+    /// </summary>
+    /// <param name="set">Активный набор иконок.</param>
+    /// <param name="baseKeys">Ключи базового словаря (Icons.xaml / Icons.axaml).</param>
+    /// <param name="exists">Проверка наличия ресурса по ключу.</param>
+    public static IReadOnlyList<KeyValuePair<string, string>> IconOverrides(
+        IconSet set, IEnumerable<string> baseKeys, Func<string, bool> exists)
+    {
+        var result = new List<KeyValuePair<string, string>>();
+        if (set == IconSet.Fluent || baseKeys is null || exists is null)
+            return result;
+        foreach (var key in baseKeys)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                continue;
+            var variant = IconKeyForSet(key, set);
+            if (exists(variant))
+                result.Add(new KeyValuePair<string, string>(key, variant));
+            var back = IconKeyForSet(BackLayerKey(key), set);
+            if (exists(back))
+                result.Add(new KeyValuePair<string, string>(BackLayerKey(key), back));
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Ключ локализации отображаемого имени полноценной темы по её идентификатору
     /// (используется в настройках обеих платформ, Задача 3). Неизвестный или пустой
     /// идентификатор даёт ключ светлой темы — как и <see cref="Resolve"/>.

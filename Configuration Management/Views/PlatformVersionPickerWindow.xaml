@@ -197,7 +197,7 @@
                             <materialDesign:PackIcon Width="16" Height="16" Margin="0,0,6,0"
                                                      VerticalAlignment="Center">
                                 <materialDesign:PackIcon.Style>
-                                    <Style TargetType="materialDesign:PackIcon">
+                                    <Style TargetType="materialDesign:PackIcon" BasedOn="{StaticResource {x:Type materialDesign:PackIcon}}">
                                         <Setter Property="Kind" Value="Folder"/>
                                         <Setter Property="Foreground" Value="#F59E0B"/>
                                         <Style.Triggers>
