@@ -77,6 +77,38 @@ public sealed class TraceFlagsTests
         Assert.False(TraceFlagsFormat.IsEnabled(result.Flags, "CM_FUTURE"));
     }
 
+    [Fact]
+    public void Parse_WithUpdatesPreviewLen_ReadsIntValue()
+    {
+        // issue #371: числовой параметр CM_UPDATES_PREVIEW_LEN (длина превью HTML в журнале
+        // CM_UPDATES) читается из trace.json; регистр имени безразличен.
+        const string json = "{\"version\":1,\"cm_updates_preview_len\":2000}";
+
+        var result = TraceFlagsFormat.Parse(json);
+
+        Assert.True(result.IsValid);
+        Assert.True(TraceFlagsFormat.TryGetInt(result.IntValues, "CM_UPDATES_PREVIEW_LEN", out var len));
+        Assert.Equal(2000, len);
+    }
+
+    [Fact]
+    public void Parse_UpdatesPreviewLen_InvalidOrMissing_ReturnsDefault()
+    {
+        // Нечисловое/неположительное значение параметра игнорируется — вызывающий
+        // использует дефолт (issue #371).
+        var result = TraceFlagsFormat.Parse("{\"version\":1,\"CM_UPDATES_PREVIEW_LEN\":\"много\"}");
+        Assert.True(result.IsValid);
+        Assert.False(TraceFlagsFormat.TryGetInt(result.IntValues, "CM_UPDATES_PREVIEW_LEN", out _));
+
+        result = TraceFlagsFormat.Parse("{\"version\":1,\"CM_UPDATES_PREVIEW_LEN\":-5}");
+        Assert.True(result.IsValid);
+        Assert.False(TraceFlagsFormat.TryGetInt(result.IntValues, "CM_UPDATES_PREVIEW_LEN", out _));
+
+        result = TraceFlagsFormat.Parse("{\"version\":1}");
+        Assert.True(result.IsValid);
+        Assert.False(TraceFlagsFormat.TryGetInt(result.IntValues, "CM_UPDATES_PREVIEW_LEN", out _));
+    }
+
     // ============ Сериализация: pretty-print + разбор обратно ============
 
     [Fact]
@@ -146,6 +178,35 @@ public sealed class TraceFlagsTests
 
         // Флаг true в конфиге → диагностика включена (env при этом не обязательна).
         Assert.True(TraceFlags.IsEnabled(TraceFlags.ColumnsFlag));
+    }
+
+    [Fact]
+    public void GetInt_FromConfig_ReturnsConfiguredValue()
+    {
+        // issue #371: CM_UPDATES_PREVIEW_LEN из trace.json меняет длину превью HTML
+        // в журнале CM_UPDATES (вместо жёстких 500 символов).
+        using var dir = new TempDir();
+        var configPath = Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName);
+        File.WriteAllText(
+            configPath,
+            "{\"version\":1,\"CM_UPDATES\":true,\"CM_UPDATES_PREVIEW_LEN\":2000}",
+            System.Text.Encoding.UTF8);
+        File.SetLastWriteTimeUtc(configPath, DateTime.UtcNow.AddSeconds(5));
+
+        Assert.Equal(2000, TraceFlags.GetInt(TraceFlagsFormat.UpdatesPreviewLenKey, 500));
+    }
+
+    [Fact]
+    public void GetInt_MissingOrInvalid_ReturnsDefault()
+    {
+        // Параметр отсутствует/нечисловой — возвращается дефолт (issue #371).
+        using var dir = new TempDir();
+        var configPath = Path.Combine(dir.Path, TraceFlagsFormat.ConfigFileName);
+        File.WriteAllText(configPath, "{\"version\":1}", System.Text.Encoding.UTF8);
+        File.SetLastWriteTimeUtc(configPath, DateTime.UtcNow.AddSeconds(5));
+
+        Assert.Equal(500, TraceFlags.GetInt(TraceFlagsFormat.UpdatesPreviewLenKey, 500));
+        Assert.Equal(42, TraceFlags.GetInt("CM_UNKNOWN_INT", 42));
     }
 
     [Fact]

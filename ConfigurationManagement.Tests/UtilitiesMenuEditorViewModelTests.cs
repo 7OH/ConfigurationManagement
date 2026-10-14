@@ -120,7 +120,8 @@ public sealed class UtilitiesMenuEditorViewModelTests
         Assert.Equal(before - 1, vm.Roots.Count);
         Assert.False(vm.Roots.Contains(group));
         Assert.False(vm.Groups.Contains(group));
-        Assert.Null(vm.SelectedItem);
+        // Группа была последней в корне — выбран узел, занявший её место (предыдущий).
+        Assert.NotNull(vm.SelectedItem);
     }
 
     [Fact]
@@ -319,7 +320,85 @@ public sealed class UtilitiesMenuEditorViewModelTests
 
         Assert.Equal(before - 1, vm.Roots.Count);
         Assert.False(vm.Roots.Contains(sep));
-        Assert.Null(vm.SelectedItem);
+        // Разделитель был последним в корне — выбран узел, занявший его место (предыдущий).
+        Assert.NotNull(vm.SelectedItem);
+    }
+
+    [Fact]
+    public void DeleteSeparator_InMiddle_SelectsNextNode()
+    {
+        // issue #374: после удаления разделителя в середине списка текущей становится
+        // строка, занявшая его место (следующий узел).
+        var vm = CreateViewModel();
+        var item = vm.Roots.FirstOrDefault(n => string.Equals(n.Node.Kind, "item", StringComparison.Ordinal));
+        if (item is null)
+            return;
+        vm.SelectedItem = item;
+        vm.AddSeparatorCommand.Execute(null);
+        var sep = vm.SelectedItem!;
+        var index = vm.Roots.IndexOf(sep);
+        var next = vm.Roots[index + 1];
+
+        vm.DeleteGroupCommand.Execute(false);
+
+        Assert.False(vm.Roots.Contains(sep));
+        Assert.True(ReferenceEquals(vm.SelectedItem, next));
+    }
+
+    [Fact]
+    public void DeleteGroup_LastNode_SelectsPrevious()
+    {
+        // issue #374: удаление последнего узла — текущей становится предыдущая строка.
+        var vm = CreateViewModel();
+        vm.AddGroupCommand.Execute(new UtilitiesGroupEditParams("Последняя", null));
+        var group = vm.SelectedItem!;
+        var index = vm.Roots.IndexOf(group);
+        var previous = vm.Roots[index - 1];
+
+        vm.DeleteGroupCommand.Execute(false);
+
+        Assert.False(vm.Roots.Contains(group));
+        Assert.True(ReferenceEquals(vm.SelectedItem, previous));
+    }
+
+    [Fact]
+    public void DeleteGroup_WithItems_MoveToRoot_SelectsFirstMovedChild()
+    {
+        // issue #374: при удалении группы с переносом детей в корень текущей становится
+        // первый перенесённый ребёнок (занял место группы).
+        var vm = CreateViewModel();
+        vm.AddGroupCommand.Execute(new UtilitiesGroupEditParams("Группа", null));
+        var group = vm.SelectedItem!;
+        var item = vm.Roots.FirstOrDefault(n => string.Equals(n.Node.Kind, "item", StringComparison.Ordinal));
+        if (item is null)
+            return;
+        vm.SelectedItem = item;
+        vm.SelectedGroup = group;
+        vm.MoveToGroupCommand.Execute(null);
+        Assert.Equal(1, group.Children.Count);
+
+        vm.SelectedItem = group;
+        vm.DeleteGroupCommand.Execute(true);
+
+        Assert.False(vm.Roots.Contains(group));
+        Assert.True(vm.Roots.Contains(item));
+        Assert.True(ReferenceEquals(vm.SelectedItem, item));
+    }
+
+    [Fact]
+    public void DeleteSeparator_NoConfirmationRequired()
+    {
+        // issue #374: разделитель удаляется сразу, без подтверждения — команда удаления
+        // не требует параметра переноса (Execute(false)) и не оставляет вопросов.
+        var vm = CreateViewModel();
+        vm.AddSeparatorCommand.Execute(null);
+        var sep = vm.SelectedItem!;
+        var before = vm.Roots.Count;
+
+        vm.DeleteGroupCommand.Execute(false);
+
+        Assert.Equal(before - 1, vm.Roots.Count);
+        Assert.False(vm.Roots.Contains(sep));
     }
 
     // ---- Перенос в корень (issue #374) ----

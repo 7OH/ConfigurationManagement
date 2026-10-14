@@ -299,9 +299,11 @@
 
                 <!-- Фильтр «Только в базах» (issue #375): по умолчанию включён; список
                      фильтруется конфигурациями, присутствующими в списке баз (привязка
-                     или эвристика). -->
+                     или эвристика). Подсказка объясняет правила поиска конфигурации и
+                     сопоставления редакций (точное совпадение или префикс по сегментам). -->
                 <CheckBox x:Name="OnlyInBasesCheck" Content="{loc:Loc Updates.OnlyInBases}"
                           IsChecked="True" VerticalAlignment="Center" Margin="16,0,0,0"
+                          ToolTip="{loc:Loc Updates.OnlyInBasesTooltip}"
                           Checked="OnOnlyInBasesChanged" Unchecked="OnOnlyInBasesChanged"/>
             </StackPanel>
 

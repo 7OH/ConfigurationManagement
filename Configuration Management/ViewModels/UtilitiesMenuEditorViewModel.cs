@@ -300,7 +300,9 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
 
     /// <summary>Удаление выбранного узла: разделитель удаляется сразу; группа — при
     /// <paramref name="moveToRoot"/> дети переносятся в корень на место группы (с сохранением
-    /// порядка), иначе группа удаляется вместе с детьми.</summary>
+    /// порядка), иначе группа удаляется вместе с детьми. После удаления выбирается узел,
+    /// занявший место удалённого (тот же индекс в списке сиблингов; если индекс за концом —
+    /// предыдущий; при переносе детей — первый перенесённый ребёнок) — issue #374.</summary>
     private void DeleteGroup(bool moveToRoot)
     {
         var item = SelectedItem;
@@ -309,28 +311,47 @@ public class UtilitiesMenuEditorViewModel : ViewModelBase
         if (IsSeparator(item))
         {
             var sepSiblings = item.Parent is null ? Roots : item.Parent.Children;
+            var sepIndex = sepSiblings.IndexOf(item);
             sepSiblings.Remove(item);
-            SelectedItem = null;
+            SelectNodeAt(sepSiblings, sepIndex);
             RaiseCommandsCanExecuteChanged();
             return;
         }
         if (!IsGroup(item))
             return;
         var siblings = item.Parent is null ? Roots : item.Parent.Children;
+        var index = siblings.IndexOf(item);
         if (moveToRoot && item.Children.Count > 0)
         {
-            var index = siblings.IndexOf(item);
             var children = item.Children.ToList();
             foreach (var child in children)
             {
                 child.Parent = null;
                 siblings.Insert(index++, child);
             }
+            siblings.Remove(item);
+            Groups.Remove(item);
+            SelectedItem = children[0]; // первый перенесённый ребёнок
         }
-        siblings.Remove(item);
-        Groups.Remove(item);
-        SelectedItem = null;
+        else
+        {
+            siblings.Remove(item);
+            Groups.Remove(item);
+            SelectNodeAt(siblings, index);
+        }
         RaiseCommandsCanExecuteChanged();
+    }
+
+    /// <summary>Выбирает узел на месте удалённого: тот же индекс в списке сиблингов,
+    /// если индекс за концом — предыдущий (issue #374).</summary>
+    private void SelectNodeAt(ObservableCollection<UtilitiesMenuNodeItem> siblings, int index)
+    {
+        if (siblings.Count == 0)
+        {
+            SelectedItem = null;
+            return;
+        }
+        SelectedItem = siblings[Math.Min(index, siblings.Count - 1)];
     }
 
     /// <summary>Назначает иконку каталога узлу (ключ → ключ+цвет, сброс внешнего файла).</summary>

@@ -55,6 +55,11 @@ public static class TraceFlags
     /// и решение о повторе с полным каталогом (issue #371).</summary>
     public const string UpdatesFlag = "CM_UPDATES";
 
+    /// <summary>Числовой параметр диагностики обновлений (CM_UPDATES_PREVIEW_LEN): длина
+    /// превью HTML в журнале CM_UPDATES (issue #371). Читается из trace.json через
+    /// <see cref="GetInt"/>, дефолт 500.</summary>
+    public const string UpdatesPreviewLenKey = TraceFlagsFormat.UpdatesPreviewLenKey;
+
     private static readonly object Lock = new();
     private static string? _configDirectoryOverride;
     private static string? _profileDataDirectory;
@@ -63,6 +68,7 @@ public static class TraceFlags
     private static bool _configCreatedByUs;
     private static DateTime _lastMtimeUtc;
     private static IReadOnlyDictionary<string, bool> _flags = TraceFlagsFormat.EmptyFlags;
+    private static IReadOnlyDictionary<string, int> _intValues = TraceFlagsFormat.EmptyIntValues;
 
     /// <summary>
     /// Каталог конфига флагов для юнит-тестов (по умолчанию — <see cref="PlatformPaths.AppDataDirectory"/>).
@@ -112,6 +118,7 @@ public static class TraceFlags
         _configCreatedByUs = false;
         _lastMtimeUtc = default;
         _flags = TraceFlagsFormat.EmptyFlags;
+        _intValues = TraceFlagsFormat.EmptyIntValues;
     }
 
     /// <summary>
@@ -184,6 +191,26 @@ public static class TraceFlags
                 return true;
 
             return TraceFlagsFormat.IsEnabled(_flags, name);
+        }
+    }
+
+    /// <summary>
+    /// Читает числовой параметр диагностики из <c>trace.json</c> (например
+    /// <c>CM_UPDATES_PREVIEW_LEN</c> — длина превью HTML в журнале CM_UPDATES, issue #371).
+    /// Конфиг перечитывается при изменении файла (как и флаги) — правка применяется без
+    /// перезапуска. Отсутствующий/нечисловой/неположительный параметр — возвращается
+    /// <paramref name="defaultValue"/>. Потокобезопасна.
+    /// </summary>
+    public static int GetInt(string key, int defaultValue)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return defaultValue;
+        var name = key.Trim().ToUpperInvariant();
+        lock (Lock)
+        {
+            EnsureExistsCore();
+            ReloadIfChangedCore();
+            return TraceFlagsFormat.TryGetInt(_intValues, name, out var value) ? value : defaultValue;
         }
     }
 
@@ -296,6 +323,7 @@ public static class TraceFlags
             // флагов в конфиге фактически нет (дефолты не считаем явным выбором).
             _initialized = true;
             _flags = TraceFlagsFormat.EmptyFlags;
+            _intValues = TraceFlagsFormat.EmptyIntValues;
         }
         else
         {
@@ -347,6 +375,7 @@ public static class TraceFlags
                 _initialized = true;
                 _lastMtimeUtc = File.GetLastWriteTimeUtc(path);
                 _flags = TraceFlagsFormat.EmptyFlags;
+                _intValues = TraceFlagsFormat.EmptyIntValues;
             }
             // Файл существовал до нас (его правил пользователь): оставляем кэш как есть —
             // при необходимости ReloadIfChangedCore перечитает его по изменению mtime.
@@ -382,6 +411,7 @@ public static class TraceFlags
             var text = ReadAllTextQuietly(path);
             var parsed = TraceFlagsFormat.Parse(text);
             _flags = parsed.Flags;
+            _intValues = parsed.IntValues;
             _lastMtimeUtc = File.GetLastWriteTimeUtc(path);
             _initialized = true;
             if (!parsed.IsValid)
@@ -390,6 +420,7 @@ public static class TraceFlags
         catch
         {
             _flags = TraceFlagsFormat.EmptyFlags;
+            _intValues = TraceFlagsFormat.EmptyIntValues;
             _lastMtimeUtc = mtime;
             _initialized = true;
             WarnBrokenConfig();

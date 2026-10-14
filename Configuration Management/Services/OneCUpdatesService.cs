@@ -412,6 +412,15 @@ public class OneCUpdatesService : IOneCUpdatesService
             {
                 var kind = isProject ? "project" : (isVersionFiles ? "version_files" : "legacy");
                 _logger.Info($"[Updates] Ответ: kind={kind}, len={body.Length}, url={url}, family='{family}'");
+                // Заголовки ответа и конечный URL после редиректов (issue #371): по журналу
+                // видно, что именно вернул сервер (Content-Type, наличие Set-Cookie без
+                // значений — cookie могут содержать чувствительные данные сессии).
+                var contentType = response.Content.Headers.ContentType?.ToString() ?? "<нет>";
+                var hasSetCookie = response.Headers.TryGetValues("Set-Cookie", out var setCookies)
+                                   && setCookies.Any();
+                _logger.Info($"[Updates] Заголовки ответа: Content-Type='{contentType}', " +
+                             $"Set-Cookie={(hasSetCookie ? "есть" : "нет")}, " +
+                             $"requestUri={response.RequestMessage?.RequestUri}");
                 // Диагностика содержимого ответа (issue #371): по журналу видно, что именно
                 // пришло — настоящий каталог с таблицей #versionsTable, страница входа,
                 // JS/meta-refresh-заглушка или короткая страница с посторонними токенами.
@@ -424,11 +433,17 @@ public class OneCUpdatesService : IOneCUpdatesService
                 var bodyRedirect = ExtractBodyRedirectUrl(body);
                 _logger.Info($"[Updates] Диагностика ответа: loginForm={loginForm}, versionsTable={hasTable}, " +
                              $"versionFilesLinks={versionFilesCount}, bodyRedirect='{bodyRedirect ?? "<нет>"}'");
-                _logger.Info($"[Updates] Превью HTML (первые 500 символов): {BuildBodyPreview(body, 500)}");
+                _logger.Info($"[Updates] Превью HTML (первые {UpdatesPreviewLength} символов): " +
+                             $"{BuildBodyPreview(body, UpdatesPreviewLength)}");
                 var candidates = CollectVersionCandidatesFromHtml(body);
                 if (candidates.Count > 0)
                 {
-                    var list = string.Join(", ", candidates.Select(c => c.Version));
+                    // Источник каждого кандидата (issue #371): ссылка version_files (таблица
+                    // или урезанный каталог) либо токен/атрибут текста (короткая страница).
+                    var list = string.Join(", ", candidates.Select(c =>
+                        string.IsNullOrWhiteSpace(c.VersionFilesUrl)
+                            ? $"{c.Version} (токен/атрибут)"
+                            : $"{c.Version} (ссылка: {c.VersionFilesUrl})"));
                     _logger.Info($"[Updates] Кандидаты версий ({candidates.Count}): {list}");
                 }
                 else
@@ -627,6 +642,11 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>Включена ли детальная диагностика проверки обновлений (CM_UPDATES, issue #371).</summary>
     private static bool UpdatesTraceEnabled => TraceFlags.IsEnabled(TraceFlags.UpdatesFlag);
+
+    /// <summary>Длина превью HTML в журнале CM_UPDATES (issue #371): настраивается через
+    /// <c>trace.json</c> (ключ <c>CM_UPDATES_PREVIEW_LEN</c>), дефолт 500. Пользователь
+    /// просил «больше 500 символов» — первые 500 у всех страниц одинаковые плюс-минус.</summary>
+    private static int UpdatesPreviewLength => TraceFlags.GetInt(TraceFlags.UpdatesPreviewLenKey, 500);
 
     /// <summary>
     /// Устойчиво ищет в HTML-странице каталога ссылки на архивы дистрибутивов вида

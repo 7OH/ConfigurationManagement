@@ -2686,6 +2686,7 @@
     "Updates.UrlManual": "Set manually",
     "Updates.BatchCheck": "Check all",
     "Updates.OnlyInBases": "Only in bases",
+    "Updates.OnlyInBasesTooltip": "Show only configurations present in the base list. A configuration is matched by its update code binding, then by name. An edition matches a base version exactly or by segment prefix: \"11\" ↔ \"11.5.25.72\".",
     "Updates.NoneSelected": "Nothing selected",
     "Updates.Loaded": "Loaded",
     "Updates.NewerAvailable": "A newer version is available",

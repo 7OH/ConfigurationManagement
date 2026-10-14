@@ -14,6 +14,7 @@ using Avalonia.VisualTree;
 using Configuration_Management.Controls;
 using Configuration_Management.Localization;
 using Configuration_Management.Models;
+using Configuration_Management.Services;
 using Configuration_Management.Themes;
 using Configuration_Management.ViewModels;
 
@@ -421,6 +422,22 @@ namespace Configuration_Management
             var settings = new Configuration_Management.SettingsWindow(_vm);
             settings.SelectUtilitiesMenuTab();
             settings.ShowDialog(this);
+        }
+
+        /// <summary>Открывает редактор структуры меню «Утилиты» напрямую (issue #374):
+        /// по ПКМ на кнопке «Утилиты» — минуя окно настроек и контекстное меню.</summary>
+        private void OpenUtilitiesMenuEditorDirectly()
+        {
+            try
+            {
+                var store = AppServices.TryGetService<IUtilitiesMenuLayoutStore>();
+                var win = new UtilitiesMenuEditorWindow(store);
+                win.ShowDialog(this);
+            }
+            catch
+            {
+                // Не критично: редактор не открылся — настройка останется прежней.
+            }
         }
 
         /// <summary>

@@ -54,9 +54,17 @@ namespace Configuration_Management
         {
             var dock = new DockPanel { Margin = new Thickness(16) };
 
-            // Кнопки «Готово»/«Отмена» внизу.
-            var buttons = BuildButtons(
-                okText: LocalizationManager.T("Utilities.Editor.Done"), onOk: OnOkClick);
+            // Кнопки «Готово»/«Отмена» внизу (issue #374): «Готово» слева, «Отмена»
+            // справа — как в остальных окнах программы (отмена всегда в конце).
+            var buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Spacing = 8
+            };
+            buttons.Children.Add(BuildConfirmButton(
+                LocalizationManager.T("Utilities.Editor.Done"), 130, OnOkClick));
+            buttons.Children.Add(BuildCancelButton(110));
             DockPanel.SetDock(buttons, Dock.Bottom);
             buttons.Margin = new Thickness(0, 12, 0, 0);
             dock.Children.Add(buttons);
@@ -345,12 +353,19 @@ namespace Configuration_Management
         }
 
         /// <summary>«Удалить группу»: подтверждение; при непустой группе — предложение
-        /// переместить элементы с подгруппами в корень (issue #374).</summary>
+        /// переместить элементы с подгруппами в корень (issue #374). Разделитель удаляется
+        /// сразу, без вопроса — у него нет настроек, и его легко добавить заново.</summary>
         private void OnDeleteGroupClick()
         {
             var item = _vm.SelectedItem;
             if (item is null)
                 return;
+            // Разделитель: удаляем без подтверждения (issue #374).
+            if (string.Equals(item.Node.Kind, "separator", StringComparison.Ordinal))
+            {
+                _vm.DeleteGroupCommand.Execute(false);
+                return;
+            }
             var dialogs = AppServices.GetRequiredService<IDialogService>();
             var title = LocalizationManager.T("Utilities.Editor.DeleteGroupTitle");
             if (item.Children.Count > 0)

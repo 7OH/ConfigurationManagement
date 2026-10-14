@@ -1,5 +1,6 @@
 #if WINDOWS
 using System.Windows;
+using System.Windows.Input;
 using Configuration_Management.Services;
 
 namespace Configuration_Management;
@@ -96,14 +97,16 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// ПКМ по заголовку «Утилиты» → «Настройка меню „Утилиты“» (issue #374): открывает
-    /// окно настроек сразу на вкладке «Меню „Утилиты“» для быстрого доступа к правке.
+    /// ПКМ по заголовку «Утилиты» (issue #374): сразу открывает редактор структуры меню,
+    /// минуя окно настроек и контекстное меню с единственной командой. Событие помечается
+    /// обработанным, чтобы не сработал левый клик (открытие меню «Утилиты»).
     /// </summary>
-    private void OnUtilitiesMenuEditSettings_Click(object sender, RoutedEventArgs e)
+    private void OnUtilitiesButton_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        var dialog = new SettingsWindow(_viewModel) { Owner = this };
-        dialog.SelectUtilitiesMenuTab();
-        dialog.ShowDialog();
+        e.Handled = true;
+        var store = AppServices.TryGetService<IUtilitiesMenuLayoutStore>();
+        var win = new UtilitiesMenuEditorWindow(store) { Owner = this };
+        win.ShowDialog();
     }
 }
 #endif

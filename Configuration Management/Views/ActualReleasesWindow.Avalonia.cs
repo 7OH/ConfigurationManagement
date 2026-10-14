@@ -441,13 +441,15 @@ namespace Configuration_Management
             };
             toolbar.Children.Add(_checkAllButton);
 
-            // Фильтр «Только в базах» (issue #375): по умолчанию включён.
+            // Фильтр «Только в базах» (issue #375): по умолчанию включён. Подсказка
+            // объясняет правила поиска конфигурации и сопоставления редакций.
             var onlyInBasesCheck = new CheckBox
             {
                 Content = T("Updates.OnlyInBases"),
                 IsChecked = _onlyInBases,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            ToolTip.SetTip(onlyInBasesCheck, T("Updates.OnlyInBasesTooltip"));
             onlyInBasesCheck.Styled(ControlThemes.CacheCleanCheckBox);
             onlyInBasesCheck.Click += (_, _) =>
             {

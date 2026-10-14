@@ -1,3 +1,4 @@
+#if !LINUX
 using Configuration_Management.Services;
 using Xunit;
 
@@ -7,6 +8,9 @@ namespace ConfigurationManagement.Tests;
 /// Аргументы пакетных операций конфигуратора (issue #365): ветка
 /// /DumpConfigToFiles отсутствовала в Windows-RunDesignerBatch — «Обозреватель
 /// метаданных» всегда получал «Операция отклонена: пустой или недопустимый путь».
+/// Файл обёрнут в #if !LINUX: OneCLauncher.DumpConfigToFilesArgument живёт в
+/// WINDOWS-only OneCLauncher.DesignerBatch.cs (System.Management), для Linux он
+/// не собирается (иначе CS0117 при dotnet build -p:BuildLinux=true).
 /// </summary>
 public class DesignerBatchArgumentsTests
 {
@@ -35,3 +39,4 @@ public class DesignerBatchArgumentsTests
         Assert.Equal("", OneCLauncher.DumpConfigToFilesArgument(path));
     }
 }
+#endif

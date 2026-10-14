@@ -79,12 +79,19 @@ namespace Configuration_Management
         }
 
         /// <summary>«Удалить группу»: подтверждение; при непустой группе — предложение
-        /// переместить элементы с подгруппами в корень (issue #374).</summary>
+        /// переместить элементы с подгруппами в корень (issue #374). Разделитель удаляется
+        /// сразу, без вопроса — у него нет настроек, и его легко добавить заново.</summary>
         private void OnDeleteGroupClick(object sender, RoutedEventArgs e)
         {
             var item = _vm.SelectedItem;
             if (item is null)
                 return;
+            // Разделитель: удаляем без подтверждения (issue #374).
+            if (string.Equals(item.Node.Kind, "separator", StringComparison.Ordinal))
+            {
+                _vm.DeleteGroupCommand.Execute(false);
+                return;
+            }
             var dialogs = AppServices.GetRequiredService<IDialogService>();
             var title = LocalizationManager.T("Utilities.Editor.DeleteGroupTitle");
             if (item.Children.Count > 0)

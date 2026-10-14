@@ -7,11 +7,15 @@ namespace Configuration_Management.Services;
 
 /// <summary>
 /// Результат разбора конфига флагов диагностики <c>trace.json</c> (issue #347, кластер C):
-/// признак валидности исходного JSON и словарь «имя флага → значение». Повреждённый JSON
+/// признак валидности исходного JSON, словарь «имя флага → значение» и словарь числовых
+/// параметров (например <c>CM_UPDATES_PREVIEW_LEN</c>, issue #371). Повреждённый JSON
 /// трактуется как «все флаги выключены» (<see cref="IsValid"/>=false), файл при этом НЕ
 /// перезаписывается (см. <see cref="TraceFlags"/>).
 /// </summary>
-internal readonly record struct TraceFlagsParseResult(bool IsValid, IReadOnlyDictionary<string, bool> Flags);
+internal readonly record struct TraceFlagsParseResult(
+    bool IsValid,
+    IReadOnlyDictionary<string, bool> Flags,
+    IReadOnlyDictionary<string, int> IntValues);
 
 /// <summary>
 /// Чистое форматирование/разбор конфига отладочных флагов <c>trace.json</c>
@@ -93,9 +97,21 @@ internal static class TraceFlagsFormat
         "CM_REDIRECT"
     };
 
+    /// <summary>
+    /// Числовой параметр диагностики обновлений (issue #371): длина превью HTML в журнале
+    /// <c>CM_UPDATES</c> (сколько символов тела ответа писать в лог). Пользователь просил
+    /// «больше 500 символов» и хранить значение в <c>trace.json</c> — параметр читается
+    /// оттуда (<see cref="TraceFlags.GetInt"/>), дефолт 500–2000.
+    /// </summary>
+    public const string UpdatesPreviewLenKey = "CM_UPDATES_PREVIEW_LEN";
+
     /// <summary>Пустой набор флагов (все выключены) — используется при повреждённом конфиге.</summary>
     public static readonly IReadOnlyDictionary<string, bool> EmptyFlags =
         new Dictionary<string, bool>(StringComparer.Ordinal);
+
+    /// <summary>Пустой набор числовых параметров — используется при повреждённом конфиге.</summary>
+    public static readonly IReadOnlyDictionary<string, int> EmptyIntValues =
+        new Dictionary<string, int>(StringComparer.Ordinal);
 
     /// <summary>
     /// Сериализует конфиг флагов в JSON с ПЕРЕНОСАМИ СТРОК И ОТСТУПАМИ (pretty-print,
@@ -130,18 +146,31 @@ internal static class TraceFlagsFormat
     public static TraceFlagsParseResult Parse(string? json)
     {
         var flags = new Dictionary<string, bool>(StringComparer.Ordinal);
+        var intValues = new Dictionary<string, int>(StringComparer.Ordinal);
         if (string.IsNullOrWhiteSpace(json))
-            return new TraceFlagsParseResult(false, flags);
+            return new TraceFlagsParseResult(false, flags, intValues);
 
         try
         {
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
-                return new TraceFlagsParseResult(false, flags);
+                return new TraceFlagsParseResult(false, flags, intValues);
 
             foreach (var property in doc.RootElement.EnumerateObject())
             {
                 var name = property.Name.Trim().ToUpperInvariant();
+
+                // Числовой параметр (например CM_UPDATES_PREVIEW_LEN, issue #371):
+                // положительное целое — сохраняем; иначе параметр игнорируется (дефолт).
+                if (name == UpdatesPreviewLenKey)
+                {
+                    if (property.Value.ValueKind == JsonValueKind.Number
+                        && property.Value.TryGetInt32(out var intValue)
+                        && intValue > 0)
+                        intValues[name] = intValue;
+                    continue;
+                }
+
                 if (Array.IndexOf(KnownFlags, name) < 0)
                     continue; // неизвестный флаг — игнорируем (устойчивость к будущим версиям)
                 if (property.Value.ValueKind == JsonValueKind.True)
@@ -150,13 +179,13 @@ internal static class TraceFlagsFormat
                     flags[name] = false;
                 // Не булево значение — флаг остаётся выключенным (дефолт).
             }
-            return new TraceFlagsParseResult(true, flags);
+            return new TraceFlagsParseResult(true, flags, intValues);
         }
         catch (JsonException)
         {
             // Повреждённый JSON: все флаги выключены, файл не перезаписывается
             // (решение принимает TraceFlags, здесь — только признак валидности).
-            return new TraceFlagsParseResult(false, flags);
+            return new TraceFlagsParseResult(false, flags, intValues);
         }
     }
 
@@ -169,6 +198,19 @@ internal static class TraceFlagsFormat
         if (flags is null || string.IsNullOrWhiteSpace(name))
             return false;
         return flags.TryGetValue(name.Trim().ToUpperInvariant(), out var enabled) && enabled;
+    }
+
+    /// <summary>
+    /// Регистронезависимое чтение числового параметра из разобранного словаря
+    /// (например <c>CM_UPDATES_PREVIEW_LEN</c>, issue #371). Отсутствующий/нечисловой
+    /// параметр — <c>false</c> (вызывающий использует дефолт).
+    /// </summary>
+    public static bool TryGetInt(IReadOnlyDictionary<string, int>? values, string name, out int value)
+    {
+        value = 0;
+        if (values is null || string.IsNullOrWhiteSpace(name))
+            return false;
+        return values.TryGetValue(name.Trim().ToUpperInvariant(), out value);
     }
 
     /// <summary>

@@ -662,17 +662,12 @@
                                  (BuildUtilitiesMenu, см. MainWindow.UtilitiesMenu.cs) по каталогу
                                  UtilitiesMenuCatalog + компоновке UtilitiesMenuLayout. -->
                             <Button x:Name="UtilitiesButton" Click="OnUtilitiesMenuButton_Click"
+                                    PreviewMouseRightButtonDown="OnUtilitiesButton_PreviewMouseRightButtonDown"
                                     Style="{DynamicResource IconButton}" Margin="0,0,2,0" Padding="10,7"
                                     ToolTip="{loc:Loc Main.UtilitiesTooltip}">
-                                <!-- ПКМ по заголовку «Утилиты» — быстрый доступ к правке меню
-                                     (issue #374): открывает настройки на вкладке «Меню „Утилиты“». -->
-                                <Button.ContextMenu>
-                                    <ContextMenu Style="{DynamicResource ModernContextMenu}">
-                                        <MenuItem Header="{loc:Loc Utilities.Editor.Title}"
-                                                  Click="OnUtilitiesMenuEditSettings_Click"
-                                                  Style="{DynamicResource ModernMenuItem}"/>
-                                    </ContextMenu>
-                                </Button.ContextMenu>
+                                <!-- ПКМ по заголовку «Утилиты» (issue #374): сразу открывает
+                                     редактор структуры меню, минуя окно настроек и контекстное
+                                     меню с единственной командой. -->
                                 <StackPanel Orientation="Horizontal">
                                     <!-- Отдельная иконка (Apps-сетка), чтобы не путать с «Конфигуратором»
                                          (гаечный ключ Wrench) — issue #282. -->
@@ -1905,20 +1900,30 @@
                                                    HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
                                                    ToolTip="{Binding LastBackupDisplay}"/>
 
-                                        <!-- Issue #355: двойной клик по колонке «Конфигурация» открывает свойства
+                                        <!-- Issue #355/#377: двойной клик по колонке «Конфигурация» открывает свойства
                                              базы на вкладке «Платформа». Tag используется обработчиком двойного
                                              клика (MainWindow.Events.cs) для распознавания колонки: колонки
-                                             переупорядочиваются через Grid.SetColumn, поэтому индекс не годится. -->
-                                        <TextBlock Grid.Column="13" Tag="Configuration" Text="{Binding ConfigurationNameDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
-                                                   HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{loc:Loc Main.ConfigurationColumnTooltip}"/>
+                                             переупорядочиваются через Grid.SetColumn, поэтому индекс не годится.
+                                             Растягивающийся прозрачный Border (как у колонки «Платформа», issue #250)
+                                             ловит двойной клик по ВСЕЙ ширине колонки, а не только по надписи. -->
+                                        <Border Grid.Column="13" Background="Transparent"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                Cursor="Hand" Tag="Configuration"
+                                                ToolTip="{loc:Loc Main.ConfigurationColumnTooltip}">
+                                            <TextBlock Text="{Binding ConfigurationNameDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
+                                        </Border>
 
-                                        <!-- Issue #355: то же для колонки «№ релиза». -->
-                                        <TextBlock Grid.Column="14" Tag="ConfigurationVersion" Text="{Binding ConfigurationVersionDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
-                                                   HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{loc:Loc Main.ConfigurationColumnTooltip}"/>
+                                        <!-- Issue #355/#377: то же для колонки «№ релиза». -->
+                                        <Border Grid.Column="14" Background="Transparent"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                Cursor="Hand" Tag="ConfigurationVersion"
+                                                ToolTip="{loc:Loc Main.ConfigurationColumnTooltip}">
+                                            <TextBlock Text="{Binding ConfigurationVersionDisplay}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left" Margin="6,0,6,0" TextTrimming="CharacterEllipsis"/>
+                                        </Border>
 
                                         <TextBlock Grid.Column="6" Text="{Binding ParsedLaunchMode}" FontSize="{Binding DataContext.RowSecondaryFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"

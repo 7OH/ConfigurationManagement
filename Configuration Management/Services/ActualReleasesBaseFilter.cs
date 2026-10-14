@@ -92,7 +92,8 @@ public static class ActualReleasesBaseFilter
     /// редакция без Red, либо отсутствие сопоставленных редакций (нет данных о версиях баз),
     /// либо Red редакции совпадает с одной из сопоставленных редакций — точно или как
     /// префикс по сегментам (редакция «11» матчится с версией базы «11.5.25.72», из которой
-    /// извлечена редакция «11.5»; «3» ↔ «3.0» для Бухгалтерии предприятия).
+    /// извлечена редакция «11.5»; «3» ↔ «3.0» для Бухгалтерии предприятия; односегментная
+    /// версия базы «11» матчится с редакцией «11»).
     /// </summary>
     public static bool IsEditionPresent(OneCConfigEdition? edition, HashSet<string>? presentReds)
     {
@@ -114,7 +115,8 @@ public static class ActualReleasesBaseFilter
     /// True, если редакция <paramref name="editionRed"/> совпадает с редакцией
     /// <paramref name="presentRed"/>, извлечённой из версии базы: точное равенство либо
     /// редакция является префиксом по сегментам («11» ↔ «11.5», «3» ↔ «3.0»). Сравнение
-    /// регистронезависимо, пробелы по краям игнорируются.
+    /// регистронезависимо, пробелы по краям игнорируются. Односегментная редакция «11»
+    /// матчится с двухсегментной «11.5» (префикс), но «11.0» с «11.5» — нет.
     /// </summary>
     private static bool RedsMatch(string editionRed, string presentRed)
     {
@@ -137,15 +139,17 @@ public static class ActualReleasesBaseFilter
 
     /// <summary>
     /// Извлекает «Ред» из версии конфигурации базы (например «1.3» из «1.3.285.1»):
-    /// первые два сегмента. null, если версия не задана или содержит меньше двух сегментов.
+    /// первые два сегмента. Односегментная версия («11») возвращается целиком — редакция
+    /// «11» должна сопоставляться с базой, у которой указана только редакция без подверсии
+    /// (issue #375). null, если версия не задана.
     /// </summary>
     private static string? ExtractRed(string? version)
     {
         if (string.IsNullOrWhiteSpace(version))
             return null;
         var parts = version.Split('.');
-        if (parts.Length < 2)
-            return null;
+        if (parts.Length == 1)
+            return parts[0];
         return parts[0] + "." + parts[1];
     }
 }
