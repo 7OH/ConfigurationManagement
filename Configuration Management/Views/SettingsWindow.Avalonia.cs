@@ -3600,9 +3600,9 @@ namespace Configuration_Management
                 try
                 {
                     FillOverrideCombo(iconCombo,
-                        $"{byTheme} ({LocalizationManager.T(ThemeFeatureMap.IconSetNameKey(theme.Icons))})",
+                        $"{byTheme} ({LocalizationManager.T(ThemeFeatureMap.IconSetDisplayKey(theme.Icons))})",
                         ThemeFeatureMap.SelectableIconSets.Select(set => (ThemeFeatureMap.IconSetId(set),
-                            LocalizationManager.T(ThemeFeatureMap.IconSetNameKey(set)))),
+                            LocalizationManager.T(ThemeFeatureMap.IconSetDisplayKey(set)))),
                         ThemeManager.IconSetOverride is { } iconSet ? ThemeFeatureMap.IconSetId(iconSet) : string.Empty);
                     FillOverrideCombo(buttonCombo,
                         $"{byTheme} ({LocalizationManager.T(ThemeFeatureMap.ButtonStyleNameKey(theme.ButtonStyle))})",

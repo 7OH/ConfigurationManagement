@@ -73,7 +73,7 @@ public sealed class ThemeOverridesTests
             using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Configuration Management",
                 "Localization", "Languages", lang + ".json")));
             var json = doc.RootElement.GetRawText();
-            var keys = ThemeFeatureMap.SelectableIconSets.Select(ThemeFeatureMap.IconSetNameKey)
+            var keys = ThemeFeatureMap.SelectableIconSets.Select(ThemeFeatureMap.IconSetDisplayKey)
                 .Concat(ThemeFeatureMap.SelectableButtonStyles.Select(ThemeFeatureMap.ButtonStyleNameKey))
                 .Concat(new[]
                 {

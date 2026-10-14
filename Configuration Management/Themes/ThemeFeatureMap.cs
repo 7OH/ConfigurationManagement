@@ -300,7 +300,7 @@ public static class ThemeFeatureMap
         => overrideStyle ?? theme?.ButtonStyle ?? WindowButtonStyle.Fluent;
 
     /// <summary>Ключ локализации имени набора иконок (IconSet.Material → "IconSet.Material").</summary>
-    public static string IconSetNameKey(IconSet set) => "IconSet." + IconSetId(set);
+    public static string IconSetDisplayKey(IconSet set) => "IconSet." + IconSetId(set);
 
     /// <summary>Ключ локализации имени стиля кнопок окна (MacOS → "ButtonStyle.MacOS").</summary>
     public static string ButtonStyleNameKey(WindowButtonStyle style) => "ButtonStyle." + ButtonStyleId(style);

@@ -394,14 +394,14 @@ namespace Configuration_Management
                 IconSetOverrideComboBox.Items.Add(new ThemeOverrideItem
                 {
                     Id = string.Empty,
-                    DisplayName = $"{byTheme} ({LocalizationManager.T(ThemeFeatureMap.IconSetNameKey(theme.Icons))})"
+                    DisplayName = $"{byTheme} ({LocalizationManager.T(ThemeFeatureMap.IconSetDisplayKey(theme.Icons))})"
                 });
                 foreach (var set in ThemeFeatureMap.SelectableIconSets)
                 {
                     IconSetOverrideComboBox.Items.Add(new ThemeOverrideItem
                     {
                         Id = ThemeFeatureMap.IconSetId(set),
-                        DisplayName = LocalizationManager.T(ThemeFeatureMap.IconSetNameKey(set))
+                        DisplayName = LocalizationManager.T(ThemeFeatureMap.IconSetDisplayKey(set))
                     });
                 }
                 var iconId = ThemeManager.IconSetOverride is { } iconSet ? ThemeFeatureMap.IconSetId(iconSet) : string.Empty;
