@@ -1149,9 +1149,10 @@ namespace Configuration_Management
             /// </summary>
             private string GlyphKey => _kind switch
             {
-                DialogWindowControlKind.Close => "IconClose",
-                DialogWindowControlKind.Maximize => "IconMaximize",
-                _ => "IconMinimize"
+                // Штриховые глифы кнопок окна (0.3.12.61) — отдельно от залитых иконок.
+                DialogWindowControlKind.Close => "GlyphWindowClose",
+                DialogWindowControlKind.Maximize => "GlyphWindowMaximize",
+                _ => "GlyphWindowMinimize"
             };
 
             private IBrush _hoverBg = Brushes.Transparent;

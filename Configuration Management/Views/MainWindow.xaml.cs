@@ -1094,13 +1094,13 @@ namespace Configuration_Management
                 return;
 
             MinimizeGlyphPath.Data =
-                Converters.IconKeyToGeometryConverter.ResolveGeometry("IconMinimize");
+                Converters.IconKeyToGeometryConverter.ResolveGeometry("GlyphWindowMinimize");
             MaximizeGlyphPath.Data =
-                Converters.IconKeyToGeometryConverter.ResolveGeometry("IconMaximize");
+                Converters.IconKeyToGeometryConverter.ResolveGeometry("GlyphWindowMaximize");
             RestoreGlyphPath.Data =
-                Converters.IconKeyToGeometryConverter.ResolveGeometry("IconRestore");
+                Converters.IconKeyToGeometryConverter.ResolveGeometry("GlyphWindowRestore");
             CloseGlyphPath.Data =
-                Converters.IconKeyToGeometryConverter.ResolveGeometry("IconClose");
+                Converters.IconKeyToGeometryConverter.ResolveGeometry("GlyphWindowClose");
         }
 
         /// <summary>

@@ -338,7 +338,7 @@
                                         <ControlTemplate TargetType="ToggleButton">
                                             <Grid Background="Transparent" Cursor="Hand">
                                                 <Path x:Name="ArrowGlyph"
-                                                      Data="M0,0 L4,4 L8,0"
+                                                      Data="{DynamicResource GlyphComboArrow}"
                                                       Stroke="{DynamicResource TextSecondaryBrush}"
                                                       StrokeThickness="1.5"
                                                       HorizontalAlignment="Right"
@@ -484,13 +484,13 @@
                                     BorderThickness="2"
                                     SnapsToDevicePixels="True">
                                 <Grid>
-                                    <Path x:Name="Check" Data="M 3.2,8.2 L 6.8,11.8 L 14.6,4.2"
+                                    <Path x:Name="Check" Data="{DynamicResource GlyphCheckMark}"
                                           Stroke="White" StrokeThickness="2.2"
                                           StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                           StrokeLineJoin="Round"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"
                                           Stretch="None" Visibility="Collapsed"/>
-                                    <Path x:Name="Dash" Data="M 4.2,9 L 13.8,9"
+                                    <Path x:Name="Dash" Data="{DynamicResource GlyphCheckDash}"
                                           Stroke="White" StrokeThickness="2.2"
                                           StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -723,7 +723,7 @@
                                       x:Name="SubmenuArrow"
                                       VerticalAlignment="Center"
                                       Margin="10,0,0,0"
-                                      Data="M 0,0 L 5,4.5 L 0,9 Z"
+                                      Data="{DynamicResource GlyphSubmenuArrow}"
                                       Fill="{DynamicResource TextSecondaryBrush}"
                                       Visibility="Collapsed"/>
                             </Grid>

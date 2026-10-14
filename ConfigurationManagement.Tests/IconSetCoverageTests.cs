@@ -136,4 +136,32 @@ public sealed class IconSetCoverageTests
         foreach (var (key, data) in Geometries($"Icons{set}.{ext}"))
             Assert.True(valid.IsMatch(data), $"Icons{set}.{ext}: некорректный путь у {key}");
     }
+
+    [Theory]
+    [InlineData("xaml")]
+    [InlineData("axaml")]
+    public void BaseDictionary_HasWindowAndTemplateGlyphs(string ext)
+    {
+        // 0.3.12.61: глифы кнопок окна и шаблонов — отдельные ключи базового словаря.
+        var dict = Geometries($"Icons.{ext}");
+        foreach (var glyph in new[]
+                 {
+                     "GlyphWindowMinimize", "GlyphWindowMaximize", "GlyphWindowRestore", "GlyphWindowClose",
+                     "GlyphComboArrow", "GlyphSubmenuArrow", "GlyphCheckMark", "GlyphCheckDash"
+                 })
+            Assert.True(dict.ContainsKey(glyph), $"Icons.{ext}: нет глифа {glyph}");
+    }
+
+    [Theory]
+    [InlineData("LightTheme.xaml")]
+    [InlineData("DarkTheme.xaml")]
+    [InlineData("Controls.axaml")]
+    public void ControlTemplates_UseThemeGlyphs_NotLiteralPaths(string file)
+    {
+        // Шаблоны элементов (ComboBox, CheckBox, подменю) берут глифы из набора иконок
+        // темы DynamicResource'ом; литеральный путь не менялся бы вместе с темой.
+        var text = Themes(file);
+        Assert.DoesNotMatch(new Regex("Data=\"[Mm][\\s\\d]"), text);
+        Assert.DoesNotContain("{StaticResource IconCheck}", text);
+    }
 }

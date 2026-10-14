@@ -15,10 +15,15 @@
     <Geometry x:Key="IconMinimize.WindowsXp">M6,12 L18,12</Geometry>
     <Geometry x:Key="IconMaximize.WindowsXp">M6,6 L18,6 L18,18 L6,18 Z</Geometry>
     <Geometry x:Key="IconRestore.WindowsXp">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
-    <Geometry x:Key="GlyphWindowMinimize.WindowsXp">M6,12 L18,12</Geometry>
-    <Geometry x:Key="GlyphWindowMaximize.WindowsXp">M6,6 L18,6 L18,18 L6,18 Z</Geometry>
-    <Geometry x:Key="GlyphWindowRestore.WindowsXp">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
+    <Geometry x:Key="GlyphWindowMinimize.WindowsXp">M7,12 H14</Geometry>
+    <Geometry x:Key="GlyphWindowMaximize.WindowsXp">M6,6 H18 V18 H6 Z M6,8.5 H18</Geometry>
+    <Geometry x:Key="GlyphWindowRestore.WindowsXp">M5,10 H15 V19 H5 Z M5,12.5 H15 M9,10 V5 H19 V14 H15 M9,7.5 H19</Geometry>
     <Geometry x:Key="GlyphWindowClose.WindowsXp">M7,7 L17,17 M17,7 L7,17</Geometry>
+
+    <!-- ===================== ГЛИФЫ ШАБЛОНОВ ЭЛЕМЕНТОВ (ComboBox, подменю, CheckBox) ===================== -->
+    <Geometry x:Key="GlyphCheckMark.WindowsXp">M 3.5,7.6 L 6.6,10.8 L 14.2,3.4</Geometry>
+    <Geometry x:Key="GlyphComboArrow.WindowsXp">M0,0 L4,4 L8,0 M0,3 L4,7 L8,3</Geometry>
+    <Geometry x:Key="GlyphSubmenuArrow.WindowsXp">M 0,0 L 5,4.5 L 0,9 Z</Geometry>
 
     <!-- ===================== ИКОНКИ ИНТЕРФЕЙСА (Icon*) ===================== -->
     <Geometry x:Key="IconAccount.WindowsXp">F1 M21.65,20.625 a0.75,0.75 0 0 1 -0.65,0.375 H3 a0.75,0.75 0 0 1 -0.649,-1.125 c1.428,-2.468 3.628,-4.238 6.196,-5.077 a6.75,6.75 0 1 1 6.906,0 c2.568,0.839 4.768,2.609 6.196,5.077 A0.75,0.75 0 0 1 21.65,20.625 Z</Geometry>

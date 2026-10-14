@@ -15,10 +15,14 @@
     <Geometry x:Key="IconMinimize.Material">M6,12 L18,12</Geometry>
     <Geometry x:Key="IconMaximize.Material">M6,6 L18,6 L18,18 L6,18 Z</Geometry>
     <Geometry x:Key="IconRestore.Material">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
-    <Geometry x:Key="GlyphWindowMinimize.Material">M6,12 L18,12</Geometry>
-    <Geometry x:Key="GlyphWindowMaximize.Material">M6,6 L18,6 L18,18 L6,18 Z</Geometry>
-    <Geometry x:Key="GlyphWindowRestore.Material">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
-    <Geometry x:Key="GlyphWindowClose.Material">M7,7 L17,17 M17,7 L7,17</Geometry>
+    <Geometry x:Key="GlyphWindowMinimize.Material">M6,12 H18</Geometry>
+    <Geometry x:Key="GlyphWindowMaximize.Material">M6,6 H18 V18 H6 Z</Geometry>
+    <Geometry x:Key="GlyphWindowRestore.Material">M5,9 H15 V19 H5 Z M9,9 V5 H19 V15 H15</Geometry>
+    <Geometry x:Key="GlyphWindowClose.Material">M6,6 L18,18 M18,6 L6,18</Geometry>
+
+    <!-- ===================== ГЛИФЫ ШАБЛОНОВ ЭЛЕМЕНТОВ (ComboBox, подменю, CheckBox) ===================== -->
+    <Geometry x:Key="GlyphComboArrow.Material">M0,0 L8,0 L4,4 Z</Geometry>
+    <Geometry x:Key="GlyphSubmenuArrow.Material">M 0,0 L 5,4.5 L 0,9 Z</Geometry>
 
     <!-- ===================== ИКОНКИ ИНТЕРФЕЙСА (Icon*) ===================== -->
     <Geometry x:Key="IconAccount.Material">F1 M12,12 q-1.65,0 -2.825,-1.175 t-1.175,-2.825 q0,-1.65 1.175,-2.825 t2.825,-1.175 q1.65,0 2.825,1.175 t1.175,2.825 q0,1.65 -1.175,2.825 t-2.825,1.175 Z M4,18 v-0.8 q0,-0.85 0.438,-1.562 T5.6,14.55 q1.55,-0.775 3.15,-1.163 T12,13 q1.65,0 3.25,0.388 T18.4,14.55 q0.725,0.375 1.163,1.088 T20,17.2 v0.8 q0,0.825 -0.588,1.413 T18,20 H6 q-0.825,0 -1.413,-0.588 T4,18 Z</Geometry>

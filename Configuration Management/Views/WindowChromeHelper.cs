@@ -482,9 +482,12 @@ namespace Configuration_Management
                 Stretch = Stretch.Uniform,
                 StrokeThickness = 1.6,
                 StrokeLineJoin = PenLineJoin.Round,
-                Stroke = new SolidColorBrush(Colors.Transparent),
-                Data = Geometry.Parse("M1.5,2.5 A1,1 0 0 1 2.5,1.5 H11.5 A1,1 0 0 1 12.5,2.5 V11.5 A1,1 0 0 1 11.5,12.5 H2.5 A1,1 0 0 1 1.5,11.5 Z")
+                Stroke = new SolidColorBrush(Colors.Transparent)
             };
+            // Глиф — ссылка на ресурс набора иконок темы (0.3.12.61): при смене темы
+            // кнопка перерисовывается сама (GlyphWindowMaximize/Restore.<Набор>).
+            path.SetResourceReference(Path.DataProperty,
+                window.WindowState == WindowState.Maximized ? "GlyphWindowRestore" : "GlyphWindowMaximize");
             var button = new Button
             {
                 Style = style,
@@ -502,9 +505,8 @@ namespace Configuration_Management
             {
                 bool maximized = window.WindowState == WindowState.Maximized;
                 button.ToolTip = LocalizationManager.T(maximized ? "Window.Restore" : "Window.Maximize");
-                path.Data = Geometry.Parse(maximized
-                    ? "M0.5,4.5 A1,1 0 0 1 1.5,3.5 H7.5 A1,1 0 0 1 8.5,4.5 V10.5 A1,1 0 0 1 7.5,11.5 H1.5 A1,1 0 0 1 0.5,10.5 Z M4.5,1.5 A1,1 0 0 1 5.5,0.5 H11.5 A1,1 0 0 1 12.5,1.5 V7.5 A1,1 0 0 1 11.5,8.5 H5.5 A1,1 0 0 1 4.5,7.5 Z"
-                    : "M1.5,2.5 A1,1 0 0 1 2.5,1.5 H11.5 A1,1 0 0 1 12.5,2.5 V11.5 A1,1 0 0 1 11.5,12.5 H2.5 A1,1 0 0 1 1.5,11.5 Z");
+                path.SetResourceReference(Path.DataProperty,
+                    maximized ? "GlyphWindowRestore" : "GlyphWindowMaximize");
             };
             return button;
         }
@@ -534,9 +536,10 @@ namespace Configuration_Management
                 Stretch = Stretch.Uniform,
                 StrokeThickness = 1.7,
                 StrokeStartLineCap = PenLineCap.Round,
-                StrokeEndLineCap = PenLineCap.Round,
-                Data = Geometry.Parse("M3.5,3.5 L10.5,10.5 M10.5,3.5 L3.5,10.5")
+                StrokeEndLineCap = PenLineCap.Round
             };
+            // Глиф «закрыть» из набора иконок темы (0.3.12.61), обновляется при смене темы.
+            path.SetResourceReference(Path.DataProperty, "GlyphWindowClose");
             var button = new Button
             {
                 Style = style,

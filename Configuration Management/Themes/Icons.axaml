@@ -366,8 +366,17 @@
          залитым «крестиком» кнопка «закрыть» рисовала бы контур заливки. Варианты наборов —
          GlyphWindow*.<Набор> в Icons<Набор>.xaml/.axaml. -->
     <StreamGeometry x:Key="GlyphWindowMinimize">M6,12 L18,12</StreamGeometry>
-    <StreamGeometry x:Key="GlyphWindowMaximize">M6,6 L18,6 L18,18 L6,18 Z</StreamGeometry>
-    <StreamGeometry x:Key="GlyphWindowRestore">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</StreamGeometry>
+    <StreamGeometry x:Key="GlyphWindowMaximize">M6,7.5 A1.5,1.5 0 0 1 7.5,6 H16.5 A1.5,1.5 0 0 1 18,7.5 V16.5 A1.5,1.5 0 0 1 16.5,18 H7.5 A1.5,1.5 0 0 1 6,16.5 Z</StreamGeometry>
+    <StreamGeometry x:Key="GlyphWindowRestore">M5,10 A1.5,1.5 0 0 1 6.5,8.5 H14 A1.5,1.5 0 0 1 15.5,10 V17.5 A1.5,1.5 0 0 1 14,19 H6.5 A1.5,1.5 0 0 1 5,17.5 Z M8.5,8.5 V6.5 A1.5,1.5 0 0 1 10,5 H17.5 A1.5,1.5 0 0 1 19,6.5 V14 A1.5,1.5 0 0 1 17.5,15.5 H15.5</StreamGeometry>
     <StreamGeometry x:Key="GlyphWindowClose">M7,7 L17,17 M17,7 L7,17</StreamGeometry>
+
+    <!-- Глифы шаблонов элементов управления (0.3.12.61): стрелка раскрытия ComboBox (штрих),
+         стрелка подменю (заливка), галочка и «минус» CheckBox (штрих). Шаблоны читают их
+         DynamicResource'ом, поэтому вид следует набору иконок темы (варианты —
+         Glyph*.<Набор> в Icons<Набор>.xaml/.axaml). -->
+    <StreamGeometry x:Key="GlyphComboArrow">M0,0 L4,4 L8,0</StreamGeometry>
+    <StreamGeometry x:Key="GlyphSubmenuArrow">M 0,0 L 5,4.5 L 0,9 Z</StreamGeometry>
+    <StreamGeometry x:Key="GlyphCheckMark">M 3.2,8.2 L 6.8,11.8 L 14.6,4.2</StreamGeometry>
+    <StreamGeometry x:Key="GlyphCheckDash">M 4.2,9 L 13.8,9</StreamGeometry>
 
 </ResourceDictionary>

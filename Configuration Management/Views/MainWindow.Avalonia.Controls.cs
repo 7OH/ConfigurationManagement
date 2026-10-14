@@ -705,12 +705,13 @@ namespace Configuration_Management
             {
                 var key = _kind switch
                 {
-                    WindowControlKind.Minimize => "IconMinimize",
-                    WindowControlKind.Close => "IconClose",
+                    // Штриховые глифы кнопок окна (0.3.12.61) — отдельно от залитых иконок.
+                    WindowControlKind.Minimize => "GlyphWindowMinimize",
+                    WindowControlKind.Close => "GlyphWindowClose",
                     WindowControlKind.Maximize => _window.WindowState == WindowState.Maximized
-                        ? "IconRestore"
-                        : "IconMaximize",
-                    _ => "IconMaximize"
+                        ? "GlyphWindowRestore"
+                        : "GlyphWindowMaximize",
+                    _ => "GlyphWindowMaximize"
                 };
                 // Глифы кнопок окна следуют активному набору иконок (Задача 2):
                 // IconHelper резолвит суффиксный ключ набора с fallback на Fluent.

@@ -15,10 +15,14 @@
     <Geometry x:Key="IconMinimize.Glass">M6,12 L18,12</Geometry>
     <Geometry x:Key="IconMaximize.Glass">M6,6 L18,6 L18,18 L6,18 Z</Geometry>
     <Geometry x:Key="IconRestore.Glass">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
-    <Geometry x:Key="GlyphWindowMinimize.Glass">M6,12 L18,12</Geometry>
-    <Geometry x:Key="GlyphWindowMaximize.Glass">M6,6 L18,6 L18,18 L6,18 Z</Geometry>
-    <Geometry x:Key="GlyphWindowRestore.Glass">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
+    <Geometry x:Key="GlyphWindowMinimize.Glass">M6,12 H18</Geometry>
+    <Geometry x:Key="GlyphWindowMaximize.Glass">M6,9 A3,3 0 0 1 9,6 H15 A3,3 0 0 1 18,9 V15 A3,3 0 0 1 15,18 H9 A3,3 0 0 1 6,15 Z</Geometry>
+    <Geometry x:Key="GlyphWindowRestore.Glass">M5,11.5 A2.5,2.5 0 0 1 7.5,9 H12.5 A2.5,2.5 0 0 1 15,11.5 V16.5 A2.5,2.5 0 0 1 12.5,19 H7.5 A2.5,2.5 0 0 1 5,16.5 Z M9,9 V7.5 A2.5,2.5 0 0 1 11.5,5 H16.5 A2.5,2.5 0 0 1 19,7.5 V12.5 A2.5,2.5 0 0 1 16.5,15 H15</Geometry>
     <Geometry x:Key="GlyphWindowClose.Glass">M7,7 L17,17 M17,7 L7,17</Geometry>
+
+    <!-- ===================== ГЛИФЫ ШАБЛОНОВ ЭЛЕМЕНТОВ (ComboBox, подменю, CheckBox) ===================== -->
+    <Geometry x:Key="GlyphComboArrow.Glass">M0,0 L4,4 L8,0</Geometry>
+    <Geometry x:Key="GlyphSubmenuArrow.Glass">M0,0 L1.4,0 L5.8,4.5 L1.4,9 L0,9 L4.4,4.5 Z</Geometry>
 
     <!-- ===================== ИКОНКИ ИНТЕРФЕЙСА (Icon*) ===================== -->
     <Geometry x:Key="IconAccount.Glass">F1 M21.649,19.875 c-1.428,-2.468 -3.628,-4.238 -6.196,-5.077 a6.75,6.75 0 1 0 -6.906,0 C5.979,15.636 3.779,17.406 2.351,19.875 a0.75,0.75 0 1 0 1.298,0.75 c1.766,-3.053 4.888,-4.875 8.35,-4.875 s6.584,1.823 8.35,4.875 a0.75,0.75 0 1 0 1.298,-0.75 Z M6.75,9 a5.25,5.25 0 1 1 5.25,5.25 A5.256,5.256 0 0 1 6.75,9 Z</Geometry>

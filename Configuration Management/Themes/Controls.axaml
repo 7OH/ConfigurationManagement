@@ -538,14 +538,14 @@
                             BorderBrush="{DynamicResource BorderBrushColor}">
                         <Panel>
                             <Path Name="PART_Check"
-                                  Data="M 3.2,8.2 L 6.8,11.8 L 14.6,4.2"
+                                  Data="{DynamicResource GlyphCheckMark}"
                                   Stroke="White" StrokeThickness="2.2"
                                   StrokeLineCap="Round" StrokeJoin="Round"
                                   Stretch="None"
                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                   IsVisible="False"/>
                             <Path Name="PART_Dash"
-                                  Data="M 4.2,9 L 13.8,9"
+                                  Data="{DynamicResource GlyphCheckDash}"
                                   Stroke="White" StrokeThickness="2.2"
                                   StrokeLineCap="Round"
                                   Stretch="None"
@@ -1178,13 +1178,13 @@
                             <Viewbox Name="PART_Check" Width="13" Height="13" IsVisible="False"
                                      HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Canvas Width="24" Height="24">
-                                    <Path Fill="White" Data="{StaticResource IconCheck}"/>
+                                    <Path Fill="White" Data="{DynamicResource IconCheck}"/>
                                 </Canvas>
                             </Viewbox>
                             <Viewbox Name="PART_Dash" Width="13" Height="13" IsVisible="False"
                                      HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Canvas Width="24" Height="24">
-                                    <Path Fill="White" Data="{StaticResource IconMinus}"/>
+                                    <Path Fill="White" Data="{DynamicResource IconMinus}"/>
                                 </Canvas>
                             </Viewbox>
                         </Panel>
