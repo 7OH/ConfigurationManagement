@@ -243,6 +243,7 @@ namespace Configuration_Management
                 var mergedScheme = Configuration_Management.Models.ColorScheme.FromLegacy(
                     settings.ActiveColorScheme, settings.LightColorScheme, settings.DarkColorScheme);
                 var fullTheme = settings.NormalizeThemeSelection();
+                ThemeManager.SetOverrides(settings.IconSetOverride, settings.WindowButtonStyleOverride);
                 ThemeManager.ApplyFullTheme(fullTheme);
                 ThemeManager.ApplyScheme(mergedScheme);
 #if DEBUG

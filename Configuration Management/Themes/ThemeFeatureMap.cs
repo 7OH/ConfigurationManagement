@@ -240,6 +240,100 @@ public static class ThemeFeatureMap
     }
 
     /// <summary>
+    /// Стили кнопок окна, доступные для переопределения в блоке «Темы» (0.3.12.62),
+    /// в стабильном порядке отображения.
+    /// </summary>
+    public static readonly WindowButtonStyle[] SelectableButtonStyles =
+    {
+        WindowButtonStyle.Fluent, WindowButtonStyle.Minimal, WindowButtonStyle.Classic,
+        WindowButtonStyle.Material, WindowButtonStyle.MacOS, WindowButtonStyle.WindowsXp,
+        WindowButtonStyle.Glass
+    };
+
+    /// <summary>Наборы иконок, доступные для переопределения в блоке «Темы» (0.3.12.62).</summary>
+    public static readonly IconSet[] SelectableIconSets =
+    {
+        IconSet.Fluent, IconSet.Outline, IconSet.Material, IconSet.MacOS, IconSet.WindowsXp, IconSet.Glass
+    };
+
+    /// <summary>Строковый идентификатор стиля кнопок окна для настроек ("Fluent", "MacOS", …).</summary>
+    public static string ButtonStyleId(WindowButtonStyle style) => style.ToString();
+
+    /// <summary>
+    /// Переопределение набора иконок из настроек (AppSettings.IconSetOverride): пусто или
+    /// неизвестное значение — null («по теме»).
+    /// </summary>
+    public static IconSet? ParseIconSetOverride(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        foreach (var set in SelectableIconSets)
+        {
+            if (string.Equals(IconSetId(set), value.Trim(), StringComparison.OrdinalIgnoreCase))
+                return set;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Переопределение стиля кнопок окна из настроек (AppSettings.WindowButtonStyleOverride):
+    /// пусто или неизвестное значение — null («по теме»).
+    /// </summary>
+    public static WindowButtonStyle? ParseButtonStyleOverride(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        foreach (var style in SelectableButtonStyles)
+        {
+            if (string.Equals(ButtonStyleId(style), value.Trim(), StringComparison.OrdinalIgnoreCase))
+                return style;
+        }
+        return null;
+    }
+
+    /// <summary>Действующий набор иконок: переопределение пользователя или набор темы.</summary>
+    public static IconSet EffectiveIconSet(ThemeDefinition? theme, IconSet? overrideSet)
+        => overrideSet ?? theme?.Icons ?? IconSet.Fluent;
+
+    /// <summary>Действующий стиль кнопок окна: переопределение пользователя или стиль темы.</summary>
+    public static WindowButtonStyle EffectiveButtonStyle(ThemeDefinition? theme, WindowButtonStyle? overrideStyle)
+        => overrideStyle ?? theme?.ButtonStyle ?? WindowButtonStyle.Fluent;
+
+    /// <summary>Ключ локализации имени набора иконок (IconSet.Material → "IconSet.Material").</summary>
+    public static string IconSetNameKey(IconSet set) => "IconSet." + IconSetId(set);
+
+    /// <summary>Ключ локализации имени стиля кнопок окна (MacOS → "ButtonStyle.MacOS").</summary>
+    public static string ButtonStyleNameKey(WindowButtonStyle style) => "ButtonStyle." + ButtonStyleId(style);
+
+    /// <summary>
+    /// Цвета карточки темы в галерее блока «Темы» (0.3.12.62): фон, карточка, текст,
+    /// второстепенный текст, рамка и акцент — из палитры темы для её базового варианта.
+    /// </summary>
+    public readonly record struct ThemePreviewColors(
+        string Background, string Card, string Text, string SecondaryText, string Border, string Accent);
+
+    /// <summary>Цвета карточки темы для галереи (см. <see cref="ThemePreviewColors"/>).</summary>
+    public static ThemePreviewColors PreviewColors(ThemeDefinition theme)
+    {
+        var scheme = theme.Scheme ?? (theme.IsDark ? ColorScheme.CreateDark() : ColorScheme.CreateLight());
+        string V(string key, string fallback)
+        {
+            var value = scheme.PaletteValue(theme.IsDark, key);
+            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+        return new ThemePreviewColors(
+            V("ContentBackgroundColor", theme.IsDark ? "#1E1E1E" : "#F5F5F5"),
+            V("CardBackgroundColor", theme.IsDark ? "#2A2A2A" : "#FFFFFF"),
+            V("TextPrimaryColor", theme.IsDark ? "#F5F5F5" : "#1F2937"),
+            V("TextSecondaryColor", theme.IsDark ? "#A3A3A3" : "#6B7280"),
+            V("BorderColor", theme.IsDark ? "#3F3F46" : "#E5E7EB"),
+            string.IsNullOrWhiteSpace(theme.AccentColor) ? V("AccentColor", "#FDBF00") : theme.AccentColor);
+    }
+
+    /// <summary>Иконки, показываемые в карточке темы (по одной из разных групп интерфейса).</summary>
+    public static readonly string[] PreviewIconKeys = { "IconSettings", "IconFolder", "IconDatabase", "IconSearch", "IconPlay" };
+
+    /// <summary>
     /// Ключ локализации отображаемого имени полноценной темы по её идентификатору
     /// (используется в настройках обеих платформ, Задача 3). Неизвестный или пустой
     /// идентификатор даёт ключ светлой темы — как и <see cref="Resolve"/>.

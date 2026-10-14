@@ -69,6 +69,7 @@ namespace Configuration_Management
                 // Полноценная тема (FullTheme с миграцией из устаревшего Theme), поверх
                 // неё — пользовательская цветовая схема (порядок: сначала тема, затем схема).
                 var fullTheme = settings.NormalizeThemeSelection();
+                Themes.ThemeManager.SetOverrides(settings.IconSetOverride, settings.WindowButtonStyleOverride);
                 Themes.ThemeManager.ApplyFullTheme(fullTheme);
                 Themes.ThemeManager.ApplyScheme(mergedScheme);
             }

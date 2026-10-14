@@ -862,15 +862,44 @@
                         <!-- Полноценная тема: выбор применяется мгновенно и сохраняется в AppSettings.FullTheme. -->
                         <GroupBox Header="{loc:Loc Settings.FullTheme}" Padding="8" Margin="0,0,0,12">
                             <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <TextBlock Text="{loc:Loc Settings.FullThemeLabel}" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <ComboBox x:Name="FullThemeComboBox" Width="240" Height="34" Margin="10,0,0,0"
-                                              VerticalAlignment="Center"
-                                              Style="{StaticResource ModernComboBox}"
-                                              SelectionChanged="OnFullThemeCombo_SelectionChanged"/>
-                                </StackPanel>
+                                <!-- Галерея тем (0.3.12.62): карточка на каждую встроенную тему — палитра,
+                                     кнопки окна в стиле темы и иконки её набора. Карточки строятся
+                                     кодом (SettingsWindow.Schemes.cs, BuildThemeGallery); клик применяет
+                                     тему сразу и сохраняет выбор (AppSettings.FullTheme). -->
+                                <WrapPanel x:Name="ThemeGalleryPanel" Orientation="Horizontal" Margin="0,0,0,8"/>
                                 <TextBlock Text="{loc:Loc Settings.FullTheme.Description}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Тонкая настройка темы (0.3.12.62): набор иконок и стиль кнопок окна можно
+                             переопределить независимо от темы; «По теме» — значение из темы. -->
+                        <GroupBox Header="{loc:Loc Settings.ThemeCustomize}" Padding="8" Margin="0,0,0,12">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" MinWidth="170"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Settings.IconSetOverride}"
+                                               VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <ComboBox x:Name="IconSetOverrideComboBox" Grid.Row="0" Grid.Column="1"
+                                              Width="240" Height="34" Margin="10,0,0,6" VerticalAlignment="Center"
+                                              Style="{StaticResource ModernComboBox}"
+                                              SelectionChanged="OnThemeOverrideCombo_SelectionChanged"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Settings.WindowButtonStyleOverride}"
+                                               VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <ComboBox x:Name="WindowButtonStyleOverrideComboBox" Grid.Row="1" Grid.Column="1"
+                                              Width="240" Height="34" Margin="10,0,0,0" VerticalAlignment="Center"
+                                              Style="{StaticResource ModernComboBox}"
+                                              SelectionChanged="OnThemeOverrideCombo_SelectionChanged"/>
+                                </Grid>
+                                <TextBlock Text="{loc:Loc Settings.ThemeCustomize.Description}"
                                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
                                            TextWrapping="Wrap"/>
                             </StackPanel>

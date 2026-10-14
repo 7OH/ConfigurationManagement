@@ -43,13 +43,13 @@ namespace Configuration_Management
             RefreshSchemePreview();
         }
 
-        // ---- Полноценные темы (Задача 3) ----
+        // ---- Полноценные темы: галерея и тонкая настройка (0.3.12.62) ----
 
-        /// <summary>Признак «идёт программная установка выбора полноценной темы».</summary>
-        private bool _suppressFullThemeEvent;
+        /// <summary>Признак «идёт программная установка значений переопределений темы».</summary>
+        private bool _suppressThemeOverrideEvent;
 
-        /// <summary>Элемент списка полноценных тем: идентификатор и локализованное имя.</summary>
-        private sealed class FullThemeComboItem
+        /// <summary>Элемент списка переопределения: идентификатор (пусто — «по теме») и имя.</summary>
+        private sealed class ThemeOverrideItem
         {
             public string Id { get; init; } = string.Empty;
             public string DisplayName { get; init; } = string.Empty;
@@ -57,50 +57,310 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Заполняет список полноценных тем (Светлая/Тёмная/Синяя/Зелёная) и выбирает активную.
+        /// Заполняет блок «Темы»: галерею карточек встроенных тем и списки переопределения
+        /// набора иконок и стиля кнопок окна.
         /// </summary>
         private void InitializeFullThemes()
         {
-            if (FullThemeComboBox is null || _settings is null)
-                return;
+            BuildThemeGallery();
+            InitializeThemeOverrides();
+        }
 
-            _suppressFullThemeEvent = true;
+        /// <summary>
+        /// Строит галерею тем: карточка на каждую встроенную тему с палитрой, кнопками окна
+        /// в стиле темы и иконками её набора; активная тема выделена рамкой акцентного цвета.
+        /// </summary>
+        private void BuildThemeGallery()
+        {
+            if (ThemeGalleryPanel is null || _settings is null)
+                return;
+            ThemeGalleryPanel.Children.Clear();
+            var currentId = _settings.CurrentFullThemeId;
+            foreach (var theme in SettingsViewModel.FullThemes)
+            {
+                var selected = string.Equals(theme.Id, currentId, StringComparison.OrdinalIgnoreCase);
+                ThemeGalleryPanel.Children.Add(BuildThemeCard(theme, selected));
+            }
+        }
+
+        private static Brush HexBrush(string hex)
+        {
             try
             {
-                FullThemeComboBox.Items.Clear();
-                foreach (var theme in SettingsViewModel.FullThemes)
-                {
-                    FullThemeComboBox.Items.Add(new FullThemeComboItem
-                    {
-                        Id = theme.Id,
-                        DisplayName = LocalizationManager.T(ThemeFeatureMap.ThemeNameKey(theme.Id))
-                    });
-                }
-
-                var currentId = _settings.CurrentFullThemeId;
-                FullThemeComboBox.SelectedItem = FullThemeComboBox.Items
-                    .Cast<FullThemeComboItem>()
-                    .FirstOrDefault(i => string.Equals(i.Id, currentId, StringComparison.OrdinalIgnoreCase));
+                var brush = (Brush)new BrushConverter().ConvertFromString(hex)!;
+                brush.Freeze();
+                return brush;
             }
-            finally
+            catch
             {
-                _suppressFullThemeEvent = false;
+                return Brushes.Transparent;
             }
         }
 
         /// <summary>
-        /// Обработчик выбора полноценной темы: применяет тему (цвета, кнопки окна, иконки),
-        /// сохраняет выбор в настройках и обновляет редактор палитры и предпросмотр.
+        /// Геометрия иконки или глифа в заданном наборе — для предпросмотра чужой темы.
+        /// Базовые ключи приложения переопределены активным набором, поэтому вариант
+        /// Fluent берётся прямо из словаря Themes/Icons.xaml.
         /// </summary>
-        private void OnFullThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private static Geometry? PreviewGeometry(string key, IconSet set, bool back = false)
         {
-            if (_suppressFullThemeEvent || _settings is null)
-                return;
-            if (FullThemeComboBox.SelectedItem is not FullThemeComboItem item)
+            var app = Application.Current;
+            if (app is null)
+                return null;
+            if (set != IconSet.Fluent)
+            {
+                var setKey = ThemeFeatureMap.IconKeyForSet(back ? ThemeFeatureMap.BackLayerKey(key) : key, set);
+                if (app.TryFindResource(setKey) is Geometry g)
+                    return g;
+                if (back)
+                    return null;
+            }
+            else if (back)
+            {
+                return null;
+            }
+            foreach (var dict in app.Resources.MergedDictionaries)
+            {
+                var source = dict.Source?.OriginalString ?? string.Empty;
+                if (source.EndsWith("Themes/Icons.xaml", StringComparison.OrdinalIgnoreCase) &&
+                    dict.Contains(key) && dict[key] is Geometry baseGeometry)
+                    return baseGeometry;
+            }
+            return null;
+        }
+
+        /// <summary>Карточка темы в галерее.</summary>
+        private Button BuildThemeCard(ThemeDefinition theme, bool selected)
+        {
+            var colors = ThemeFeatureMap.PreviewColors(theme);
+            var accent = HexBrush(colors.Accent);
+            var text = HexBrush(colors.Text);
+            var name = LocalizationManager.T(ThemeFeatureMap.ThemeNameKey(theme.Id));
+
+            // Полоса заголовка «окна» темы с кнопками управления в её стиле: у macOS
+            // «светофор» слева, у остальных — кнопки справа.
+            var windowButtons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = theme.ButtonStyle == WindowButtonStyle.MacOS
+                    ? HorizontalAlignment.Left
+                    : HorizontalAlignment.Right
+            };
+            foreach (var glyph in theme.ButtonStyle == WindowButtonStyle.MacOS
+                         ? new[] { "GlyphWindowClose", "GlyphWindowMinimize", "GlyphWindowMaximize" }
+                         : new[] { "GlyphWindowMinimize", "GlyphWindowMaximize", "GlyphWindowClose" })
+                windowButtons.Children.Add(BuildMiniWindowButton(theme, glyph, colors));
+            var titleBar = new Border
+            {
+                Background = HexBrush(colors.Card),
+                BorderBrush = HexBrush(colors.Border),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                CornerRadius = new CornerRadius(6, 6, 0, 0),
+                Padding = new Thickness(6, 4, 6, 4),
+                Child = windowButtons
+            };
+
+            // Палитра: акцент, карточка, текст.
+            var swatches = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 6) };
+            foreach (var hex in new[] { colors.Accent, colors.Card, colors.Text })
+            {
+                swatches.Children.Add(new Border
+                {
+                    Width = 22,
+                    Height = 10,
+                    CornerRadius = new CornerRadius(3),
+                    Margin = new Thickness(0, 0, 4, 0),
+                    Background = HexBrush(hex),
+                    BorderBrush = HexBrush(colors.Border),
+                    BorderThickness = new Thickness(1)
+                });
+            }
+
+            // Иконки набора темы.
+            var icons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+            foreach (var key in ThemeFeatureMap.PreviewIconKeys)
+                icons.Children.Add(BuildMiniIcon(key, theme.Icons, text));
+
+            var caption = new StackPanel { Orientation = Orientation.Horizontal };
+            if (selected)
+            {
+                caption.Children.Add(new PackIcon
+                {
+                    Kind = PackIconKind.Check,
+                    Width = 14,
+                    Height = 14,
+                    Foreground = accent,
+                    Margin = new Thickness(0, 0, 4, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
+            caption.Children.Add(new TextBlock
+            {
+                Text = name,
+                Foreground = text,
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var body = new StackPanel { Margin = new Thickness(8, 0, 8, 8) };
+            body.Children.Add(swatches);
+            body.Children.Add(icons);
+            body.Children.Add(caption);
+            var content = new StackPanel();
+            content.Children.Add(titleBar);
+            content.Children.Add(body);
+
+            var card = new Border
+            {
+                Width = 168,
+                CornerRadius = new CornerRadius(8),
+                Background = HexBrush(colors.Background),
+                BorderBrush = selected ? accent : HexBrush(colors.Border),
+                BorderThickness = new Thickness(selected ? 2.5 : 1),
+                Child = content,
+                SnapsToDevicePixels = true
+            };
+
+            var template = new ControlTemplate(typeof(Button))
+            {
+                VisualTree = new FrameworkElementFactory(typeof(ContentPresenter))
+            };
+            var button = new Button
+            {
+                Content = card,
+                Template = template,
+                Margin = new Thickness(0, 0, 10, 10),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+                Tag = theme.Id,
+                FocusVisualStyle = null
+            };
+            System.Windows.Automation.AutomationProperties.SetName(button, name);
+            button.Click += (_, _) => SelectFullTheme(theme.Id);
+            return button;
+        }
+
+        /// <summary>Мини-кнопка управления окном в стиле темы (для карточки галереи).</summary>
+        private static FrameworkElement BuildMiniWindowButton(ThemeDefinition theme, string glyphKey,
+            ThemeFeatureMap.ThemePreviewColors colors)
+        {
+            var close = glyphKey == "GlyphWindowClose";
+            if (theme.ButtonStyle == WindowButtonStyle.MacOS)
+            {
+                var traffic = close ? "#FF5F57" : glyphKey == "GlyphWindowMinimize" ? "#FEBC2E" : "#28C840";
+                return new System.Windows.Shapes.Ellipse
+                {
+                    Width = 11,
+                    Height = 11,
+                    Margin = new Thickness(0, 0, 5, 0),
+                    Fill = HexBrush(traffic)
+                };
+            }
+
+            var metrics = ThemeFeatureMap.ButtonMetrics(theme.ButtonStyle);
+            Brush background;
+            Brush glyphBrush = HexBrush(colors.Text);
+            if (theme.ButtonStyle == WindowButtonStyle.WindowsXp)
+            {
+                // Классические кнопки XP: синие объёмные, «закрыть» — красная.
+                var top = close ? "#E87A5D" : "#5A8EF0";
+                var bottom = close ? "#C2361A" : "#1F55C9";
+                var gradient = new LinearGradientBrush(
+                    (Color)ColorConverter.ConvertFromString(top),
+                    (Color)ColorConverter.ConvertFromString(bottom), 90);
+                gradient.Freeze();
+                background = gradient;
+                glyphBrush = Brushes.White;
+            }
+            else if (close)
+            {
+                background = HexBrush(metrics.CloseHoverHex);
+                glyphBrush = Brushes.White;
+            }
+            else if (theme.ButtonStyle is WindowButtonStyle.Material or WindowButtonStyle.Glass)
+            {
+                background = HexBrush(metrics.HoverHex);
+            }
+            else
+            {
+                background = Brushes.Transparent;
+            }
+
+            var size = theme.ButtonStyle is WindowButtonStyle.Classic or WindowButtonStyle.WindowsXp ? 14.0 : 15.0;
+            var radius = theme.ButtonStyle switch
+            {
+                WindowButtonStyle.Classic => 0,
+                WindowButtonStyle.WindowsXp => 3,
+                WindowButtonStyle.Minimal => 3,
+                _ => size / 2
+            };
+            return new Border
+            {
+                Width = size,
+                Height = size,
+                Margin = new Thickness(3, 0, 0, 0),
+                CornerRadius = new CornerRadius(radius),
+                Background = background,
+                BorderBrush = theme.ButtonStyle == WindowButtonStyle.WindowsXp ? Brushes.White : null,
+                BorderThickness = new Thickness(theme.ButtonStyle == WindowButtonStyle.WindowsXp ? 1 : 0),
+                Child = new System.Windows.Shapes.Path
+                {
+                    Width = 7,
+                    Height = 7,
+                    Stretch = Stretch.Uniform,
+                    Stroke = glyphBrush,
+                    StrokeThickness = 1.3,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Data = PreviewGeometry(glyphKey, theme.Icons),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+        }
+
+        /// <summary>Мини-иконка набора темы: фоновый слой (Glass), основной и «блик» (Windows XP).</summary>
+        private static FrameworkElement BuildMiniIcon(string key, IconSet set, Brush fill)
+        {
+            var canvas = new Canvas { Width = 24, Height = 24 };
+            var back = PreviewGeometry(key, set, back: true);
+            if (back is not null)
+                canvas.Children.Add(new System.Windows.Shapes.Path
+                {
+                    Data = back,
+                    Fill = fill,
+                    Opacity = ThemeFeatureMap.BackLayerOpacity
+                });
+            var front = PreviewGeometry(key, set);
+            canvas.Children.Add(new System.Windows.Shapes.Path { Data = front, Fill = fill });
+            if (ThemeFeatureMap.IconGloss(set) is { } gloss && front is not null)
+            {
+                var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+                brush.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(gloss.Top), 0));
+                brush.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(gloss.Bottom), gloss.Stop));
+                brush.Freeze();
+                canvas.Children.Add(new System.Windows.Shapes.Path { Data = front, Fill = brush });
+            }
+            return new Viewbox
+            {
+                Width = 18,
+                Height = 18,
+                Margin = new Thickness(0, 0, 8, 0),
+                Child = canvas
+            };
+        }
+
+        /// <summary>
+        /// Применяет выбранную в галерее тему (цвета, кнопки окна, иконки), сохраняет выбор
+        /// в настройках и обновляет редактор палитры, предпросмотр и галерею.
+        /// </summary>
+        private void SelectFullTheme(string id)
+        {
+            if (_settings is null)
                 return;
 
             // Применяем полноценную тему и сохраняем выбор (AppSettings.FullTheme).
-            _viewModel.ApplyFullTheme(item.Id);
+            _viewModel.ApplyFullTheme(id);
 
             // Редактор палитры и предпросмотр показывают цвета выбранной темы;
             // режим палитры — по базовому варианту темы (светлый/тёмный).
@@ -112,6 +372,80 @@ namespace Configuration_Management
             RefreshColorItems();
             UpdatePaletteButton();
             RefreshSchemePreview();
+            BuildThemeGallery();
+            InitializeThemeOverrides();
+        }
+
+        /// <summary>
+        /// Заполняет списки переопределения набора иконок и стиля кнопок окна. Первый пункт —
+        /// «По теме (…)» с названием значения из активной темы.
+        /// </summary>
+        private void InitializeThemeOverrides()
+        {
+            if (IconSetOverrideComboBox is null || WindowButtonStyleOverrideComboBox is null)
+                return;
+
+            var theme = ThemeManager.CurrentFullTheme ?? ThemeFeatureMap.Resolve(null);
+            var byTheme = LocalizationManager.T("Settings.ByTheme");
+            _suppressThemeOverrideEvent = true;
+            try
+            {
+                IconSetOverrideComboBox.Items.Clear();
+                IconSetOverrideComboBox.Items.Add(new ThemeOverrideItem
+                {
+                    Id = string.Empty,
+                    DisplayName = $"{byTheme} ({LocalizationManager.T(ThemeFeatureMap.IconSetNameKey(theme.Icons))})"
+                });
+                foreach (var set in ThemeFeatureMap.SelectableIconSets)
+                {
+                    IconSetOverrideComboBox.Items.Add(new ThemeOverrideItem
+                    {
+                        Id = ThemeFeatureMap.IconSetId(set),
+                        DisplayName = LocalizationManager.T(ThemeFeatureMap.IconSetNameKey(set))
+                    });
+                }
+                var iconId = ThemeManager.IconSetOverride is { } iconSet ? ThemeFeatureMap.IconSetId(iconSet) : string.Empty;
+                IconSetOverrideComboBox.SelectedItem = IconSetOverrideComboBox.Items.Cast<ThemeOverrideItem>()
+                    .FirstOrDefault(i => i.Id == iconId);
+
+                WindowButtonStyleOverrideComboBox.Items.Clear();
+                WindowButtonStyleOverrideComboBox.Items.Add(new ThemeOverrideItem
+                {
+                    Id = string.Empty,
+                    DisplayName = $"{byTheme} ({LocalizationManager.T(ThemeFeatureMap.ButtonStyleNameKey(theme.ButtonStyle))})"
+                });
+                foreach (var style in ThemeFeatureMap.SelectableButtonStyles)
+                {
+                    WindowButtonStyleOverrideComboBox.Items.Add(new ThemeOverrideItem
+                    {
+                        Id = ThemeFeatureMap.ButtonStyleId(style),
+                        DisplayName = LocalizationManager.T(ThemeFeatureMap.ButtonStyleNameKey(style))
+                    });
+                }
+                var styleId = ThemeManager.WindowButtonStyleOverride is { } buttonStyle
+                    ? ThemeFeatureMap.ButtonStyleId(buttonStyle)
+                    : string.Empty;
+                WindowButtonStyleOverrideComboBox.SelectedItem = WindowButtonStyleOverrideComboBox.Items
+                    .Cast<ThemeOverrideItem>()
+                    .FirstOrDefault(i => i.Id == styleId);
+            }
+            finally
+            {
+                _suppressThemeOverrideEvent = false;
+            }
+        }
+
+        /// <summary>
+        /// Смена переопределения набора иконок или стиля кнопок окна: применяется сразу (без
+        /// изменения цветов) и сохраняется в настройках.
+        /// </summary>
+        private void OnThemeOverrideCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressThemeOverrideEvent)
+                return;
+            var iconSet = (IconSetOverrideComboBox.SelectedItem as ThemeOverrideItem)?.Id ?? string.Empty;
+            var buttonStyle = (WindowButtonStyleOverrideComboBox.SelectedItem as ThemeOverrideItem)?.Id ?? string.Empty;
+            _viewModel.ApplyThemeOverrides(iconSet, buttonStyle);
         }
 
         /// <summary>

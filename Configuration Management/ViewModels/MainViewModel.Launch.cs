@@ -589,6 +589,14 @@ public partial class MainViewModel : ViewModelBase
         // Идентификатор полноценной темы: актуальный выбор сохраняется и восстанавливается
         // после перезапуска (см. NormalizeThemeSelection и ApplyFullTheme).
         s.FullTheme = _fullTheme;
+        // Переопределения набора иконок и стиля кнопок окна (блок «Темы», 0.3.12.62):
+        // источник истины — ThemeManager (заполняется из настроек при старте).
+        s.IconSetOverride = Themes.ThemeManager.IconSetOverride is { } iconSetOverride
+            ? Themes.ThemeFeatureMap.IconSetId(iconSetOverride)
+            : string.Empty;
+        s.WindowButtonStyleOverride = Themes.ThemeManager.WindowButtonStyleOverride is { } buttonStyleOverride
+            ? Themes.ThemeFeatureMap.ButtonStyleId(buttonStyleOverride)
+            : string.Empty;
         s.ActiveColorScheme = _activeColorScheme;
         // Устаревшие раздельные слоты больше не ведутся.
         s.LightColorScheme = null;

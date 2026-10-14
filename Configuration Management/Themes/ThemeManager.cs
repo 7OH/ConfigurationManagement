@@ -131,6 +131,45 @@ namespace Configuration_Management.Themes
         }
 
         /// <summary>
+        /// Переопределение набора иконок пользователем (блок «Темы», 0.3.12.62): null — набор
+        /// берётся из темы.
+        /// </summary>
+        public static IconSet? IconSetOverride { get; private set; }
+
+        /// <summary>
+        /// Переопределение стиля кнопок управления окном пользователем (блок «Темы», 0.3.12.62):
+        /// null — стиль берётся из темы.
+        /// </summary>
+        public static WindowButtonStyle? WindowButtonStyleOverride { get; private set; }
+
+        /// <summary>
+        /// Задаёт переопределения набора иконок и стиля кнопок окна из настроек
+        /// (AppSettings.IconSetOverride / WindowButtonStyleOverride; пусто — «по теме»).
+        /// Вызывается до <see cref="ApplyFullTheme"/> при старте; во время работы — вместе с
+        /// <see cref="ReapplyThemeFeatures"/>.
+        /// </summary>
+        public static void SetOverrides(string? iconSet, string? buttonStyle)
+        {
+            IconSetOverride = ThemeFeatureMap.ParseIconSetOverride(iconSet);
+            WindowButtonStyleOverride = ThemeFeatureMap.ParseButtonStyleOverride(buttonStyle);
+        }
+
+        /// <summary>
+        /// Повторно применяет набор иконок и стиль кнопок окна активной темы с учётом
+        /// переопределений, не трогая цветовую схему (пользовательская схема поверх темы
+        /// сохраняется), и рассылает <see cref="ThemeChanged"/>.
+        /// </summary>
+        public static void ReapplyThemeFeatures()
+        {
+            var theme = CurrentFullTheme ?? ThemeFeatureMap.Resolve(null);
+            CurrentWindowButtonStyle = ThemeFeatureMap.EffectiveButtonStyle(theme, WindowButtonStyleOverride);
+            CurrentIconSet = ThemeFeatureMap.EffectiveIconSet(theme, IconSetOverride);
+            ApplyWindowButtonStyle();
+            ApplyIconSet();
+            ThemeChanged?.Invoke(null, EventArgs.Empty);
+        }
+
+        /// <summary>
         /// Применяет полноценную тему по идентификатору (см. <see cref="ThemeCatalog"/>):
         /// задаёт текущее определение, базовый вариант (Light/Dark), стиль кнопок окна
         /// и набор иконок, применяет схему темы и рассылает <see cref="ThemeChanged"/>.
@@ -143,8 +182,10 @@ namespace Configuration_Management.Themes
         {
             var theme = ThemeFeatureMap.Resolve(id);
             CurrentFullTheme = ThemeFeatureMap.WithBaseVariant(theme, theme.IsDark);
-            CurrentWindowButtonStyle = CurrentFullTheme.ButtonStyle;
-            CurrentIconSet = CurrentFullTheme.Icons;
+            // Набор иконок и стиль кнопок окна — параметры темы, но пользователь может
+            // переопределить их в блоке «Темы» (0.3.12.62).
+            CurrentWindowButtonStyle = ThemeFeatureMap.EffectiveButtonStyle(CurrentFullTheme, WindowButtonStyleOverride);
+            CurrentIconSet = ThemeFeatureMap.EffectiveIconSet(CurrentFullTheme, IconSetOverride);
             CurrentTheme = CurrentFullTheme.IsDark ? DarkThemeName : LightThemeName;
             ApplyScheme(CurrentFullTheme.Scheme);
             ApplyWindowButtonStyle();

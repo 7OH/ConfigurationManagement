@@ -61,6 +61,20 @@ public class AppSettings
     public string FullTheme { get; set; } = string.Empty;
 
     /// <summary>
+    /// Переопределение набора иконок темы (блок «Темы», 0.3.12.62): "Fluent", "Outline",
+    /// "Material", "MacOS", "WindowsXp", "Glass" или пусто — набор задаёт тема.
+    /// Старые файлы настроек без поля читаются как «по теме».
+    /// </summary>
+    public string IconSetOverride { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Переопределение стиля кнопок управления окном (блок «Темы», 0.3.12.62): "Fluent",
+    /// "Minimal", "Classic", "Material", "MacOS", "WindowsXp", "Glass" или пусто — стиль
+    /// задаёт тема.
+    /// </summary>
+    public string WindowButtonStyleOverride { get; set; } = string.Empty;
+
+    /// <summary>
     /// Код языка интерфейса, например "ru", "en", "de". Пусто — язык определяется
     /// автоматически (по языку операционной системы, если он доступен, иначе русский).
     /// </summary>

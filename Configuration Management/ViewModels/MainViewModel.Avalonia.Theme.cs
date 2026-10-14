@@ -102,6 +102,24 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Переопределяет набор иконок и стиль кнопок окна активной темы (блок «Темы»,
+    /// 0.3.12.62). Пустое значение — «по теме». Цветовая схема не меняется; выбор
+    /// применяется сразу и сохраняется в настройках.
+    /// </summary>
+    public void ApplyThemeOverrides(string? iconSet, string? buttonStyle)
+    {
+        ThemeManager.SetOverrides(iconSet, buttonStyle);
+        ThemeManager.ReapplyThemeFeatures();
+        _settings.IconSetOverride = ThemeManager.IconSetOverride is { } iconSetOverride
+            ? ThemeFeatureMap.IconSetId(iconSetOverride)
+            : string.Empty;
+        _settings.WindowButtonStyleOverride = ThemeManager.WindowButtonStyleOverride is { } buttonStyleOverride
+            ? ThemeFeatureMap.ButtonStyleId(buttonStyleOverride)
+            : string.Empty;
+        SaveSettingsSilently();
+    }
+
+    /// <summary>
     /// Возвращает активную схему (с двумя палитрами). Вариант темы определяет,
     /// какая палитра показывается; сама схема от него не зависит.
     /// </summary>
