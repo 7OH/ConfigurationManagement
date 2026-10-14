@@ -9,7 +9,7 @@
         mc:Ignorable="d"
         Title="{loc:Loc Utilities.Editor.GroupDialogTitle}"
         Icon="{StaticResource AppIcon}"
-        Height="240" Width="440"
+        Width="440" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         FontFamily="Segoe UI"

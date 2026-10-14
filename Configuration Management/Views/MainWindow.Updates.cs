@@ -76,11 +76,14 @@ public partial class MainWindow
 
         // Меню строится заново при каждом открытии: компоновка могла измениться
         // (правка структуры в редакторе, смена настройки UtilitiesMenuEditingEnabled).
+        // ВАЖНО: меню НЕ присваивается кнопке (btn.ContextMenu) — иначе оно затрёт
+        // XAML-контекстное меню настроек (ПКМ по «Утилиты», issue #374): после первого
+        // левого клика правая кнопка открывала бы меню «Утилиты» вместо настроек.
+        // Меню открывается напрямую через IsOpen (как в Avalonia: utilitiesMenu.Open).
         var menu = BuildUtilitiesMenu();
         menu.PlacementTarget = btn;
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         menu.DataContext = DataContext;
-        btn.ContextMenu = menu;
 
         // Открываем меню ОТЛОЖЕННО (как OnLaunchSplitButton_Click, см. MainWindow.Events.cs):
         // при синхронном открытии прямо в обработчике клика WPF не успевает измерить и
@@ -88,11 +91,7 @@ public partial class MainWindow
         // текста заголовков (issue #282). Отложенное открытие на приоритете Input даёт
         // меню корректно раскрыться — заголовки, иконки и команды видны.
         Dispatcher.BeginInvoke(
-            new Action(() =>
-            {
-                if (btn.ContextMenu is not null)
-                    btn.ContextMenu.IsOpen = true;
-            }),
+            new Action(() => menu.IsOpen = true),
             System.Windows.Threading.DispatcherPriority.Input);
     }
 

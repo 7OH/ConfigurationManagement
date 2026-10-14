@@ -43,7 +43,8 @@ public sealed class UtilitiesMenuResolverTests
         var settings = new AppSettings { UtilitiesMenuEditingEnabled = true };
         var layout = UtilitiesMenuResolver.Resolve(settings, null);
         Assert.NotNull(layout);
-        Assert.Equal(11, layout!.Root.Count);
+        // 11 пунктов/групп + 5 узлов-разделителей (issue #374).
+        Assert.Equal(16, layout!.Root.Count);
     }
 
     [Fact]

@@ -1,3 +1,5 @@
+using Configuration_Management.Models;
+using Configuration_Management.Services;
 using Configuration_Management.ViewModels;
 using Xunit;
 
@@ -457,5 +459,62 @@ public sealed class UtilitiesMenuEditorViewModelTests
 
         Assert.Equal(icon.Key, item.EffectiveIconKey);
         Assert.Equal(icon.Color, item.EffectiveIconColor);
+    }
+
+    // ---- Разделители в стандартной компоновке (issue #374) ----
+
+    [Fact]
+    public void DefaultLayout_ShowsSeparatorsInTree()
+    {
+        var vm = CreateViewModel();
+        Assert.Contains(vm.Roots, n => string.Equals(n.Node.Kind, "separator", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ResetToDefault_ShowsSeparators()
+    {
+        var vm = CreateViewModel();
+        // Удаляем все разделители из дерева.
+        foreach (var sep in vm.Roots
+                     .Where(n => string.Equals(n.Node.Kind, "separator", StringComparison.Ordinal))
+                     .ToList())
+        {
+            vm.SelectedItem = sep;
+            vm.DeleteGroupCommand.Execute(false);
+        }
+        Assert.DoesNotContain(vm.Roots, n => string.Equals(n.Node.Kind, "separator", StringComparison.Ordinal));
+
+        // Сброс к стандартной компоновке возвращает разделители в дерево.
+        vm.ResetDefaultCommand.Execute(null);
+
+        Assert.Contains(vm.Roots, n => string.Equals(n.Node.Kind, "separator", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Save_ThenLoad_KeepsSeparator()
+    {
+        var store = new MemoryLayoutStore();
+        var vm = new UtilitiesMenuEditorViewModel(store);
+        vm.AddSeparatorCommand.Execute(null);
+        var sep = vm.SelectedItem!;
+        Assert.Equal("separator", sep.Node.Kind);
+
+        vm.SaveCommand.Execute(null);
+
+        // Новый редактор с тем же хранилищем видит разделитель (регрессия пункта 5).
+        var reloaded = new UtilitiesMenuEditorViewModel(store);
+        Assert.Contains(reloaded.Roots, n => string.Equals(n.Node.Kind, "separator", StringComparison.Ordinal));
+    }
+
+    /// <summary>Хранилище-заглушка для тестов (без файла на диске).</summary>
+    private sealed class MemoryLayoutStore : IUtilitiesMenuLayoutStore
+    {
+        private UtilitiesMenuLayout? _layout;
+
+        public string FilePath => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "memory_utilities_menu_layout.json");
+
+        public UtilitiesMenuLayout? Load() => _layout;
+
+        public void Save(UtilitiesMenuLayout layout) => _layout = layout;
     }
 }

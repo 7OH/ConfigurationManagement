@@ -20,72 +20,88 @@ public sealed class UtilitiesMenuLayoutTests
         Converters = { new JsonStringEnumConverter() }
     };
 
-    /// <summary>Стандартная компоновка идентична текущему статическому меню «Утилиты» (обратная совместимость).</summary>
+    /// <summary>Стандартная компоновка идентична текущему статическому меню «Утилиты» (обратная совместимость).
+    /// Разделители — самостоятельные узлы <c>Kind == "separator"</c> (issue #374).</summary>
     [Fact]
     public void DefaultLayout_MatchesCurrentStaticMenu()
     {
         var layout = UtilitiesMenuLayouts.Default();
 
-        // Корень: 11 узлов — 6 пунктов верхнего уровня + «Блокировка приложения»,
-        // подменю «Опции блокировки», «Информация», «Операции» и «Проверить обновления».
-        Assert.Equal(11, layout.Root.Count);
+        // Корень: 16 узлов — 11 пунктов/групп + 5 узлов-разделителей (issue #374):
+        // перед «Актуальные релизы», «Блокировка приложения», «Информация», «Операции», «Проверить обновления».
+        Assert.Equal(16, layout.Root.Count);
 
         // ---- Верхний уровень ----
-        AssertItem(layout.Root[0], "CommandPalette", separatorBefore: false);
-        AssertItem(layout.Root[1], "ActualReleases", separatorBefore: true);
-        AssertItem(layout.Root[2], "PlatformUpdate", separatorBefore: false);
-        AssertItem(layout.Root[3], "PlatformDownload", separatorBefore: false);
-        AssertItem(layout.Root[4], "ServerMonitor", separatorBefore: false);
-        AssertItem(layout.Root[5], "ServerConsoleExternal", separatorBefore: false);
+        AssertItem(layout.Root[0], "CommandPalette");
+        AssertSeparator(layout.Root[1]);
+        AssertItem(layout.Root[2], "ActualReleases");
+        AssertItem(layout.Root[3], "PlatformUpdate");
+        AssertItem(layout.Root[4], "PlatformDownload");
+        AssertItem(layout.Root[5], "ServerMonitor");
+        AssertItem(layout.Root[6], "ServerConsoleExternal");
+        AssertSeparator(layout.Root[7]);
 
         // «Блокировка приложения» на верхнем уровне, перед подменю (issue #294).
-        AssertItem(layout.Root[6], "AppLock", separatorBefore: true);
+        AssertItem(layout.Root[8], "AppLock");
 
         // ---- Подменю «Опции блокировки» ----
-        AssertGroup(layout.Root[7], UtilitiesMenuCatalog.GroupLockOptions, separatorBefore: false);
-        var lockChildren = layout.Root[7].Children;
-        Assert.Equal(3, lockChildren.Count);
-        AssertItem(lockChildren[0], "UnlockPrivateBases", separatorBefore: false);
-        AssertItem(lockChildren[1], "ChangeAppLock", separatorBefore: false);
-        AssertItem(lockChildren[2], "RunBackupScenario", separatorBefore: true);
+        AssertGroup(layout.Root[9], UtilitiesMenuCatalog.GroupLockOptions);
+        var lockChildren = layout.Root[9].Children;
+        Assert.Equal(4, lockChildren.Count);
+        AssertItem(lockChildren[0], "UnlockPrivateBases");
+        AssertItem(lockChildren[1], "ChangeAppLock");
+        AssertSeparator(lockChildren[2]);
+        AssertItem(lockChildren[3], "RunBackupScenario");
 
         // ---- Подменю «Информация» ----
-        AssertGroup(layout.Root[8], UtilitiesMenuCatalog.GroupInformation, separatorBefore: true);
-        var infoChildren = layout.Root[8].Children;
-        Assert.Equal(7, infoChildren.Count);
-        AssertItem(infoChildren[0], "MaintenanceCenter", separatorBefore: false);
-        AssertItem(infoChildren[1], "ConfigTypesEdit", separatorBefore: true);
-        AssertItem(infoChildren[2], "ItsAccounts", separatorBefore: false);
-        AssertItem(infoChildren[3], "ScheduledTasks", separatorBefore: true);
-        AssertItem(infoChildren[4], "BackupScenarios", separatorBefore: false);
-        AssertItem(infoChildren[5], "ScriptsSettings", separatorBefore: true);
-        AssertItem(infoChildren[6], "UsageStatistics", separatorBefore: false);
+        AssertSeparator(layout.Root[10]);
+        AssertGroup(layout.Root[11], UtilitiesMenuCatalog.GroupInformation);
+        var infoChildren = layout.Root[11].Children;
+        Assert.Equal(10, infoChildren.Count);
+        AssertItem(infoChildren[0], "MaintenanceCenter");
+        AssertSeparator(infoChildren[1]);
+        AssertItem(infoChildren[2], "ConfigTypesEdit");
+        AssertItem(infoChildren[3], "ItsAccounts");
+        AssertSeparator(infoChildren[4]);
+        AssertItem(infoChildren[5], "ScheduledTasks");
+        AssertItem(infoChildren[6], "BackupScenarios");
+        AssertSeparator(infoChildren[7]);
+        AssertItem(infoChildren[8], "ScriptsSettings");
+        AssertItem(infoChildren[9], "UsageStatistics");
 
         // ---- Подменю «Операции» ----
-        AssertGroup(layout.Root[9], UtilitiesMenuCatalog.GroupOperations, separatorBefore: true);
-        var opsChildren = layout.Root[9].Children;
-        Assert.Equal(15, opsChildren.Count);
-        AssertItem(opsChildren[0], "ConfigDiff", separatorBefore: false);
-        AssertItem(opsChildren[1], "MetadataExplorer", separatorBefore: false);
-        AssertItem(opsChildren[2], "RepositoryBatchUpdate", separatorBefore: true);
-        AssertItem(opsChildren[3], "RepositoryBrowser", separatorBefore: false);
-        AssertItem(opsChildren[4], "ExportCsv", separatorBefore: true);
-        AssertItem(opsChildren[5], "ExportHtml", separatorBefore: false);
-        AssertItem(opsChildren[6], "ExportJson", separatorBefore: false);
-        AssertItem(opsChildren[7], "ImportJson", separatorBefore: false);
-        AssertItem(opsChildren[8], "ClusterImport", separatorBefore: false);
-        AssertItem(opsChildren[9], "ProcessInspector", separatorBefore: true);
-        AssertItem(opsChildren[10], "KillOneCProcesses", separatorBefore: false);
-        AssertItem(opsChildren[11], "ConnectionReplace", separatorBefore: true);
-        AssertItem(opsChildren[12], "UndoConnectionReplace", separatorBefore: false);
+        AssertSeparator(layout.Root[12]);
+        AssertGroup(layout.Root[13], UtilitiesMenuCatalog.GroupOperations);
+        var opsChildren = layout.Root[13].Children;
+        Assert.Equal(21, opsChildren.Count);
+        AssertItem(opsChildren[0], "ConfigDiff");
+        AssertItem(opsChildren[1], "MetadataExplorer");
+        AssertSeparator(opsChildren[2]);
+        AssertItem(opsChildren[3], "RepositoryBatchUpdate");
+        AssertItem(opsChildren[4], "RepositoryBrowser");
+        AssertSeparator(opsChildren[5]);
+        AssertItem(opsChildren[6], "ExportCsv");
+        AssertItem(opsChildren[7], "ExportHtml");
+        AssertItem(opsChildren[8], "ExportJson");
+        AssertItem(opsChildren[9], "ImportJson");
+        AssertItem(opsChildren[10], "ClusterImport");
+        AssertSeparator(opsChildren[11]);
+        AssertItem(opsChildren[12], "ProcessInspector");
+        AssertItem(opsChildren[13], "KillOneCProcesses");
+        AssertSeparator(opsChildren[14]);
+        AssertItem(opsChildren[15], "ConnectionReplace");
+        AssertItem(opsChildren[16], "UndoConnectionReplace");
         // Пункт «Блокировка сеансов ИБ» есть только в Avalonia/Linux: в стандартной
         // компоновке он присутствует с разделителем (как в статическом меню Linux),
         // а WPF-построитель отфильтрует его по LinuxOnly.
-        AssertItem(opsChildren[13], "SessionLock", separatorBefore: true);
-        AssertItem(opsChildren[14], "RemoveMissingFileBases", separatorBefore: true);
+        AssertSeparator(opsChildren[17]);
+        AssertItem(opsChildren[18], "SessionLock");
+        AssertSeparator(opsChildren[19]);
+        AssertItem(opsChildren[20], "RemoveMissingFileBases");
 
         // ---- «Проверить обновления» в конце, с разделителем ----
-        AssertItem(layout.Root[10], "CheckForUpdates", separatorBefore: true);
+        AssertSeparator(layout.Root[14]);
+        AssertItem(layout.Root[15], "CheckForUpdates");
     }
 
     /// <summary>Каталог содержит все пункты стандартной компоновки (ни один ItemId не теряется).</summary>
@@ -161,21 +177,31 @@ public sealed class UtilitiesMenuLayoutTests
         Assert.Equal("UnlockPrivateBases", layout.Root[1].Children[0].ItemId);
     }
 
-    private static void AssertItem(UtilitiesMenuNode node, string itemId, bool separatorBefore)
+    private static void AssertItem(UtilitiesMenuNode node, string itemId)
     {
         Assert.NotNull(node);
         Assert.Equal("item", node.Kind);
         Assert.Equal(itemId, node.ItemId);
-        Assert.Equal(separatorBefore, node.SeparatorBefore);
+        Assert.False(node.SeparatorBefore);
         Assert.True(node.Visible);
     }
 
-    private static void AssertGroup(UtilitiesMenuNode node, string groupId, bool separatorBefore)
+    private static void AssertGroup(UtilitiesMenuNode node, string groupId)
     {
         Assert.NotNull(node);
         Assert.Equal("group", node.Kind);
         Assert.Equal(groupId, node.GroupId);
-        Assert.Equal(separatorBefore, node.SeparatorBefore);
+        Assert.False(node.SeparatorBefore);
+        Assert.True(node.Visible);
+    }
+
+    private static void AssertSeparator(UtilitiesMenuNode node)
+    {
+        Assert.NotNull(node);
+        Assert.Equal("separator", node.Kind);
+        Assert.Null(node.ItemId);
+        Assert.Null(node.GroupId);
+        Assert.False(node.SeparatorBefore);
         Assert.True(node.Visible);
     }
 }

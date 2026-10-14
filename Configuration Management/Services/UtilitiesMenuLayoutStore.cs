@@ -92,22 +92,42 @@ public sealed class UtilitiesMenuLayoutStore : IUtilitiesMenuLayoutStore
     /// <summary>
     /// Приводит компоновку к безопасному виду: восстанавливает null-коллекции и
     /// null-строки из повреждённого/ручного файла, отбрасывает узлы с неизвестным
-    /// типом и пункты с несуществующим идентификатором каталога.
+    /// типом и пункты с несуществующим идентификатором каталога. Узлы-разделители
+    /// (<c>Kind == "separator"</c>) сохраняются как самостоятельные узлы (issue #374),
+    /// а старый признак <see cref="UtilitiesMenuNode.SeparatorBefore"/> мигрирует
+    /// в узел-разделитель перед узлом — редактор и построители видят единую структуру.
     /// </summary>
     private static UtilitiesMenuLayout? Normalize(UtilitiesMenuLayout? layout)
     {
         if (layout is null)
             return null;
         layout.Root ??= new List<UtilitiesMenuNode>();
-        var cleaned = new List<UtilitiesMenuNode>();
-        foreach (var node in layout.Root)
+        layout.Root = NormalizeList(layout.Root);
+        return layout;
+    }
+
+    /// <summary>Нормализует список узлов: прогоняет каждый через
+    /// <see cref="NormalizeNode"/> и разворачивает <c>SeparatorBefore</c> в узел-разделитель.</summary>
+    private static List<UtilitiesMenuNode> NormalizeList(List<UtilitiesMenuNode> nodes)
+    {
+        var result = new List<UtilitiesMenuNode>();
+        foreach (var node in nodes)
         {
             var normalized = NormalizeNode(node);
-            if (normalized is not null)
-                cleaned.Add(normalized);
+            if (normalized is null)
+                continue;
+            // Миграция старого признака SeparatorBefore (issue #374): перед узлом вставляем
+            // самостоятельный разделитель (как его показывает редактор). У самого разделителя
+            // SeparatorBefore не разворачиваем — иначе получится двойная линия.
+            if (normalized.SeparatorBefore && result.Count > 0 &&
+                !string.Equals(normalized.Kind, "separator", StringComparison.Ordinal))
+            {
+                result.Add(new UtilitiesMenuNode { Kind = "separator" });
+                normalized.SeparatorBefore = false;
+            }
+            result.Add(normalized);
         }
-        layout.Root = cleaned;
-        return layout;
+        return result;
     }
 
     private static UtilitiesMenuNode? NormalizeNode(UtilitiesMenuNode? node)
@@ -123,16 +143,14 @@ public sealed class UtilitiesMenuLayoutStore : IUtilitiesMenuLayoutStore
 
         if (string.Equals(node.Kind, "group", StringComparison.Ordinal))
         {
-            var children = new List<UtilitiesMenuNode>();
-            foreach (var child in node.Children)
-            {
-                var normalized = NormalizeNode(child);
-                if (normalized is not null)
-                    children.Add(normalized);
-            }
-            node.Children = children;
+            node.Children = NormalizeList(node.Children);
             return node;
         }
+
+        // Разделитель (issue #374): самостоятельный узел без ItemId/GroupId —
+        // возвращаем как есть, НЕ трактуя как пункт каталога.
+        if (string.Equals(node.Kind, "separator", StringComparison.Ordinal))
+            return node;
 
         // Пункт: должен ссылаться на существующий пункт каталога.
         node.ItemId ??= string.Empty;

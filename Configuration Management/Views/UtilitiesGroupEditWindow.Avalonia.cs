@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Configuration_Management.Localization;
 using Configuration_Management.Themes;
 using Configuration_Management.ViewModels;
@@ -31,7 +32,8 @@ namespace Configuration_Management
         {
             Title = LocalizationManager.T("Utilities.Editor.GroupDialogTitle");
             Width = 440;
-            Height = 240;
+            // Высота по содержимому: фиксированная 240 обрезала нижние кнопки (issue #374).
+            SizeToContent = SizeToContent.Height;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
             _nameBox.Text = initialTitle ?? string.Empty;
@@ -53,9 +55,14 @@ namespace Configuration_Management
             UpdateOkEnabled();
             Opened += (_, _) =>
             {
-                // Активное поле «Имя» с выделением текста (issue #374).
-                _nameBox.Focus();
-                _nameBox.SelectAll();
+                // Активное поле «Имя» с выделением текста (issue #374). Фокус откладываем:
+                // в Opened окно может быть ещё не активировано — Focus() не встаёт.
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Activate();
+                    _nameBox.Focus();
+                    _nameBox.SelectAll();
+                });
                 // Диалог чуть выше центра владельца (issue #374).
                 Position = new PixelPoint(Position.X, Math.Max(0, Position.Y - 120));
             };

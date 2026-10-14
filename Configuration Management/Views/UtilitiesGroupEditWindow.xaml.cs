@@ -40,9 +40,15 @@ namespace Configuration_Management
 
             Loaded += (_, _) =>
             {
-                // Активное поле «Имя» с выделением текста (issue #374).
-                NameBox.Focus();
-                NameBox.SelectAll();
+                // Активное поле «Имя» с выделением текста (issue #374). Фокус откладываем:
+                // в Loaded окно ещё не активировано, и Focus() не встаёт (текст выделяется,
+                // но поле не активно для ввода). После активации окна фокус гарантирован.
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Activate();
+                    NameBox.Focus();
+                    NameBox.SelectAll();
+                }), System.Windows.Threading.DispatcherPriority.Input);
                 // Диалог чуть выше центра владельца (issue #374).
                 Top = Math.Max(SystemParameters.WorkArea.Top, Top - 120);
             };

@@ -443,57 +443,74 @@ public static class UtilitiesMenuCatalog
 /// </summary>
 public static class UtilitiesMenuLayouts
 {
-    /// <summary>Стандартная компоновка меню «Утилиты» (текущая структура).</summary>
+    /// <summary>Стандартная компоновка меню «Утилиты» (текущая структура).
+    /// Разделители — самостоятельные узлы <see cref="Separator"/> (issue #374):
+    /// редактор показывает всю структуру «как есть», без скрытых флагов SeparatorBefore.</summary>
     public static UtilitiesMenuLayout Default()
     {
         var layout = new UtilitiesMenuLayout();
         layout.Root = new List<UtilitiesMenuNode>
         {
             Item("CommandPalette"),
-            Item("ActualReleases", separatorBefore: true),
+            Separator(),
+            Item("ActualReleases"),
             Item("PlatformUpdate"),
             Item("PlatformDownload"),
             Item("ServerMonitor"),
             Item("ServerConsoleExternal"),
-            Item("AppLock", separatorBefore: true),
+            Separator(),
+            Item("AppLock"),
             Group(UtilitiesMenuCatalog.GroupLockOptions, new List<UtilitiesMenuNode>
             {
                 Item("UnlockPrivateBases"),
                 Item("ChangeAppLock"),
-                Item("RunBackupScenario", separatorBefore: true)
+                Separator(),
+                Item("RunBackupScenario")
             }),
+            Separator(),
             Group(UtilitiesMenuCatalog.GroupInformation, new List<UtilitiesMenuNode>
             {
                 Item("MaintenanceCenter"),
-                Item("ConfigTypesEdit", separatorBefore: true),
+                Separator(),
+                Item("ConfigTypesEdit"),
                 Item("ItsAccounts"),
-                Item("ScheduledTasks", separatorBefore: true),
+                Separator(),
+                Item("ScheduledTasks"),
                 Item("BackupScenarios"),
-                Item("ScriptsSettings", separatorBefore: true),
+                Separator(),
+                Item("ScriptsSettings"),
                 Item("UsageStatistics")
-            }, separatorBefore: true),
+            }),
+            Separator(),
             Group(UtilitiesMenuCatalog.GroupOperations, new List<UtilitiesMenuNode>
             {
                 Item("ConfigDiff"),
                 Item("MetadataExplorer"),
-                Item("RepositoryBatchUpdate", separatorBefore: true),
+                Separator(),
+                Item("RepositoryBatchUpdate"),
                 Item("RepositoryBrowser"),
-                Item("ExportCsv", separatorBefore: true),
+                Separator(),
+                Item("ExportCsv"),
                 Item("ExportHtml"),
                 Item("ExportJson"),
                 Item("ImportJson"),
                 Item("ClusterImport"),
-                Item("ProcessInspector", separatorBefore: true),
+                Separator(),
+                Item("ProcessInspector"),
                 Item("KillOneCProcesses"),
-                Item("ConnectionReplace", separatorBefore: true),
+                Separator(),
+                Item("ConnectionReplace"),
                 Item("UndoConnectionReplace"),
                 // Блокировка сеансов ИБ (функция №20, Ctrl+Alt+L) есть только в меню
                 // Avalonia/Linux: WPF-построитель отфильтрует пункт по LinuxOnly,
                 // а на Linux он останется (как в статическом меню до issue #374).
-                Item("SessionLock", separatorBefore: true),
-                Item("RemoveMissingFileBases", separatorBefore: true)
-            }, separatorBefore: true),
-            Item("CheckForUpdates", separatorBefore: true)
+                Separator(),
+                Item("SessionLock"),
+                Separator(),
+                Item("RemoveMissingFileBases")
+            }),
+            Separator(),
+            Item("CheckForUpdates")
         };
         return layout;
     }
@@ -523,4 +540,7 @@ public static class UtilitiesMenuLayouts
         };
         return node;
     }
+
+    /// <summary>Узел-разделитель (issue #374): самостоятельный элемент дерева компоновки.</summary>
+    public static UtilitiesMenuNode Separator() => new() { Kind = "separator" };
 }

@@ -55,9 +55,11 @@ public sealed class UtilitiesMenuLayoutStoreTests : IDisposable
         Assert.NotNull(restored);
         Assert.Equal(layout.Root.Count, restored!.Root.Count);
         Assert.Equal("CommandPalette", restored.Root[0].ItemId);
-        Assert.Equal("group", restored.Root[7].Kind);
-        Assert.Equal(UtilitiesMenuCatalog.GroupLockOptions, restored.Root[7].GroupId);
-        Assert.Equal(3, restored.Root[7].Children.Count);
+        // Разделители сохраняются как самостоятельные узлы (issue #374).
+        Assert.Equal("separator", restored.Root[1].Kind);
+        Assert.Equal("group", restored.Root[9].Kind);
+        Assert.Equal(UtilitiesMenuCatalog.GroupLockOptions, restored.Root[9].GroupId);
+        Assert.Equal(4, restored.Root[9].Children.Count);
     }
 
     [Fact]
@@ -140,6 +142,74 @@ public sealed class UtilitiesMenuLayoutStoreTests : IDisposable
         Assert.Single(result!.Root);
         Assert.NotNull(result.Root[0].Children);
         Assert.Empty(result.Root[0].Children!);
+    }
+
+    [Fact]
+    public void Load_FileWithSeparatorNodes_KeepsThem()
+    {
+        var store = CreateStore();
+        File.WriteAllText(store.FilePath,
+            """
+            {
+              "SchemaVersion": 1,
+              "Root": [
+                { "Kind": "item", "ItemId": "CommandPalette", "Visible": true },
+                { "Kind": "separator", "Visible": true },
+                { "Kind": "item", "ItemId": "ActualReleases", "Visible": true }
+              ]
+            }
+            """);
+
+        var result = store.Load();
+        Assert.NotNull(result);
+        Assert.Equal(3, result!.Root.Count);
+        Assert.Equal("separator", result.Root[1].Kind);
+        Assert.Equal("ActualReleases", result.Root[2].ItemId);
+    }
+
+    [Fact]
+    public void Load_FileWithSeparatorBefore_MigratesToSeparatorNode()
+    {
+        var store = CreateStore();
+        File.WriteAllText(store.FilePath,
+            """
+            {
+              "SchemaVersion": 1,
+              "Root": [
+                { "Kind": "item", "ItemId": "CommandPalette", "Visible": true },
+                { "Kind": "item", "ItemId": "ActualReleases", "Visible": true, "SeparatorBefore": true }
+              ]
+            }
+            """);
+
+        var result = store.Load();
+        Assert.NotNull(result);
+        Assert.Equal(3, result!.Root.Count);
+        Assert.Equal("separator", result.Root[1].Kind);
+        Assert.Equal("ActualReleases", result.Root[2].ItemId);
+        Assert.False(result.Root[2].SeparatorBefore);
+    }
+
+    [Fact]
+    public void Save_ThenLoad_WithSeparator_RoundTrips()
+    {
+        var store = CreateStore();
+        var layout = new UtilitiesMenuLayout
+        {
+            SchemaVersion = 1,
+            Root = new System.Collections.Generic.List<UtilitiesMenuNode>
+            {
+                UtilitiesMenuLayouts.Item("CommandPalette"),
+                UtilitiesMenuLayouts.Separator(),
+                UtilitiesMenuLayouts.Item("ActualReleases")
+            }
+        };
+        store.Save(layout);
+
+        var restored = store.Load();
+        Assert.NotNull(restored);
+        Assert.Equal(3, restored!.Root.Count);
+        Assert.Equal("separator", restored.Root[1].Kind);
     }
 
     [Fact]
