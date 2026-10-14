@@ -632,7 +632,7 @@ public sealed class PlatformUpdateServiceTests
             => string.Empty;
 
         public Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(
-            string configName, string currentVersion, string url, CancellationToken ct = default)
+            string configName, string currentVersion, string url, CancellationToken ct = default, string? familyHint = null)
             => Task.FromResult(new ConfigUpdateCheckResult());
 
         public Task<string?> DownloadUpdateAsync(

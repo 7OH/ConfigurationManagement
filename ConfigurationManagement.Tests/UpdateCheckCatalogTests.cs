@@ -413,6 +413,23 @@ public sealed class UpdateCheckCatalogTests : IDisposable
     }
 
     [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_FullCatalogUnavailable_ForeignShortPageVersion_ReturnsUnavailable()
+    {
+        // issue #371 (0.3.12.44): полный каталог недоступен (500), а короткая страница
+        // содержит только посторонний токен «2.2.10» (другое семейство, текущая 3.0.x).
+        // Семейство отсекает чужую версию — результат Unavailable, а не «2.2.10».
+        var handler = new FullCatalogFailsWithForeignVersionHandler();
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Розница", "3.0.14.100", "https://releases.1c.ru/project/Retail30");
+
+        Assert.Equal(ConfigUpdateStatus.Unavailable, result.Status);
+        Assert.Equal(string.Empty, result.LatestVersion);
+        Assert.Equal(1, handler.FullCatalogRequests);
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task CheckForUpdatesAsync_302WithoutLocation_CredentialsFromItsAccountsStore_Succeeds()
     {
         // #334/#333: учётные данные ИТС берутся из справочника (its_accounts.json), а НЕ из
@@ -679,6 +696,55 @@ public sealed class UpdateCheckCatalogTests : IDisposable
             <html><body>
             <h1>Розница</h1>
             <p>Версия: 3.0.14.168</p>
+            <p>Дата публикации: 2026.10.12</p>
+            </body></html>
+            """;
+    }
+
+    /// <summary>
+    /// Обработчик сценария «полный каталог недоступен + посторонняя версия на короткой
+    /// странице» (issue #371, 0.3.12.44): короткая страница содержит только «2.2.10»
+    /// (другое семейство), запрос allUpdates=true возвращает 500 — служба должна вернуть
+    /// Unavailable, а не показать чужую версию.
+    /// </summary>
+    private sealed class FullCatalogFailsWithForeignVersionHandler : HttpMessageHandler
+    {
+        public int FullCatalogRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (url.Contains("allUpdates=true", StringComparison.OrdinalIgnoreCase))
+            {
+                FullCatalogRequests++;
+                response = new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            }
+            else if (url.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok(ShortPageHtml);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        // Короткая страница: только посторонний «2.2.10» (другое семейство, текущая 3.0.x).
+        private const string ShortPageHtml = """
+            <html><body>
+            <h1>Розница</h1>
+            <p>Версия: 2.2.10</p>
             <p>Дата публикации: 2026.10.12</p>
             </body></html>
             """;

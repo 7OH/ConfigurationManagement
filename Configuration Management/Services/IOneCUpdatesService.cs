@@ -36,8 +36,13 @@ public interface IOneCUpdatesService
     /// Ошибки сети/HTTP не бросают исключение — результат возвращается со статусом
     /// <see cref="ConfigUpdateStatus.Failed"/>.
     /// </summary>
+    /// <param name="familyHint">«Семейство» версии (текущая версия или редакция, например
+    /// «3.0.14.100»/«3.0», issue #371): максимум выбирается среди версий с тем же первым
+    /// сегментом — посторонние токены («2.2.10» на странице Розницы/УПП) отсекаются.
+    /// Пусто — используется <paramref name="currentVersion"/>.</param>
     Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(
-        string configName, string currentVersion, string url, CancellationToken ct = default);
+        string configName, string currentVersion, string url, CancellationToken ct = default,
+        string? familyHint = null);
 
     /// <summary>
     /// Скачивает дистрибутив обновления по прямой ссылке в целевой файл с прогрессом.

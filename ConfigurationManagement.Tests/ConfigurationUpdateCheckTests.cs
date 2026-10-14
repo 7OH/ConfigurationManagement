@@ -475,7 +475,8 @@ public sealed class ConfigurationUpdateCheckTests
             return Task.FromResult(_catalog);
         }
 
-        public Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(string configName, string currentVersion, string url, CancellationToken ct = default)
+        public Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(
+            string configName, string currentVersion, string url, CancellationToken ct = default, string? familyHint = null)
             => throw new NotSupportedException();
 
         public Task<string?> DownloadUpdateAsync(string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)

@@ -177,8 +177,10 @@ namespace Configuration_Management
             try
             {
                 var url = _updates.BuildUpdateUrl(row.Config, row.Edition, null);
+                // issue #371: «семейство» версии — редакция конфигурации (например «3.0» для
+                // Розницы): посторонние токены («2.2.10») с другим первым сегментом отсекаются.
                 var result = await Task.Run(() =>
-                    _updates.CheckForUpdatesAsync(row.Name, string.Empty, url));
+                    _updates.CheckForUpdatesAsync(row.Name, string.Empty, url, CancellationToken.None, row.Edition?.Red));
                 row.ApplyResult(result);
             }
             catch (Exception ex)
@@ -214,8 +216,9 @@ namespace Configuration_Management
                     try
                     {
                         var url = _updates.BuildUpdateUrl(row.Config, row.Edition, null);
+                        // issue #371: «семейство» версии — редакция конфигурации (см. OnCheckRow).
                         var result = await Task.Run(() =>
-                            _updates.CheckForUpdatesAsync(row.Name, string.Empty, url));
+                            _updates.CheckForUpdatesAsync(row.Name, string.Empty, url, CancellationToken.None, row.Edition?.Red));
                         row.ApplyResult(result);
                     }
                     catch (Exception ex)

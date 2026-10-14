@@ -148,6 +148,67 @@ public sealed class OneCUpdatesParsingTests
     }
 
     [Fact]
+    public void ParseLatestVersionFromProjectHtml_WithFamilyHint_ReturnsMaxInFamily()
+    {
+        // issue #371: на короткой странице Розницы есть посторонний «2.2.10» (другое семейство)
+        // и реальная версия 3.0.14.168. Семейство текущей версии 3.0.x — максимум среди 3.x.
+        const string html =
+            "<html><body>" +
+            "<h1>Розница</h1>" +
+            "<p>Версия: 2.2.10</p>" +
+            "<p>Доступная версия: 3.0.14.168</p>" +
+            "</body></html>";
+
+        var latest = OneCUpdatesService.ParseLatestVersionFromProjectHtml(html, "3.0.14.100");
+
+        Assert.Equal("3.0.14.168", latest);
+    }
+
+    [Fact]
+    public void ParseLatestVersionFromProjectHtml_WithFamilyHint_NoMatch_ReturnsEmpty()
+    {
+        // issue #371: на короткой странице только посторонний «2.2.10» (семейство 2),
+        // а текущая версия 3.0.x — версия каталога не определена (честный Unavailable,
+        // а не показ чужой версии).
+        const string html = "<html><body><p>Версия: 2.2.10</p></body></html>";
+
+        var latest = OneCUpdatesService.ParseLatestVersionFromProjectHtml(html, "3.0.14.100");
+
+        Assert.Equal(string.Empty, latest);
+    }
+
+    [Fact]
+    public void ParseLatestVersionFromProjectHtml_WithFamilyHint_PlatformTokenSkipped()
+    {
+        // issue #371: на странице конфигурации есть версия платформы 8.x и версия
+        // конфигурации 1.3.x. Семейство 1.3 — максимум среди 1.x, платформа отсекается.
+        const string html =
+            "<html><body>" +
+            "<p>Платформа: 8.3.26.1656</p>" +
+            "<p>Доступная версия: 1.3.285.2</p>" +
+            "</body></html>";
+
+        var latest = OneCUpdatesService.ParseLatestVersionFromProjectHtml(html, "1.3.285.1");
+
+        Assert.Equal("1.3.285.2", latest);
+    }
+
+    [Fact]
+    public void ParseLatestVersionFromProjectHtml_WithoutFamilyHint_ReturnsGlobalMax()
+    {
+        // Без семейства (прежнее поведение) — максимум среди всех кандидатов.
+        const string html =
+            "<html><body>" +
+            "<p>Версия: 2.2.10</p>" +
+            "<p>Доступная версия: 3.0.14.168</p>" +
+            "</body></html>";
+
+        var latest = OneCUpdatesService.ParseLatestVersionFromProjectHtml(html);
+
+        Assert.Equal("3.0.14.168", latest);
+    }
+
+    [Fact]
     public void LooksLikeForeignVersion_DetectsPlatformAndForeign()
     {
         // «Подозрительные» версии на странице конфигурации: платформа 8.x и посторонние 4.x.

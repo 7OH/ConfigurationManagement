@@ -286,7 +286,8 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <inheritdoc />
     public async Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(
-        string configName, string currentVersion, string url, CancellationToken ct = default)
+        string configName, string currentVersion, string url, CancellationToken ct = default,
+        string? familyHint = null)
     {
         var result = new ConfigUpdateCheckResult
         {
@@ -294,6 +295,12 @@ public class OneCUpdatesService : IOneCUpdatesService
             CurrentVersion = currentVersion ?? string.Empty,
             Url = url ?? string.Empty,
         };
+
+        // «Семейство» версии для выбора максимума (issue #371): первые сегменты текущей
+        // версии (окно F9) либо явная подсказка редакции из окна «Актуальные релизы»
+        // (например «3.0»). Посторонние токены («2.2.10» на странице Розницы/УПП) с другим
+        // первым сегментом отсекаются при выборе последней версии.
+        var family = string.IsNullOrWhiteSpace(familyHint) ? currentVersion : familyHint;
 
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -376,7 +383,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             var isProject = url.Contains("/project/", StringComparison.OrdinalIgnoreCase);
             var isVersionFiles = url.Contains("version_files", StringComparison.OrdinalIgnoreCase);
             var latest = isProject
-                ? ParseLatestVersionFromProjectHtml(body)
+                ? ParseLatestVersionFromProjectHtml(body, family)
                 : isVersionFiles
                     ? ParseLatestVersionFromJson(body)
                     : ParseLatestVersion(body);
@@ -387,7 +394,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             if (UpdatesTraceEnabled)
             {
                 var kind = isProject ? "project" : (isVersionFiles ? "version_files" : "legacy");
-                _logger.Info($"[Updates] Ответ: kind={kind}, len={body.Length}, url={url}");
+                _logger.Info($"[Updates] Ответ: kind={kind}, len={body.Length}, url={url}, family='{family}'");
                 var candidates = CollectVersionCandidatesFromHtml(body);
                 if (candidates.Count > 0)
                 {
@@ -418,7 +425,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                     var fullBody = await FetchCatalogBodyAsync(fullUrl, ct).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(fullBody))
                     {
-                        var fullLatest = ParseLatestVersionFromProjectHtml(fullBody);
+                        var fullLatest = ParseLatestVersionFromProjectHtml(fullBody, family);
                         if (!string.IsNullOrWhiteSpace(fullLatest))
                         {
                             latest = fullLatest;
@@ -429,8 +436,11 @@ public class OneCUpdatesService : IOneCUpdatesService
                             _logger.Warn($"[Updates] Полный каталог не дал версии (len={fullBody.Length}): {fullUrl}");
                         }
                     }
-                    else if (UpdatesTraceEnabled)
+                    else
                     {
+                        // Причина недоступности уже залогирована в FetchCatalogBodyAsync (issue #371):
+                        // WARN пишется ВСЕГДА, чтобы по журналу было видно, почему осталась версия
+                        // короткой страницы (в т.ч. посторонняя «2.2.10»).
                         _logger.Warn($"[Updates] Полный каталог недоступен ({fullUrl}) — остаюсь на версии короткой страницы '{latest}'.");
                     }
                 }
@@ -480,12 +490,26 @@ public class OneCUpdatesService : IOneCUpdatesService
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
+            {
+                // Диагностика (issue #371): фиксируем реальный код ответа и конечный URI —
+                // по журналу видно, почему полный каталог не дал версий (401/403/5xx).
+                _logger.Warn($"[Updates] Полный каталог недоступен: HTTP {(int)response.StatusCode} для '{url}' " +
+                             $"(requestUri={response.RequestMessage?.RequestUri}).");
                 return null;
+            }
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            return LooksLikeLoginForm(body) ? null : body;
+            if (LooksLikeLoginForm(body))
+            {
+                // Страница входа с HTTP 200 (CAS без сессии, issue #330): полный каталог
+                // версий не получен — причина фиксируется в журнале.
+                _logger.Warn($"[Updates] Полный каталог вернул страницу входа (len={body.Length}): {url}");
+                return null;
+            }
+            return body;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warn($"[Updates] Полный каталог недоступен ({ex.GetType().Name}: {ex.Message}): {url}");
             return null;
         }
     }
@@ -557,19 +581,50 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <summary>
     /// Извлекает последнюю (самую новую) версию из HTML-страницы <c>releases.1c.ru/project/<nick></c>
     /// (единая логика сбора — <see cref="CollectVersionCandidatesFromHtml"/>, issue #371).
-    /// Возвращает максимальную из найденных версий или пустую строку.
+    /// Выбор максимума — с учётом «семейства» версии (<see cref="SelectBestVersion"/>):
+    /// посторонние токены («2.2.10» на странице Розницы/УПП) с другим первым сегментом
+    /// версиями каталога не считаются. Возвращает выбранную версию или пустую строку.
     /// </summary>
-    internal static string ParseLatestVersionFromProjectHtml(string? html)
+    /// <param name="html">HTML-страница каталога.</param>
+    /// <param name="familyHint">«Семейство» версии (текущая версия или редакция, например
+    /// «3.0.14.100»/«3.0»): максимум выбирается среди кандидатов с тем же первым сегментом.
+    /// Пусто — максимум среди всех кандидатов (прежнее поведение).</param>
+    internal static string ParseLatestVersionFromProjectHtml(string? html, string? familyHint = null)
     {
         var candidates = CollectVersionCandidatesFromHtml(html);
+        return SelectBestVersion(candidates, familyHint);
+    }
 
-        // Максимальная из найденных (порядок строк в HTML может не совпадать с новизной).
+    /// <summary>
+    /// Выбирает максимальную версию из кандидатов с учётом «семейства» (issue #371):
+    /// посторонние токены («2.2.10» на странице Розницы/УПП) с первым сегментом, отличным
+    /// от семейства текущей версии, версиями каталога не считаются. Если семейство задано
+    /// (непустой <paramref name="familyHint"/>) — максимум среди кандидатов с тем же первым
+    /// сегментом; при отсутствии таких кандидатов возвращается пустая строка (честный
+    /// Unavailable вместо чужой версии). Без семейства — максимум среди всех кандидатов
+    /// (прежнее поведение). Internal — для юнит-тестов.
+    /// </summary>
+    internal static string SelectBestVersion(
+        IReadOnlyList<VersionCatalogCandidate> candidates, string? familyHint = null)
+    {
         Version? best = null;
         string bestText = string.Empty;
+
+        // Первый сегмент «семейства» (текущая версия/редакция): «3.0.14.100» → 3.
+        int? familyMajor = null;
+        if (TryParseVersion(familyHint, out var familyVersion))
+            familyMajor = familyVersion.Major;
+
         foreach (var candidate in candidates)
         {
             if (!TryParseVersion(candidate.Version, out var parsed))
                 continue;
+
+            // Семейство задано: кандидат с другим первым сегментом — посторонний токен
+            // («2.2.10» при текущей 3.0.x), версией каталога не считается.
+            if (familyMajor is not null && parsed.Major != familyMajor.Value)
+                continue;
+
             if (best is null || parsed > best)
             {
                 best = parsed;
