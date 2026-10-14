@@ -526,4 +526,13 @@
     <!-- Свернуть в окно / Restore (два квадрата) -->
     <Geometry x:Key="IconRestore">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
 
+    <!-- Глифы кнопок управления окном (0.3.12.59): штриховые (Stroke) пути, отдельные от
+         залитых иконок IconMinimize/IconMaximize/IconRestore/IconClose — иначе у наборов с
+         залитым «крестиком» кнопка «закрыть» рисовала бы контур заливки. Варианты наборов —
+         GlyphWindow*.<Набор> в Icons<Набор>.xaml/.axaml. -->
+    <Geometry x:Key="GlyphWindowMinimize">M6,12 L18,12</Geometry>
+    <Geometry x:Key="GlyphWindowMaximize">M6,6 L18,6 L18,18 L6,18 Z</Geometry>
+    <Geometry x:Key="GlyphWindowRestore">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
+    <Geometry x:Key="GlyphWindowClose">M7,7 L17,17 M17,7 L7,17</Geometry>
+
 </ResourceDictionary>
