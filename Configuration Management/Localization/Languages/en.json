@@ -498,7 +498,7 @@
     "Settings.Theme": "Color theme",
     "Settings.FullTheme": "Full theme",
     "Settings.FullThemeLabel": "Theme:",
-    "Settings.FullTheme.Description": "The full theme sets colors, window button style and icon set. The choice is applied immediately and saved.",
+    "Settings.FullTheme.Description": "The full theme defines the whole appearance: colors, the window control button style (corner radius, size, hover and close colors) and the icon set. These are theme parameters, not separate options. The choice is applied immediately and saved.",
     "Settings.Colors": "Colors",
     "Settings.Preview": "Preview",
     "Settings.ChooseColorTooltip": "Choose color",

@@ -109,8 +109,11 @@ public partial class ScheduledTasksWindow : Window
     }
 
     /// <summary>
-    /// Горячие клавиши списка (issue #372, п. 4–5): F2 — правка выбранной строки,
-    /// Delete — удаление с подтверждением.
+    /// Горячие клавиши окна (issue #372, п. 4–5; комментарий 7OH): F2 — правка
+    /// выбранной строки, Delete — удаление с подтверждением, Esc — закрытие окна.
+    /// Первый Esc, если открыты подсказки, перехватывает глобальный ToolTipCloser
+    /// (issue #270) и помечает событие обработанным — сюда Esc приходит «чистым»,
+    /// и окно закрывается (как в ActualReleasesWindow и других окнах).
     /// </summary>
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -123,6 +126,14 @@ public partial class ScheduledTasksWindow : Window
         {
             Delete_Click(sender, e);
             e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            // Закрытие окна по Esc (issue #372, комментарий 7OH): единообразно
+            // с ActualReleasesWindow/ConfigTypesEditWindow. Закрываем всегда —
+            // пользователь просил именно закрытие окна по Esc.
+            e.Handled = true;
+            Close();
         }
     }
 

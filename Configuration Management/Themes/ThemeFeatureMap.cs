@@ -132,4 +132,41 @@ public static class ThemeFeatureMap
         "green" => "Theme.Green",
         _ => "Theme.Light"
     };
+
+    /// <summary>
+    /// Суффикс, добавляемый к имени пользовательской схемы, если оно совпадает с именем
+    /// встроенной полноценной темы (issue #376): так встроенная тема не затирает
+    /// пользовательскую и наоборот.
+    /// </summary>
+    public const string CustomSchemeSuffix = " (пользовательская)";
+
+    /// <summary>
+    /// true, если имя совпадает с именем встроенной полноценной темы
+    /// (Светлая/Тёмная/Синяя/Зелёная) без учёта регистра и крайних пробелов.
+    /// </summary>
+    public static bool IsBuiltInThemeName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+        var trimmed = name.Trim();
+        foreach (var theme in ThemeCatalog.BuiltIn)
+        {
+            if (string.Equals(theme.Name, trimmed, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Возвращает безопасное имя пользовательской схемы: если имя совпадает с именем
+    /// встроенной полноценной темы, к нему добавляется <see cref="CustomSchemeSuffix"/>
+    /// (issue #376). Иначе имя возвращается без изменений (с обрезкой крайних пробелов).
+    /// </summary>
+    public static string ResolveCustomSchemeName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return name ?? string.Empty;
+        var trimmed = name.Trim();
+        return IsBuiltInThemeName(trimmed) ? trimmed + CustomSchemeSuffix : trimmed;
+    }
 }

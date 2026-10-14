@@ -266,4 +266,74 @@ public sealed class ActualReleasesBaseFilterTests
     {
         Assert.False(ActualReleasesBaseFilter.IsEditionPresent(null, new HashSet<string>()));
     }
+
+    [Fact]
+    public void IsEditionPresent_RedIsPrefixOfPresentRed_ReturnsTrue()
+    {
+        // issue #375: версия базы «11.5.25.72» → извлечённая редакция «11.5»; редакция
+        // типовой «11» (Управление торговлей) должна считаться присутствующей.
+        var edition = new OneCConfigEdition { Name = "11", Red = "11" };
+        var reds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "11.5" };
+
+        Assert.True(ActualReleasesBaseFilter.IsEditionPresent(edition, reds));
+    }
+
+    [Fact]
+    public void IsEditionPresent_SingleSegmentRed_MatchesTwoSegmentPresentRed()
+    {
+        // Бухгалтерия предприятия: редакция «3» (Red = "3") ↔ версия базы «3.0.142.32».
+        var edition = new OneCConfigEdition { Name = "3.0", Red = "3" };
+        var reds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "3.0" };
+
+        Assert.True(ActualReleasesBaseFilter.IsEditionPresent(edition, reds));
+    }
+
+    [Fact]
+    public void IsEditionPresent_RedNotPrefixOfPresentRed_ReturnsFalse()
+    {
+        // Редакция «10.3» не матчится с версией базы «11.5.25.72» (извлечено «11.5»).
+        var edition = new OneCConfigEdition { Name = "10.3", Red = "10.3" };
+        var reds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "11.5" };
+
+        Assert.False(ActualReleasesBaseFilter.IsEditionPresent(edition, reds));
+    }
+
+    [Fact]
+    public void IsEditionPresent_RedIsPrefixOfPresentRed_Regression13()
+    {
+        // Регрессия: «1.3» ↔ «1.3.285.1» (извлечено «1.3») — точное совпадение.
+        var edition = new OneCConfigEdition { Name = "1.3", Red = "1.3" };
+        var reds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "1.3" };
+
+        Assert.True(ActualReleasesBaseFilter.IsEditionPresent(edition, reds));
+    }
+
+    [Fact]
+    public void CollectPresentEditionReds_UtVersion115_MatchesEdition11()
+    {
+        // Полный сценарий issue #375: база УТ с версией «11.5.25.72» и привязкой «UT»;
+        // редакция «11» должна быть показана, «10.3» — нет.
+        var config = new OneCConfigType
+        {
+            Code = "UT",
+            Name = "Управление торговлей",
+            Editions =
+            {
+                new OneCConfigEdition { Name = "11", Red = "11" },
+                new OneCConfigEdition { Name = "10.3", Red = "10.3" },
+            },
+        };
+        var configs = new List<OneCConfigType> { config };
+        var bases = new List<Infobase>
+        {
+            Base("Торговый дом", updateConfigCode: "UT", configurationVersion: "11.5.25.72"),
+        };
+
+        var reds = ActualReleasesBaseFilter.CollectPresentEditionReds(configs, bases);
+
+        Assert.True(reds.TryGetValue("UT", out var set));
+        Assert.Contains("11.5", set);
+        Assert.True(ActualReleasesBaseFilter.IsEditionPresent(config.Editions[0], set));
+        Assert.False(ActualReleasesBaseFilter.IsEditionPresent(config.Editions[1], set));
+    }
 }

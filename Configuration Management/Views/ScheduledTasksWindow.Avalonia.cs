@@ -19,7 +19,9 @@ namespace Configuration_Management;
 /// Окно «Задания по расписанию» (Avalonia/Linux, issue #286): список заданий с действиями
 /// «Выполнить сейчас», «Добавить», «Изменить», «Удалить». С 0.3.12.24 (issue #372):
 /// отбор по типу действия, поиск по всем полям, переключатель активности в строке,
-/// правка по F2 и удаление по DEL; нижняя кнопка «Закрыть» убрана.
+/// правка по F2 и удаление по DEL; нижняя кнопка «Закрыть» убрана. Закрытие по Esc
+/// (issue #372, комментарий 7OH) обеспечивает база ModalWindowBase: первый Esc закрывает
+/// открытые подсказки, повторный — окно (CloseAsCancel, issues #226/#270).
 /// </summary>
 public sealed class ScheduledTasksWindow : ModalWindowBase
 {
@@ -153,7 +155,8 @@ public sealed class ScheduledTasksWindow : ModalWindowBase
 
     /// <summary>
     /// Горячие клавиши списка (issue #372, п. 4–5): F2 — правка выбранной строки,
-    /// Delete — удаление с подтверждением.
+    /// Delete — удаление с подтверждением. Esc здесь не обрабатывается: закрытие
+    /// окна по Esc даёт база ModalWindowBase (см. комментарий класса).
     /// </summary>
     private void List_KeyDown(object? sender, KeyEventArgs e)
     {

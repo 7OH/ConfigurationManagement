@@ -9,13 +9,20 @@ namespace Configuration_Management.Themes;
 /// </summary>
 public static class ThemeCatalog
 {
-    /// <summary>Встроенные темы в стабильном порядке: Светлая, Тёмная, Синяя, Зелёная.</summary>
+    /// <summary>
+    /// Встроенные темы в стабильном порядке: Светлая, Тёмная, Синяя, Зелёная.
+    /// Темы отличаются не только палитрой, но и стилем кнопок управления окном и
+    /// набором иконок (issue #376): иначе выбор полноценной темы визуально менял бы
+    /// только цвет. Светлая/Тёмная — Fluent (круглые кнопки, Fluent-иконки),
+    /// Синяя — Classic (прямоугольные кнопки, контурные иконки),
+    /// Зелёная — Minimal (плоские кнопки, контурные иконки).
+    /// </summary>
     public static IReadOnlyList<ThemeDefinition> BuiltIn { get; } = new[]
     {
         Create("light", "Светлая", false, ColorScheme.CreateLight(), WindowButtonStyle.Fluent, IconSet.Fluent, "#FDBF00"),
         Create("dark", "Тёмная", true, ColorScheme.CreateDark(), WindowButtonStyle.Fluent, IconSet.Fluent, "#FFB300"),
-        Create("blue", "Синяя", false, ColorScheme.CreateBlue(), WindowButtonStyle.Fluent, IconSet.Fluent, "#2563EB"),
-        Create("green", "Зелёная", false, ColorScheme.CreateGreen(), WindowButtonStyle.Fluent, IconSet.Fluent, "#16A34A")
+        Create("blue", "Синяя", false, ColorScheme.CreateBlue(), WindowButtonStyle.Classic, IconSet.Outline, "#2563EB"),
+        Create("green", "Зелёная", false, ColorScheme.CreateGreen(), WindowButtonStyle.Minimal, IconSet.Outline, "#16A34A")
     };
 
     /// <summary>

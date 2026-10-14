@@ -226,4 +226,26 @@ public sealed class OneCUpdatesParsingTests
         Assert.False(OneCUpdatesService.LooksLikeForeignVersion(string.Empty));
         Assert.False(OneCUpdatesService.LooksLikeForeignVersion("abc"));
     }
+
+    [Fact]
+    public void LooksLikeRealCatalog_DetectsCatalogMarkers()
+    {
+        // Настоящий каталог: таблица #versionsTable (классический каталог).
+        Assert.True(OneCUpdatesService.LooksLikeRealCatalog(
+            """<html><body><table id="versionsTable"><tr><td>1.3.285.1</td></tr></table></body></html>"""));
+        // Урезанный каталог без таблицы: ссылки version_files.
+        Assert.True(OneCUpdatesService.LooksLikeRealCatalog(
+            """<html><body><a href="/version_files?nick=Retail30&ver=3.0.12.81">3.0.12.81</a></body></html>"""));
+        // Новый дизайн: атрибуты data-ver карточек.
+        Assert.True(OneCUpdatesService.LooksLikeRealCatalog(
+            """<html><body><div data-ver="3.0.12.81">Розница</div></body></html>"""));
+
+        // Короткая страница-заглушка (len≈11760): таблицы/ссылок/атрибутов нет — не каталог,
+        // версионные токены из неё посторонние («1.11.1»/«2.2.10», issue #371).
+        Assert.False(OneCUpdatesService.LooksLikeRealCatalog(
+            """<html><head><title>Обновления</title></head><body><p>Версия: 1.11.1</p></body></html>"""));
+        Assert.False(OneCUpdatesService.LooksLikeRealCatalog(null));
+        Assert.False(OneCUpdatesService.LooksLikeRealCatalog(string.Empty));
+        Assert.False(OneCUpdatesService.LooksLikeRealCatalog("   "));
+    }
 }

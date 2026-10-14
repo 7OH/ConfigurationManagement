@@ -64,6 +64,25 @@ public partial class UpdateAvailableWindow : Window
         }
 
         Loaded += (_, _) => DownloadButton.Focus();
+
+        // Закрытие окна по Esc (issue #371): единообразно с остальными окнами приложения
+        // (ActualReleasesWindow и др.). Во время скачивания окно не закрывается — как и
+        // кнопка «Отмена», которая на этом этапе отключена.
+        PreviewKeyDown += OnWindow_PreviewKeyDown;
+    }
+
+    /// <summary>Закрывает окно по Esc без модификаторов (issue #371). Во время скачивания
+    /// окно не закрывается: случайный Esc не должен прерывать загрузку и оставлять фоновую
+    /// задачу без окна (кнопка «Отмена» на этом этапе тоже отключена).</summary>
+    private void OnWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Escape
+            || System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.None)
+            return;
+        if (ProgressPanel.Visibility == Visibility.Visible)
+            return;
+        e.Handled = true;
+        Close();
     }
 
     /// <summary>

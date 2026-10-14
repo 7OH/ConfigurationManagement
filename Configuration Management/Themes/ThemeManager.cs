@@ -751,6 +751,17 @@ namespace Configuration_Management.Themes
                         // Сохраняем название по имени файла, если имя в файле отсутствует.
                         if (string.IsNullOrWhiteSpace(scheme.Name) || scheme.Name == "Light" || scheme.Name == "Dark")
                             scheme.Name = Path.GetFileNameWithoutExtension(file);
+
+                        // Миграция (issue #376): имя пользовательской схемы не должно совпадать
+                        // с именем встроенной полноценной темы — иначе встроенная тема затирает
+                        // пользовательскую. Переименовываем файл и внутреннее имя.
+                        var resolved = ThemeFeatureMap.ResolveCustomSchemeName(scheme.Name);
+                        if (!string.Equals(resolved, scheme.Name, StringComparison.Ordinal))
+                        {
+                            scheme.Name = resolved;
+                            TryMigrateSchemeFile(file, scheme);
+                        }
+
                         result.Add(scheme);
                     }
                 }
@@ -768,15 +779,44 @@ namespace Configuration_Management.Themes
             return LoadCustomSchemes().FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
         }
 
-        /// <summary>Сохраняет пользовательскую схему в каталог пользователя.</summary>
+        /// <summary>
+        /// Сохраняет пользовательскую схему в каталог пользователя. Если имя схемы
+        /// совпадает с именем встроенной полноценной темы (issue #376), оно заменяется
+        /// на безопасное (с суффиксом « (пользовательская)»), чтобы встроенная тема
+        /// не затирала пользовательскую и наоборот.
+        /// </summary>
         public static void SaveCustomScheme(ColorScheme scheme)
         {
             if (scheme is null || string.IsNullOrWhiteSpace(scheme.Name))
                 return;
 
+            scheme.Name = ThemeFeatureMap.ResolveCustomSchemeName(scheme.Name);
+
             Directory.CreateDirectory(CustomSchemesDirectory);
             var file = Path.Combine(CustomSchemesDirectory, SafeFileName(scheme.Name) + ".json");
             File.WriteAllText(file, scheme.ToJson());
+        }
+
+        /// <summary>
+        /// Переписывает файл схемы под её текущим (безопасным) именем и удаляет старый
+        /// файл, если имя изменилось. Ошибки записи/удаления не критичны: схема всё
+        /// равно попадёт в список под новым именем.
+        /// </summary>
+        private static void TryMigrateSchemeFile(string oldFile, ColorScheme scheme)
+        {
+            try
+            {
+                var newFile = Path.Combine(CustomSchemesDirectory, SafeFileName(scheme.Name) + ".json");
+                if (string.Equals(oldFile, newFile, StringComparison.Ordinal))
+                    return;
+                File.WriteAllText(newFile, scheme.ToJson());
+                if (File.Exists(oldFile))
+                    File.Delete(oldFile);
+            }
+            catch
+            {
+                // Миграция не критична: при ошибке схема останется под старым именем.
+            }
         }
 
         /// <summary>Удаляет пользовательскую схему по имени. Возвращает true, если файл удалён.</summary>

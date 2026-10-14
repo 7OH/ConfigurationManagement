@@ -189,9 +189,20 @@ public sealed class SettingsViewModel
             if (!_editingSchemes.TryGetValue(name, out var scheme))
                 continue;
             if (IsBuiltInName(name))
+            {
                 _viewModel.SaveColorSchemeSlot(scheme);
+            }
             else
+            {
                 _viewModel.SaveCustomColorScheme(scheme);
+                // Имя могло измениться при конфликте со встроенной темой (issue #376):
+                // переносим рабочую копию на новое имя.
+                if (!string.Equals(scheme.Name, name, StringComparison.Ordinal))
+                {
+                    _editingSchemes.Remove(name);
+                    _editingSchemes[scheme.Name] = scheme;
+                }
+            }
         }
         _dirtySchemes.Clear();
     }
@@ -261,7 +272,9 @@ public sealed class SettingsViewModel
         _viewModel.SaveCustomColorScheme(copy);
         CurrentColorScheme = copy;
         // Регистрируем новую тему в карте правок для дальнейшего редактирования.
-        _editingSchemes[name] = copy;
+        // Имя берём после сохранения: при конфликте со встроенной темой оно
+        // могло быть изменено (issue #376).
+        _editingSchemes[copy.Name] = copy;
         return copy;
     }
 
@@ -286,12 +299,14 @@ public sealed class SettingsViewModel
         _viewModel.SaveCustomColorScheme(toSave);
         _viewModel.DeleteCustomColorScheme(oldName);
         _editingSchemes.Remove(oldName);
-        _editingSchemes[newName] = toSave;
+        // Имя берём после сохранения: при конфликте со встроенной темой оно
+        // могло быть изменено (issue #376).
+        _editingSchemes[toSave.Name] = toSave;
         if (_dirtySchemes.Remove(oldName))
-            _dirtySchemes.Add(newName);
+            _dirtySchemes.Add(toSave.Name);
 
         if (string.Equals(CurrentColorScheme.Name, oldName, StringComparison.OrdinalIgnoreCase))
-            CurrentColorScheme.Name = newName;
+            CurrentColorScheme.Name = toSave.Name;
 
         return toSave;
     }

@@ -202,6 +202,10 @@ namespace Configuration_Management
                 themePanel.Children.Add(button);
             }
             settings.Children.Add(themePanel);
+            // Пояснение к полноценной теме (issue #376): тема задаёт цвета, модель кнопок
+            // управления окном и набор иконок целиком — это параметры темы, а не отдельные
+            // настройки. На WPF тот же текст выводится под списком тем.
+            settings.Children.Add(Hint(LocalizationManager.T("Settings.FullTheme.Description"), bottom: 12));
 
             // Язык интерфейса лежит в рамке с заголовком, отступом 8 и полем
             // снизу 12 (SettingsWindow.xaml:1088). Список 280 на 34, подпись
@@ -1725,7 +1729,9 @@ namespace Configuration_Management
                 }
 
                 editedScheme = copy;
-                ReloadSchemes(name);
+                // Имя берём после сохранения: при конфликте со встроенной темой оно
+                // могло быть изменено (issue #376).
+                ReloadSchemes(copy.Name);
                 RefreshColors();
             });
 
@@ -1766,9 +1772,12 @@ namespace Configuration_Management
                     }
                 }
 
+                // Имя берём после сохранения: при конфликте со встроенной темой оно
+                // могло быть изменено (issue #376).
+                var resolvedName = scheme?.Name ?? name;
                 if (string.Equals(editedScheme.Name, current, StringComparison.OrdinalIgnoreCase))
-                    editedScheme.Name = name;
-                ReloadSchemes(name);
+                    editedScheme.Name = resolvedName;
+                ReloadSchemes(resolvedName);
                 RefreshColors();
             });
 

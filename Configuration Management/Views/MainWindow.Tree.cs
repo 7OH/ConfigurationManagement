@@ -775,6 +775,15 @@ namespace Configuration_Management
             // списках занимает ~1 секунду. Вместо неё сбрасываем виртуализацию на
             // ВСЕХ вложенных панелях — контейнеры перемеряются с актуальной высотой
             // строки тегов без пересоздания дерева, прокрутка и выделение не теряются.
+            //
+            // 0.3.12.47: одного сброса IsVirtualizing недостаточно. Панель при
+            // перемеривании вызывает Measure() на уже материализованных TreeViewItem,
+            // но у них IsMeasureValid=true и доступный размер не изменился — Measure()
+            // является no-op, поэтому высота строки тегов не пересчитывается (теги
+            // появляются не во всех строках, кое-где частично). Поэтому после
+            // материализации всех контейнеров принудительно инвалидируем измерение
+            // контейнеров и всего их содержимого (TreeViewItem → Bd → ContentPresenter
+            // → InfobaseRowGrid → панель тегов) и делаем ещё один проход разметки.
             var panels = new List<VirtualizingStackPanel>();
             CollectVirtualizingPanels(MainTree, panels);
             if (panels.Count == 0)
@@ -787,6 +796,10 @@ namespace Configuration_Management
                 VirtualizingPanel.SetIsVirtualizing(panel, false);
             try
             {
+                MainTree.UpdateLayout();
+                // Принудительное перемеривание всех контейнеров строк с актуальной
+                // видимостью панели тегов (см. комментарий выше).
+                InvalidateMeasureRecursive(MainTree);
                 MainTree.UpdateLayout();
             }
             finally
@@ -807,6 +820,21 @@ namespace Configuration_Management
                     result.Add(panel);
                 CollectVirtualizingPanels(child, result);
             }
+        }
+
+        /// <summary>
+        /// Рекурсивно инвалидирует измерение элемента и всех его потомков в визуальном
+        /// дереве. Нужно, чтобы при изменении ShowTags перемерилась вся цепочка строки
+        /// (TreeViewItem → Bd → ContentPresenter → InfobaseRowGrid → панель тегов):
+        /// инвалидация только контейнера не доходит до панели тегов, т.к. промежуточные
+        /// элементы с IsMeasureValid=true пропускают Measure() как no-op.
+        /// </summary>
+        private static void InvalidateMeasureRecursive(DependencyObject root)
+        {
+            if (root is UIElement element)
+                element.InvalidateMeasure();
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+                InvalidateMeasureRecursive(VisualTreeHelper.GetChild(root, i));
         }
 
         private void OnMainTree_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)

@@ -78,12 +78,23 @@ public sealed class ThemeDefinitionTests
     }
 
     [Fact]
-    public void BuiltIn_UseFluentWindowButtonsAndIconsByDefault()
+    public void BuiltIn_DifferInWindowButtonStyleAndIconSet()
     {
-        foreach (var theme in ThemeCatalog.BuiltIn)
-        {
-            Assert.Equal(WindowButtonStyle.Fluent, theme.ButtonStyle);
-            Assert.Equal(IconSet.Fluent, theme.Icons);
-        }
+        // Полноценные темы отличаются не только палитрой: при выборе темы меняется
+        // стиль кнопок управления окном и набор иконок, а не только цвет (issue #376).
+        var themes = ThemeCatalog.BuiltIn;
+
+        Assert.Equal(WindowButtonStyle.Fluent, themes[0].ButtonStyle); // Светлая
+        Assert.Equal(IconSet.Fluent, themes[0].Icons);
+        Assert.Equal(WindowButtonStyle.Fluent, themes[1].ButtonStyle); // Тёмная
+        Assert.Equal(IconSet.Fluent, themes[1].Icons);
+        Assert.Equal(WindowButtonStyle.Classic, themes[2].ButtonStyle); // Синяя
+        Assert.Equal(IconSet.Outline, themes[2].Icons);
+        Assert.Equal(WindowButtonStyle.Minimal, themes[3].ButtonStyle); // Зелёная
+        Assert.Equal(IconSet.Outline, themes[3].Icons);
+
+        // В каталоге есть и Fluent, и другие стили/наборы — выбор темы даёт видимый эффект.
+        Assert.True(themes.Select(t => t.ButtonStyle).Distinct().Count() > 1);
+        Assert.True(themes.Select(t => t.Icons).Distinct().Count() > 1);
     }
 }

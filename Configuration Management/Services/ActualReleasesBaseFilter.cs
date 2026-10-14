@@ -90,7 +90,9 @@ public static class ActualReleasesBaseFilter
     /// <summary>
     /// True, если редакция должна быть показана при фильтре «Только в базах» (issue #375):
     /// редакция без Red, либо отсутствие сопоставленных редакций (нет данных о версиях баз),
-    /// либо Red редакции есть в наборе сопоставленных редакций.
+    /// либо Red редакции совпадает с одной из сопоставленных редакций — точно или как
+    /// префикс по сегментам (редакция «11» матчится с версией базы «11.5.25.72», из которой
+    /// извлечена редакция «11.5»; «3» ↔ «3.0» для Бухгалтерии предприятия).
     /// </summary>
     public static bool IsEditionPresent(OneCConfigEdition? edition, HashSet<string>? presentReds)
     {
@@ -100,7 +102,26 @@ public static class ActualReleasesBaseFilter
             return true; // редакция без версии — фильтровать нечем
         if (presentReds is null || presentReds.Count == 0)
             return true; // нет данных о версиях баз — показываем все редакции
-        return presentReds.Contains(edition.Red);
+        foreach (var red in presentReds)
+        {
+            if (RedsMatch(edition.Red, red))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// True, если редакция <paramref name="editionRed"/> совпадает с редакцией
+    /// <paramref name="presentRed"/>, извлечённой из версии базы: точное равенство либо
+    /// редакция является префиксом по сегментам («11» ↔ «11.5», «3» ↔ «3.0»). Сравнение
+    /// регистронезависимо, пробелы по краям игнорируются.
+    /// </summary>
+    private static bool RedsMatch(string editionRed, string presentRed)
+    {
+        var ed = editionRed.Trim();
+        var pr = presentRed.Trim();
+        return string.Equals(ed, pr, StringComparison.OrdinalIgnoreCase)
+               || pr.StartsWith(ed + ".", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Находит типовую конфигурацию для базы: по привязке (приоритет), иначе по эвристике имени.</summary>

@@ -41,6 +41,12 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <summary>Максимальное число переходов при ручном следовании редиректам (защита от зацикливания).</summary>
     private const int MaxRedirects = 10;
 
+    /// <summary>Максимальное число переходов по JS/meta-refresh-редиректам в теле ответа
+    /// (issue #371): releases.1c.ru может отдавать короткую страницу-заглушку (len≈11760)
+    /// с <c><meta http-equiv="refresh"></c> или JS-редиректом вместо каталога с таблицей
+    /// #versionsTable. Защита от зацикливания.</summary>
+    private const int MaxBodyRedirects = 3;
+
     /// <summary>User-Agent запросов к порталу и CDN дистрибутивов (единый для всех клиентов службы).
     /// Версия подставляется из сборки, чтобы сервер не считал клиент устаревшим (issue #334).</summary>
     private static readonly string UserAgent =
@@ -376,6 +382,17 @@ public class OneCUpdatesService : IOneCUpdatesService
                 return result;
             }
 
+            // JS/meta-refresh редирект в теле (issue #371): releases.1c.ru может отдавать
+            // короткую страницу-заглушку (len≈11760) с <meta http-equiv="refresh"> или
+            // JS-редиректом вместо каталога с таблицей #versionsTable. Следуем за редиректом
+            // (с защитой от зацикливания), чтобы получить настоящий каталог.
+            if (ExtractBodyRedirectUrl(body) is not null)
+            {
+                var followed = await FollowBodyRedirectsAsync(body, url, ct).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(followed))
+                    body = followed;
+            }
+
             // Формат ответа определяется по URL:
             //   - project/<nick>            → HTML-список версий (#versionsTable), парсим из него;
             //   - version_files?nick=&ver=  → JSON/HTML со списком файлов релиза (прежний парсер);
@@ -395,6 +412,19 @@ public class OneCUpdatesService : IOneCUpdatesService
             {
                 var kind = isProject ? "project" : (isVersionFiles ? "version_files" : "legacy");
                 _logger.Info($"[Updates] Ответ: kind={kind}, len={body.Length}, url={url}, family='{family}'");
+                // Диагностика содержимого ответа (issue #371): по журналу видно, что именно
+                // пришло — настоящий каталог с таблицей #versionsTable, страница входа,
+                // JS/meta-refresh-заглушка или короткая страница с посторонними токенами.
+                var loginForm = LooksLikeLoginForm(body);
+                var hasTable = Regex.IsMatch(body,
+                    @"<table[^>]*id\s*=\s*[""']versionsTable[""']",
+                    RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                var versionFilesCount = VersionFilesLinkRegex.Matches(body).Count
+                                        + VersionPageHrefQueryRegex.Matches(body).Count;
+                var bodyRedirect = ExtractBodyRedirectUrl(body);
+                _logger.Info($"[Updates] Диагностика ответа: loginForm={loginForm}, versionsTable={hasTable}, " +
+                             $"versionFilesLinks={versionFilesCount}, bodyRedirect='{bodyRedirect ?? "<нет>"}'");
+                _logger.Info($"[Updates] Превью HTML (первые 500 символов): {BuildBodyPreview(body, 500)}");
                 var candidates = CollectVersionCandidatesFromHtml(body);
                 if (candidates.Count > 0)
                 {
@@ -426,14 +456,28 @@ public class OneCUpdatesService : IOneCUpdatesService
                     if (!string.IsNullOrWhiteSpace(fullBody))
                     {
                         var fullLatest = ParseLatestVersionFromProjectHtml(fullBody, family);
-                        if (!string.IsNullOrWhiteSpace(fullLatest))
+                        if (!string.IsNullOrWhiteSpace(fullLatest) && LooksLikeRealCatalog(fullBody))
                         {
                             latest = fullLatest;
                             _logger.Info($"[Updates] Версия {latest} определена по полному каталогу ({fullUrl}).");
                         }
-                        else if (UpdatesTraceEnabled)
+                        else if (string.IsNullOrWhiteSpace(fullLatest))
                         {
-                            _logger.Warn($"[Updates] Полный каталог не дал версии (len={fullBody.Length}): {fullUrl}");
+                            if (UpdatesTraceEnabled)
+                                _logger.Warn($"[Updates] Полный каталог не дал версии (len={fullBody.Length}): {fullUrl}");
+                            // Полный каталог не дал версии, а короткая страница не была настоящим
+                            // каталогом (таблица/ссылки/атрибуты отсутствуют) — версия не распарсена.
+                            if (!LooksLikeRealCatalog(body))
+                                latest = string.Empty;
+                        }
+                        else
+                        {
+                            // Полный каталог вернул ту же короткую страницу (len совпадает, таблицы
+                            // #versionsTable нет): кандидат не подтверждён — результат «каталог
+                            // доступен, но версия не распарсена», а не показ посторонней версии.
+                            _logger.Warn($"[Updates] Полный каталог вернул короткую страницу без таблицы версий (len={fullBody.Length}) — версия '{fullLatest}' не подтверждена: {fullUrl}");
+                            if (!LooksLikeRealCatalog(body))
+                                latest = string.Empty;
                         }
                     }
                     else
@@ -480,38 +524,105 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// Выполняет GET-запрос к каталогу обновлений и возвращает тело ответа, если это не
-    /// страница входа (issue #371, fallback на полный каталог allUpdates=true). При сетевой
-    /// ошибке или недоступности возвращает null — вызывающий продолжает с прежним результатом.
+    /// страница входа (issue #371, fallback на полный каталог allUpdates=true). Следует за
+    /// JS/meta-refresh-редиректами в теле (короткая страница-заглушка вместо каталога) с
+    /// защитой от зацикливания. При сетевой ошибке или недоступности возвращает null —
+    /// вызывающий продолжает с прежним результатом.
     /// </summary>
     private async Task<string?> FetchCatalogBodyAsync(string url, CancellationToken ct)
     {
-        try
+        var currentUrl = url;
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var depth = 0; depth <= MaxBodyRedirects; depth++)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
+            if (!visited.Add(currentUrl.TrimEnd('/')))
             {
-                // Диагностика (issue #371): фиксируем реальный код ответа и конечный URI —
-                // по журналу видно, почему полный каталог не дал версий (401/403/5xx).
-                _logger.Warn($"[Updates] Полный каталог недоступен: HTTP {(int)response.StatusCode} для '{url}' " +
-                             $"(requestUri={response.RequestMessage?.RequestUri}).");
+                _logger.Warn($"[Updates] Циклический JS/meta-refresh редирект: {currentUrl}");
                 return null;
             }
-            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            if (LooksLikeLoginForm(body))
+
+            try
             {
-                // Страница входа с HTTP 200 (CAS без сессии, issue #330): полный каталог
-                // версий не получен — причина фиксируется в журнале.
-                _logger.Warn($"[Updates] Полный каталог вернул страницу входа (len={body.Length}): {url}");
+                using var request = new HttpRequestMessage(HttpMethod.Get, currentUrl);
+                using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                {
+                    // Диагностика (issue #371): фиксируем реальный код ответа и конечный URI —
+                    // по журналу видно, почему полный каталог не дал версий (401/403/5xx).
+                    _logger.Warn($"[Updates] Полный каталог недоступен: HTTP {(int)response.StatusCode} для '{currentUrl}' " +
+                                 $"(requestUri={response.RequestMessage?.RequestUri}).");
+                    return null;
+                }
+                var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                if (LooksLikeLoginForm(body))
+                {
+                    // Страница входа с HTTP 200 (CAS без сессии, issue #330): полный каталог
+                    // версий не получен — причина фиксируется в журнале.
+                    _logger.Warn($"[Updates] Полный каталог вернул страницу входа (len={body.Length}): {currentUrl}");
+                    return null;
+                }
+
+                // JS/meta-refresh редирект в теле (issue #371): короткая страница-заглушка
+                // вместо каталога — переходим по редиректу (с защитой от зацикливания).
+                var redirect = ExtractBodyRedirectUrl(body);
+                if (redirect is not null)
+                {
+                    var target = ResolveBodyRedirectTarget(currentUrl, redirect);
+                    if (target is null)
+                        return body;
+                    var targetUrl = target.ToString();
+                    _logger.Info($"[Updates] JS/meta-refresh редирект: {currentUrl} -> {targetUrl}");
+                    currentUrl = targetUrl;
+                    continue;
+                }
+
+                return body;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"[Updates] Полный каталог недоступен ({ex.GetType().Name}: {ex.Message}): {currentUrl}");
                 return null;
             }
+        }
+
+        _logger.Warn($"[Updates] Превышен предел JS/meta-refresh редиректов ({MaxBodyRedirects}): {url}");
+        return null;
+    }
+
+    /// <summary>
+    /// Следует за JS/meta-refresh-редиректом в теле ответа (issue #371): releases.1c.ru может
+    /// отдавать короткую страницу-заглушку (len≈11760) с <c><meta http-equiv="refresh"></c>
+    /// или JS-редиректом вместо каталога с таблицей #versionsTable. Возвращает тело после
+    /// перехода (<see cref="FetchCatalogBodyAsync"/> сам следует за цепочкой редиректов с
+    /// защитой от зацикливания) либо исходное тело, если редиректа нет/он нерезолвен/переход
+    /// не удался.
+    /// </summary>
+    private async Task<string> FollowBodyRedirectsAsync(string body, string url, CancellationToken ct)
+    {
+        var redirect = ExtractBodyRedirectUrl(body);
+        if (redirect is null)
             return body;
-        }
-        catch (Exception ex)
-        {
-            _logger.Warn($"[Updates] Полный каталог недоступен ({ex.GetType().Name}: {ex.Message}): {url}");
-            return null;
-        }
+
+        var target = ResolveBodyRedirectTarget(url, redirect);
+        if (target is null)
+            return body;
+
+        var targetUrl = target.ToString();
+        _logger.Info($"[Updates] JS/meta-refresh редирект: {url} -> {targetUrl}");
+        var nextBody = await FetchCatalogBodyAsync(targetUrl, ct).ConfigureAwait(false);
+        return nextBody ?? body;
+    }
+
+    /// <summary>Превью HTML для журнала (первые <paramref name="maxLength"/> символов одной
+    /// строкой, управляющие символы заменены пробелами) — диагностика содержимого ответа
+    /// (issue #371).</summary>
+    private static string BuildBodyPreview(string body, int maxLength)
+    {
+        if (string.IsNullOrEmpty(body))
+            return string.Empty;
+        var text = body.Length > maxLength ? body.Substring(0, maxLength) : body;
+        return Regex.Replace(text, @"[\r\n\t]+", " ");
     }
 
     /// <summary>Включена ли детальная диагностика проверки обновлений (CM_UPDATES, issue #371).</summary>
@@ -702,6 +813,36 @@ public class OneCUpdatesService : IOneCUpdatesService
         }
 
         return candidates;
+    }
+
+    /// <summary>
+    /// True — HTML похож на настоящий каталог релизов releases.1c.ru (issue #371): содержит
+    /// таблицу <c>#versionsTable</c>, ссылки <c>version_files</c>/<c>version_file</c> или
+    /// атрибуты <c>data-ver</c>/<c>data-version</c> карточек. Короткие страницы-заглушки
+    /// (len≈11760 — страница входа/JS-редиректа/«включите JavaScript») этих признаков не
+    /// имеют: версионные токены из них посторонние («2.2.10» на странице Розницы/УПП) и
+    /// версией каталога считаться не могут. Internal — для юнит-тестов.
+    /// </summary>
+    internal static bool LooksLikeRealCatalog(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return false;
+
+        // 1) Классический каталог: таблица #versionsTable.
+        if (Regex.IsMatch(html,
+                @"<table[^>]*id\s*=\s*[""']versionsTable[""']",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline))
+            return true;
+
+        // 2) Урезанный каталог без таблицы: ссылки version_files/version_file.
+        if (VersionFilesLinkRegex.IsMatch(html) || VersionPageHrefQueryRegex.IsMatch(html))
+            return true;
+
+        // 3) Каталог-карточки (новый дизайн): атрибуты data-ver/data-version.
+        if (DataVersionAttrRegex.IsMatch(html))
+            return true;
+
+        return false;
     }
 
     /// <summary>Нормализует ссылку на страницу файлов релиза из HTML: декодирование

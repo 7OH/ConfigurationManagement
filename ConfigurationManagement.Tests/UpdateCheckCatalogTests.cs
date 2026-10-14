@@ -430,6 +430,57 @@ public sealed class UpdateCheckCatalogTests : IDisposable
     }
 
     [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_MetaRefreshStub_FollowsRedirectAndParsesCatalog()
+    {
+        // issue #371 (лог 7OH): releases.1c.ru отдаёт короткую страницу-заглушку (len≈11760)
+        // с meta-refresh/JS-редиректом вместо каталога с таблицей #versionsTable. Программа
+        // должна перейти по редиректу в теле и распарсить настоящий каталог.
+        var handler = new MetaRefreshCatalogStubHandler();
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Розница", "3.0.12.80", "https://releases.1c.ru/project/Retail30");
+
+        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
+        Assert.Equal("3.0.12.81", result.LatestVersion);
+        Assert.True(handler.FullCatalogRequests >= 1, "Полный каталог должен запрашиваться после редиректа.");
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_FullCatalogReturnsSameShortPage_DoesNotConfirmForeignVersion()
+    {
+        // issue #371 (лог 7OH): короткая страница УПП (len≈11760) содержит посторонние токены
+        // («1.11.1», «2.2.10»), полный каталог (allUpdates=true) вернул ТУ ЖЕ короткую страницу —
+        // раньше код «подтверждал» версию 1.11.1. Теперь: таблицы #versionsTable нет — версия
+        // не подтверждается, результат «каталог доступен, но версия не распарсена».
+        var handler = new SameShortPageHandler();
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Управление производственным предприятием", "1.3.285.1", "https://releases.1c.ru/project/Enterprise13");
+
+        Assert.Equal(ConfigUpdateStatus.Unavailable, result.Status);
+        Assert.Equal(string.Empty, result.LatestVersion);
+        Assert.True(handler.FullCatalogRequests >= 1, "Полный каталог должен запрашиваться.");
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task CheckForUpdatesAsync_FullCatalogReturnsStub_FirstPageRealCatalog_KeepsFirstPageVersion()
+    {
+        // issue #371: короткая страница — НАСТОЯЩИЙ каталог (таблица #versionsTable), а полный
+        // каталог (allUpdates=true) вернул короткую страницу-заглушку. Версия короткой страницы
+        // подтверждена таблицей — остаёмся на ней (fallback), а не «обнуляем» результат.
+        var handler = new FullCatalogStubHandler();
+        var service = new OneCUpdatesService(CreateRepo(), new TestLogger(), handler);
+
+        var result = await service.CheckForUpdatesAsync(
+            "Розница", "3.0.12.80", "https://releases.1c.ru/project/Retail30");
+
+        Assert.Equal(ConfigUpdateStatus.NewerAvailable, result.Status);
+        Assert.Equal("3.0.12.81", result.LatestVersion);
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task CheckForUpdatesAsync_302WithoutLocation_CredentialsFromItsAccountsStore_Succeeds()
     {
         // #334/#333: учётные данные ИТС берутся из справочника (its_accounts.json), а НЕ из
@@ -961,5 +1012,159 @@ public sealed class UpdateCheckCatalogTests : IDisposable
             response.Headers.Location = location;
             return response;
         }
+    }
+
+    /// <summary>
+    /// Обработчик сценария «JS/meta-refresh-заглушка каталога» (issue #371): первый запрос
+    /// project/<ник> возвращает короткую страницу с meta-refresh на полный каталог
+    /// (allUpdates=true), который отдаёт таблицу версий. Проверяет, что служба следует за
+    /// редиректом в теле и парсит версию из настоящего каталога.
+    /// </summary>
+    private sealed class MetaRefreshCatalogStubHandler : HttpMessageHandler
+    {
+        public int FullCatalogRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (url.Contains("allUpdates=true", StringComparison.OrdinalIgnoreCase))
+            {
+                FullCatalogRequests++;
+                response = Ok(FullCatalogHtml);
+            }
+            else if (url.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok(StubHtml);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        // Короткая страница-заглушка: meta-refresh на полный каталог + посторонние токены.
+        private const string StubHtml = """
+            <html><head>
+            <meta http-equiv="refresh" content="0; url=/project/Retail30?allUpdates=true#updates">
+            </head><body>
+            <h1>Розница</h1>
+            <p>Версия: 1.11.1</p>
+            <p>Доступно: 2.2.10</p>
+            </body></html>
+            """;
+
+        // Полный каталог allUpdates=true: таблица #versionsTable с версией конфигурации.
+        private const string FullCatalogHtml = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td>1</td><td><a href="/version_files?nick=Retail30&ver=3.0.12.81">3.0.12.81</a></td></tr>
+            </table>
+            </body></html>
+            """;
+    }
+
+    /// <summary>
+    /// Обработчик сценария «полный каталог вернул ту же короткую страницу» (issue #371, лог 7OH):
+    /// и обычный запрос project/<ник>, и полный каталог (allUpdates=true) возвращают ОДНУ И ТУ ЖЕ
+    /// короткую страницу-заглушку без таблицы #versionsTable (len совпадает). Служба не должна
+    /// «подтверждать» постороннюю версию из такой страницы.
+    /// </summary>
+    private sealed class SameShortPageHandler : HttpMessageHandler
+    {
+        public int FullCatalogRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? string.Empty;
+            if (url.Contains("allUpdates=true", StringComparison.OrdinalIgnoreCase))
+                FullCatalogRequests++;
+            var response = Ok(ShortPageHtml);
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        // Короткая страница УПП (len≈11760): посторонние токены «1.11.1»/«2.2.10», таблицы нет.
+        private const string ShortPageHtml = """
+            <html><body>
+            <h1>Управление производственным предприятием</h1>
+            <p>Версия: 1.11.1</p>
+            <p>Доступно: 2.2.10</p>
+            <p>Дата публикации: 2026.10.12</p>
+            </body></html>
+            """;
+    }
+
+    /// <summary>
+    /// Обработчик сценария «короткая страница — настоящий каталог, полный каталог — заглушка»
+    /// (issue #371): первый запрос project/<ник> возвращает таблицу #versionsTable, а запрос
+    /// allUpdates=true — короткую страницу-заглушку. Версия короткой страницы подтверждена
+    /// таблицей — служба остаётся на ней (fallback).
+    /// </summary>
+    private sealed class FullCatalogStubHandler : HttpMessageHandler
+    {
+        public int FullCatalogRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? string.Empty;
+            HttpResponseMessage response;
+
+            if (url.Contains("allUpdates=true", StringComparison.OrdinalIgnoreCase))
+            {
+                FullCatalogRequests++;
+                response = Ok(StubHtml);
+            }
+            else if (url.Contains("/project/", StringComparison.OrdinalIgnoreCase))
+            {
+                response = Ok(CatalogHtml);
+            }
+            else
+            {
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+            }
+
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage Ok(string body) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body),
+        };
+
+        // Короткая страница — настоящий каталог с таблицей версий.
+        private const string CatalogHtml = """
+            <html><body>
+            <table id="versionsTable">
+              <tr><td>1</td><td><a href="/version_files?nick=Retail30&ver=3.0.12.81">3.0.12.81</a></td></tr>
+            </table>
+            </body></html>
+            """;
+
+        // Полный каталог — короткая страница-заглушка без таблицы.
+        private const string StubHtml = """
+            <html><body>
+            <h1>Розница</h1>
+            <p>Версия: 1.11.1</p>
+            </body></html>
+            """;
     }
 }
