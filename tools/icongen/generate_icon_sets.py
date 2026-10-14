@@ -374,7 +374,10 @@ def main():
             entries = []
             if name == "Outline":
                 # Рукописный контурный набор сохраняется целиком, генератор только дополняет.
-                entries.append(("РУКОПИСНЫЕ КОНТУРНЫЕ ИКОНКИ", [(k + ".Outline", v) for k, v in sorted(hw.items())]))
+                # Только ключи Icon*: значки Pack.* генерируются заново ниже (иначе дубли ключей
+                # при повторном запуске ломают загрузку словаря WPF — XamlParseException).
+                entries.append(("РУКОПИСНЫЕ КОНТУРНЫЕ ИКОНКИ",
+                                [(k + ".Outline", v) for k, v in sorted(hw.items()) if k.startswith("Icon")]))
             else:
                 glyphs = []
                 for g in WINDOW_GLYPH_KEYS:

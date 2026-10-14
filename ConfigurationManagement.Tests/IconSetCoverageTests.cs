@@ -164,4 +164,30 @@ public sealed class IconSetCoverageTests
         Assert.DoesNotMatch(new Regex("Data=\"[Mm][\\s\\d]"), text);
         Assert.DoesNotContain("{StaticResource IconCheck}", text);
     }
+
+    [Theory]
+    [InlineData("Icons.xaml")]
+    [InlineData("Icons.axaml")]
+    [InlineData("IconsOutline.xaml")]
+    [InlineData("IconsOutline.axaml")]
+    [InlineData("IconsMaterial.xaml")]
+    [InlineData("IconsMaterial.axaml")]
+    [InlineData("IconsMacOS.xaml")]
+    [InlineData("IconsMacOS.axaml")]
+    [InlineData("IconsWindowsXp.xaml")]
+    [InlineData("IconsWindowsXp.axaml")]
+    [InlineData("IconsGlass.xaml")]
+    [InlineData("IconsGlass.axaml")]
+    public void IconDictionaries_HaveNoDuplicateKeys(string file)
+    {
+        // Повтор x:Key ломает загрузку словаря WPF при старте приложения
+        // (XamlParseException «Задание свойства DeferrableContent вызвало исключение»).
+        var duplicates = Regex.Matches(Themes(file), "x:Key=\"([^\"]+)\"")
+            .Select(m => m.Groups[1].Value)
+            .GroupBy(k => k, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+        Assert.True(duplicates.Count == 0, $"{file}: повторяющиеся ключи {string.Join(", ", duplicates.Take(10))}");
+    }
 }
