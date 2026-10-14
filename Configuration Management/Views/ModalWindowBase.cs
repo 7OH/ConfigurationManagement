@@ -1133,11 +1133,10 @@ namespace Configuration_Management
         /// </summary>
         private sealed class DialogWindowControlButton : Button
         {
-            // Контуры в координатном поле 14 на 14 (как в разметке главного окна):
-            // черта, крест и «квадрат» (развернуть) с округлёнными концами.
-            private const string MinimizeData = "M3,7 L11,7";
-            private const string CloseData = "M3.5,3.5 L10.5,10.5 M10.5,3.5 L3.5,10.5";
-            private const string MaximizeData = "M4,4 L10,4 L10,10 L4,10 Z";
+            // Запасной контур (черта в поле 24×24) — только если резолв активного
+            // набора вернул null. Ключи IconMinimize/IconMaximize/IconClose есть
+            // в базовом словаре Icons.axaml, поэтому в норме недостижимо (Задача 2).
+            private const string MinimizeData = "M6,12 L18,12";
 
             /// <summary>Диаметр подложки кнопки диалога (без учёта скругления).</summary>
             private const double CircleDiameter = 26;
@@ -1145,8 +1144,25 @@ namespace Configuration_Management
             private readonly DialogWindowControlKind _kind;
             private readonly Avalonia.Controls.Shapes.Path _glyph;
 
+            /// <summary>
+            /// Ключ глифа в словарях иконок для резолва активного набора (Задача 2).
+            /// </summary>
+            private string GlyphKey => _kind switch
+            {
+                DialogWindowControlKind.Close => "IconClose",
+                DialogWindowControlKind.Maximize => "IconMaximize",
+                _ => "IconMinimize"
+            };
+
             private IBrush _hoverBg = Brushes.Transparent;
             private IBrush _closeHoverBg = Brushes.Transparent;
+
+            /// <summary>Кисть подложки «свернуть» (Задача 3): у macOS-«светофора» жёлтый круг.</summary>
+            private IBrush _minimizeHoverBg = Brushes.Transparent;
+
+            /// <summary>Кисть подложки «развернуть» (Задача 3): у macOS-«светофора» зелёный круг.</summary>
+            private IBrush _maximizeHoverBg = Brushes.Transparent;
+
             private IBrush _pressedBg = Brushes.Transparent;
             private IBrush _baseGlyphBrush = Brushes.Transparent;
             private IBrush _accentBrush = Brushes.Transparent;
@@ -1167,6 +1183,23 @@ namespace Configuration_Management
             // Красная подложка кнопки «закрыть» при нажатии: алый при наведении приходит
             // из темы (WindowButtonCloseHoverBrush), нажатие — темнее. Значок на ней белый.
             private static readonly IBrush ClosePressedBrush = new SolidColorBrush(Color.Parse("#B91C1C"));
+
+            // Тёмный значок «светофора» macOS (Задача 3): почти чёрный под курсором,
+            // полупрозрачный в покое — как у настоящих кнопок macOS.
+            private static readonly IBrush MacOsGlyphBrush = new SolidColorBrush(Color.Parse("#1F1F1F"));
+            private static readonly IBrush MacOsGlyphRestBrush = new SolidColorBrush(Color.Parse("#661F1F1F"));
+
+            /// <summary>Затемняет кисть «светофора» при нажатии (как у кнопок macOS).</summary>
+            private static IBrush Darken(IBrush brush)
+            {
+                if (brush is SolidColorBrush scb)
+                {
+                    var c = scb.Color;
+                    return new SolidColorBrush(Color.FromArgb(c.A,
+                        (byte)(c.R * 0.8), (byte)(c.G * 0.8), (byte)(c.B * 0.8)));
+                }
+                return brush;
+            }
 
             public DialogWindowControlButton(DialogWindowControlKind kind)
             {
@@ -1252,12 +1285,9 @@ namespace Configuration_Management
                     StrokeThickness = _kind is DialogWindowControlKind.Close or DialogWindowControlKind.Maximize ? 1.7 : 2.0,
                     StrokeLineCap = PenLineCap.Round,
                     StrokeJoin = PenLineJoin.Round,
-                    Data = StreamGeometry.Parse(_kind switch
-                    {
-                        DialogWindowControlKind.Close => CloseData,
-                        DialogWindowControlKind.Maximize => MaximizeData,
-                        _ => MinimizeData
-                    })
+                    // Глифы следуют активному набору иконок через IconHelper (Задача 2):
+                    // свернуть/развернуть/закрыть резолвятся по набору с fallback на Fluent.
+                    Data = IconHelper.Geometry(GlyphKey) ?? StreamGeometry.Parse(MinimizeData)
                 };
                 Content = _glyph;
 
@@ -1298,6 +1328,8 @@ namespace Configuration_Management
                 var metrics = WindowButtonThemeMetrics.Current();
                 _hoverBg = metrics.Hover;
                 _closeHoverBg = metrics.CloseHover;
+                _minimizeHoverBg = metrics.MinimizeHover;
+                _maximizeHoverBg = metrics.MaximizeHover;
                 _cornerRadius = metrics.CornerRadius;
                 Width = UiMetrics.Scaled(metrics.Size);
                 var radius = UiMetrics.Scaled(Math.Min(_cornerRadius, CircleDiameter / 2));
@@ -1308,8 +1340,16 @@ namespace Configuration_Management
                 ApplyState();
             }
 
-            /// <summary>Смена полноценной темы: перечитываем метрики кнопок окна.</summary>
-            private void OnThemeChanged(object? sender, EventArgs e) => ApplyWindowButtonTheme();
+            /// <summary>Смена полноценной темы: перечитываем метрики и глиф кнопок окна.</summary>
+            private void OnThemeChanged(object? sender, EventArgs e)
+            {
+                ApplyWindowButtonTheme();
+                UpdateGlyph();
+            }
+
+            /// <summary>Пересобирает глиф кнопки по активному набору иконок (Задача 2).</summary>
+            private void UpdateGlyph()
+                => _glyph.Data = IconHelper.Geometry(GlyphKey) ?? StreamGeometry.Parse(MinimizeData);
 
             /// <summary>Подписка на смену темы снимается вместе с выходом кнопки из дерева.</summary>
             protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -1339,6 +1379,14 @@ namespace Configuration_Management
                     var redActive = _pressed || _hovered;
                     Background = _pressed ? ClosePressedBrush : (_hovered ? _closeHoverBg : Brushes.Transparent);
                     _glyph.Stroke = redActive ? Brushes.White : _baseGlyphBrush;
+                }
+                else if (ThemeManager.CurrentWindowButtonStyle == WindowButtonStyle.MacOS)
+                {
+                    // «Светофор» macOS (Задача 3): круг всегда цветной — жёлтый у «свернуть»,
+                    // зелёный у «развернуть»; значок тёмный, при нажатии круг темнеет.
+                    var traffic = _kind == DialogWindowControlKind.Minimize ? _minimizeHoverBg : _maximizeHoverBg;
+                    Background = _pressed ? Darken(traffic) : traffic;
+                    _glyph.Stroke = _hovered || _pressed ? MacOsGlyphBrush : MacOsGlyphRestBrush;
                 }
                 else
                 {

@@ -16,6 +16,13 @@
                      Резолв (IconKeyToGeometryConverter) выбирает активный набор по ресурсу
                      IconSetName, который выставляет ThemeManager.ApplyIconSet. -->
                 <ResourceDictionary Source="Themes/IconsOutline.xaml"/>
+                <!-- Наборы иконок Material/MacOS/WindowsXp/Glass (Задача 2): суффиксные ключи
+                     (IconAdd.Material и т.п.). Отсутствующие в наборе иконки бесшовно
+                     фолбэчатся на Fluent через IconResolutionCandidates. -->
+                <ResourceDictionary Source="Themes/IconsMaterial.xaml"/>
+                <ResourceDictionary Source="Themes/IconsMacOS.xaml"/>
+                <ResourceDictionary Source="Themes/IconsWindowsXp.xaml"/>
+                <ResourceDictionary Source="Themes/IconsGlass.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <conv:GroupTextColorConverter x:Key="GroupTextColorConverter"/>
             <conv:IconKeyToGeometryConverter x:Key="IconKeyToGeometryConverter"/>
@@ -302,6 +309,113 @@
                  при наведении/нажатии наследуется из базового стиля. -->
             <Style x:Key="WindowControlCloseButtonOnAccent" TargetType="Button" BasedOn="{StaticResource WindowControlCloseButton}">
                 <Setter Property="Foreground" Value="{DynamicResource ButtonTextBrush}"/>
+            </Style>
+
+            <!-- ===================== Кнопки окна macOS «светофор» (Задача 3) =====================
+                 Три цветных круга: красный «закрыть», жёлтый «свернуть», зелёный «развернуть».
+                 В отличие от обычных кнопок (подложка появляется только при наведении) круг
+                 «светофора» виден всегда; его цвет — HoverBrush кнопки: у «свернуть»/«развернуть»
+                 кисть выставляет код (WindowButtonMinimizeHoverBrush/WindowButtonMaximizeHoverBrush),
+                 у «закрыть» — WindowButtonCloseHoverBrush. Значок тёмный, как у настоящих кнопок
+                 macOS; при нажатии круг затемняется полупрозрачным чёрным слоем (PressedBrush). -->
+            <Style x:Key="WindowControlButtonMacOS" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
+                <Setter Property="Foreground" Value="#1F1F1F"/>
+                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="{DynamicResource WindowButtonHoverBrush}"/>
+                <Setter Property="local:WindowChromeHelper.PressedBrush" Value="#33000000"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <Grid x:Name="circleRoot" Width="30" Height="30"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Grid.RenderTransform>
+                                        <ScaleTransform x:Name="circleScale" CenterX="15" CenterY="15"/>
+                                    </Grid.RenderTransform>
+                                    <!-- Цветной круг «светофора»: всегда видим (Opacity="1"). -->
+                                    <Border x:Name="hoverLayer" CornerRadius="{DynamicResource WindowButtonCornerRadius}"
+                                            Background="{TemplateBinding local:WindowChromeHelper.HoverBrush}" Opacity="1"/>
+                                    <Border x:Name="pressLayer" CornerRadius="{DynamicResource WindowButtonCornerRadius}"
+                                            Background="{TemplateBinding local:WindowChromeHelper.PressedBrush}" Opacity="0"/>
+                                    <Border x:Name="focusRing" CornerRadius="{DynamicResource WindowButtonCornerRadius}" BorderThickness="1.5" Opacity="0"
+                                            BorderBrush="{TemplateBinding local:WindowChromeHelper.FocusBrush}"/>
+                                </Grid>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <ContentPresenter.RenderTransform>
+                                        <ScaleTransform x:Name="glyphScale" CenterX="7" CenterY="7"/>
+                                    </ContentPresenter.RenderTransform>
+                                </ContentPresenter>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1.08" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1.08" Duration="0:0:0.12"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.12"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.12"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="pressLayer" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleY" To="0.9" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="0.92" Duration="0:0:0.08"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="0.92" Duration="0:0:0.08"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="pressLayer" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="circleScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.1"/>
+                                                <DoubleAnimation Storyboard.TargetName="glyphScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.1"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="focusRing" Property="Opacity" Value="1"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Вариант «на акценте»: круг остаётся цветным (HoverBrush выставляет код),
+                 значок тёмный — на цветном круге он читается и на акцентной шапке. -->
+            <Style x:Key="WindowControlButtonMacOSOnAccent" TargetType="Button" BasedOn="{StaticResource WindowControlButtonMacOS}">
+                <Setter Property="Foreground" Value="#1F1F1F"/>
+            </Style>
+
+            <!-- Кнопка «закрыть» macOS: красный круг (WindowButtonCloseHoverBrush),
+                 при нажатии — темнее (как у обычной кнопки «закрыть»). -->
+            <Style x:Key="WindowControlCloseButtonMacOS" TargetType="Button" BasedOn="{StaticResource WindowControlButtonMacOS}">
+                <Setter Property="local:WindowChromeHelper.HoverBrush" Value="{DynamicResource WindowButtonCloseHoverBrush}"/>
+                <Setter Property="local:WindowChromeHelper.PressedBrush" Value="#B91C1C"/>
+                <Setter Property="local:WindowChromeHelper.FocusBrush" Value="{DynamicResource WindowButtonCloseHoverBrush}"/>
+            </Style>
+
+            <Style x:Key="WindowControlCloseButtonMacOSOnAccent" TargetType="Button" BasedOn="{StaticResource WindowControlCloseButtonMacOS}">
+                <Setter Property="Foreground" Value="#1F1F1F"/>
             </Style>
         </ResourceDictionary>
     </Application.Resources>

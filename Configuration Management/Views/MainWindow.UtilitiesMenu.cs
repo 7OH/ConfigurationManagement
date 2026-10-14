@@ -339,6 +339,9 @@ public partial class MainWindow
     /// </summary>
     private void OnThemeChanged(object? sender, EventArgs e)
     {
+        // Глифы кнопок управления окном следуют набору иконок активной темы (Задача 2).
+        UpdateWindowControlGlyphs();
+
         if (UtilitiesButton is null)
             return;
         var menu = BuildUtilitiesMenu();

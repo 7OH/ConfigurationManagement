@@ -15,5 +15,17 @@ public enum WindowButtonStyle
     Minimal,
 
     /// <summary>Классический стиль (прямоугольные кнопки, как в Windows 10).</summary>
-    Classic
+    Classic,
+
+    /// <summary>Материальный стиль (круглые кнопки с Material-подложкой, Задача 3).</summary>
+    Material,
+
+    /// <summary>Стиль macOS «светофор» (красная/жёлтая/зелёная кнопки, Задача 3).</summary>
+    MacOS,
+
+    /// <summary>Классический стиль Windows XP (квадратные кнопки, Задача 3).</summary>
+    WindowsXp,
+
+    /// <summary>Стеклянный стиль (полупрозрачные кнопки, Задача 3).</summary>
+    Glass
 }

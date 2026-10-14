@@ -177,35 +177,13 @@ namespace Configuration_Management
             // в редакторе палитры именно схему выбранной темы.
             var editedScheme = _viewModel.ActiveColorScheme.Clone();
             System.Action? refreshEditedScheme = null;
-            var themeLabel = new TextBlock { Text = LocalizationManager.T("Settings.ThemeLabel"), FontWeight = FontWeight.SemiBold };
-            settings.Children.Add(themeLabel);
-            var themePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-            // Полноценные темы (Задача 3): Светлая/Тёмная/Синяя/Зелёная из каталога.
-            // Выбор применяется мгновенно и сохраняется в AppSettings.FullTheme.
-            var currentFullThemeId = ThemeManager.CurrentFullTheme?.Id ?? ThemeCatalog.BuiltIn[0].Id;
-            foreach (var theme in ThemeCatalog.BuiltIn)
-            {
-                var button = new RadioButton
-                {
-                    Content = LocalizationManager.T(ThemeFeatureMap.ThemeNameKey(theme.Id)),
-                    GroupName = "FullTheme",
-                    IsChecked = string.Equals(theme.Id, currentFullThemeId, StringComparison.OrdinalIgnoreCase)
-                };
-                ThemeChanged(button, theme.Id, id =>
-                {
-                    // Применяем полноценную тему: цвета, кнопки окна, иконки; сохраняем выбор.
-                    _viewModel.ApplyFullTheme(id);
-                    // Редактор палитры и предпросмотр показывают цвета выбранной темы.
-                    editedScheme = _viewModel.ActiveColorScheme.Clone();
-                    refreshEditedScheme?.Invoke();
-                });
-                themePanel.Children.Add(button);
-            }
-            settings.Children.Add(themePanel);
-            // Пояснение к полноценной теме (issue #376): тема задаёт цвета, модель кнопок
-            // управления окном и набор иконок целиком — это параметры темы, а не отдельные
-            // настройки. На WPF тот же текст выводится под списком тем.
-            settings.Children.Add(Hint(LocalizationManager.T("Settings.FullTheme.Description"), bottom: 12));
+            // Вкладка «Темы»: выбор полноценной темы вынесен из «Настройки» в отдельную
+            // вкладку (Задача 1 плана theme-system-rework). Редактируемая схема и колбэк
+            // обновления редактора объявляются здесь, чтобы выбор темы показывал в
+            // редакторе палитры именно схему выбранной темы.
+            var tabThemes = BuildThemesTab(
+                scheme => editedScheme = scheme,
+                () => refreshEditedScheme?.Invoke());
 
             // Язык интерфейса лежит в рамке с заголовком, отступом 8 и полем
             // снизу 12 (SettingsWindow.xaml:1088). Список 280 на 34, подпись
@@ -3028,6 +3006,7 @@ namespace Configuration_Management
             // внутри «Баз», это расхождение старше правки и не закрыто.
             tabs.Items.Add(tabPlatforms);
             tabs.Items.Add(tabDisplay);
+            tabs.Items.Add(tabThemes);
             tabs.Items.Add(tabAppearance);
             tabs.Items.Add(tabHotkeys);
             tabs.Items.Add(tabGeneral);
@@ -3610,6 +3589,52 @@ namespace Configuration_Management
             };
             Themes.ThemeBrushes.Bind(block, TextBlock.ForegroundProperty, "TextSecondaryBrush");
             return block;
+        }
+
+        /// <summary>
+        /// Собирает вкладку «Темы»: выбор полноценной темы (Светлая/Тёмная/Синяя/Зелёная)
+        /// из каталога. Выбор применяется мгновенно и сохраняется в AppSettings.FullTheme;
+        /// редактор палитры и предпросмотр показывают схему выбранной темы.
+        /// </summary>
+        private TabItem BuildThemesTab(Action<ColorScheme> setEditedScheme, Action? refreshEditedScheme)
+        {
+            var themesPanel = new StackPanel { Spacing = 6 };
+            var themeLabel = new TextBlock { Text = LocalizationManager.T("Settings.ThemeLabel"), FontWeight = FontWeight.SemiBold };
+            themesPanel.Children.Add(themeLabel);
+            var themePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
+            // Полноценные темы (Задача 3): Светлая/Тёмная/Синяя/Зелёная из каталога.
+            // Выбор применяется мгновенно и сохраняется в AppSettings.FullTheme.
+            var currentFullThemeId = ThemeManager.CurrentFullTheme?.Id ?? ThemeCatalog.BuiltIn[0].Id;
+            foreach (var theme in ThemeCatalog.BuiltIn)
+            {
+                var button = new RadioButton
+                {
+                    Content = LocalizationManager.T(ThemeFeatureMap.ThemeNameKey(theme.Id)),
+                    GroupName = "FullTheme",
+                    IsChecked = string.Equals(theme.Id, currentFullThemeId, StringComparison.OrdinalIgnoreCase)
+                };
+                ThemeChanged(button, theme.Id, id =>
+                {
+                    // Применяем полноценную тему: цвета, кнопки окна, иконки; сохраняем выбор.
+                    _viewModel.ApplyFullTheme(id);
+                    // Редактор палитры и предпросмотр показывают цвета выбранной темы.
+                    setEditedScheme(_viewModel.ActiveColorScheme.Clone());
+                    refreshEditedScheme?.Invoke();
+                });
+                themePanel.Children.Add(button);
+            }
+            themesPanel.Children.Add(themePanel);
+            // Пояснение к полноценной теме (issue #376): тема задаёт цвета, модель кнопок
+            // управления окном и набор иконок целиком — это параметры темы, а не отдельные
+            // настройки. На WPF тот же текст выводится под списком тем.
+            themesPanel.Children.Add(Hint(LocalizationManager.T("Settings.FullTheme.Description"), bottom: 12));
+            return MainTab("IconTheme", "Settings.TabThemes",
+                new ScrollViewer
+                {
+                    Content = themesPanel,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+                });
         }
 
         /// <summary>

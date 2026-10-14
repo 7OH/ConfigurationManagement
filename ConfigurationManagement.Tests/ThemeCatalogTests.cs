@@ -19,6 +19,10 @@ public sealed class ThemeCatalogTests
         Assert.Equal("dark", ThemeCatalog.Find("dark")?.Id);
         Assert.Equal("blue", ThemeCatalog.Find("blue")?.Id);
         Assert.Equal("green", ThemeCatalog.Find("green")?.Id);
+        Assert.Equal("material", ThemeCatalog.Find("material")?.Id);
+        Assert.Equal("macos", ThemeCatalog.Find("macos")?.Id);
+        Assert.Equal("windowsxp", ThemeCatalog.Find("windowsxp")?.Id);
+        Assert.Equal("glass", ThemeCatalog.Find("glass")?.Id);
     }
 
     [Fact]
@@ -28,6 +32,10 @@ public sealed class ThemeCatalogTests
         Assert.Equal("dark", ThemeCatalog.Find("DaRk")?.Id);
         Assert.Equal("blue", ThemeCatalog.Find("Blue")?.Id);
         Assert.Equal("green", ThemeCatalog.Find("GREEN")?.Id);
+        Assert.Equal("material", ThemeCatalog.Find("MATERIAL")?.Id);
+        Assert.Equal("macos", ThemeCatalog.Find("MacOS")?.Id);
+        Assert.Equal("windowsxp", ThemeCatalog.Find("WindowsXP")?.Id);
+        Assert.Equal("glass", ThemeCatalog.Find("GLASS")?.Id);
     }
 
     [Fact]
@@ -43,9 +51,11 @@ public sealed class ThemeCatalogTests
     [Fact]
     public void BuiltIn_OrderIsStable()
     {
+        // Задача 3: 8 встроенных тем; порядок первых четырёх не меняется,
+        // новые добавляются в конец.
         var ids = ThemeCatalog.BuiltIn.Select(t => t.Id).ToArray();
 
-        Assert.Equal(new[] { "light", "dark", "blue", "green" }, ids);
+        Assert.Equal(new[] { "light", "dark", "blue", "green", "material", "macos", "windowsxp", "glass" }, ids);
     }
 
     [Fact]

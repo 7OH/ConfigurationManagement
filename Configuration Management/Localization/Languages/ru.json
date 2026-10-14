@@ -487,6 +487,7 @@
     "Settings.UtilitiesMenu.EditButton": "Настроить структуру…",
     "Settings.UtilitiesMenu.Hint": "Включите правку, чтобы меню «Утилиты» строилось по вашей компоновке, а не по стандартной. Кнопка «Настроить структуру…» открывает редактор: перемещение пунктов, отключение, группировка, иконки из программы и из внешнего файла, сохранение/загрузка компоновки в файл. Новые пункты программы автоматически попадают в подменю «Новинки программы».",
     "Settings.TabAppearance": "Цветовое оформление",
+    "Settings.TabThemes": "Темы",
     "Settings.TabAccounts": "Учётные записи",
     "Settings.TabLanguage": "Язык",
     "Settings.Language": "Язык интерфейса",
@@ -1386,6 +1387,10 @@
     "Theme.Dark": "Тёмная",
     "Theme.Blue": "Синяя",
     "Theme.Green": "Зелёная",
+    "Theme.Material": "Material Design",
+    "Theme.MacOS": "macOS",
+    "Theme.WindowsXp": "Windows XP",
+    "Theme.Glass": "Glass",
     "Main.LightTheme": "Светлая тема",
     "Main.DarkTheme": "Тёмная тема",
 

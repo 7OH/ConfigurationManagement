@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Shell;
 using Configuration_Management.Localization;
+using Configuration_Management.Themes;
 
 namespace Configuration_Management
 {
@@ -469,8 +470,10 @@ namespace Configuration_Management
         /// </summary>
         private static Button BuildMaximizeButton(Window window)
         {
-            var style = (Style?)window.TryFindResource("WindowControlButtonOnAccent")
-                        ?? (Style?)window.TryFindResource("WindowControlButton");
+            // Стиль «на акценте»: полоса заголовка диалога всегда акцентная. Для
+            // macOS-«светофора» (Задача 3) выбирается отдельный шаблон с зелёным кругом.
+            var style = (Style?)window.TryFindResource(ThemeManager.WindowButtonStyleKey(close: false, onAccent: true))
+                        ?? (Style?)window.TryFindResource(ThemeManager.WindowButtonStyleKey(close: false, onAccent: false));
 
             var path = new Path
             {
@@ -488,6 +491,11 @@ namespace Configuration_Management
                 Content = path,
                 ToolTip = LocalizationManager.T("Window.Maximize")
             };
+            // «Светофор» macOS: зелёный круг «развернуть» задаётся кистью HoverBrush
+            // кнопки (шаблон рисует круг всегда видимым, цвет — из этой кисти).
+            // Ссылка на ресурс, а не снимок: кисть обновляется при смене темы.
+            if (ThemeManager.CurrentWindowButtonStyle == WindowButtonStyle.MacOS)
+                button.SetResourceReference(WindowChromeHelper.HoverBrushProperty, "WindowButtonMaximizeHoverBrush");
             path.SetBinding(Shape.StrokeProperty, new Binding(nameof(Button.Foreground)) { Source = button });
             button.Click += (_, _) => ToggleMaximize(window);
             window.StateChanged += (_, _) =>
@@ -512,9 +520,10 @@ namespace Configuration_Management
             // полосе заголовка), красное hover-выделение и белый значок наследуются из
             // базового шаблона. Задаём цвет сеттером стиля, а не локальным значением —
             // иначе локальное значение (приоритет выше шаблонного триггера) «ломало» бы
-            // белое выделение значка при наведении.
-            var style = (Style?)window.TryFindResource("WindowControlCloseButtonOnAccent")
-                        ?? (Style?)window.TryFindResource("WindowControlCloseButton");
+            // белое выделение значка при наведении. Для macOS-«светофора» (Задача 3)
+            // выбирается отдельный шаблон с красным кругом.
+            var style = (Style?)window.TryFindResource(ThemeManager.WindowButtonStyleKey(close: true, onAccent: true))
+                        ?? (Style?)window.TryFindResource(ThemeManager.WindowButtonStyleKey(close: true, onAccent: false));
 
             // Значок креста в координатном поле 14 на 14 (как в MainWindow.xaml):
             // округлённые концы и толщина 1.7 — выразительнее прежней тонкой обводки.

@@ -22,7 +22,13 @@ public static class ThemeCatalog
         Create("light", "Светлая", false, ColorScheme.CreateLight(), WindowButtonStyle.Fluent, IconSet.Fluent, "#FDBF00"),
         Create("dark", "Тёмная", true, ColorScheme.CreateDark(), WindowButtonStyle.Fluent, IconSet.Fluent, "#FFB300"),
         Create("blue", "Синяя", false, ColorScheme.CreateBlue(), WindowButtonStyle.Classic, IconSet.Outline, "#2563EB"),
-        Create("green", "Зелёная", false, ColorScheme.CreateGreen(), WindowButtonStyle.Minimal, IconSet.Outline, "#16A34A")
+        Create("green", "Зелёная", false, ColorScheme.CreateGreen(), WindowButtonStyle.Minimal, IconSet.Outline, "#16A34A"),
+        // Задача 3: четыре новые темы — Material Design, macOS, Windows XP, Glass.
+        // Каждая несёт собственную палитру, стиль кнопок окна и набор иконок.
+        Create("material", "Material Design", false, ColorScheme.CreateMaterial(), WindowButtonStyle.Material, IconSet.Material, "#7C4DFF"),
+        Create("macos", "macOS", false, ColorScheme.CreateMacOS(), WindowButtonStyle.MacOS, IconSet.MacOS, "#0A84FF"),
+        Create("windowsxp", "Windows XP", false, ColorScheme.CreateWindowsXp(), WindowButtonStyle.WindowsXp, IconSet.WindowsXp, "#3B6EA5"),
+        Create("glass", "Glass", false, ColorScheme.CreateGlass(), WindowButtonStyle.Glass, IconSet.Glass, "#007AFF")
     };
 
     /// <summary>

@@ -205,4 +205,15 @@
     <!-- Точка «база запущена» (уже контурный) -->
     <Geometry x:Key="IconRunningDot.Outline">M12,2A10,10 0 1,1 12,22A10,10 0 1,1 12,2Z</Geometry>
 
+    <!-- ===================== КНОПКИ УПРАВЛЕНИЯ ОКНОМ (Задача 2) ===================== -->
+
+    <!-- Свернуть / Minimize (черта) -->
+    <Geometry x:Key="IconMinimize.Outline">M6,12 L18,12</Geometry>
+
+    <!-- Развернуть / Maximize (квадрат) -->
+    <Geometry x:Key="IconMaximize.Outline">M6,6 L18,6 L18,18 L6,18 Z</Geometry>
+
+    <!-- Свернуть в окно / Restore (два квадрата) -->
+    <Geometry x:Key="IconRestore.Outline">M9,6 H18 V15 H9 Z M6,9 H15 V18 H6 Z</Geometry>
+
 </ResourceDictionary>

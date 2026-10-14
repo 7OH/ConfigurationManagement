@@ -233,7 +233,7 @@
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
-                        <Path Width="14" Height="14" Stretch="Uniform"
+                        <Path x:Name="MinimizeGlyphPath" Width="14" Height="14" Stretch="Uniform"
                               Data="M3,7 L11,7"
                               StrokeThickness="2"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round"
@@ -279,7 +279,7 @@
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
-                        <Path Width="14" Height="14" Stretch="Uniform"
+                        <Path x:Name="CloseGlyphPath" Width="14" Height="14" Stretch="Uniform"
                               Data="M3.5,3.5 L10.5,10.5 M10.5,3.5 L3.5,10.5"
                               StrokeThickness="1.7"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round"

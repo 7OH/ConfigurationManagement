@@ -17,6 +17,10 @@ public sealed class ThemeFeatureMapTests
     [InlineData("dark")]
     [InlineData("blue")]
     [InlineData("green")]
+    [InlineData("material")]
+    [InlineData("macos")]
+    [InlineData("windowsxp")]
+    [InlineData("glass")]
     public void Resolve_ReturnsBuiltInThemeById(string id)
     {
         var theme = ThemeFeatureMap.Resolve(id);
@@ -124,12 +128,62 @@ public sealed class ThemeFeatureMapTests
     }
 
     [Fact]
+    public void ButtonMetrics_MacOS_HasTrafficLightColors()
+    {
+        // «Светофор» macOS (Задача 3): красный «закрыть», жёлтый «свернуть», зелёный «развернуть».
+        var macos = ThemeFeatureMap.ButtonMetrics(WindowButtonStyle.MacOS);
+
+        Assert.Equal("#FF5F57", macos.CloseHoverHex);
+        Assert.Equal("#F5BF4F", macos.MinimizeHoverHex);
+        Assert.Equal("#59CB59", macos.MaximizeHoverHex);
+        Assert.Equal(15, macos.CornerRadius);
+        Assert.Equal(46, macos.Size);
+    }
+
+    [Fact]
+    public void ButtonMetrics_NewStyles_HaveExpectedGeometry()
+    {
+        // Material — круглые кнопки, Windows XP — квадратные, Glass — полупрозрачные (Задача 3).
+        var material = ThemeFeatureMap.ButtonMetrics(WindowButtonStyle.Material);
+        var windowsXp = ThemeFeatureMap.ButtonMetrics(WindowButtonStyle.WindowsXp);
+        var glass = ThemeFeatureMap.ButtonMetrics(WindowButtonStyle.Glass);
+
+        Assert.Equal(15, material.CornerRadius);
+        Assert.Equal(46, material.Size);
+        Assert.Equal(0, windowsXp.CornerRadius);
+        Assert.Equal(34, windowsXp.Size);
+        Assert.Equal(15, glass.CornerRadius);
+        Assert.Equal(46, glass.Size);
+
+        // У остальных новых стилей нет цветов «светофора» — поля null.
+        Assert.Null(material.MinimizeHoverHex);
+        Assert.Null(material.MaximizeHoverHex);
+        Assert.Null(windowsXp.MinimizeHoverHex);
+        Assert.Null(windowsXp.MaximizeHoverHex);
+        Assert.Null(glass.MinimizeHoverHex);
+        Assert.Null(glass.MaximizeHoverHex);
+    }
+
+    [Fact]
+    public void ButtonMetrics_Glass_UsesSemiTransparentColors()
+    {
+        // Glass — полупрозрачные цвета #AARRGGBB (Задача 3): альфу поддерживают
+        // ColorConverter WPF и Color.Parse Avalonia.
+        var glass = ThemeFeatureMap.ButtonMetrics(WindowButtonStyle.Glass);
+
+        Assert.Matches("^#[0-9A-Fa-f]{8}$", glass.HoverHex);
+        Assert.Matches("^#[0-9A-Fa-f]{8}$", glass.CloseHoverHex);
+    }
+
+    [Fact]
     public void ResourceKeys_HaveExpectedNames()
     {
         // Ключи зафиксированы планом (Задача 4): стили кнопок окна будут читать их
         // из ресурсов приложения, поэтому имена нельзя менять без синхронизации.
         Assert.Equal("WindowButtonHoverBrush", ThemeFeatureMap.WindowButtonHoverBrushKey);
         Assert.Equal("WindowButtonCloseHoverBrush", ThemeFeatureMap.WindowButtonCloseHoverBrushKey);
+        Assert.Equal("WindowButtonMinimizeHoverBrush", ThemeFeatureMap.WindowButtonMinimizeHoverBrushKey);
+        Assert.Equal("WindowButtonMaximizeHoverBrush", ThemeFeatureMap.WindowButtonMaximizeHoverBrushKey);
         Assert.Equal("WindowButtonCornerRadius", ThemeFeatureMap.WindowButtonCornerRadiusKey);
         Assert.Equal("WindowButtonSize", ThemeFeatureMap.WindowButtonSizeKey);
         Assert.Equal("IconSetName", ThemeFeatureMap.IconSetNameKey);
@@ -142,6 +196,8 @@ public sealed class ThemeFeatureMapTests
         {
             "WindowButtonHoverBrush",
             "WindowButtonCloseHoverBrush",
+            "WindowButtonMinimizeHoverBrush",
+            "WindowButtonMaximizeHoverBrush",
             "WindowButtonCornerRadius",
             "WindowButtonSize",
             "IconSetName"

@@ -145,6 +145,13 @@ namespace Configuration_Management.Themes
             var metrics = ThemeFeatureMap.ButtonMetrics(CurrentWindowButtonStyle);
             app.Resources[ThemeFeatureMap.WindowButtonHoverBrushKey] = ParseBrush(metrics.HoverHex);
             app.Resources[ThemeFeatureMap.WindowButtonCloseHoverBrushKey] = ParseBrush(metrics.CloseHoverHex);
+            // Цвета «светофора» macOS (Задача 3): жёлтый круг «свернуть» и зелёный
+            // «развернуть». У остальных стилей поля null — кнопки используют общую
+            // WindowButtonHoverBrush.
+            app.Resources[ThemeFeatureMap.WindowButtonMinimizeHoverBrushKey] =
+                ParseBrush(metrics.MinimizeHoverHex ?? metrics.HoverHex);
+            app.Resources[ThemeFeatureMap.WindowButtonMaximizeHoverBrushKey] =
+                ParseBrush(metrics.MaximizeHoverHex ?? metrics.HoverHex);
             app.Resources[ThemeFeatureMap.WindowButtonCornerRadiusKey] = metrics.CornerRadius;
             app.Resources[ThemeFeatureMap.WindowButtonSizeKey] = metrics.Size;
         }

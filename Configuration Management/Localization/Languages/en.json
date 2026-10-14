@@ -487,6 +487,7 @@
     "Settings.UtilitiesMenu.EditButton": "Configure structure…",
     "Settings.UtilitiesMenu.Hint": "Enable editing to have the Utilities menu built from your layout instead of the standard one. The \"Configure structure…\" button opens the editor: move items, hide, group, assign icons from the program or an external file, save/load the layout to a file. New program items automatically appear in the \"Program news\" submenu.",
     "Settings.TabAppearance": "Color theme",
+    "Settings.TabThemes": "Themes",
     "Settings.TabAccounts": "Accounts",
     "Settings.TabLanguage": "Language",
     "Settings.Language": "Interface language",
@@ -1386,6 +1387,10 @@
     "Theme.Dark": "Dark",
     "Theme.Blue": "Blue",
     "Theme.Green": "Green",
+    "Theme.Material": "Material Design",
+    "Theme.MacOS": "macOS",
+    "Theme.WindowsXp": "Windows XP",
+    "Theme.Glass": "Glass",
     "Main.LightTheme": "Light theme",
     "Main.DarkTheme": "Dark theme",
 

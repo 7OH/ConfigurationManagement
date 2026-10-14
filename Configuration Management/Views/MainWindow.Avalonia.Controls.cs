@@ -468,15 +468,10 @@ namespace Configuration_Management
         /// </summary>
         private sealed class WindowControlButton : Button
         {
-            // Контуры по разметке WPF (MainWindow.xaml:205-231) в координатном поле
-            // 14 на 14: черта, скруглённые квадрат/два квадрата и крест. Все значки
-            // рисуются обводкой с округлёнными концами/углами.
-            private const string MinimizeData = "M3,7 L11,7";
-            private const string MaximizeData =
-                "M1.5,2.5 A1,1 0 0 1 2.5,1.5 H11.5 A1,1 0 0 1 12.5,2.5 V11.5 A1,1 0 0 1 11.5,12.5 H2.5 A1,1 0 0 1 1.5,11.5 Z";
-            private const string RestoreData =
-                "M0.5,4.5 A1,1 0 0 1 1.5,3.5 H7.5 A1,1 0 0 1 8.5,4.5 V10.5 A1,1 0 0 1 7.5,11.5 H1.5 A1,1 0 0 1 0.5,10.5 Z M4.5,1.5 A1,1 0 0 1 5.5,0.5 H11.5 A1,1 0 0 1 12.5,1.5 V7.5 A1,1 0 0 1 11.5,8.5 H5.5 A1,1 0 0 1 4.5,7.5 Z";
-            private const string CloseData = "M3.5,3.5 L10.5,10.5 M10.5,3.5 L3.5,10.5";
+            // Запасной контур (черта в поле 24×24) — только если резолв активного набора
+            // почему-либо вернул null. Ключи IconMinimize/IconMaximize/IconRestore/IconClose
+            // есть в базовом словаре Icons.axaml, поэтому это недостижимо в норме (Задача 2).
+            private const string MinimizeData = "M6,12 L18,12";
 
             /// <summary>Толщина обводки квадратов (черта — 2.0, крест — 1.7).</summary>
             private const double GlyphStrokeThickness = 1.6;
@@ -493,6 +488,13 @@ namespace Configuration_Management
 
             private IBrush _hoverBg = Brushes.Transparent;
             private IBrush _closeHoverBg = Brushes.Transparent;
+
+            /// <summary>Кисть подложки «свернуть» (Задача 3): у macOS-«светофора» жёлтый круг.</summary>
+            private IBrush _minimizeHoverBg = Brushes.Transparent;
+
+            /// <summary>Кисть подложки «развернуть» (Задача 3): у macOS-«светофора» зелёный круг.</summary>
+            private IBrush _maximizeHoverBg = Brushes.Transparent;
+
             private IBrush _pressedBg = Brushes.Transparent;
             private IBrush _restGlyphBrush = Brushes.Transparent;
             private IBrush _hoverGlyphBrush = Brushes.Transparent;
@@ -516,6 +518,23 @@ namespace Configuration_Management
             // Красная подложка кнопки «закрыть» при нажатии: алый при наведении приходит
             // из темы (WindowButtonCloseHoverBrush), нажатие — темнее. Значок на ней белый.
             private static readonly IBrush ClosePressedBrush = new SolidColorBrush(Color.Parse("#B91C1C"));
+
+            // Тёмный значок «светофора» macOS (Задача 3): почти чёрный под курсором,
+            // полупрозрачный в покое — как у настоящих кнопок macOS.
+            private static readonly IBrush MacOsGlyphBrush = new SolidColorBrush(Color.Parse("#1F1F1F"));
+            private static readonly IBrush MacOsGlyphRestBrush = new SolidColorBrush(Color.Parse("#661F1F1F"));
+
+            /// <summary>Затемняет кисть «светофора» при нажатии (как у кнопок macOS).</summary>
+            private static IBrush Darken(IBrush brush)
+            {
+                if (brush is SolidColorBrush scb)
+                {
+                    var c = scb.Color;
+                    return new SolidColorBrush(Color.FromArgb(c.A,
+                        (byte)(c.R * 0.8), (byte)(c.G * 0.8), (byte)(c.B * 0.8)));
+                }
+                return brush;
+            }
 
             public WindowControlButton(MainWindow window, WindowControlKind kind)
             {
@@ -659,6 +678,8 @@ namespace Configuration_Management
                 var metrics = WindowButtonThemeMetrics.Current();
                 _hoverBg = metrics.Hover;
                 _closeHoverBg = metrics.CloseHover;
+                _minimizeHoverBg = metrics.MinimizeHover;
+                _maximizeHoverBg = metrics.MaximizeHover;
                 _cornerRadius = metrics.CornerRadius;
                 Width = UiMetrics.Scaled(metrics.Size);
                 Height = UiMetrics.Scaled(WindowButtonThemeMetrics.ButtonHeight);
@@ -670,21 +691,30 @@ namespace Configuration_Management
                 ApplyState();
             }
 
-            /// <summary>Смена полноценной темы: перечитываем метрики кнопок окна.</summary>
-            private void OnThemeChanged(object? sender, EventArgs e) => ApplyWindowButtonTheme();
+            /// <summary>
+            /// Смена полноценной темы: перечитываем метрики кнопок окна и пересобираем
+            /// глиф по активному набору иконок (Задача 2).
+            /// </summary>
+            private void OnThemeChanged(object? sender, EventArgs e)
+            {
+                ApplyWindowButtonTheme();
+                UpdateGlyph();
+            }
 
             private Geometry BuildGeometry()
             {
-                var data = _kind switch
+                var key = _kind switch
                 {
-                    WindowControlKind.Minimize => MinimizeData,
-                    WindowControlKind.Close => CloseData,
+                    WindowControlKind.Minimize => "IconMinimize",
+                    WindowControlKind.Close => "IconClose",
                     WindowControlKind.Maximize => _window.WindowState == WindowState.Maximized
-                        ? RestoreData
-                        : MaximizeData,
-                    _ => MaximizeData
+                        ? "IconRestore"
+                        : "IconMaximize",
+                    _ => "IconMaximize"
                 };
-                return StreamGeometry.Parse(data);
+                // Глифы кнопок окна следуют активному набору иконок (Задача 2):
+                // IconHelper резолвит суффиксный ключ набора с fallback на Fluent.
+                return IconHelper.Geometry(key) ?? StreamGeometry.Parse(MinimizeData);
             }
 
             private void UpdateGlyph() => _glyph.Data = BuildGeometry();
@@ -718,6 +748,15 @@ namespace Configuration_Management
                     var redActive = _pressed || _hovered;
                     Background = _pressed ? ClosePressedBrush : (_hovered ? _closeHoverBg : Brushes.Transparent);
                     SetGlyphBrush(redActive ? Brushes.White : restBrush);
+                }
+                else if (ThemeManager.CurrentWindowButtonStyle == WindowButtonStyle.MacOS)
+                {
+                    // «Светофор» macOS (Задача 3): круг всегда цветной — жёлтый у «свернуть»,
+                    // зелёный у «развернуть»; значок тёмный (как у настоящих кнопок macOS),
+                    // при нажатии круг темнеет.
+                    var traffic = _kind == WindowControlKind.Minimize ? _minimizeHoverBg : _maximizeHoverBg;
+                    Background = _pressed ? Darken(traffic) : traffic;
+                    SetGlyphBrush(_hovered || _pressed ? MacOsGlyphBrush : MacOsGlyphRestBrush);
                 }
                 else
                 {

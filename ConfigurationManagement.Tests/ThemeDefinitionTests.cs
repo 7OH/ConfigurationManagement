@@ -17,7 +17,7 @@ public sealed class ThemeDefinitionTests
     {
         var themes = ThemeCatalog.BuiltIn;
 
-        Assert.Equal(4, themes.Count);
+        Assert.Equal(8, themes.Count);
 
         // Светлая.
         Assert.Equal("light", themes[0].Id);
@@ -38,6 +38,23 @@ public sealed class ThemeDefinitionTests
         Assert.Equal("green", themes[3].Id);
         Assert.Equal("Зелёная", themes[3].Name);
         Assert.False(themes[3].IsDark);
+
+        // Задача 3: Material Design, macOS, Windows XP, Glass.
+        Assert.Equal("material", themes[4].Id);
+        Assert.Equal("Material Design", themes[4].Name);
+        Assert.False(themes[4].IsDark);
+
+        Assert.Equal("macos", themes[5].Id);
+        Assert.Equal("macOS", themes[5].Name);
+        Assert.False(themes[5].IsDark);
+
+        Assert.Equal("windowsxp", themes[6].Id);
+        Assert.Equal("Windows XP", themes[6].Name);
+        Assert.False(themes[6].IsDark);
+
+        Assert.Equal("glass", themes[7].Id);
+        Assert.Equal("Glass", themes[7].Name);
+        Assert.False(themes[7].IsDark);
     }
 
     [Fact]

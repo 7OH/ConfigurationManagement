@@ -19,6 +19,13 @@
                      Резолв (IconHelper) выбирает активный набор по ресурсу IconSetName,
                      который выставляет ThemeManager.ApplyIconSet. -->
                 <ResourceInclude Source="avares://ConfigurationManagement/Themes/IconsOutline.axaml" />
+                <!-- Наборы иконок Material/MacOS/WindowsXp/Glass (Задача 2): суффиксные ключи
+                     (IconAdd.Material и т.п.). Отсутствующие в наборе иконки бесшовно
+                     фолбэчатся на Fluent через IconResolutionCandidates. -->
+                <ResourceInclude Source="avares://ConfigurationManagement/Themes/IconsMaterial.axaml" />
+                <ResourceInclude Source="avares://ConfigurationManagement/Themes/IconsMacOS.axaml" />
+                <ResourceInclude Source="avares://ConfigurationManagement/Themes/IconsWindowsXp.axaml" />
+                <ResourceInclude Source="avares://ConfigurationManagement/Themes/IconsGlass.axaml" />
                 <ResourceInclude Source="avares://ConfigurationManagement/Themes/LightTheme.axaml" />
                 <ResourceInclude Source="avares://ConfigurationManagement/Themes/Controls.axaml" />
             </ResourceDictionary.MergedDictionaries>

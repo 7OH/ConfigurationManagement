@@ -128,6 +128,11 @@ namespace Configuration_Management
         {
             InitializeComponent();
 
+            // Глифы кнопок управления окном резолвятся по активному набору иконок (Задача 2):
+            // стартовый рендер берёт Fluent/XAML-контуры, а активный набор применяется здесь
+            // и при каждой смене полноценной темы (см. OnThemeChanged в MainWindow.UtilitiesMenu.cs).
+            UpdateWindowControlGlyphs();
+
             // issue #340 (0.3.9.308): файл диагностики trace.json (или legacy
             // menuclose_trace.json при его наличии) создаётся при КАЖДОМ старте — startup-
             // запись пишется вне зависимости от действий пользователя (в 0.3.9.306 файл
@@ -887,15 +892,34 @@ namespace Configuration_Management
 
                 // Кнопки управления окном: на акцентной шапке нужен вариант «на акценте»
                 // (значок ButtonTextBrush), на обычной — стандартный (значок TextSecondaryBrush).
+                // Стиль macOS-«светофора» (Задача 3) выбирается отдельным шаблоном.
                 if (MinimizeButton is not null && MaximizeButton is not null && CloseButton is not null)
                 {
-                    var minimizeStyle = (Style?)TryFindResource(active ? "WindowControlButtonOnAccent" : "WindowControlButton");
-                    var maximizeStyle = (Style?)TryFindResource(active ? "WindowControlButtonOnAccent" : "WindowControlButton");
-                    var closeStyle = (Style?)TryFindResource(active ? "WindowControlCloseButtonOnAccent" : "WindowControlCloseButton");
+                    var macos = ThemeManager.CurrentWindowButtonStyle == WindowButtonStyle.MacOS;
+                    var minimizeStyle = (Style?)TryFindResource(ThemeManager.WindowButtonStyleKey(close: false, onAccent: active));
+                    var maximizeStyle = minimizeStyle;
+                    var closeStyle = (Style?)TryFindResource(ThemeManager.WindowButtonStyleKey(close: true, onAccent: active));
 
                     MinimizeButton.Style = minimizeStyle;
                     MaximizeButton.Style = maximizeStyle;
                     CloseButton.Style = closeStyle;
+
+                    // «Светофор» macOS: жёлтый круг «свернуть» и зелёный «развернуть»
+                    // задаются кистью HoverBrush каждой кнопки (шаблон рисует круг
+                    // всегда видимым, цвет — из этой кисти). Ссылка на ресурс, а не
+                    // снимок: кисть обновляется при смене темы.
+                    if (macos)
+                    {
+                        MinimizeButton.SetResourceReference(WindowChromeHelper.HoverBrushProperty, "WindowButtonMinimizeHoverBrush");
+                        MaximizeButton.SetResourceReference(WindowChromeHelper.HoverBrushProperty, "WindowButtonMaximizeHoverBrush");
+                    }
+                    else
+                    {
+                        // Возврат к обычному стилю: снимаем локальную кисть, чтобы снова
+                        // действовал DynamicResource WindowButtonHoverBrush из стиля.
+                        MinimizeButton.ClearValue(WindowChromeHelper.HoverBrushProperty);
+                        MaximizeButton.ClearValue(WindowChromeHelper.HoverBrushProperty);
+                    }
                 }
             }
             catch
@@ -1055,6 +1079,28 @@ namespace Configuration_Management
         private void ToggleMaximize()
         {
             WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        }
+
+        /// <summary>
+        /// Резолвит глифы кнопок управления окном по активному набору иконок (Задача 2):
+        /// свернуть/развернуть/восстановить/закрыть берутся из ресурсов набора через
+        /// <see cref="Configuration_Management.Converters.IconKeyToGeometryConverter.ResolveGeometry"/>.
+        /// Вызывается при инициализации окна и при каждой смене полноценной темы.
+        /// </summary>
+        private void UpdateWindowControlGlyphs()
+        {
+            if (MinimizeGlyphPath is null || MaximizeGlyphPath is null ||
+                RestoreGlyphPath is null || CloseGlyphPath is null)
+                return;
+
+            MinimizeGlyphPath.Data =
+                Converters.IconKeyToGeometryConverter.ResolveGeometry("IconMinimize");
+            MaximizeGlyphPath.Data =
+                Converters.IconKeyToGeometryConverter.ResolveGeometry("IconMaximize");
+            RestoreGlyphPath.Data =
+                Converters.IconKeyToGeometryConverter.ResolveGeometry("IconRestore");
+            CloseGlyphPath.Data =
+                Converters.IconKeyToGeometryConverter.ResolveGeometry("IconClose");
         }
 
         /// <summary>

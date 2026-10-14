@@ -19,6 +19,13 @@ namespace Configuration_Management.Themes
 
         public IBrush Hover { get; private set; } = Brushes.Transparent;
         public IBrush CloseHover { get; private set; } = Brushes.Transparent;
+
+        /// <summary>Кисть подложки кнопки «свернуть» (Задача 3): у macOS-«светофора» жёлтый круг.</summary>
+        public IBrush MinimizeHover { get; private set; } = Brushes.Transparent;
+
+        /// <summary>Кисть подложки кнопки «развернуть» (Задача 3): у macOS-«светофора» зелёный круг.</summary>
+        public IBrush MaximizeHover { get; private set; } = Brushes.Transparent;
+
         public double CornerRadius { get; private set; }
         public double Size { get; private set; }
 
@@ -35,6 +42,8 @@ namespace Configuration_Management.Themes
             {
                 Hover = Parse(fallback.HoverHex),
                 CloseHover = Parse(fallback.CloseHoverHex),
+                MinimizeHover = Parse(fallback.MinimizeHoverHex ?? fallback.HoverHex),
+                MaximizeHover = Parse(fallback.MaximizeHoverHex ?? fallback.HoverHex),
                 CornerRadius = fallback.CornerRadius,
                 Size = fallback.Size
             };
@@ -48,6 +57,12 @@ namespace Configuration_Management.Themes
             if (resources.TryGetResource(ThemeFeatureMap.WindowButtonCloseHoverBrushKey, null, out var closeHover)
                 && closeHover is IBrush closeHoverBrush)
                 result.CloseHover = closeHoverBrush;
+            if (resources.TryGetResource(ThemeFeatureMap.WindowButtonMinimizeHoverBrushKey, null, out var minHover)
+                && minHover is IBrush minHoverBrush)
+                result.MinimizeHover = minHoverBrush;
+            if (resources.TryGetResource(ThemeFeatureMap.WindowButtonMaximizeHoverBrushKey, null, out var maxHover)
+                && maxHover is IBrush maxHoverBrush)
+                result.MaximizeHover = maxHoverBrush;
             if (resources.TryGetResource(ThemeFeatureMap.WindowButtonCornerRadiusKey, null, out var radius)
                 && radius is double cornerRadius)
                 result.CornerRadius = cornerRadius;

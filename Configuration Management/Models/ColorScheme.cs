@@ -228,6 +228,71 @@ public class ColorScheme
     public static ColorScheme CreateGreen() => CreateAccent("Зелёная", "#16A34A");
 
     /// <summary>
+    /// Создаёт встроенную схему «Material Design» (Задача 3): фиолетовый акцент
+    /// #7C4DFF, светлые поверхности #FAFAFA/#FFFFFF и тёмные #121212/#1E1E1E.
+    /// </summary>
+    public static ColorScheme CreateMaterial()
+    {
+        var scheme = CreateAccent("Material Design", "#7C4DFF");
+        scheme.LightColors["ContentBackgroundColor"] = "#FAFAFA";
+        scheme.LightColors["CardBackgroundColor"] = "#FFFFFF";
+        scheme.LightColors["BorderColor"] = "#E0E0E0";
+        scheme.DarkColors["ContentBackgroundColor"] = "#121212";
+        scheme.DarkColors["CardBackgroundColor"] = "#1E1E1E";
+        scheme.DarkColors["BorderColor"] = "#2C2C2C";
+        return scheme;
+    }
+
+    /// <summary>
+    /// Создаёт встроенную схему «macOS» (Задача 3): синий акцент #0A84FF,
+    /// светлый фон #F5F5F7 и тёмный #1E1E1E.
+    /// </summary>
+    public static ColorScheme CreateMacOS()
+    {
+        var scheme = CreateAccent("macOS", "#0A84FF");
+        scheme.LightColors["ContentBackgroundColor"] = "#F5F5F7";
+        scheme.LightColors["CardBackgroundColor"] = "#FFFFFF";
+        scheme.LightColors["BorderColor"] = "#D2D2D7";
+        scheme.DarkColors["ContentBackgroundColor"] = "#1E1E1E";
+        scheme.DarkColors["CardBackgroundColor"] = "#2C2C2E";
+        scheme.DarkColors["BorderColor"] = "#3A3A3C";
+        return scheme;
+    }
+
+    /// <summary>
+    /// Создаёт встроенную схему «Windows XP» (Задача 3): синий акцент #3B6EA5,
+    /// светло-голубой фон и классические границы.
+    /// </summary>
+    public static ColorScheme CreateWindowsXp()
+    {
+        var scheme = CreateAccent("Windows XP", "#3B6EA5");
+        scheme.LightColors["ContentBackgroundColor"] = "#DCE9F7";
+        scheme.LightColors["CardBackgroundColor"] = "#FFFFFF";
+        scheme.LightColors["BorderColor"] = "#7F9DB9";
+        scheme.DarkColors["ContentBackgroundColor"] = "#1E1E1E";
+        scheme.DarkColors["CardBackgroundColor"] = "#2C2C2E";
+        scheme.DarkColors["BorderColor"] = "#3B6EA5";
+        return scheme;
+    }
+
+    /// <summary>
+    /// Создаёт встроенную схему «Glass» (Задача 3): синий акцент #007AFF и светлая
+    /// полупрозрачная палитра (#AARRGGBB — альфу поддерживают ColorConverter WPF
+    /// и Color.Parse Avalonia).
+    /// </summary>
+    public static ColorScheme CreateGlass()
+    {
+        var scheme = CreateAccent("Glass", "#007AFF");
+        scheme.LightColors["ContentBackgroundColor"] = "#E8EAF2FB";
+        scheme.LightColors["CardBackgroundColor"] = "#F0F5F9FF";
+        scheme.LightColors["BorderColor"] = "#B3C7E0";
+        scheme.DarkColors["ContentBackgroundColor"] = "#E61A1A2E";
+        scheme.DarkColors["CardBackgroundColor"] = "#E824243E";
+        scheme.DarkColors["BorderColor"] = "#4A4A6A";
+        return scheme;
+    }
+
+    /// <summary>
     /// Создаёт схему с палитрами по умолчанию для обоих режимов. Параметр <paramref name="isDark"/>
     /// сохраняется только в устаревшем поле <see cref="IsDark"/> (для совместимости); сама схема
     /// всегда содержит и светлую, и тёмную палитру. Акцентный цвет заполняется стандартным

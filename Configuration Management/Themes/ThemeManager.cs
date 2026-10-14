@@ -167,12 +167,38 @@ namespace Configuration_Management.Themes
             var metrics = ThemeFeatureMap.ButtonMetrics(CurrentWindowButtonStyle);
             app.Resources[ThemeFeatureMap.WindowButtonHoverBrushKey] = ParseBrush(metrics.HoverHex);
             app.Resources[ThemeFeatureMap.WindowButtonCloseHoverBrushKey] = ParseBrush(metrics.CloseHoverHex);
+            // Цвета «светофора» macOS (Задача 3): жёлтый круг «свернуть» и зелёный
+            // «развернуть». У остальных стилей поля null — кнопки используют общую
+            // WindowButtonHoverBrush.
+            app.Resources[ThemeFeatureMap.WindowButtonMinimizeHoverBrushKey] =
+                ParseBrush(metrics.MinimizeHoverHex ?? metrics.HoverHex);
+            app.Resources[ThemeFeatureMap.WindowButtonMaximizeHoverBrushKey] =
+                ParseBrush(metrics.MaximizeHoverHex ?? metrics.HoverHex);
             // Радиус кладём типизированным CornerRadius: шаблон кнопки привязывает
             // свойство CornerRadius напрямую, а конвертации double → CornerRadius во
             // фреймворке нет. Avalonia-версия ThemeManager кладёт double — там кнопки
             // читают ресурс кодом.
             app.Resources[ThemeFeatureMap.WindowButtonCornerRadiusKey] = new CornerRadius(metrics.CornerRadius);
             app.Resources[ThemeFeatureMap.WindowButtonSizeKey] = metrics.Size;
+        }
+
+        /// <summary>
+        /// Ключ стиля кнопки управления окном для текущего стиля кнопок (Задача 3):
+        /// macOS использует отдельные шаблоны «светофора» (три цветных круга),
+        /// остальные стили — общие шаблоны WindowControlButton/WindowControlCloseButton.
+        /// Используется главным окном (MainWindow.xaml.cs) и WindowChromeHelper.
+        /// </summary>
+        public static string WindowButtonStyleKey(bool close, bool onAccent)
+        {
+            if (CurrentWindowButtonStyle == WindowButtonStyle.MacOS)
+            {
+                return close
+                    ? (onAccent ? "WindowControlCloseButtonMacOSOnAccent" : "WindowControlCloseButtonMacOS")
+                    : (onAccent ? "WindowControlButtonMacOSOnAccent" : "WindowControlButtonMacOS");
+            }
+            return close
+                ? (onAccent ? "WindowControlCloseButtonOnAccent" : "WindowControlCloseButton")
+                : (onAccent ? "WindowControlButtonOnAccent" : "WindowControlButton");
         }
 
         /// <summary>

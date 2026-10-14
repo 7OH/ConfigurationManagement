@@ -846,6 +846,88 @@
 
             </TabItem>
 
+            <!-- ============ Вкладка «Темы» ============ -->
+            <TabItem Style="{StaticResource SettingsTabItem}">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="ThemeLightDark" Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                        <TextBlock Text="{loc:Loc Settings.TabThemes}" VerticalAlignment="Center"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Margin="4,12,4,0" Padding="0,0,4,0">
+                    <StackPanel>
+                        <!-- Полноценная тема: выбор применяется мгновенно и сохраняется в AppSettings.FullTheme. -->
+                        <GroupBox Header="{loc:Loc Settings.FullTheme}" Padding="8" Margin="0,0,0,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="{loc:Loc Settings.FullThemeLabel}" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <ComboBox x:Name="FullThemeComboBox" Width="240" Height="34" Margin="10,0,0,0"
+                                              VerticalAlignment="Center"
+                                              Style="{StaticResource ModernComboBox}"
+                                              SelectionChanged="OnFullThemeCombo_SelectionChanged"/>
+                                </StackPanel>
+                                <TextBlock Text="{loc:Loc Settings.FullTheme.Description}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Мини-превью темы: цвета, кнопки и иконки обновляются вместе с темой. -->
+                        <GroupBox Header="{loc:Loc Settings.Preview}" Padding="8" Margin="0,0,0,12">
+                            <Border Width="300" CornerRadius="8" BorderThickness="1"
+                                    Background="{DynamicResource CardBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushColor}"
+                                    Padding="12" HorizontalAlignment="Left">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <Border Width="18" Height="18" CornerRadius="4"
+                                                Background="{DynamicResource AccentBrush}"/>
+                                        <Border Width="18" Height="18" CornerRadius="4" Margin="8,0,0,0"
+                                                Background="{DynamicResource CardBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"/>
+                                        <Border Width="18" Height="18" CornerRadius="4" Margin="8,0,0,0"
+                                                Background="{DynamicResource ContentBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrushColor}" BorderThickness="1"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <Button Style="{DynamicResource ModernButton}" Padding="12,5" Margin="0,0,8,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon Kind="Check" Width="14" Height="14"
+                                                                         Foreground="{DynamicResource ButtonTextBrush}"
+                                                                         Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{loc:Loc Common.Apply}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{DynamicResource SecondaryButton}" Padding="12,5">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon Kind="Close" Width="14" Height="14"
+                                                                         Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                         Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{loc:Loc Common.Cancel}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="Folder" Width="16" Height="16"
+                                                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                 Margin="0,0,8,0"/>
+                                        <materialDesign:PackIcon Kind="Database" Width="16" Height="16"
+                                                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                 Margin="0,0,8,0"/>
+                                        <materialDesign:PackIcon Kind="Magnify" Width="16" Height="16"
+                                                                 Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ============ Вкладка «Цветовое оформление» ============ -->
             <TabItem Style="{StaticResource SettingsTabItem}">
                 <TabItem.Header>
@@ -869,24 +951,6 @@
                     <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,0">
                         <StackPanel>
-                            <!-- Полноценная тема (Задача 3): Светлая/Тёмная/Синяя/Зелёная.
-                                 Выбор применяется мгновенно и сохраняется в AppSettings.FullTheme. -->
-                            <GroupBox Header="{loc:Loc Settings.FullTheme}" Padding="8" Margin="0,0,0,12">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                        <TextBlock Text="{loc:Loc Settings.FullThemeLabel}" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <ComboBox x:Name="FullThemeComboBox" Width="240" Height="34" Margin="10,0,0,0"
-                                                  VerticalAlignment="Center"
-                                                  Style="{StaticResource ModernComboBox}"
-                                                  SelectionChanged="OnFullThemeCombo_SelectionChanged"/>
-                                    </StackPanel>
-                                    <TextBlock Text="{loc:Loc Settings.FullTheme.Description}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </GroupBox>
-
                             <GroupBox Header="{loc:Loc Settings.Theme}" Padding="8" Margin="0,0,0,12">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">

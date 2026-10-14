@@ -12,5 +12,17 @@ public enum IconSet
     Fluent,
 
     /// <summary>Контурные (Outline) иконки.</summary>
-    Outline
+    Outline,
+
+    /// <summary>Материальные (Material) иконки — заполненные формы Material Design.</summary>
+    Material,
+
+    /// <summary>Иконки в духе macOS (SF Symbols) — тонкие контурные линии.</summary>
+    MacOS,
+
+    /// <summary>Иконки в стиле классической Windows XP — заполненные формы.</summary>
+    WindowsXp,
+
+    /// <summary>Стеклянные (Glass) иконки — лёгкие контурные линии.</summary>
+    Glass
 }
