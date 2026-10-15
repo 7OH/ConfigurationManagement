@@ -235,12 +235,13 @@ namespace Configuration_Management
                     var configName = config?.Name ?? _row.Name;
                     var currentVersion = _row.CurrentVersion;
                     var result = await Task.Run(
-                        () => _updates.CheckForUpdatesAsync(configName, currentVersion, url, token), token);
+                        () => _updates.CheckForUpdatesAsync(configName, currentVersion, url, token,
+                            accountId: config?.AccountId), token);
                     _row.ApplyResult(result);
                     SaveUpdateCache(result);
                     // Цепочка обновлений (issue #352): при наличии нового релиза строим
                     // варианты от текущей версии до последней и показываем их в таблице.
-                    await BuildChainsAsync(url, token);
+                    await BuildChainsAsync(url, token, config?.AccountId);
                 }
             }
             catch (OperationCanceledException)
@@ -274,6 +275,11 @@ namespace Configuration_Management
             return _store.LoadAll().FirstOrDefault(c =>
                 string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
         }
+
+        /// <summary>Учётная запись ИТС, назначенная связанной конфигурации (issue #371): передаётся
+        /// сервису для запросов к сайту 1С (проверка/каталог/файлы релиза). Пусто — сервис использует
+        /// «Основную» запись справочника либо выбранную в настройках (issue #333).</summary>
+        private string? ResolveAccountId() => FindLinkedConfig()?.AccountId;
 
         /// <summary>Обновляет текстовые ячейки деталей и состояние кнопок из модели строки.</summary>
         private void RefreshDetailDisplay()
@@ -317,7 +323,11 @@ namespace Configuration_Management
                 return;
 
             var settings = _repository.LoadSettings();
-            var account = _itsAccounts.Resolve(settings.ItsAccountId);
+            // issue #371: имя показываемой записи — из привязки конфигурации (используется
+            // для запросов), иначе глобальная из настроек.
+            var accountId = ResolveAccountId();
+            var account = _itsAccounts.Resolve(
+                string.IsNullOrWhiteSpace(accountId) ? settings.ItsAccountId : accountId);
             var accountName = account is not null && !string.IsNullOrWhiteSpace(account.Name)
                 ? account.Name!
                 : T("Updates.AccountPrimary");
@@ -327,7 +337,8 @@ namespace Configuration_Management
         /// <summary>True — ключ ошибки относится к авторизации на portal.1c.ru (для панели действий).</summary>
         private static bool IsAuthErrorKey(string error)
             => error is "Updates.AuthRequired" or "Updates.AuthFailed"
-                or "Updates.FormUnavailable" or "Updates.LoginLimitReached";
+                or "Updates.FormUnavailable" or "Updates.LoginLimitReached"
+                or "Updates.NoAccess";
 
         /// <summary>Открывает login.1c.ru в браузере (issue #323/#330/#334): пользователь выполняет
         /// вход вручную, после чего возвращается в окно и повторяет проверку.</summary>
@@ -514,7 +525,8 @@ namespace Configuration_Management
                     // чтобы адрес без ver резолвился в неё, а не в глобальную последнюю.
                     var downloadUrl = ResolveDownloadUrl(row);
                     choices = await Task.Run(() =>
-                        _updates.GetReleaseFileChoicesAsync(downloadUrl, CancellationToken.None, row.LatestVersion));
+                        _updates.GetReleaseFileChoicesAsync(downloadUrl, CancellationToken.None, row.LatestVersion,
+                            ResolveAccountId()));
                 }
                 catch (Exception ex)
                 {
@@ -663,7 +675,8 @@ namespace Configuration_Management
             try
             {
                 var savedPath = await Task.Run(() =>
-                    _updates.DownloadUpdateAsync(url, targetPath, progress, entry.Cancellation.Token));
+                    _updates.DownloadUpdateAsync(url, targetPath, progress, entry.Cancellation.Token,
+                        ResolveAccountId()));
 
                 if (string.IsNullOrWhiteSpace(savedPath))
                 {
@@ -748,7 +761,7 @@ namespace Configuration_Management
         /// каталога не роняют результат основной проверки: состояние цепочки сбрасывается,
         /// остаётся прежнее поведение — «Скачать» только последнюю версию.
         /// </summary>
-        private async Task BuildChainsAsync(string url, CancellationToken token)
+        private async Task BuildChainsAsync(string url, CancellationToken token, string? accountId = null)
         {
             _row.ResetChains();
             if (!_row.HasNewer || string.IsNullOrWhiteSpace(_row.CurrentVersion)
@@ -767,7 +780,7 @@ namespace Configuration_Management
                 // issue #352: каталог запрашивается с allUpdates=true — без параметра портал
                 // отдаёт только последние релизы, и цепочка не строится.
                 var catalogUrl = OneCUpdatesService.BuildAllUpdatesCatalogUrl(url);
-                var catalog = await Task.Run(() => _updates.GetUpdateCatalogAsync(catalogUrl, token), token);
+                var catalog = await Task.Run(() => _updates.GetUpdateCatalogAsync(catalogUrl, token, accountId), token);
                 if (catalog.Status == PortalFetchStatus.Ok)
                 {
                     // Кэш каталога (issue #352.4): переключение галочки «Не повышать»
@@ -1161,7 +1174,7 @@ namespace Configuration_Management
             // («Дистрибутив обновления»), сбой — fallback «Имя_версия.zip».
             var originalFileNames = new List<string?>();
             foreach (var step in variant.Steps)
-                originalFileNames.Add(await TryResolveChainFileNameAsync(step, downloadToken));
+                originalFileNames.Add(await TryResolveChainFileNameAsync(step, downloadToken, ResolveAccountId()));
             var targetPaths = UpdateChainDownloadPlanner.BuildChainTargetPaths(
                 folder, _row.Name,
                 variant.Steps.Select(s => s.Version).ToList(),
@@ -1219,7 +1232,7 @@ namespace Configuration_Management
                         baseText, chainEta.EstimatedRemaining);
                 }));
                 var saved = await Task.Run(() =>
-                    _updates.DownloadUpdateAsync(url, targetPath, progress, downloadToken));
+                    _updates.DownloadUpdateAsync(url, targetPath, progress, downloadToken, ResolveAccountId()));
 
                 if (!string.IsNullOrWhiteSpace(saved))
                 {
@@ -1259,12 +1272,12 @@ namespace Configuration_Management
         /// цепочки сохранялись под оригинальными именами, как одиночное скачивание. Сбой
         /// сети/пустой список — null (fallback «Имя_версия.zip»).
         /// </summary>
-        private async Task<string?> TryResolveChainFileNameAsync(Models.PlatformRelease step, CancellationToken ct)
+        private async Task<string?> TryResolveChainFileNameAsync(Models.PlatformRelease step, CancellationToken ct, string? accountId = null)
         {
             try
             {
                 var url = OneCUpdatesService.ToAbsoluteVersionFilesUrl(step.VersionFilesUrl, _row.Url);
-                var choices = await _updates.GetReleaseFileChoicesAsync(url, ct);
+                var choices = await _updates.GetReleaseFileChoicesAsync(url, ct, accountId: accountId);
                 var choice = choices.FirstOrDefault(c =>
                                  c.CaptionKey == UpdateFileChoice.UpdateDistributionCaptionKey)
                              ?? choices.FirstOrDefault();
@@ -1350,15 +1363,18 @@ namespace Configuration_Management
 
             // Сводка в один ряд: Текущая версия | Последняя версия | Статус (issue #352).
             var summary = new Grid();
-            summary.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1.2, GridUnitType.Star)));
-            summary.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1.2, GridUnitType.Star)));
-            summary.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            summary.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(0.8, GridUnitType.Star)));
+            summary.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(0.8, GridUnitType.Star)));
+            summary.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1.6, GridUnitType.Star)));
             _currentVersionText.FontSize = 14;
             _currentVersionText.FontWeight = FontWeight.SemiBold;
             _latestVersionText.FontSize = 14;
             _latestVersionText.FontWeight = FontWeight.SemiBold;
             _statusText.FontSize = 14;
             _statusText.FontWeight = FontWeight.SemiBold;
+            // issue #371: статус переносится по словам — длинные сообщения («каталог доступен,
+            // но версия не распарсена») не обрезаются и не раздвигают колонки версий.
+            _statusText.TextWrapping = TextWrapping.Wrap;
             // issue #352: предупреждение «Версии нет на сайте» — третьей строкой в колонке
             // «Текущая версия»; видимость переключается в RefreshChainDisplay.
             _currentVersionMissingText.Text = T("Updates.Chain.VersionMissing");

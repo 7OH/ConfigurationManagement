@@ -34,6 +34,10 @@ public enum PortalFetchStatus
     /// <summary>Запрошенный ресурс не найден (HTTP 404 — страница-маркер «404 Not Found»).</summary>
     NotFound,
 
+    /// <summary>Учётная запись не имеет доступа к обновлениям этого продукта: сервер вернул
+    /// страницу «У Вас нет доступа» с HTTP 200 (issue #371).</summary>
+    AccessDenied,
+
     /// <summary>Сетевая ошибка, пустое тело ответа либо неизвестный сбой.</summary>
     NetworkError,
 

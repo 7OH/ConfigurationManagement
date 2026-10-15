@@ -632,29 +632,29 @@ public sealed class PlatformUpdateServiceTests
             => string.Empty;
 
         public Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(
-            string configName, string currentVersion, string url, CancellationToken ct = default, string? familyHint = null)
+            string configName, string currentVersion, string url, CancellationToken ct = default, string? familyHint = null, string? accountId = null)
             => Task.FromResult(new ConfigUpdateCheckResult());
 
         public Task<string?> DownloadUpdateAsync(
-            string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
+            string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default, string? accountId = null)
             => Task.FromResult<string?>(null);
 
         public Task<string?> DownloadDistributionAsync(
-            string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
+            string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default, string? accountId = null)
             => Task.FromResult<string?>(null);
 
         public Task<System.Collections.Generic.IReadOnlyList<UpdateFileChoice>> GetReleaseFileChoicesAsync(
-            string url, CancellationToken ct = default, string? knownLatestVersion = null)
+            string url, CancellationToken ct = default, string? knownLatestVersion = null, string? accountId = null)
             => Task.FromResult<System.Collections.Generic.IReadOnlyList<UpdateFileChoice>>(
                 System.Array.Empty<UpdateFileChoice>());
 
-        public Task<string?> GetPageTextAsync(string url, CancellationToken ct = default)
+        public Task<string?> GetPageTextAsync(string url, CancellationToken ct = default, string? accountId = null)
             => Task.FromResult<string?>(null);
 
-        public Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default)
+        public Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default, string? accountId = null)
             => Task.FromResult(new PortalPageResult { Status = PortalFetchStatus.NetworkError });
 
-        public Task<ConfigUpdateCatalogResult> GetUpdateCatalogAsync(string url, CancellationToken ct = default)
+        public Task<ConfigUpdateCatalogResult> GetUpdateCatalogAsync(string url, CancellationToken ct = default, string? accountId = null)
             => Task.FromResult(new ConfigUpdateCatalogResult { Status = PortalFetchStatus.NetworkError });
     }
 

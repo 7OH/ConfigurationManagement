@@ -108,9 +108,9 @@
                     <!-- Сводка в один ряд: Текущая версия | Последняя версия | Статус (issue #352). -->
                     <Grid Margin="0,4,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.2*"/>
-                            <ColumnDefinition Width="1.2*"/>
-                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="0.8*"/>
+                            <ColumnDefinition Width="0.8*"/>
+                            <ColumnDefinition Width="1.6*"/>
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Margin="0,0,16,0">
@@ -158,7 +158,7 @@
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,4"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        Text="{loc:Loc Updates.Status}"/>
-                            <TextBlock x:Name="StatusText" FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="StatusText" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Grid>
 

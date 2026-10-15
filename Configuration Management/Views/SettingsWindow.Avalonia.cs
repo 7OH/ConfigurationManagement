@@ -98,9 +98,9 @@ namespace Configuration_Management
             // ни в какую разумную ширину, поэтому полоса вкладок слева.
             // Размеры и кегль окна из разметки (SettingsWindow.xaml:14-21).
             Width = 880;
-            Height = 680;
+            Height = 720;
             MinWidth = 760;
-            MinHeight = 560;
+            MinHeight = 620;
             FontSize = 13;
 
             _viewModel = viewModel;

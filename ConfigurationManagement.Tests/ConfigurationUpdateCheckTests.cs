@@ -469,28 +469,28 @@ public sealed class ConfigurationUpdateCheckTests
         public string BuildUpdateUrl(OneCConfigType? config, OneCConfigEdition? edition, string? urlOverride, string? urlSegment = null)
             => BuildUpdateUrlResult;
 
-        public Task<ConfigUpdateCatalogResult> GetUpdateCatalogAsync(string url, CancellationToken ct = default)
+        public Task<ConfigUpdateCatalogResult> GetUpdateCatalogAsync(string url, CancellationToken ct = default, string? accountId = null)
         {
             LastCatalogUrl = url;
             return Task.FromResult(_catalog);
         }
 
         public Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(
-            string configName, string currentVersion, string url, CancellationToken ct = default, string? familyHint = null)
+            string configName, string currentVersion, string url, CancellationToken ct = default, string? familyHint = null, string? accountId = null)
             => throw new NotSupportedException();
 
-        public Task<string?> DownloadUpdateAsync(string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
+        public Task<string?> DownloadUpdateAsync(string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default, string? accountId = null)
             => throw new NotSupportedException();
 
-        public Task<string?> DownloadDistributionAsync(string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
+        public Task<string?> DownloadDistributionAsync(string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default, string? accountId = null)
             => throw new NotSupportedException();
 
-        public Task<IReadOnlyList<UpdateFileChoice>> GetReleaseFileChoicesAsync(string url, CancellationToken ct = default, string? knownLatestVersion = null)
+        public Task<IReadOnlyList<UpdateFileChoice>> GetReleaseFileChoicesAsync(string url, CancellationToken ct = default, string? knownLatestVersion = null, string? accountId = null)
             => throw new NotSupportedException();
 
-        public Task<string?> GetPageTextAsync(string url, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<string?> GetPageTextAsync(string url, CancellationToken ct = default, string? accountId = null) => throw new NotSupportedException();
 
-        public Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default, string? accountId = null) => throw new NotSupportedException();
 
         public IReadOnlyList<OneCConfigType> BuiltInConfigTypes => Array.Empty<OneCConfigType>();
     }

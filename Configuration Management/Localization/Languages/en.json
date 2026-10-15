@@ -2700,6 +2700,7 @@
     "Updates.NewerAvailable": "A newer version is available",
     "Updates.Unavailable": "Catalog available, exact version not determined",
     "Updates.NotFound": "Release catalog not found (404). Check the link.",
+    "Updates.NoAccess": "No access to updates for this configuration (the \"No access\" page). Check your ITS subscription and the account in use.",
     "Updates.NetworkError": "Network error while checking for updates",
     "Updates.Cancelled": "Check cancelled",
     "Updates.NoUrl": "Release catalog URL is not set",

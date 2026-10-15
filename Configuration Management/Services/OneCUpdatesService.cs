@@ -293,7 +293,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <inheritdoc />
     public async Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(
         string configName, string currentVersion, string url, CancellationToken ct = default,
-        string? familyHint = null)
+        string? familyHint = null, string? accountId = null)
     {
         var result = new ConfigUpdateCheckResult
         {
@@ -321,7 +321,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct, accountId).ConfigureAwait(false);
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -382,13 +382,25 @@ public class OneCUpdatesService : IOneCUpdatesService
                 return result;
             }
 
+            // Страница «У Вас нет доступа» может прийти с HTTP 200 (issue #371): releases.1c.ru
+            // возвращает заглушку для продуктов, не входящих в подписку ИТС учётной записи
+            // (например «ПРОФ» при подписке на «Базовая»). Распознаём по содержимому и
+            // показываем понятную ошибку вместо «каталог доступен, но версия не распарсена».
+            if (LooksLikeAccessDeniedPage(body))
+            {
+                _logger.Warn($"[Updates] Получена страница «нет доступа» вместо содержимого каталога ({url}).");
+                result.Status = ConfigUpdateStatus.Failed;
+                result.Error = "Updates.NoAccess";
+                return result;
+            }
+
             // JS/meta-refresh редирект в теле (issue #371): releases.1c.ru может отдавать
             // короткую страницу-заглушку (len≈11760) с <meta http-equiv="refresh"> или
             // JS-редиректом вместо каталога с таблицей #versionsTable. Следуем за редиректом
             // (с защитой от зацикливания), чтобы получить настоящий каталог.
             if (ExtractBodyRedirectUrl(body) is not null)
             {
-                var followed = await FollowBodyRedirectsAsync(body, url, ct).ConfigureAwait(false);
+                var followed = await FollowBodyRedirectsAsync(body, url, ct, accountId).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(followed))
                     body = followed;
             }
@@ -467,7 +479,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                 {
                     if (UpdatesTraceEnabled)
                         _logger.Info($"[Updates] Первый проход: '{latest}' ({url}) — запрашиваю полный каталог: {fullUrl}");
-                    var fullBody = await FetchCatalogBodyAsync(fullUrl, ct).ConfigureAwait(false);
+                    var fullBody = await FetchCatalogBodyAsync(fullUrl, ct, accountId).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(fullBody))
                     {
                         var fullLatest = ParseLatestVersionFromProjectHtml(fullBody, family);
@@ -544,7 +556,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// защитой от зацикливания. При сетевой ошибке или недоступности возвращает null —
     /// вызывающий продолжает с прежним результатом.
     /// </summary>
-    private async Task<string?> FetchCatalogBodyAsync(string url, CancellationToken ct)
+    private async Task<string?> FetchCatalogBodyAsync(string url, CancellationToken ct, string? accountId = null)
     {
         var currentUrl = url;
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -560,7 +572,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, currentUrl);
-                using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+                using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct, accountId).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
                     // Диагностика (issue #371): фиксируем реальный код ответа и конечный URI —
@@ -613,7 +625,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// защитой от зацикливания) либо исходное тело, если редиректа нет/он нерезолвен/переход
     /// не удался.
     /// </summary>
-    private async Task<string> FollowBodyRedirectsAsync(string body, string url, CancellationToken ct)
+    private async Task<string> FollowBodyRedirectsAsync(string body, string url, CancellationToken ct, string? accountId = null)
     {
         var redirect = ExtractBodyRedirectUrl(body);
         if (redirect is null)
@@ -625,7 +637,7 @@ public class OneCUpdatesService : IOneCUpdatesService
 
         var targetUrl = target.ToString();
         _logger.Info($"[Updates] JS/meta-refresh редирект: {url} -> {targetUrl}");
-        var nextBody = await FetchCatalogBodyAsync(targetUrl, ct).ConfigureAwait(false);
+        var nextBody = await FetchCatalogBodyAsync(targetUrl, ct, accountId).ConfigureAwait(false);
         return nextBody ?? body;
     }
 
@@ -1100,7 +1112,8 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <inheritdoc />
     public async Task<string?> DownloadUpdateAsync(
-        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
+        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default,
+        string? accountId = null)
     {
         if (string.IsNullOrWhiteSpace(url))
             return null;
@@ -1128,7 +1141,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                 }
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, currentUrl);
-                using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+                using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseHeadersRead, ct, accountId)
                     .ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)
@@ -1272,7 +1285,8 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <inheritdoc />
     public async Task<string?> DownloadDistributionAsync(
-        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default)
+        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default,
+        string? accountId = null)
     {
         if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(targetPath))
             return null;
@@ -1297,7 +1311,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             var effectiveUrl = url;
             if (IsPageEndpointUrl(url))
             {
-                var resolved = await ResolveDistributionUrlAsync(url, ct).ConfigureAwait(false);
+                var resolved = await ResolveDistributionUrlAsync(url, ct, accountId).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(resolved) &&
                     !string.Equals(resolved, url, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1315,7 +1329,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             // 1) Многопоточная загрузка: отдельный HttpClient с авторизацией портала
             //    (Basic Auth + общий CookieContainer) и AllowAutoRedirect=true для CDN;
             //    клиент создаётся только на время операции и освобождается после неё.
-            using (var parallelClient = CreateParallelClient())
+            using (var parallelClient = CreateParallelClient(accountId))
             {
                 var parallelResult = await ParallelDownloader.TryDownloadAsync(
                         parallelClient, effectiveUrl, targetPath,
@@ -1382,7 +1396,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// ведёт к следующей ссылке; страница входа/цикл/предел переходов — null. Ошибки сети
     /// не бросают исключение — возвращается null.
     /// </summary>
-    internal async Task<string?> ResolveDistributionUrlAsync(string url, CancellationToken ct = default)
+    internal async Task<string?> ResolveDistributionUrlAsync(string url, CancellationToken ct = default, string? accountId = null)
     {
         if (string.IsNullOrWhiteSpace(url))
             return null;
@@ -1399,7 +1413,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             }
 
             using var request = new HttpRequestMessage(HttpMethod.Get, currentUrl);
-            using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+            using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseHeadersRead, ct, accountId)
                 .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
                 return null;
@@ -1451,7 +1465,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// для ЭТОЙ версии без запроса полной таблицы каталога (каталог остаётся запасным
     /// путём при null/пустой версии).</param>
     public async Task<IReadOnlyList<UpdateFileChoice>> GetReleaseFileChoicesAsync(
-        string url, CancellationToken ct = default, string? knownLatestVersion = null)
+        string url, CancellationToken ct = default, string? knownLatestVersion = null, string? accountId = null)
     {
         var result = new List<UpdateFileChoice>();
         if (string.IsNullOrWhiteSpace(url))
@@ -1524,7 +1538,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             var candidates = ParseReleaseFileLinks(body, versionFilesUrl);
             foreach (var (captionKey, pageUrl, fileName) in candidates)
             {
-                var resolved = await ResolveDistributionUrlAsync(pageUrl, ct).ConfigureAwait(false);
+                var resolved = await ResolveDistributionUrlAsync(pageUrl, ct, accountId).ConfigureAwait(false);
                 var finalUrl = string.IsNullOrWhiteSpace(resolved) ? pageUrl : resolved;
                 var name = ExtractFileNameFromUrl(finalUrl);
                 if (string.IsNullOrEmpty(name))
@@ -1691,6 +1705,14 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (HasForeignUpdateSuffix(name))
             return null;
 
+        // «Дистрибутив обновления для перехода с версии ПРОФ» (issue #380): подпись
+        // содержит «дистрибутив обновления», а файл — маркер updstpp (например
+        // AccountingCorp_3_0_208_14_updstpp.zip). Такой файл — переходный дистрибутив
+        // для ПРОФ-версий, а не обычное обновление; отсеивается полностью, чтобы
+        // цепочка/одиночное скачивание не подхватывали его вместо updsetup.
+        if (IsTransitionUpdateDistribution(cap, name))
+            return null;
+
         var isUpdate = cap.Contains("дистрибутив обновления", StringComparison.OrdinalIgnoreCase)
             || cap.Contains("update distribution", StringComparison.OrdinalIgnoreCase)
             || name.Contains("updsetup", StringComparison.OrdinalIgnoreCase);
@@ -1718,6 +1740,22 @@ public class OneCUpdatesService : IOneCUpdatesService
         var baseName = Path.GetFileNameWithoutExtension(name);
         var idx = baseName.IndexOf("updsetup", StringComparison.OrdinalIgnoreCase);
         return idx >= 0 && baseName.Length > idx + "updsetup".Length;
+    }
+
+    /// <summary>True — «Дистрибутив обновления для перехода» (issue #380): подпись содержит
+    /// «для перехода»/«for transition» либо имя файла содержит маркер <c>updstpp</c>
+    /// (например <c>AccountingCorp_3_0_208_14_updstpp.zip</c> — обновление для перехода
+    /// с версии ПРОФ). Такой файл не является обычным «Дистрибутивом обновления» и
+    /// отсеивается полностью (и из «обновления», и из «полного»).</summary>
+    private static bool IsTransitionUpdateDistribution(string caption, string fileName)
+    {
+        if (caption.Contains("для перехода", StringComparison.OrdinalIgnoreCase)
+            || caption.Contains("for transition", StringComparison.OrdinalIgnoreCase)
+            || caption.Contains("transitional", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var baseName = Path.GetFileNameWithoutExtension(fileName);
+        return baseName.Contains("updstpp", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Извлекает имя файла из адреса: последний сегмент пути либо значение
@@ -1786,7 +1824,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// логируются), User-Agent/Accept — как у основного клиента, таймаут дольше (крупные
     /// файлы). Клиент используется только в пределах одной операции загрузки и освобождается.
     /// </summary>
-    private HttpClient CreateParallelClient()
+    private HttpClient CreateParallelClient(string? accountId = null)
     {
         var handler = _handlerOverride ?? new HttpClientHandler
         {
@@ -1804,7 +1842,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,*/*;q=0.8");
 
-        var (login, password) = GetCredentials();
+        var (login, password) = GetCredentials(accountId);
         if (!string.IsNullOrEmpty(login))
         {
             var token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{login}:{password}"));
@@ -2192,9 +2230,9 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <inheritdoc />
-    public async Task<string?> GetPageTextAsync(string url, CancellationToken ct = default)
+    public async Task<string?> GetPageTextAsync(string url, CancellationToken ct = default, string? accountId = null)
     {
-        var page = await FetchPageCoreAsync(url, ct).ConfigureAwait(false);
+        var page = await FetchPageCoreAsync(url, ct, accountId).ConfigureAwait(false);
         if (page.Status != PortalFetchStatus.Ok)
         {
             _logger.Warn($"[Updates] Не удалось получить страницу ({page.Status}): {url}");
@@ -2205,13 +2243,13 @@ public class OneCUpdatesService : IOneCUpdatesService
     }
 
     /// <inheritdoc />
-    public async Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default)
-        => await FetchPageCoreAsync(url, ct).ConfigureAwait(false);
+    public async Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default, string? accountId = null)
+        => await FetchPageCoreAsync(url, ct, accountId).ConfigureAwait(false);
 
     /// <inheritdoc />
-    public async Task<ConfigUpdateCatalogResult> GetUpdateCatalogAsync(string url, CancellationToken ct = default)
+    public async Task<ConfigUpdateCatalogResult> GetUpdateCatalogAsync(string url, CancellationToken ct = default, string? accountId = null)
     {
-        var page = await FetchPageAsync(url, ct).ConfigureAwait(false);
+        var page = await FetchPageAsync(url, ct, accountId).ConfigureAwait(false);
         if (page.Status != PortalFetchStatus.Ok)
             return CatalogFailure(page.Status);
 
@@ -2241,6 +2279,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             PortalFetchStatus.AuthFailed => "Updates.AuthFailed",
             PortalFetchStatus.LoginLimitReached => "Updates.LoginLimitReached",
             PortalFetchStatus.FormUnavailable => "Updates.FormUnavailable",
+            PortalFetchStatus.AccessDenied => "Updates.NoAccess",
             PortalFetchStatus.NotFound => "Updates.NotFound",
             PortalFetchStatus.Cancelled => "Updates.Cancelled",
             _ => "Updates.NetworkError",
@@ -2253,12 +2292,12 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// а вход не выполнялся либо не настроен); AuthFailed — вход предпринимался, но сервер не
     /// подтвердил учётные данные (401/цепочка на странице входа, issue #334/#330/#323);
     /// NetworkError — сеть/HTTP/пусто; Cancelled — отмена. Исключения наружу не бросаются.</summary>
-    private async Task<PortalPageResult> FetchPageCoreAsync(string url, CancellationToken ct)
+    private async Task<PortalPageResult> FetchPageCoreAsync(string url, CancellationToken ct, string? accountId = null)
     {
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct)
+            using var response = await SendWithAuthAsync(request, HttpCompletionOption.ResponseContentRead, ct, accountId)
                 .ConfigureAwait(false);
 
             var authFailed = _lastLoginResult is PortalLoginResult.AuthFailed or PortalLoginResult.RedirectFailed;
@@ -2305,6 +2344,14 @@ public class OneCUpdatesService : IOneCUpdatesService
                     : PortalFetchStatus.AuthRequired);
             }
 
+            // Страница «У Вас нет доступа» (HTTP 200, issue #371): доступ учётной записи к
+            // продукту не предоставлен — отдельный статус с понятной ошибкой (Updates.NoAccess).
+            if (LooksLikeAccessDeniedPage(body))
+            {
+                _logger.Warn($"[Updates] Получена страница «нет доступа» вместо содержимого ({url}).");
+                return Page(PortalFetchStatus.AccessDenied);
+            }
+
             return Page(PortalFetchStatus.Ok, body);
         }
         catch (OperationCanceledException)
@@ -2330,7 +2377,8 @@ public class OneCUpdatesService : IOneCUpdatesService
     private async Task<HttpResponseMessage> SendWithAuthAsync(
         HttpRequestMessage request,
         HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? accountId = null)
     {
         var current = request;
 
@@ -2343,7 +2391,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         var loginTriedCount = 0;
         for (var i = 0; i <= MaxRedirects; i++)
         {
-            AddBasicAuth(current);
+            AddBasicAuth(current, accountId);
 
             var response = await _httpClient.SendAsync(current, completionOption, ct).ConfigureAwait(false);
 
@@ -2372,7 +2420,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // probeUrl (исходный URL операции) позволяет проверить «живость» уже установленной
                 // сессии (A-1): если сессия жива — вход не выполняется и лимит не тратится.
                 var loginResult = await TryLoginPortalAsync(response.Headers.Location?.ToString(), ct,
-                    current.RequestUri?.ToString()).ConfigureAwait(false);
+                    current.RequestUri?.ToString(), accountId).ConfigureAwait(false);
                 LogRedirectInfo($"[Updates] Вход запущен: результат={loginResult} (попытка {loginTriedCount}/{MaxLoginAttemptsPerOperation}), " +
                                 $"повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
                 if (loginResult == PortalLoginResult.Success)
@@ -2408,7 +2456,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                 // признак требования авторизации, что и прямой редирект на login.1c.ru.
                 LogRedirectInfo($"[Updates] Вход запущен: reason={(response.Headers.Location is null ? "redirect-no-location" : "self-redirect")}, url='{current.RequestUri}'");
                 // Location отсутствует (302 без заголовка) — форма входа по базовому адресу.
-                var loginResult = await TryLoginPortalAsync(null, ct, current.RequestUri?.ToString()).ConfigureAwait(false);
+                var loginResult = await TryLoginPortalAsync(null, ct, current.RequestUri?.ToString(), accountId).ConfigureAwait(false);
                 LogRedirectInfo($"[Updates] Вход запущен: результат={loginResult} (попытка {loginTriedCount}/{MaxLoginAttemptsPerOperation}), " +
                                 $"повтор исходного запроса={(loginResult == PortalLoginResult.Success)}");
                 if (loginResult == PortalLoginResult.Success)
@@ -2478,9 +2526,9 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// запрос, поэтому смена записи в справочнике не требует перезапуска.
     /// Заголовок Authorization и пароль не логируются.
     /// </summary>
-    private void AddBasicAuth(HttpRequestMessage request)
+    private void AddBasicAuth(HttpRequestMessage request, string? accountId = null)
     {
-        var (login, password) = GetCredentials();
+        var (login, password) = GetCredentials(accountId);
         if (string.IsNullOrEmpty(login))
             return;
 
@@ -2490,15 +2538,17 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>
     /// Возвращает логин/пароль для авторизации на сайте 1С: учётная запись из справочника
-    /// <see cref="IItsAccountsStore"/> (выбранная в настройках <see cref="AppSettings.ItsAccountId"/>
-    /// или «Основная»), при её отсутствии — устаревшие поля
-    /// <see cref="AppSettings.UpdatesLogin"/>/<see cref="AppSettings.UpdatesPassword"/> (миграция
-    /// ещё не выполнена либо справочник пуст). Пароль никогда не логируется.
+    /// <see cref="IItsAccountsStore"/> — привязанная к типовой конфигурации
+    /// (<paramref name="accountId"/>, issue #371), иначе выбранная в настройках
+    /// (<see cref="AppSettings.ItsAccountId"/>) или «Основная»; при её отсутствии — устаревшие
+    /// поля <see cref="AppSettings.UpdatesLogin"/>/<see cref="AppSettings.UpdatesPassword"/>
+    /// (миграция ещё не выполнена либо справочник пуст). Пароль никогда не логируется.
     /// </summary>
-    private (string Login, string Password) GetCredentials()
+    private (string Login, string Password) GetCredentials(string? accountId = null)
     {
         var settings = _repository.LoadSettings();
-        var account = _itsAccounts?.Resolve(settings.ItsAccountId);
+        var account = _itsAccounts?.Resolve(
+            !string.IsNullOrWhiteSpace(accountId) ? accountId : settings.ItsAccountId);
         if (account is not null && !string.IsNullOrWhiteSpace(account.Login))
             return (account.Login ?? string.Empty, account.Password ?? string.Empty);
 
@@ -2521,7 +2571,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// <param name="probeUrl">Исходный URL операции (каталог), по которому выполняется пробный
     /// GET проверки «живости» уже установленной сессии (A-1, issue #323/#330/#334). Если сессия
     /// жива — полный вход не выполняется и лимит попыток не тратится; null — проверка пропускается.</param>
-    private async Task<PortalLoginResult> TryLoginPortalAsync(string? loginUrl, CancellationToken ct, string? probeUrl = null)
+    private async Task<PortalLoginResult> TryLoginPortalAsync(string? loginUrl, CancellationToken ct, string? probeUrl = null, string? accountId = null)
     {
         // A-6 (0.3.9.307): инвентаризация cookie до принятия решения — по журналу видно, какая
         // cookie присутствовала в контейнере и почему вход был/не был запущен (issue #323/#330/#334).
@@ -2540,7 +2590,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         // реальную живость сессии; при мёртвой сессии cookie снимаются и выполняется полный вход.
         if (HasPortalSessionCookie())
         {
-            var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
+            var alive = await IsPortalSessionAliveAsync(probeUrl, ct, accountId).ConfigureAwait(false);
             if (alive)
             {
                 LogRedirectInfo("[Updates] Вход: сессионная cookie жива (пробный GET вернул контент " +
@@ -2556,7 +2606,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             ClearPortalCookies();
         }
 
-        var (login, password) = GetCredentials();
+        var (login, password) = GetCredentials(accountId);
         if (string.IsNullOrEmpty(login))
         {
             _logger.Warn("[Updates] Для входа на portal.1c.ru не задан логин.");
@@ -2664,14 +2714,14 @@ public class OneCUpdatesService : IOneCUpdatesService
                     // releases.1c.ru до живой. AllowAutoRedirect=false, поэтому Location читается
                     // из ответа до какого-либо следования.
                     var completed = await FollowLoginRedirectsAsync(
-                        postResponse.Headers.Location, ct).ConfigureAwait(false);
+                        postResponse.Headers.Location, ct, accountId).ConfigureAwait(false);
                     LogRedirectInfo($"[Updates] Вход: FollowLoginRedirectsAsync={completed}, " +
                                     $"sessionCookie={HasPortalSessionCookie()}");
                     if (completed)
                     {
                         // «Успех цепочки» ещё не гарантирует живую сессию каталога (SESSION
                         // для login.1c.ru ≠ сессии releases.1c.ru) — честная alive-проверка.
-                        var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
+                        var alive = await IsPortalSessionAliveAsync(probeUrl, ct, accountId).ConfigureAwait(false);
                         LogRedirectInfo($"[Updates] Вход: alive={(alive ? "True" : "False")} после цепочки редиректов POST");
                         if (alive)
                         {
@@ -2729,7 +2779,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                         // запасным путём (когда билета нет вовсе) — в живом сценарии он не
                         // выполняется (лог 7OH 0.3.9.316: 302 → /error/403).
                         var securityCheckOk = await RunTicketSecurityCheckAsync(
-                            postBody, postUrl, formUrl, probeUrl, ct).ConfigureAwait(false);
+                            postBody, postUrl, formUrl, probeUrl, ct, accountId).ConfigureAwait(false);
                         if (securityCheckOk)
                         {
                             _portalLoginAttempts = 0;
@@ -2765,7 +2815,7 @@ public class OneCUpdatesService : IOneCUpdatesService
                         var target = ResolveBodyRedirectTarget(postUrl, bodyRedirect);
                         if (target is not null)
                         {
-                            var jsCompleted = await FollowLoginRedirectsAsync(target, ct).ConfigureAwait(false);
+                            var jsCompleted = await FollowLoginRedirectsAsync(target, ct, accountId).ConfigureAwait(false);
                             LogRedirectInfo($"[Updates] Вход: FollowLoginRedirectsAsync(js)={jsCompleted}, " +
                                             $"sessionCookie={HasPortalSessionCookie()}");
                             if (jsCompleted)
@@ -2845,7 +2895,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// (<see cref="IsPortalSessionAliveAsync"/>) вернула alive=True; иначе — false (звено
     /// недоступно/не отдало cookie/сессия мертва — вызывающий возвращает честный AuthFailed).
     /// </summary>
-    private async Task<bool> RunSecurityCheckAsync(string? formUrl, string? probeUrl, CancellationToken ct)
+    private async Task<bool> RunSecurityCheckAsync(string? formUrl, string? probeUrl, CancellationToken ct, string? accountId = null)
     {
         var target = ResolveSecurityCheckTarget(formUrl);
         var source = ExtractSecurityCheckService(formUrl) is not null
@@ -2904,7 +2954,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (!finished)
             LogRedirectInfo($"[Updates] Вход: звено security_check не завершилось на целевом контенте (последний адрес '{current}').");
 
-        var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
+        var alive = await IsPortalSessionAliveAsync(probeUrl, ct, accountId).ConfigureAwait(false);
         LogRedirectInfo($"[Updates] Вход: alive={(alive ? "True" : "False")} после security_check");
         return alive;
     }
@@ -2920,7 +2970,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// лог 7OH 0.3.9.316: голый security_check → 302 → /error/403).
     /// </summary>
     private async Task<bool> RunTicketSecurityCheckAsync(
-        string postBody, string postUrl, string? formUrl, string? probeUrl, CancellationToken ct)
+        string postBody, string postUrl, string? formUrl, string? probeUrl, CancellationToken ct, string? accountId = null)
     {
         // ВАЖНО: ticket-URL берётся ТОЛЬКО при реально найденном билете. Передача пустой
         // строки в ResolveBodyRedirectTarget НЕ является «билетом»: new Uri(base, "") в .NET
@@ -2934,7 +2984,7 @@ public class OneCUpdatesService : IOneCUpdatesService
         if (ticketTarget is not null)
         {
             LogRedirectInfo($"[Updates] Вход: ticket-URL из тела кабинета '{ticketTarget}'");
-            var completed = await FollowLoginRedirectsAsync(ticketTarget, ct).ConfigureAwait(false);
+            var completed = await FollowLoginRedirectsAsync(ticketTarget, ct, accountId).ConfigureAwait(false);
             LogRedirectInfo($"[Updates] Вход: FollowLoginRedirectsAsync(ticket)={completed}, " +
                             $"sessionCookie={HasPortalSessionCookie()}");
             if (!completed)
@@ -2949,11 +2999,11 @@ public class OneCUpdatesService : IOneCUpdatesService
             // (service GET-формы или корень releases.1c.ru). В живом сценарии с билетом
             // через Location/meta-refresh эта ветка не достигается.
             LogRedirectInfo("[Updates] Вход: билет CAS в теле кабинета не найден — запасной путь звена security_check.");
-            var fallbackOk = await RunSecurityCheckAsync(formUrl, probeUrl, ct).ConfigureAwait(false);
+            var fallbackOk = await RunSecurityCheckAsync(formUrl, probeUrl, ct, accountId).ConfigureAwait(false);
             return fallbackOk;
         }
 
-        var alive = await IsPortalSessionAliveAsync(probeUrl, ct).ConfigureAwait(false);
+        var alive = await IsPortalSessionAliveAsync(probeUrl, ct, accountId).ConfigureAwait(false);
         LogRedirectInfo($"[Updates] Вход: alive={(alive ? "True" : "False")} после ticket-звена");
         return alive;
     }
@@ -3014,7 +3064,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// (<see cref="LooksLikeLoginForm"/>). Редирект на login.1c.ru либо страница входа в теле —
     /// сессия мертва (cookie-заглушка). При невалидном URL/сетевой ошибке — false (безопасный
     /// выбор: будет выполнен полный вход; оффлайн-fallback-пути не ломаются).</summary>
-    private async Task<bool> IsPortalSessionAliveAsync(string? probeUrl, CancellationToken ct)
+    private async Task<bool> IsPortalSessionAliveAsync(string? probeUrl, CancellationToken ct, string? accountId = null)
     {
         if (string.IsNullOrWhiteSpace(probeUrl) ||
             !Uri.TryCreate(probeUrl, UriKind.Absolute, out var probeUri))
@@ -3029,7 +3079,7 @@ public class OneCUpdatesService : IOneCUpdatesService
             for (var i = 0; i <= MaxRedirects; i++)
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, current);
-                AddBasicAuth(request);
+                AddBasicAuth(request, accountId);
                 using var response =
                     await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
 
@@ -3100,16 +3150,16 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// после исчерпания (issue #330/#323/#334). При отсутствии учётных данных вход
     /// не «тратит» попытки: каждая операция быстро вернёт NoCredentials и понятное предупреждение.
     /// </summary>
-    private bool CanAttemptPortalLogin()
+    private bool CanAttemptPortalLogin(string? accountId = null)
     {
-        var (login, _) = GetCredentials();
+        var (login, _) = GetCredentials(accountId);
         if (string.IsNullOrEmpty(login))
         {
             _logger.Warn("[Updates] Для входа на portal.1c.ru не задан логин.");
             return false;
         }
 
-        var signature = ComputeAccountSignature();
+        var signature = ComputeAccountSignature(accountId);
         if (!string.Equals(_lastAttemptAccountSignature, signature, StringComparison.Ordinal))
         {
             _lastAttemptAccountSignature = signature;
@@ -3175,7 +3225,7 @@ public class OneCUpdatesService : IOneCUpdatesService
 
     /// <summary>Сигнатура учётной записи для сброса счётчика попыток входа: выбранная запись
     /// справочника (или устаревшие поля настроек) + логин. Пароль в сигнатуру НЕ входит.</summary>
-    private string ComputeAccountSignature()
+    private string ComputeAccountSignature(string? accountId = null)
     {
         var settings = _repository.LoadSettings();
         var account = _itsAccounts?.Resolve(settings.ItsAccountId);
@@ -3448,7 +3498,7 @@ public class OneCUpdatesService : IOneCUpdatesService
     /// Cookie из ответов накапливаются в общем <see cref="CookieContainer"/>.
     /// Возвращает true, если цепочка завершилась успешно (вход подтверждён).
     /// </summary>
-    private async Task<bool> FollowLoginRedirectsAsync(Uri location, CancellationToken ct)
+    private async Task<bool> FollowLoginRedirectsAsync(Uri location, CancellationToken ct, string? accountId = null)
     {
         var current = location;
         for (var i = 0; i < MaxRedirects; i++)
@@ -3875,6 +3925,37 @@ public class OneCUpdatesService : IOneCUpdatesService
 
         return ContainsAny(body,
             "Личные данные", "Личный кабинет", "личный кабинет", "Главная", "Профиль", "Мои данные");
+    }
+
+    /// <summary>
+    /// True — тело ответа является страницей «У Вас нет доступа» портала (issue #371):
+    /// releases.1c.ru при HTTP 200 может отдавать заглушку «У Вас нет доступа к обновлениям»
+    /// для продуктов, не входящих в подписку ИТС учётной записи (например «1С:Бухгалтерия
+    /// 8 ПРОФ» при подписке на «Базовая»). Ключевые фразы ищутся по всему документу без учёта
+    /// регистра (русская и английская разметка). Используется, чтобы показать понятную
+    /// ошибку вместо «каталог доступен, но версия не распарсена». Логика — статическая
+    /// <c>internal</c>, покрывается юнит-тестами.
+    /// </summary>
+    internal static bool LooksLikeAccessDeniedPage(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return false;
+
+        // Русская разметка портала: прямое указание на отсутствие доступа.
+        if (ContainsAny(body,
+                "у вас нет доступа", "нет доступа к обновлениям", "доступ к обновлениям запрещён",
+                "доступ запрещён", "доступ ограничен", "отказано в доступе",
+                "не входит в вашу подписку", "ваша подписка не включает"))
+            return true;
+
+        // Английская разметка (issue #371): access denied / no access / permission.
+        if (ContainsAny(body,
+                "you don't have access", "you do not have access", "access is denied",
+                "access denied", "no access to updates", "access is restricted",
+                "permission denied", "not included in your subscription", "not covered by your subscription"))
+            return true;
+
+        return false;
     }
 
     /// <summary>Извлекает текст <c><title></c> страницы для журнала (санитизированный:

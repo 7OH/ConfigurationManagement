@@ -13,8 +13,8 @@
         Icon="{StaticResource AppIcon}"
         Width="880"
         MinWidth="760"
-        MinHeight="560"
-        Height="680"
+        MinHeight="620"
+        Height="720"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
         FontFamily="Segoe UI"
@@ -158,10 +158,18 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <!-- Отступ снизу у списка вкладок — выделение последней не обрезается -->
+                            <!-- Отступ снизу у списка вкладок — выделение последней не обрезается.
+                                 Список вкладок обёрнут в ScrollViewer (issue #379): при недостаточной
+                                 высоте окна нижние вкладки («…», «Базы», «О программе») уходили за
+                                 край и не были доступны — теперь полоса прокручивается. -->
                             <Border Grid.Column="0" Padding="0,4,8,12" Background="Transparent"
                                     ClipToBounds="False">
-                                <StackPanel IsItemsHost="True" ClipToBounds="False"/>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              VerticalAlignment="Stretch"
+                                              ClipToBounds="False">
+                                    <StackPanel IsItemsHost="True" ClipToBounds="False"/>
+                                </ScrollViewer>
                             </Border>
                             <ContentPresenter Grid.Column="1"
                                               ContentSource="SelectedContent"

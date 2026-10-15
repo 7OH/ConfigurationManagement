@@ -42,14 +42,15 @@ public interface IOneCUpdatesService
     /// Пусто — используется <paramref name="currentVersion"/>.</param>
     Task<ConfigUpdateCheckResult> CheckForUpdatesAsync(
         string configName, string currentVersion, string url, CancellationToken ct = default,
-        string? familyHint = null);
+        string? familyHint = null, string? accountId = null);
 
     /// <summary>
     /// Скачивает дистрибутив обновления по прямой ссылке в целевой файл с прогрессом.
     /// Возвращает полный путь сохранённого файла или null при ошибке/отмене.
     /// </summary>
     Task<string?> DownloadUpdateAsync(
-        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default);
+        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default,
+        string? accountId = null);
 
     /// <summary>
     /// Скачивает файл дистрибутива технологической платформы по прямой ссылке:
@@ -62,7 +63,8 @@ public interface IOneCUpdatesService
     /// <param name="progress">Прогресс загрузки 0..1.</param>
     /// <param name="ct">Токен отмены.</param>
     Task<string?> DownloadDistributionAsync(
-        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default);
+        string url, string targetPath, IProgress<double>? progress = null, CancellationToken ct = default,
+        string? accountId = null);
 
     /// <summary>
     /// Получает варианты файлов релиза для одиночного скачивания (issue #352.1):
@@ -78,7 +80,7 @@ public interface IOneCUpdatesService
     /// «Не повышать»): при адресе без ver страница файлов строится для этой версии без
     /// запроса каталога; null — прежнее поведение (резолв по каталогу).</param>
     Task<System.Collections.Generic.IReadOnlyList<UpdateFileChoice>> GetReleaseFileChoicesAsync(
-        string url, CancellationToken ct = default, string? knownLatestVersion = null);
+        string url, CancellationToken ct = default, string? knownLatestVersion = null, string? accountId = null);
 
     /// <summary>
     /// Выполняет авторизованный GET (Basic Auth + cookie-сессия портала) по указанному
@@ -87,7 +89,7 @@ public interface IOneCUpdatesService
     /// </summary>
     /// <param name="url">Адрес страницы каталога или ответа version_files.</param>
     /// <param name="ct">Токен отмены.</param>
-    Task<string?> GetPageTextAsync(string url, CancellationToken ct = default);
+    Task<string?> GetPageTextAsync(string url, CancellationToken ct = default, string? accountId = null);
 
     /// <summary>
     /// Выполняет авторизованный GET по указанному адресу и возвращает текст ответа вместе
@@ -100,7 +102,7 @@ public interface IOneCUpdatesService
     /// </summary>
     /// <param name="url">Адрес страницы каталога или ответа version_files.</param>
     /// <param name="ct">Токен отмены.</param>
-    Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default);
+    Task<PortalPageResult> FetchPageAsync(string url, CancellationToken ct = default, string? accountId = null);
 
     /// <summary>
     /// Получает полный каталог версий конфигурации со страницы <c>releases.1c.ru/project/<ник></c>
@@ -112,7 +114,7 @@ public interface IOneCUpdatesService
     /// </summary>
     /// <param name="url">Адрес страницы каталога релизов (project/<ник>).</param>
     /// <param name="ct">Токен отмены.</param>
-    Task<ConfigUpdateCatalogResult> GetUpdateCatalogAsync(string url, CancellationToken ct = default);
+    Task<ConfigUpdateCatalogResult> GetUpdateCatalogAsync(string url, CancellationToken ct = default, string? accountId = null);
 
     /// <summary>Предопределённый набор типовых конфигураций 1С.</summary>
     System.Collections.Generic.IReadOnlyList<OneCConfigType> BuiltInConfigTypes { get; }

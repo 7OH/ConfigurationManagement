@@ -164,6 +164,61 @@ public sealed class UpdateFileChoiceTests
         Assert.Empty(links);
     }
 
+    // ======================= отсев «переходных» обновлений (issue #380) =======================
+
+    [Fact]
+    public void ParseReleaseFileLinks_TransitionUpdateDistribution_FilteredOut()
+    {
+        // На странице файлов версии лежит «Дистрибутив обновления для перехода с версии
+        // ПРОФ» (AccountingCorp_3_0_208_14_updstpp.zip). Он не должен попадать в кандидаты
+        // «Дистрибутива обновления» — иначе цепочка скачает переходный файл вместо updsetup.
+        const string html = """
+            <html><body>
+              <a href="/version_file?nick=AccountingCorp30&ver=3.0.208.14&path=AccountingCorp%5c3_0_208_14%5cAccountingCorp_3_0_208_14_updsetup.zip">Дистрибутив обновления</a>
+              <a href="/version_file?nick=AccountingCorp30&ver=3.0.208.14&path=AccountingCorp%5c3_0_208_14%5cAccountingCorp_3_0_208_14_updstpp.zip">Дистрибутив обновления для перехода с версии ПРОФ</a>
+            </body></html>
+            """;
+
+        var links = OneCUpdatesService.ParseReleaseFileLinks(
+            html, "https://releases.1c.ru/version_files?nick=AccountingCorp30&ver=3.0.208.14");
+
+        var link = Assert.Single(links);
+        Assert.Equal(UpdateFileChoice.UpdateDistributionCaptionKey, link.CaptionKey);
+        Assert.EndsWith("AccountingCorp_3_0_208_14_updsetup.zip", link.FileName, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ParseReleaseFileLinks_OnlyTransitionUpdateDistribution_ReturnsEmpty()
+    {
+        const string html = """
+            <html><body>
+              <a href="/version_file?nick=AccountingCorp30&ver=3.0.208.14&path=AccountingCorp%5c3_0_208_14%5cAccountingCorp_3_0_208_14_updstpp.zip">Дистрибутив обновления для перехода с версии ПРОФ</a>
+            </body></html>
+            """;
+
+        var links = OneCUpdatesService.ParseReleaseFileLinks(
+            html, "https://releases.1c.ru/version_files?nick=AccountingCorp30&ver=3.0.208.14");
+
+        Assert.Empty(links);
+    }
+
+    [Fact]
+    public void ParseReleaseFileLinks_TransitionFileName_NeutralCaption_FilteredOut()
+    {
+        // Файл с маркером updstpp отсеивается даже при нейтральной подписи «Дистрибутив
+        // обновления» — фильтр работает и по имени файла (issue #380).
+        const string html = """
+            <html><body>
+              <a href="/version_file?nick=AccountingCorp30&ver=3.0.208.14&path=AccountingCorp%5c3_0_208_14%5cAccountingCorp_3_0_208_14_updstpp.zip">Дистрибутив обновления</a>
+            </body></html>
+            """;
+
+        var links = OneCUpdatesService.ParseReleaseFileLinks(
+            html, "https://releases.1c.ru/version_files?nick=AccountingCorp30&ver=3.0.208.14");
+
+        Assert.Empty(links);
+    }
+
     // ======================= диалог повтора (issue #352.3) =======================
 
     [Fact]

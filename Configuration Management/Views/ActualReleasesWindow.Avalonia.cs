@@ -178,9 +178,11 @@ namespace Configuration_Management
             {
                 var url = _updates.BuildUpdateUrl(row.Config, row.Edition, null);
                 // issue #371: «семейство» версии — редакция конфигурации (например «3.0» для
-                // Розницы): посторонние токены («2.2.10») с другим первым сегментом отсекаются.
+                // Розницы): посторонние токены («2.2.10») с другим первым сегментом отсекаются;
+                // учётная запись из настройки конфигурации передаётся сервису (пусто — «Основная»).
                 var result = await Task.Run(() =>
-                    _updates.CheckForUpdatesAsync(row.Name, string.Empty, url, CancellationToken.None, row.Edition?.Red));
+                    _updates.CheckForUpdatesAsync(row.Name, string.Empty, url, CancellationToken.None,
+                        row.Edition?.Red, row.Config?.AccountId));
                 row.ApplyResult(result);
             }
             catch (Exception ex)
@@ -218,7 +220,8 @@ namespace Configuration_Management
                         var url = _updates.BuildUpdateUrl(row.Config, row.Edition, null);
                         // issue #371: «семейство» версии — редакция конфигурации (см. OnCheckRow).
                         var result = await Task.Run(() =>
-                            _updates.CheckForUpdatesAsync(row.Name, string.Empty, url, CancellationToken.None, row.Edition?.Red));
+                            _updates.CheckForUpdatesAsync(row.Name, string.Empty, url, CancellationToken.None,
+                                row.Edition?.Red, row.Config?.AccountId));
                         row.ApplyResult(result);
                     }
                     catch (Exception ex)
@@ -263,7 +266,7 @@ namespace Configuration_Management
                 var progress = new Progress<double>(v =>
                     Dispatcher.UIThread.Post(() => row.Progress = Math.Clamp(v, 0, 1)));
                 var savedPath = await Task.Run(() =>
-                    _updates.DownloadUpdateAsync(row.Url, targetPath, progress));
+                    _updates.DownloadUpdateAsync(row.Url, targetPath, progress, accountId: row.Config?.AccountId));
 
                 if (string.IsNullOrWhiteSpace(savedPath))
                 {
