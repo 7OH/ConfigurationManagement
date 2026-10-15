@@ -44,7 +44,7 @@ public sealed class NotificationDispatcherTests
     // ---------- Совместимость старой перегрузки ----------
 
     [Fact]
-    public async Task Show_TwoArgOverload_UsesInfoAndManualTest()
+    public async Task Show_TwoArgOverload_UsesInfoAndGeneral()
     {
         var channel = new RecordingChannel(enabled: true);
         var dispatcher = CreateDispatcher(channel);
@@ -54,7 +54,7 @@ public sealed class NotificationDispatcherTests
         await channel.Sent.WaitAsync(TimeSpan.FromMilliseconds(WaitMs));
         var message = Assert.Single(channel.Received);
         Assert.Equal(NotificationKind.Info, message.Kind);
-        Assert.Equal(NotificationEvent.ManualTest, message.Event);
+        Assert.Equal(NotificationEvent.General, message.Event);
     }
 
     [Fact]

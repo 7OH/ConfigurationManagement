@@ -1926,6 +1926,8 @@ namespace Configuration_Management
                     item.Click += (_, _) => _vm!.OpenConfigTypesEdit(); break;
                 case UtilitiesMenuCommandKind.OpenItsAccounts:
                     item.Click += (_, _) => _vm!.OpenItsAccounts(); break;
+                case UtilitiesMenuCommandKind.OpenNotificationChannels:
+                    item.Click += (_, _) => _vm!.OpenNotificationChannels(); break;
                 case UtilitiesMenuCommandKind.OpenScheduledTasks:
                     item.Click += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                     {

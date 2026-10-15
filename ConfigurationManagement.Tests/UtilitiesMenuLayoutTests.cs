@@ -57,17 +57,19 @@ public sealed class UtilitiesMenuLayoutTests
         AssertSeparator(layout.Root[10]);
         AssertGroup(layout.Root[11], UtilitiesMenuCatalog.GroupInformation);
         var infoChildren = layout.Root[11].Children;
-        Assert.Equal(10, infoChildren.Count);
+        Assert.Equal(11, infoChildren.Count);
         AssertItem(infoChildren[0], "MaintenanceCenter");
         AssertSeparator(infoChildren[1]);
         AssertItem(infoChildren[2], "ConfigTypesEdit");
         AssertItem(infoChildren[3], "ItsAccounts");
-        AssertSeparator(infoChildren[4]);
-        AssertItem(infoChildren[5], "ScheduledTasks");
-        AssertItem(infoChildren[6], "BackupScenarios");
-        AssertSeparator(infoChildren[7]);
-        AssertItem(infoChildren[8], "ScriptsSettings");
-        AssertItem(infoChildren[9], "UsageStatistics");
+        // Уведомления в Telegram и по email (выпуск 0.3.12.69).
+        AssertItem(infoChildren[4], "NotificationChannels");
+        AssertSeparator(infoChildren[5]);
+        AssertItem(infoChildren[6], "ScheduledTasks");
+        AssertItem(infoChildren[7], "BackupScenarios");
+        AssertSeparator(infoChildren[8]);
+        AssertItem(infoChildren[9], "ScriptsSettings");
+        AssertItem(infoChildren[10], "UsageStatistics");
 
         // ---- Подменю «Операции» ----
         AssertSeparator(layout.Root[12]);

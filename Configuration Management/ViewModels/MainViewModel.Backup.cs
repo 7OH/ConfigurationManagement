@@ -129,7 +129,9 @@ public partial class MainViewModel
                 LocalizationManager.T("App.Title"),
                 string.Format(
                     LocalizationManager.T(result.Success ? "Notify.BackupDone" : "Notify.BackupError"),
-                    infobase.Name, scenario.Name));
+                    infobase.Name, scenario.Name),
+                result.Success ? NotificationKind.Success : NotificationKind.Error,
+                NotificationEvent.Backup);
         }
         catch (Exception ex)
         {

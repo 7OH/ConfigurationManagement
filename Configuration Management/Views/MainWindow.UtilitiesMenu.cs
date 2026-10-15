@@ -281,6 +281,8 @@ public partial class MainWindow
                 item.Click += (_, _) => _viewModel.OpenConfigTypesEdit(); break;
             case UtilitiesMenuCommandKind.OpenItsAccounts:
                 item.Click += (_, _) => _viewModel.OpenItsAccounts(); break;
+            case UtilitiesMenuCommandKind.OpenNotificationChannels:
+                item.Click += (_, _) => _viewModel.OpenNotificationChannels(); break;
             case UtilitiesMenuCommandKind.OpenScheduledTasks:
                 item.Click += (_, _) => OnScheduledTasksMenuClick(item, null); break;
             case UtilitiesMenuCommandKind.ShowBackupScenarios:

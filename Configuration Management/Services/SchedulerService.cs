@@ -177,7 +177,9 @@ public class SchedulerService : IDisposable
         {
             _notifications.Show(
                 LocalizationManager.T("App.Title"),
-                string.Format(LocalizationManager.T("Schedule.CatchUpDone"), count));
+                string.Format(LocalizationManager.T("Schedule.CatchUpDone"), count),
+                NotificationKind.Info,
+                NotificationEvent.ScheduledTask);
         }
         catch (Exception ex)
         {
@@ -267,7 +269,9 @@ public class SchedulerService : IDisposable
                 LocalizationManager.T("App.Title"),
                 string.Format(
                     LocalizationManager.T(success ? "Notify.JobDone" : "Notify.JobError"),
-                    task.Name, KindName(task.Kind)));
+                    task.Name, KindName(task.Kind)),
+                success ? NotificationKind.Success : NotificationKind.Error,
+                NotificationEvent.ScheduledTask);
         }
         catch (Exception ex)
         {

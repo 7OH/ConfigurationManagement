@@ -194,7 +194,9 @@ public sealed class UpdateService
         {
             _notifications.Show(
                 LocalizationManager.T("App.Title"),
-                string.Format(LocalizationManager.T("Notify.UpdateAvailable"), release.TagName));
+                string.Format(LocalizationManager.T("Notify.UpdateAvailable"), release.TagName),
+                NotificationKind.Info,
+                NotificationEvent.Update);
         }
         catch
         {

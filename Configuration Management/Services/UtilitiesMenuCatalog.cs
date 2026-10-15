@@ -48,6 +48,9 @@ public enum UtilitiesMenuCommandKind
     /// <summary>Справочник учётных записей ИТС.</summary>
     OpenItsAccounts,
 
+    /// <summary>Уведомления в Telegram и по email (выпуск 0.3.12.69).</summary>
+    OpenNotificationChannels,
+
     /// <summary>Задания по расписанию.</summary>
     OpenScheduledTasks,
 
@@ -385,6 +388,9 @@ public static class UtilitiesMenuCatalog
                 string.Empty, string.Empty, string.Empty, UtilitiesMenuCommandKind.OpenConfigTypesEdit),
             new("ItsAccounts", "ItsAccounts.MenuItem", GroupInformation,
                 "AccountKey", "IconAccountKey", "#14B8A6", UtilitiesMenuCommandKind.OpenItsAccounts),
+            new("NotificationChannels", "Notifications.MenuItem", GroupInformation,
+                "BellOutline", "IconPublish", "#0EA5E9", UtilitiesMenuCommandKind.OpenNotificationChannels,
+                isNew: true),
             new("ScheduledTasks", "Schedule.Title", GroupInformation,
                 "CalendarClock", "IconScheduler", "#14B8A6", UtilitiesMenuCommandKind.OpenScheduledTasks),
             new("BackupScenarios", "Backup.ScenariosTitle", GroupInformation,
@@ -474,6 +480,7 @@ public static class UtilitiesMenuLayouts
                 Separator(),
                 Item("ConfigTypesEdit"),
                 Item("ItsAccounts"),
+                Item("NotificationChannels"),
                 Separator(),
                 Item("ScheduledTasks"),
                 Item("BackupScenarios"),

@@ -144,6 +144,16 @@ public partial class MainViewModel
         RefreshItsAccounts();
     }
 
+    /// <summary>Окно «Уведомления в Telegram и по email» (выпуск 0.3.12.69).</summary>
+    public void OpenNotificationChannels()
+    {
+        var win = new Configuration_Management.NotificationChannelsWindow();
+        win.Owner = Application.Current.MainWindow;
+        Application.Current.Dispatcher.BeginInvoke(
+            new Action(() => win.ShowDialog()),
+            System.Windows.Threading.DispatcherPriority.Input);
+    }
+
     /// <summary>Открывает окно редактирования списка типовых конфигураций 1С.</summary>
     public void OpenConfigTypesEdit()
     {

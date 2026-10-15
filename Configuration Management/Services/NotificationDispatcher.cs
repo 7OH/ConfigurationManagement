@@ -41,7 +41,8 @@ public sealed class NotificationDispatcher : INotificationService
     /// <inheritdoc/>
     public void Show(string title, string message)
     {
-        Show(title, message, NotificationKind.Info, NotificationEvent.ManualTest);
+        // С 0.3.12.69 — General: интерактивные сообщения не уходят во внешние каналы.
+        Show(title, message, NotificationKind.Info, NotificationEvent.General);
     }
 
     /// <inheritdoc/>

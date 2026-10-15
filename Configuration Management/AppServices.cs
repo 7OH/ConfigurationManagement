@@ -121,6 +121,16 @@ public static class AppServices
         // Telegram/email добавляются этапами 0.3.9.183–0.3.9.184. Диспетчер
         // NotificationDispatcher рассылает сообщение всем включённым каналам.
         services.AddSingleton<INotificationChannel, SystemNotificationChannel>();
+        // Внешние каналы (выпуск 0.3.12.69): Telegram-бот и email (SMTP). Настройки —
+        // отдельный файл notifications.json профиля (NotificationSettingsStore).
+        services.AddSingleton<INotificationSettingsStore>(sp => new NotificationSettingsStore(
+            sp.GetService<IProfileService>(), null, sp.GetService<IAppLogger>()));
+        services.AddSingleton<TelegramNotificationChannel>(sp => new TelegramNotificationChannel(
+            sp.GetRequiredService<INotificationSettingsStore>(), sp.GetService<IAppLogger>()));
+        services.AddSingleton<EmailNotificationChannel>(sp => new EmailNotificationChannel(
+            sp.GetRequiredService<INotificationSettingsStore>(), sp.GetService<IAppLogger>()));
+        services.AddSingleton<INotificationChannel>(sp => sp.GetRequiredService<TelegramNotificationChannel>());
+        services.AddSingleton<INotificationChannel>(sp => sp.GetRequiredService<EmailNotificationChannel>());
         services.AddSingleton<INotificationService, NotificationDispatcher>();
         // Сообщение в строке состояния главного окна из фоновых сервисов (issue #366):
         // канал уведомления задания «Проверить наличие обновления платформы» —

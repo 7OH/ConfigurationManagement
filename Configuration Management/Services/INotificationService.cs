@@ -17,7 +17,8 @@ public interface INotificationService
     /// Показывает уведомление (заголовок + текст). Fire-and-forget: метод не
     /// блокирует вызывающий поток, любые ошибки платформы гасятся внутри реализации.
     /// Эквивалентен <see cref="Show(string,string,NotificationKind,NotificationEvent)"/>
-    /// с kind = <see cref="NotificationKind.Info"/> и evt = <see cref="NotificationEvent.ManualTest"/>.
+    /// с kind = <see cref="NotificationKind.Info"/> и evt = <see cref="NotificationEvent.General"/>
+    /// (с 0.3.12.69; такие сообщения внешние каналы не получают).
     /// </summary>
     void Show(string title, string message);
 

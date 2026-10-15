@@ -86,5 +86,12 @@ public partial class MainViewModel
         win.ShowSync(OwnerWindow());
         RefreshItsAccounts();
     }
+
+    /// <summary>Окно «Уведомления в Telegram и по email» (выпуск 0.3.12.69).</summary>
+    public void OpenNotificationChannels()
+    {
+        var win = new Configuration_Management.NotificationChannelsWindow();
+        win.ShowSync(OwnerWindow());
+    }
 }
 #endif
