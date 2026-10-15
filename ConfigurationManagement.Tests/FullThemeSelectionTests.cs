@@ -71,6 +71,18 @@ public sealed class FullThemeSelectionTests
     }
 
     [Fact]
+    public void ThemePreviewState_UnknownIdResolvesToLightOnApply()
+    {
+        // Предпросмотр запоминает переданный id, а резолв неизвестного id при применении
+        // даёт светлую тему по умолчанию (issue #378) — как ThemeFeatureMap.Resolve.
+        var state = new ThemePreviewState();
+        state.Begin("light", "light");
+
+        Assert.Equal("unknown", state.Preview("unknown"));
+        Assert.Equal("light", ThemeFeatureMap.Resolve("unknown").Id);
+    }
+
+    [Fact]
     public void NewThemes_HaveOwnPaletteButtonStyleAndIconSet()
     {
         // Каждая новая тема несёт собственную палитру, стиль кнопок окна и набор иконок.

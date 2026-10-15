@@ -867,6 +867,35 @@
                                      кодом (SettingsWindow.Schemes.cs, BuildThemeGallery); клик применяет
                                      тему сразу и сохраняет выбор (AppSettings.FullTheme). -->
                                 <WrapPanel x:Name="ThemeGalleryPanel" Orientation="Horizontal" Margin="0,0,0,8"/>
+                                <!-- Кнопки «Применить»/«Отмена» (issue #378): выбор темы по клику
+                                     не сохраняется сразу; «Применить» фиксирует предпросмотр,
+                                     «Отмена» возвращает прежнюю тему без сохранения. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button x:Name="PreviewThemeButton" MinWidth="120" Height="34"
+                                            Style="{StaticResource ModernButton}" Margin="0,0,8,0"
+                                            IsEnabled="False" Click="OnPreviewTheme_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="👁" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{loc:Loc Settings.ThemePreview.Preview}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="ApplyThemePreviewButton" MinWidth="110" Height="34"
+                                            Style="{StaticResource ModernButton}" Margin="0,0,8,0"
+                                            IsEnabled="False" Click="OnApplyThemePreview_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="✔" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{loc:Loc Settings.ThemePreview.Apply}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="CancelThemePreviewButton" MinWidth="110" Height="34"
+                                            Style="{StaticResource SecondaryButton}"
+                                            IsEnabled="False" Click="OnCancelThemePreview_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="✖" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{loc:Loc Settings.ThemePreview.Cancel}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
                                 <TextBlock Text="{loc:Loc Settings.FullTheme.Description}"
                                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
                                            TextWrapping="Wrap"/>

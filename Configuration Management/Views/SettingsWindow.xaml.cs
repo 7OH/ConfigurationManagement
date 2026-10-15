@@ -633,6 +633,11 @@ namespace Configuration_Management
             // Порядок горячих клавиш избранного.
             _viewModel.SetFavoriteHotkeyOrder(_favoriteHotkeyItems.Select(i => i.Key));
 
+            // Предпросмотр темы фиксируется при «ОК» (issue #378): если пользователь
+            // предпросмотрел тему, но не нажал «Применить», выбор всё равно сохраняется.
+            if (_viewModel.HasThemePreview)
+                _viewModel.CommitFullThemePreview();
+
             // Сохраняем все темы, изменённые во вкладке «Цветовое оформление»: каждая тема
             // хранит собственные настройки независимо (встроенные — в своём слоте базовой
             // темы, пользовательские — в своём JSON-файле).
@@ -662,6 +667,8 @@ namespace Configuration_Management
 
         private void OnCancel_Click(object sender, RoutedEventArgs e)
         {
+            // Отмена возвращает прежнюю тему без сохранения (issue #378).
+            _viewModel.RevertFullThemePreview();
             DialogResult = false;
         }
 

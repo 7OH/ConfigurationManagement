@@ -3267,6 +3267,11 @@ namespace Configuration_Management
 
                 _viewModel.SaveElementFonts(editedFonts);
 
+                // Предпросмотр темы фиксируется при «ОК» (issue #378): если пользователь
+                // предпросмотрел тему, но не нажал «Применить», выбор всё равно сохраняется.
+                if (_viewModel.HasThemePreview)
+                    _viewModel.CommitFullThemePreview();
+
                 DialogResult = true;
                 Close();
             };
@@ -3300,8 +3305,13 @@ namespace Configuration_Management
                 new SolidColorBrush(Color.Parse("#FEF2F2")));
             cancel.BorderBrush = dangerBrush;
             // Отмена закрывает окно так же, как крестик: DialogResult остаётся
-            // ложным, и вызывающая сторона ничего не применяет.
-            cancel.Click += (_, _) => Close();
+            // ложным, и вызывающая сторона ничего не применяет. Предпросмотр темы
+            // отменяется — возвращается прежняя тема без сохранения (issue #378).
+            cancel.Click += (_, _) =>
+            {
+                _viewModel.RevertFullThemePreview();
+                Close();
+            };
 
             buttons.Children.Add(ok);
             buttons.Children.Add(cancel);
@@ -3584,6 +3594,10 @@ namespace Configuration_Management
         /// </summary>
         private TabItem BuildThemesTab(Action<ColorScheme> setEditedScheme, Action? refreshEditedScheme)
         {
+            // Режим «предпросмотр → Применить/Отмена» (issue #378): запоминаем тему
+            // до входа в галерею, чтобы «Отмена» вернула её без сохранения.
+            _viewModel.BeginThemePreview();
+
             var themesPanel = new StackPanel { Spacing = 6 };
             themesPanel.Children.Add(GroupTitle(LocalizationManager.T("Settings.FullTheme")));
 
@@ -3591,6 +3605,63 @@ namespace Configuration_Management
             var iconCombo = new ComboBox { Width = 240, Margin = new Thickness(10, 0, 0, 6) };
             var buttonCombo = new ComboBox { Width = 240, Margin = new Thickness(10, 0, 0, 0) };
             var suppressOverrides = false;
+
+            // Кнопки «Предпросмотр»/«Применить»/«Отмена» под галереей (issue #378):
+            // активны, пока есть тема в предпросмотре (не закоммичена и не отменена).
+            var previewButton = new Button
+            {
+                Content = LocalizationManager.T("Settings.ThemePreview.Preview"),
+                Padding = new Thickness(12, 6),
+                Margin = new Thickness(0, 0, 8, 0),
+                IsEnabled = false
+            };
+            var applyButton = new Button
+            {
+                Content = LocalizationManager.T("Settings.ThemePreview.Apply"),
+                Padding = new Thickness(12, 6),
+                Margin = new Thickness(0, 0, 8, 0),
+                IsEnabled = false
+            };
+            var cancelButton = new Button
+            {
+                Content = LocalizationManager.T("Settings.ThemePreview.Cancel"),
+                Padding = new Thickness(12, 6),
+                IsEnabled = false
+            };
+            void UpdatePreviewButtons()
+            {
+                previewButton.IsEnabled = _viewModel.HasThemePreview;
+                applyButton.IsEnabled = _viewModel.HasThemePreview;
+                cancelButton.IsEnabled = _viewModel.HasThemePreview;
+            }
+            previewButton.Click += (_, _) =>
+            {
+                var theme = ThemeManager.CurrentFullTheme;
+                if (theme is null)
+                    return;
+                var win = new ThemePreviewWindow(_viewModel, theme);
+                win.ShowDialogSync(this);
+                // После закрытия окна предпросмотра галерея и кнопки отражают результат.
+                RefreshGallery();
+                RefreshOverrides();
+                UpdatePreviewButtons();
+            };
+            applyButton.Click += (_, _) =>
+            {
+                _viewModel.CommitFullThemePreview();
+                RefreshGallery();
+                RefreshOverrides();
+                UpdatePreviewButtons();
+            };
+            cancelButton.Click += (_, _) =>
+            {
+                _viewModel.RevertFullThemePreview();
+                setEditedScheme(_viewModel.ActiveColorScheme.Clone());
+                refreshEditedScheme?.Invoke();
+                RefreshGallery();
+                RefreshOverrides();
+                UpdatePreviewButtons();
+            };
 
             void RefreshOverrides()
             {
@@ -3629,13 +3700,14 @@ namespace Configuration_Management
                     var themeId = theme.Id;
                     card.Tapped += (_, _) =>
                     {
-                        // Применяем полноценную тему: цвета, кнопки окна, иконки; сохраняем выбор.
-                        _viewModel.ApplyFullTheme(themeId);
+                        // Предпросмотр темы: применяем без сохранения (issue #378).
+                        _viewModel.PreviewFullTheme(themeId);
                         // Редактор палитры и предпросмотр показывают цвета выбранной темы.
                         setEditedScheme(_viewModel.ActiveColorScheme.Clone());
                         refreshEditedScheme?.Invoke();
                         RefreshGallery();
                         RefreshOverrides();
+                        UpdatePreviewButtons();
                     };
                     gallery.Children.Add(card);
                 }
@@ -3656,6 +3728,16 @@ namespace Configuration_Management
             RefreshOverrides();
 
             themesPanel.Children.Add(gallery);
+            // Кнопки «Применить»/«Отмена» под галереей (issue #378): выбор темы по клику
+            // не сохраняется сразу; «Применить» фиксирует предпросмотр, «Отмена» возвращает
+            // прежнюю тему без сохранения.
+            var previewButtons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 8),
+                Children = { previewButton, applyButton, cancelButton }
+            };
+            themesPanel.Children.Add(previewButtons);
             // Пояснение к полноценной теме (issue #376): тема задаёт цвета, модель кнопок
             // управления окном и набор иконок целиком. На WPF тот же текст — под галереей.
             themesPanel.Children.Add(Hint(LocalizationManager.T("Settings.FullTheme.Description"), bottom: 12));
@@ -3716,7 +3798,7 @@ namespace Configuration_Management
         /// Базовые ключи приложения переопределены активным набором, поэтому вариант
         /// Fluent берётся прямо из словаря Themes/Icons.axaml.
         /// </summary>
-        private static Geometry? PreviewGeometry(string key, IconSet set, bool back = false)
+        internal static Geometry? PreviewGeometry(string key, IconSet set, bool back = false)
         {
             if (Application.Current is not { } app)
                 return null;
@@ -3744,7 +3826,7 @@ namespace Configuration_Management
             return null;
         }
 
-        private static IBrush HexBrush(string hex)
+        internal static IBrush HexBrush(string hex)
             => Color.TryParse(hex, out var color) ? new SolidColorBrush(color) : Brushes.Transparent;
 
         /// <summary>Карточка темы в галерее (палитра, кнопки окна, иконки набора, имя).</summary>
@@ -3833,7 +3915,7 @@ namespace Configuration_Management
         }
 
         /// <summary>Мини-кнопка управления окном в стиле темы (для карточки галереи).</summary>
-        private static Control BuildMiniWindowButton(ThemeDefinition theme, string glyphKey,
+        internal static Control BuildMiniWindowButton(ThemeDefinition theme, string glyphKey,
             ThemeFeatureMap.ThemePreviewColors colors)
         {
             var close = glyphKey == "GlyphWindowClose";
@@ -3914,7 +3996,7 @@ namespace Configuration_Management
         }
 
         /// <summary>Мини-иконка набора темы: фоновый слой (Glass), основной и «блик» (Windows XP).</summary>
-        private static Viewbox BuildMiniIcon(string key, IconSet set, IBrush fill)
+        internal static Viewbox BuildMiniIcon(string key, IconSet set, IBrush fill)
         {
             var canvas = new Canvas { Width = 24, Height = 24 };
             if (PreviewGeometry(key, set, back: true) is { } back)

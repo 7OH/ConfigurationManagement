@@ -34,6 +34,9 @@ namespace Configuration_Management
             ColorItemsControl.ItemsSource = _colorItems;
             RefreshSchemeComboBox();
             RefreshColorItems();
+            // Режим «предпросмотр → Применить/Отмена» (issue #378): запоминаем тему
+            // до входа в галерею, чтобы «Отмена» вернула её без сохранения.
+            _viewModel.BeginThemePreview();
             InitializeFullThemes();
 
             // Начальный режим палитры — по текущему варианту темы.
@@ -83,7 +86,7 @@ namespace Configuration_Management
             }
         }
 
-        private static Brush HexBrush(string hex)
+        internal static Brush HexBrush(string hex)
         {
             try
             {
@@ -102,7 +105,7 @@ namespace Configuration_Management
         /// Базовые ключи приложения переопределены активным набором, поэтому вариант
         /// Fluent берётся прямо из словаря Themes/Icons.xaml.
         /// </summary>
-        private static Geometry? PreviewGeometry(string key, IconSet set, bool back = false)
+        internal static Geometry? PreviewGeometry(string key, IconSet set, bool back = false)
         {
             var app = Application.Current;
             if (app is null)
@@ -241,7 +244,7 @@ namespace Configuration_Management
         }
 
         /// <summary>Мини-кнопка управления окном в стиле темы (для карточки галереи).</summary>
-        private static FrameworkElement BuildMiniWindowButton(ThemeDefinition theme, string glyphKey,
+        internal static FrameworkElement BuildMiniWindowButton(ThemeDefinition theme, string glyphKey,
             ThemeFeatureMap.ThemePreviewColors colors)
         {
             var close = glyphKey == "GlyphWindowClose";
@@ -320,7 +323,7 @@ namespace Configuration_Management
         }
 
         /// <summary>Мини-иконка набора темы: фоновый слой (Glass), основной и «блик» (Windows XP).</summary>
-        private static FrameworkElement BuildMiniIcon(string key, IconSet set, Brush fill)
+        internal static FrameworkElement BuildMiniIcon(string key, IconSet set, Brush fill)
         {
             var canvas = new Canvas { Width = 24, Height = 24 };
             var back = PreviewGeometry(key, set, back: true);
@@ -351,16 +354,17 @@ namespace Configuration_Management
         }
 
         /// <summary>
-        /// Применяет выбранную в галерее тему (цвета, кнопки окна, иконки), сохраняет выбор
-        /// в настройках и обновляет редактор палитры, предпросмотр и галерею.
+        /// Переводит выбранную в галерее тему в предпросмотр (issue #378): применяет её
+        /// без сохранения в настройках и обновляет редактор палитры, предпросмотр и галерею.
+        /// Сохранение — только по кнопке «Применить»/«ОК» окна настроек.
         /// </summary>
         private void SelectFullTheme(string id)
         {
             if (_settings is null)
                 return;
 
-            // Применяем полноценную тему и сохраняем выбор (AppSettings.FullTheme).
-            _viewModel.ApplyFullTheme(id);
+            // Применяем полноценную тему БЕЗ записи в AppSettings (persist:false).
+            _viewModel.PreviewFullTheme(id);
 
             // Редактор палитры и предпросмотр показывают цвета выбранной темы;
             // режим палитры — по базовому варианту темы (светлый/тёмный).
@@ -374,6 +378,69 @@ namespace Configuration_Management
             RefreshSchemePreview();
             BuildThemeGallery();
             InitializeThemeOverrides();
+            UpdateThemePreviewButtons();
+        }
+
+        /// <summary>
+        /// Обновляет доступность кнопок «Применить»/«Отмена» под галереей тем: они активны,
+        /// пока есть тема в предпросмотре (не закоммичена и не отменена).
+        /// </summary>
+        private void UpdateThemePreviewButtons()
+        {
+            if (PreviewThemeButton is not null)
+                PreviewThemeButton.IsEnabled = _viewModel.HasThemePreview;
+            if (ApplyThemePreviewButton is not null)
+                ApplyThemePreviewButton.IsEnabled = _viewModel.HasThemePreview;
+            if (CancelThemePreviewButton is not null)
+                CancelThemePreviewButton.IsEnabled = _viewModel.HasThemePreview;
+        }
+
+        /// <summary>Кнопка «Предпросмотр»: открывает большое окно предпросмотра темы (issue #378).</summary>
+        private void OnPreviewTheme_Click(object sender, RoutedEventArgs e)
+        {
+            var theme = ThemeManager.CurrentFullTheme;
+            if (theme is null)
+                return;
+            var win = new ThemePreviewWindow(_viewModel, theme) { Owner = this };
+            win.ShowDialog();
+            // После закрытия окна предпросмотра галерея и кнопки отражают результат
+            // («Применить» сохранил тему, «Отмена»/крестик вернули прежнюю).
+            BuildThemeGallery();
+            InitializeThemeOverrides();
+            UpdateThemePreviewButtons();
+        }
+
+        /// <summary>Кнопка «Применить» под галереей тем: сохраняет предпросмотренную тему.</summary>
+        private void OnApplyThemePreview_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings is null)
+                return;
+            _viewModel.CommitFullThemePreview();
+            // После сохранения предпросмотра тема становится активной и сохранённой:
+            // галерея и переопределения пересобираются, кнопки гаснут.
+            BuildThemeGallery();
+            InitializeThemeOverrides();
+            UpdateThemePreviewButtons();
+        }
+
+        /// <summary>Кнопка «Отмена» под галереей тем: возвращает прежнюю тему без сохранения.</summary>
+        private void OnCancelThemePreview_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings is null)
+                return;
+            _viewModel.RevertFullThemePreview();
+            // Редактор палитры и предпросмотр показывают цвета возвращённой темы.
+            var theme = ThemeManager.CurrentFullTheme;
+            if (theme is not null)
+                _settings.AdoptFullThemeScheme(theme);
+            _settings.SetPaletteMode(ThemeManager.CurrentTheme == ThemeManager.DarkThemeName);
+            RefreshSchemeComboBox();
+            RefreshColorItems();
+            UpdatePaletteButton();
+            RefreshSchemePreview();
+            BuildThemeGallery();
+            InitializeThemeOverrides();
+            UpdateThemePreviewButtons();
         }
 
         /// <summary>

@@ -74,16 +74,20 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>
     /// Применяет полноценную тему по идентификатору (Светлая/Тёмная/Синяя/Зелёная):
     /// задаёт базовый вариант, схему, стиль кнопок окна и набор иконок, делает схему
-    /// темы активной и сохраняет выбор в настройках. Используется вкладкой
-    /// «Цветовое оформление» окна настроек (Задача 3).
+    /// темы активной. При <paramref name="persist"/> выбор сохраняется в настройках
+    /// (AppSettings.FullTheme); при false тема применяется без записи — режим
+    /// предпросмотра (issue #378). Используется вкладкой «Темы» окна настроек.
     /// </summary>
-    public void ApplyFullTheme(string id)
+    public void ApplyFullTheme(string id, bool persist = true)
     {
         ThemeManager.ApplyFullTheme(id);
         var theme = ThemeManager.CurrentFullTheme;
-        _settings.FullTheme = theme?.Id ?? _settings.FullTheme;
-        _settings.Theme = ThemeManager.CurrentTheme;
-        _themeName = _settings.Theme;
+        if (persist)
+        {
+            _settings.FullTheme = theme?.Id ?? _settings.FullTheme;
+            _settings.Theme = ThemeManager.CurrentTheme;
+            _themeName = _settings.Theme;
+        }
         // Схема темы становится активной, чтобы редактор палитры и предпросмотр
         // показывали цвета выбранной темы.
         if (theme is not null && theme.Scheme is not null)
@@ -97,6 +101,63 @@ public partial class MainViewModel : ViewModelBase
         }
         // Общий цвет папок берётся из активной палитры схемы при построении дерева.
         RebuildTree();
+        if (persist)
+            SaveSettingsSilently();
+        OnPropertyChanged(nameof(ThemeName));
+    }
+
+    // ---- Режим «предпросмотр → Применить/Отмена» выбора темы (issue #378) ----
+
+    private readonly Themes.ThemePreviewState _themePreview = new();
+
+    /// <summary>true, если есть тема в предпросмотре (не закоммичена и не отменена).</summary>
+    public bool HasThemePreview => _themePreview.HasPreview;
+
+    /// <summary>
+    /// Начинает режим предпросмотра темы: запоминает текущую тему и последний
+    /// сохранённый FullTheme. Вызывается при открытии вкладки «Темы».
+    /// </summary>
+    public void BeginThemePreview()
+    {
+        var current = ThemeManager.CurrentFullTheme?.Id ?? "light";
+        _themePreview.Begin(current, _settings.FullTheme);
+    }
+
+    /// <summary>
+    /// Переводит тему в предпросмотр: применяет её без сохранения в настройках.
+    /// Редактор палитры и предпросмотр показывают цвета выбранной темы.
+    /// </summary>
+    public void PreviewFullTheme(string id)
+    {
+        var resolved = _themePreview.Preview(id);
+        ApplyFullTheme(resolved, persist: false);
+    }
+
+    /// <summary>
+    /// Отменяет предпросмотр: возвращает тему, которая была до входа в галерею,
+    /// без сохранения. Используется кнопкой «Отмена» и при закрытии окна настроек.
+    /// </summary>
+    public void RevertFullThemePreview()
+    {
+        var target = _themePreview.Revert();
+        if (string.IsNullOrEmpty(target))
+            return;
+        ApplyFullTheme(target, persist: false);
+    }
+
+    /// <summary>
+    /// Подтверждает предпросмотр: сохраняет текущую тему в настройках
+    /// (AppSettings.FullTheme). Используется кнопкой «Применить» и при «ОК» окна настроек.
+    /// </summary>
+    public void CommitFullThemePreview()
+    {
+        var id = _themePreview.Commit();
+        if (string.IsNullOrEmpty(id))
+            return;
+        var theme = ThemeManager.CurrentFullTheme;
+        _settings.FullTheme = theme?.Id ?? id;
+        _settings.Theme = ThemeManager.CurrentTheme;
+        _themeName = _settings.Theme;
         SaveSettingsSilently();
         OnPropertyChanged(nameof(ThemeName));
     }
