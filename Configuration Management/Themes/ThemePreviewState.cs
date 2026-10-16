@@ -51,10 +51,13 @@ public sealed class ThemePreviewState
 
     /// <summary>
     /// Отменяет предпросмотр: возвращает идентификатор темы до входа в галерею
-    /// (для применения без сохранения). null — темы до предпросмотра не было.
+    /// (для применения без сохранения). null — предпросмотра не было: «Отмена»
+    /// ничего не меняет (issue #381).
     /// </summary>
     public string? Revert()
     {
+        if (_previewedThemeId is null)
+            return null;
         var target = _themeIdBeforePreview;
         _previewedThemeId = null;
         return string.IsNullOrEmpty(target) ? null : target;

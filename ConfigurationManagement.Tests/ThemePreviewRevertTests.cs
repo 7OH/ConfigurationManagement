@@ -7,7 +7,8 @@ namespace ConfigurationManagement.Tests;
 /// Тесты режима «предпросмотр → Применить/Отмена» выбора полноценной темы (issue #378):
 /// <see cref="ThemePreviewState"/> — чистое состояние, которое использует
 /// <see cref="Configuration_Management.ViewModels.MainViewModel"/> обеих платформ.
-/// Предпросмотр не сохраняется до «Применить»; «Отмена» возвращает прежнюю тему.
+/// Предпросмотр не сохраняется до «Применить»; «Отмена» возвращает прежнюю тему,
+/// если предпросмотр был, и null — если тема в галерее не выбиралась (issue #381).
 /// </summary>
 public sealed class ThemePreviewRevertTests
 {
@@ -81,14 +82,28 @@ public sealed class ThemePreviewRevertTests
     }
 
     [Fact]
-    public void Revert_WithoutPreview_ReturnsThemeBeforePreview()
+    public void Revert_WithoutPreview_ReturnsNull()
     {
-        // Отмена без предпросмотра возвращает тему до входа в галерею (не null):
-        // повторное применение безопасно и ничего не меняет.
+        // Отмена без предпросмотра ничего не меняет (issue #381): возвращается null,
+        // чтобы вызывающая сторона не применяла тему повторно.
         var state = new ThemePreviewState();
         state.Begin("light", "light");
 
-        Assert.Equal("light", state.Revert());
+        Assert.Null(state.Revert());
+        Assert.False(state.HasPreview);
+    }
+
+    [Fact]
+    public void Revert_WithoutPreview_AfterEmptyBegin_ReturnsNull()
+    {
+        // Сценарий issue #381: полноценная тема не установлена (Begin("", "") → fallback
+        // "light"), тема в галерее не выбиралась. «Отмена» не должна применять светлую
+        // тему: Revert() возвращает null.
+        var state = new ThemePreviewState();
+        state.Begin("", "");
+
+        Assert.Equal("light", state.ThemeIdBeforePreview);
+        Assert.Null(state.Revert());
         Assert.False(state.HasPreview);
     }
 
